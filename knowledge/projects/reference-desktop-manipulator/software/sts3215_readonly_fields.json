@@ -1,0 +1,224 @@
+{
+  "schema_version": "1.0",
+  "model": "sts3215",
+  "source": {
+    "lerobot_version": "0.6.2",
+    "lerobot_commit": "154fdfb595573ae9c7e0b3b48102b0318235e306",
+    "lerobot_python_requires": ">=3.12",
+    "rustypot_audit_version": "1.13.1",
+    "rustypot_commit": "7aa85e13143594ea4fd4ed9f29e3e29d39b5de85",
+    "note": "Static source audit baseline only; not a runtime lock or proof of installed versions."
+  },
+  "read_operation_only": true,
+  "wire_bytes_available": false,
+  "registers": [
+    {
+      "name": "firmware_major_version",
+      "address": 0,
+      "width_bytes": 1,
+      "access": "R",
+      "encoding": "u8",
+      "description": "固件主版本"
+    },
+    {
+      "name": "firmware_minor_version",
+      "address": 1,
+      "width_bytes": 1,
+      "access": "R",
+      "encoding": "u8",
+      "description": "固件次版本"
+    },
+    {
+      "name": "model_number",
+      "address": 3,
+      "width_bytes": 2,
+      "access": "R",
+      "encoding": "u16",
+      "description": "驱动型号响应；不可直接映射商品SKU"
+    },
+    {
+      "name": "id",
+      "address": 5,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "总线ID读回"
+    },
+    {
+      "name": "baudrate",
+      "address": 6,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "波特率代码读回"
+    },
+    {
+      "name": "max_temperature_limit",
+      "address": 13,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "温度保护配置"
+    },
+    {
+      "name": "max_voltage_limit",
+      "address": 14,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "过压配置"
+    },
+    {
+      "name": "min_voltage_limit",
+      "address": 15,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "欠压配置"
+    },
+    {
+      "name": "max_torque_limit",
+      "address": 16,
+      "width_bytes": 2,
+      "access": "RW",
+      "encoding": "u16",
+      "description": "扭矩上限配置"
+    },
+    {
+      "name": "unloading_condition",
+      "address": 19,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "卸载条件位配置"
+    },
+    {
+      "name": "led_alarm_condition",
+      "address": 20,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "LED报警条件配置"
+    },
+    {
+      "name": "protection_current",
+      "address": 28,
+      "width_bytes": 2,
+      "access": "RW",
+      "encoding": "u16",
+      "description": "保护电流配置"
+    },
+    {
+      "name": "protective_torque",
+      "address": 34,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "保护后保持扭矩比例"
+    },
+    {
+      "name": "protection_time",
+      "address": 35,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "过载保护计时配置"
+    },
+    {
+      "name": "overload_torque",
+      "address": 36,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "过载扭矩比例"
+    },
+    {
+      "name": "over_current_protection_time",
+      "address": 38,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "u8",
+      "description": "过流保护计时配置"
+    },
+    {
+      "name": "torque_enable",
+      "address": 40,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "bool",
+      "description": "当前扭矩使能状态"
+    },
+    {
+      "name": "lock",
+      "address": 55,
+      "width_bytes": 1,
+      "access": "RW",
+      "encoding": "bool",
+      "description": "EEPROM锁状态；禁止解锁"
+    },
+    {
+      "name": "present_position",
+      "address": 56,
+      "width_bytes": 2,
+      "access": "R",
+      "encoding": "i16/sign-magnitude(15)",
+      "description": "当前位置寄存器值"
+    },
+    {
+      "name": "present_speed",
+      "address": 58,
+      "width_bytes": 2,
+      "access": "R",
+      "encoding": "u16/sign-magnitude(15)",
+      "description": "当前速度寄存器值"
+    },
+    {
+      "name": "present_load",
+      "address": 60,
+      "width_bytes": 2,
+      "access": "R",
+      "encoding": "u16/sign-magnitude(10)",
+      "description": "当前负载寄存器值"
+    },
+    {
+      "name": "present_voltage",
+      "address": 62,
+      "width_bytes": 1,
+      "access": "R",
+      "encoding": "u8",
+      "description": "当前电压寄存器值"
+    },
+    {
+      "name": "present_temperature",
+      "address": 63,
+      "width_bytes": 1,
+      "access": "R",
+      "encoding": "u8",
+      "description": "当前温度寄存器值"
+    },
+    {
+      "name": "status",
+      "address": 65,
+      "width_bytes": 1,
+      "access": "R",
+      "encoding": "u8",
+      "description": "STS地址65状态寄存器"
+    },
+    {
+      "name": "moving",
+      "address": 66,
+      "width_bytes": 1,
+      "access": "R",
+      "encoding": "bool",
+      "description": "运动状态"
+    },
+    {
+      "name": "present_current",
+      "address": 69,
+      "width_bytes": 2,
+      "access": "R",
+      "encoding": "u16",
+      "description": "当前电流寄存器值"
+    }
+  ]
+}
