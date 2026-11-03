@@ -203,3 +203,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/software/advanced-topics/ROS1与迁移.md 开展 P1 Noetic 生命周期、Ubuntu Focal ESM、ros1_bridge 发行版兼容、自定义接口编译/映射、dynamic_bridge、双栈网络/时间与行动接口迁移定向复核：纠正 Ubuntu 24.04 安装 Noetic bridge 的错误示例，明确三工作区自定义消息构建、编译时类型支持、YAML mapping、Action/QoS 与 ROS1/ROS2 两侧运行依赖；删除无依据迁移工时数字及 Docker 化等同安全说法。来源台账 #408–#413，审计报告第41节。未构建本项目 bridge 或逐接口进行互操作/时延/故障测试，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/ecosystem/标准与法规.md 开展 P1 标准生命周期与地区适用边界定向审计：区分法规/IS/TS/草案/行业建议/认证评估；更新 ISO 3691-4、ISO 10218、TS 15066、ISO 13482 FDIS、ISO 12100/13849/13850、IEC 60204/62619，新增 ISO 21423:2026、VDA 5050 3.0.0、GB/T10827.4-2026、EU Machinery Regulation 与 AI Act 分期日期；纠正 CE、医疗器械路径、MQTT/ISO 20922 和割草机专用标准边界。来源台账 #414–#439，审计报告第42节。未完成具体产品/市场适用性矩阵、正式标准全文条款审查或认证路径确认，全文 claim-level 验收未完成。 |
