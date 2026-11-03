@@ -16,7 +16,7 @@ aliases: [ROS1与迁移, ROS1, ROS迁移, Noetic EOL, ros1_bridge]
 - **Ubuntu 24.04** 不支持 ROS 1，因此不能将 ROS 1 Noetic + Jazzy + ros1_bridge 当成通用同机安装组合。
 - 迁移是否完成必须按依赖闭环判断：ROS 包、厂商驱动、相机/LiDAR SDK、内核模块、GPU/CUDA、仿真器、构建工具、消息接口、部署脚本和运维工具均要有目标 ROS 2 版本支持。
 
-Noetic 与 Ubuntu Focal 的时间线接近，但它们是两个独立的生命周期：基础 OS 延长支持不等于 ROS 1 工作负载仍获得安全补丁。对无法立即迁移的设备，应记录风险、隔离边界、网络暴露、补丁策略、备份/恢复方案及退役期限，而不是笼统声称 Docker 化即可“合法/安全”。<Cite refs={["turn603515search3","turn603515search8","turn949004search0","turn949004search6"]}/>
+Noetic 与 Ubuntu Focal 的时间线接近，但它们是两个独立的生命周期：基础 OS 延长支持不等于 ROS 1 工作负载仍获得安全补丁。对无法立即迁移的设备，应记录风险、隔离边界、网络暴露、补丁策略、备份/恢复方案及退役期限，而不是笼统声称 Docker 化即可“合法/安全”。
 
 ## 2. 核心架构差异
 
@@ -95,7 +95,7 @@ ros1_bridge 是一个 dual-homed 进程：同一进程同时作为 ROS 1 node �
 - 预编译二进制仅包含常用接口类型；
 - 自定义 message/service 类型需要先分别构建 ROS 1 与 ROS 2 接口包，再在能同时找到两侧接口的环境中构建 bridge；
 - dynamic_bridge 会根据两侧实际存在的 publisher/subscriber pair 动态创建桥接，因此仅运行 topic echo 未必能触发桥接；
-- --bridge-all-2to1-topics 等选项会改变桥接范围，需理解其流量和安全影响。<Cite refs={["turn603515search3"]}/>
+- --bridge-all-2to1-topics 等选项会改变桥接范围，需理解其流量和安全影响。
 
 ### 5.2 自定义消息映射条件
 
@@ -108,7 +108,7 @@ ros1_bridge 是一个 dual-homed 进程：同一进程同时作为 ROS 1 node �
 5. custom mapping rules 可通过 YAML 显式定义 package/message/field mapping，并通过 package.xml/CMakeLists 安装/导出；
 6. service mapping 规则与消息类似，但官方文档指出当前不支持 service 字段的任意自定义重命名映射。
 
-对机器人业务接口，不能只检查“字段同名同类型”：还要核对单位、坐标系、frame_id、时间基准、枚举值、数组语义、默认值、可选字段、错误码和状态机语义。即使字段可序列化，语义不一致也会产生危险的数据误读。<Cite refs={["turn603515search3","turn603515search5"]}/>
+对机器人业务接口，不能只检查“字段同名同类型”：还要核对单位、坐标系、frame_id、时间基准、枚举值、数组语义、默认值、可选字段、错误码和状态机语义。即使字段可序列化，语义不一致也会产生危险的数据误读。
 
 ### 5.3 自定义接口的构建工作区
 
@@ -144,7 +144,7 @@ ros1_bridge 上游 README 当前给出的兼容表包括：
 | 22.04 Jammy | ROS 1 支持部分且官方不支持 | Humble、Iron（EOL） | README 标为需源码构建，兼容性需逐项验证 |
 | 24.04 Noble | ROS 1 不可用 | Jazzy、Kilted | README 标为不支持 ros1_bridge |
 
-这张表是 ros1_bridge 上游 README 的当前兼容快照，不应被误读为所有发行版持续受支持的承诺。尤其是 Ubuntu 24.04 不支持 ROS 1，因此不能执行“安装 ros-jazzy-ros1-bridge 并 source Noetic”这种通用示例。上游还明确指出混合不受支持的 OS/ROS 版本可能导致构建失败或依赖缺失。<Cite refs={["turn603515search3"]}/>
+这张表是 ros1_bridge 上游 README 的当前兼容快照，不应被误读为所有发行版持续受支持的承诺。尤其是 Ubuntu 24.04 不支持 ROS 1，因此不能执行“安装 ros-jazzy-ros1-bridge 并 source Noetic”这种通用示例。上游还明确指出混合不受支持的 OS/ROS 版本可能导致构建失败或依赖缺失。
 
 ### 5.5 运行期常见问题
 
