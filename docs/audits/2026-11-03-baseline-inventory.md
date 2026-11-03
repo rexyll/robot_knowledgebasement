@@ -939,3 +939,30 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 新增来源台账 #363–#378：Nav2 Jazzy/Rolling 配置目录、插件清单、BT 教程/节点清单、Lifecycle Manager、Costmap2D、Behavior Server、Velocity Smoother、Smoother Server、Docking Server，以及 Nav2 仓库 README/LICENSE 和 Planner/Controller/Lifecycle/Bringup 包 README。
 
 未在目标机器人运行 Nav2 bringup、BT 或插件；未确认项目最终 ROS 2 发行版、Nav2 包版本/commit、RMW、驱动、地图/TF、插件清单；未执行目标地图规划/控制/恢复/多机 namespace/故障注入测试。资产状态保持 `unaccepted_claim_level_review_pending`。
+
+
+## 39. P1 实时系统与嵌入式：调度、PREEMPT_RT、RTOS、安全与总线主张定向复核（2026-11-03）
+
+### 39.1 本轮范围
+
+审查 `knowledge/software/实时系统与嵌入式.md` 中控制周期层级、硬/软实时定义、标准 Linux/PREEMPT_RT/Xenomai/RTOS 延迟数字、Ubuntu 实时内核安装/版本、Zephyr 安全声明、FreeRTOS 许可、总线速率/同步、主控—MCU 心跳和 watchdog 行为。
+
+### 39.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| 电流环 1kHz、底盘 100–1kHz、导航 10–50Hz 作为固定控制栈 | 删除通用频率，说明周期取决于对象带宽、执行器、传感器、模型和 deadline；频率标签不是实时分类标准 |
+| Standard Linux “毫秒级”、PREEMPT_RT <100μs、Xenomai <50μs、jitter <10μs、急停 <10ms | 删除硬件/负载无关的固定 latency/WCET/安全停止保证，要求按目标系统实测并明确测量点/统计口径 |
+| PREEMPT_RT 已于某年/内核版本全面进入主线，Ubuntu 24.04 安装 linux-image-rt-amd64 | 纠正为目标架构、内核、驱动/发行版配置需逐一核验；Ubuntu 官方入口是 ubuntu-realtime 等对应软件包，linux-image-rt-amd64 不是 Ubuntu 通用安装命令 |
+| Zephyr Safety 被写成 RTOS 已认证安全版本 | 改为 Zephyr 官方公布的限定代码范围 IEC 61508 SIL3/SC3 目标及阶段推进状态；不得宣称整个 Zephyr OS 已获整体 SIL 3 认证 |
+| FreeRTOS MIT 许可覆盖整个参考/示例工程 | 区分 FreeRTOS Kernel MIT 与 demo/第三方库许可；逐模块审查 |
+| CAN FD 固定 5Mbps、EtherCAT 固定 <1μs、RS485 固定轮询 115.2k | 区分物理层、协议、配置和同步机制；说明速率、拓扑、节点和实现条件，禁止将分布式时钟同步等同端到端执行延迟 |
+| 主控/MCU 固定 100Hz/1kHz、50Hz 状态和 200ms 心跳超时自动刹停 | 删除统一数值/动作，改为命令有效期、序号、CRC、幂等、心跳、制动和故障状态的风险评估与测试 |
+| watchdog/PREEMPT_RT 被等同安全功能 | 明确看门狗、实时调度、驱动器故障处理和安全额定停止/制动链是不同机制；普通软件超时不构成安全认证 |
+| cyclictest 最大值被当作 WCET 或端到端安全性能 | 区分线程唤醒延迟、任务执行时间、应用 WCET、端到端机械响应；要求代表性负载和故障测试 |
+
+### 39.3 来源与未关闭事项
+
+新增来源台账 #379–#390：Linux Kernel PREEMPT_RT/CPU Isolation 文档、Ubuntu Real-time 安装与 release matrix、cyclictest 文档、Zephyr Safety Overview、FreeRTOS 许可、Bosch CAN FD 和 EtherCAT Technology Group Distributed Clocks。
+
+未在项目目标 x86/Jetson/RK/MCU 硬件上开展实时内核基准、WCET/抖动、CPU/IRQ 隔离、总线负载或故障注入测试；未取得主控—MCU 实际协议、驱动器手册、RTOS 配置、功能安全需求或电气/制动链路证据。本文为公开资料主张定向复核，不构成目标硬件实时性能、功能安全或产品验收。
