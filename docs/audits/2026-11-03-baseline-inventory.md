@@ -707,3 +707,39 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 - 未构建/运行任何 VSLAM/VIO 实现，未复现论文数据集或验证目标平台精度、延迟、显存/热稳态、回环与重定位。
 - 未锁定最终部署 commit、ROS 发行版、依赖树、GPU/CUDA/PyTorch、权重和许可来源。
 - 全文 claim-level 审核、实机验证、产品安全批准与商业许可审查均未完成；资产状态保持 `unaccepted_claim_level_review_pending`。
+
+
+## 30. P1 学习型机器人算法、VLA 与训练工具链主张定向复核（2026-11-03）
+
+### 30.1 本轮范围
+
+审查 `knowledge/algorithms/学习型机器人算法.md` 中 RL 工程成熟度、Sim2Real 训练配方、IL 方法边界、VLA 架构、模型能力/性能数字、数据量估算、工具链部署与代码/权重/数据许可。
+
+### 30.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| 将“2023–2026 手写规则转数据学习”概括成行业主叙事、并宣称 RL/IL/VLA 三线均已工程化 | 删除全行业趋势/成熟度判断，按任务层级与证据拆分 RL、IL、VLA 和工具链 |
+| Isaac Lab 4096 环境并行、1亿+交互步、数小时 GPU 为通用训练配方 | 删除固定训练数字；说明并行吞吐与样本效率受任务、后端、GPU、策略和传感器仿真影响 |
+| 域随机化 ±20–30%、师生蒸馏/在线适应等“三板斧” | 改为常见可选技术；随机范围须来自系统辨识/不确定性，且各方法并非所有任务必需 |
+| Unitree Go2/H2 全 RL 化、传统 ZMP 被越障性能超过 | 删除未核验的具体产品实现和跨方法性能比较，不从个别展示推断普遍产品路线 |
+| Diffusion Policy “当前 SOTA”、ACT 与 VQ-BeT 统一对齐 LLM 范式 | 改为按具体算法定义；扩散动作策略/动作块模仿不等同于 VLA，也无跨任务统一 SOTA 结论 |
+| ACT 每日数百条演示、轨迹每分钟 100–500MB、10万条 10–50TB | 删除无采集配置依据的数字，改为记录视频码率、相机数、状态字段、时长与压缩格式 |
+| VLA 双系统为共识、所有系统运行 50–200Hz、成功率 80–95% | 删除跨产品架构和统一成功率；按 Figure Helix/Helix 02、GR00T N1.7 等具体公开实例说明差异 |
+| OpenVLA 7B/970K 数据的许可被写成单一 MIT | 同时记录项目 README 的 Llama-2 base model / Llama Community License 提醒；保留模型卡 MIT 字段并登记冲突，避免出具简单商业结论 |
+| π₀/openpi 代码和 checkpoint 许可被视为相同 | 说明 openpi 根目录代码 Apache-2.0，不将其自动扩展到 checkpoint、底层模型或数据集 |
+| GR00T N1.7 代码与模型权重许可被统一称作 Apache | 区分代码 Apache-2.0 与模型权重 NVIDIA Open Model License |
+| Isaac Lab/LeRobot 的框架许可证被写成覆盖整个生态 | 拆分框架、扩展、资产、Isaac Sim/cuRobo、数据集、权重及第三方依赖许可 |
+| 模型输出被视为可直接执行的安全控制 | 明确动作接口适配、低层伺服、任务执行监督、硬件安全链与失效接管必须独立设计验证 |
+
+### 30.3 来源与证据边界
+
+新增来源台账 #289–#305，涵盖 Isaac Lab、LeRobot、Diffusion Policy、ALOHA/ACT、RT-2、OpenVLA、openpi、GR00T N1.7、Figure Helix/Helix 02 的官方页面、仓库/许可证与同行评审论文。
+
+### 30.4 未关闭事项
+
+- 未执行 Isaac Lab 训练、LeRobot 数据采集、ACT/Diffusion Policy 训练或任何 VLA 微调/部署。
+- 未取得本项目目标机器人数据集、动作定义、控制接口、任务成功判据及安全风险评估。
+- 未复现论文 benchmark，未对模型做目标硬件推理延迟、成功率、泛化、能耗/温升或失败恢复测试。
+- 未对数据集逐条授权、模型权重和依赖树进行法律许可审查；OpenVLA 预训练模型许可提醒、openpi checkpoint 及所有工具链第三方许可仍需固定版本并逐项核实。
+- 本轮仅为局部主张定向纠错，不构成学习策略性能复现、实机验证、安全批准、许可法律意见或全文 claim-level 验收；资产状态继续为 `unaccepted_claim_level_review_pending`。
