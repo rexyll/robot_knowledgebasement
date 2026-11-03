@@ -20,6 +20,7 @@ _CONVERSIONS: dict[str, dict[str, Any]] = {
         "basis": "FEETECH generic STS tutorial: 0.1 percent per count; signed direction/magnitude.",
         "min_value": -1023,
         "max_value": 1023,
+        "nominal_abs_max": 1000,
     },
     "present_voltage": {
         "unit": "V",
@@ -41,6 +42,7 @@ _CONVERSIONS: dict[str, dict[str, Any]] = {
         "basis": "FEETECH generic STS tutorial: 6.5 mA per count; unsigned register.",
         "min_value": 0,
         "max_value": 65535,
+        "nominal_abs_max": 500,
     },
 }
 
@@ -85,6 +87,11 @@ def convert_decoded_reading(field: str, decoded_value: int) -> dict[str, Any]:
         "conversion_basis": spec["basis"],
         "source_url": _SOURCE_URL,
         "calibration_status": "not_calibrated",
+        "outside_documented_nominal_range": (
+            abs(decoded_value) > spec["nominal_abs_max"]
+            if "nominal_abs_max" in spec
+            else False
+        ),
         "scope_warning": (
             "Generic FEETECH STS conversion only; not proof of exact SKU/firmware "
             "applicability, sensor accuracy, or a calibrated measurement."
