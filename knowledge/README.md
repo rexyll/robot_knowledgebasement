@@ -10,7 +10,7 @@
 | 传感器 | [sensors/](sensors/) | LiDAR、相机、IMU、毫米波、超声波、编码器、传感器参数与校验 |
 | 执行器 | [actuators/](actuators/) | 电机、驱动器、减速器及执行机构 |
 | 导航 | [navigation/](navigation/) | 定位、导航实践与里程计标定 |
-| 操作 | [manipulation/](manipulation/) | 运动操作、抓取与末端执行器（当前主要是目录占位） |
+| 操作 | [manipulation/](manipulation/) | 机械臂操作与抓取入门、运动学、运动规划、末端执行器与力控（当前已建立基础教材，深化主题待补） |
 | 故障排查 | [troubleshooting/](troubleshooting/) | 故障现象、诊断、恢复与验证（当前主要是目录占位） |
 | 机械与底盘 | [mechanics/](mechanics/) | 底盘、运动机构、机械结构和材料选型 |
 | 电源与能源 | [power/](power/) | 电池、电源系统、充电桩与自动回充 |
