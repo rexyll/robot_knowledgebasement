@@ -101,7 +101,7 @@ def validate_whitelist(
             errors.append(f"{name}: not present in rustypot STS3215 ServoDefinition")
             continue
 
-        for key in ("address", "width_bytes", "access", "wire_encoding"):
+        for key in ("address", "width_bytes", "access", "wire_encoding", "conversion"):
             expected = row.get(key)
             observed = actual[key]
             if expected != observed:
