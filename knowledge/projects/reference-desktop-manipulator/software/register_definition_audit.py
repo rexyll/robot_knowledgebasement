@@ -49,7 +49,7 @@ def parse_sts3215_definition(source: str) -> dict[str, dict[str, object]]:
     for match in _ENCODING_PATTERN.finditer(encoding_match.group("body")):
         overrides[match.group("name")] = re.sub(r"\s+", "", match.group("encoding"))
 
-    registers: dict[str, dict[str, Any]] = {}
+    registers: dict[str, dict[str, object]] = {}
     for match in _REGISTER_PATTERN.finditer(source_without_comments):
         name = match.group("name")
         rust_type = match.group("rust_type")
