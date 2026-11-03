@@ -153,7 +153,7 @@
 - **严格禁止：** 不得从网页摘要臆造 CAN 帧/串口协议；不得将堵转/峰值扭矩当连续能力；不得将设备保护寄存器或 UI STOP 等同于整机安全功能；不得把未下载/未审读文件标成已验证。
 - **依赖：** 25-13；04、05、10、18、20。
 - **交付物与验收：** 候选产品手册/接口核验报告、版本化资料清单、接口差异矩阵、供应商问题清单；关键接口和性能口径可追溯到官方资料，缺口明确保留。
-- **状态：** 进行中（SO-101 已核验 Feetech STS3215 通用 A/0、C044 规格书、WaveShare ST 协议/控制表，并审查 LeRobot main + rustypot develop 的型号握手、寄存器编码、标定、观测/命令、告警语义和同步读写实现；识别出当前观测路径未主动采集状态/电流/温度、Sync Write 无舵机确认、Sync Read 非同一时刻快照、相对目标限幅默认关闭等缺口；C046 规格书、实际控制板/固件确认、供应商澄清、实机抓包和六轴时序测试待完成；其他候选原始文件归档及热/动态测试待完成）
+- **状态：** 进行中（SO-101 已核验 Feetech STS3215 通用 A/0、C044 规格书、WaveShare ST 协议/控制表、LeRobot/rustypot 驱动实现，并进一步审查 WaveShare Bus Servo Adapter (A) SKU 25514 的官方产品资料、FAQ 和原理图：确认 CH343P USB-UART、单线 DATA 缓冲/方向控制、USB 模式 B 跳帽、舵机供电输入直通；发现 FAQ 最大电流 5 A 与原理图 MAX:6A 标注差异、输入电压表述边界需澄清；LeRobot 文档支持 WaveShare 控制板使用说明，但 SO-101 实物板卡 SKU/PCB 版本仍未由照片或供应商 BOM 证明。状态/电流/温度采集、Sync Write 无舵机确认、Sync Read 非同时快照等软件缺口仍待处理；C046 规格书、实物板卡确认、供应商澄清、实机供电/抓包/六轴时序测试待完成；其他候选原始文件归档及热/动态测试待完成）
 
 ## 4. 本章完成条件
 
@@ -186,3 +186,5 @@
 | 2026-11-03 | 25-14（SO-101/ST3215 协议） | 补充 WaveShare 官方 ST 系列协议与内存表：帧结构/校验、指令码、little-endian、ID/波特率/保护/模式/扭矩/位置/速度/电压/温度/状态地址及反馈缩放；明确 WaveShare Adapter/ESP32 资源仅作 ST3215 参考实现，SO-101 随附 Motor Control Board 型号尚未确认，未下载归档原件、未做实机抓包或六轴时序测试。 |
 
 | 2026-11-03 | 25-14（SO-101/LeRobot 驱动实现） | 审查 LeRobot main 的 SOFollower/SerialMotorsBus、MotorBus 实现与 Feetech 测试，以及 rustypot develop 的 STS3215 型号定义；记录 model number=777、4096 steps/rev、小端/sign-magnitude、固件握手、Phase bit4、Return Delay/Acceleration 默认写入、位置环 PID、gripper 限制；识别观测路径仅读取位置、Sync Write 无应答、Sync Read 非同时快照、状态告警不会自动阻止寄存器访问、max_relative_target 默认 None；同步频率公开示例仅作非保证值。源码 blob SHA 已记录，未对 SO-101 实物硬件/固件做验证。 |
+
+| 2026-11-03 | 25-14（SO-101/控制板硬件） | 核验 WaveShare Bus Servo Adapter (A) 官方 SKU 25514、产品文档、FAQ、USB/UART 接线和公开原理图；确认 CH343/CH343P、SN74LVC1G126/125 单线 DATA 缓冲/方向控制、USB B 跳帽、舵机电源直通及逻辑 5V/3.3V 变换；记录 FAQ 最大电流 5A 与原理图 MAX:6A 标注冲突，以及输入电压范围表述差异；LeRobot SO-101 文档确有 WaveShare 控制板 B 跳帽说明，但 SO-101 实物板卡 SKU/PCB 版本未被确认。实物照片、供应商澄清、供电/保护/通信实测未完成。 |
