@@ -966,3 +966,34 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 新增来源台账 #379–#390：Linux Kernel PREEMPT_RT/CPU Isolation 文档、Ubuntu Real-time 安装与 release matrix、cyclictest 文档、Zephyr Safety Overview、FreeRTOS 许可、Bosch CAN FD 和 EtherCAT Technology Group Distributed Clocks。
 
 未在项目目标 x86/Jetson/RK/MCU 硬件上开展实时内核基准、WCET/抖动、CPU/IRQ 隔离、总线负载或故障注入测试；未取得主控—MCU 实际协议、驱动器手册、RTOS 配置、功能安全需求或电气/制动链路证据。本文为公开资料主张定向复核，不构成目标硬件实时性能、功能安全或产品验收。
+
+
+## 40. P1 ROS 2 DDS / RTPS / RMW、QoS、发现与网络通信主张定向复核（2026-11-03）
+
+### 40.1 本轮范围
+
+审查 `knowledge/software/advanced-topics/DDS专题.md` 中 DDS/RMW/RTPS 概念、ROS 2 默认/支持的中间件实现、QoS compatibility、SPDP/SEDP discovery、Fast DDS Discovery Server、Cyclone DDS 配置、Zenoh RMW/bridge、共享内存与 intra-process、默认 QoS 和许可证边界。
+
+### 40.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| ROS 2 被简化为“DDS” | 分层区分 rcl/rclcpp/rclpy API、RMW 抽象、DDS 实现、DDSI-RTPS 线协议和传输 |
+| DDS 被写成永远无 Broker、全靠组播、发现后固定 P2P | 改为说明 SPDP/SEDP、multicast/unicast、静态 peer 与 Fast DDS Discovery Server 的实现差异；不将 discovery server 当作应用数据 broker |
+| 只列三个 DDS 实现，并把 Zenoh 写成 bridge | 按官方文档区分 Fast DDS/Cyclone/Connext/GurumDDS 等 DDS 实现，以及 Zenoh 非 DDS RMW 与 zenoh-bridge-ros2dds 的不同部署路线 |
+| “Reliable publisher + Best Effort subscriber”的兼容规则简单化/反向错误 | 补充 Request vs Offered 矩阵：Best Effort writer 不满足 Reliable reader；Reliable writer 可以满足 Best Effort reader |
+| Durability 只解释成 latched map，不说明双方要求 | 说明 Transient Local reader 不能匹配 Volatile writer；若要 late-joiner 收到历史缓存，读写两端都需 Transient Local |
+| 未列 Deadline/Liveliness/Lease 方向性兼容 | 增加 offered duration ≤ requested duration 等规则及 incompatible QoS/deadline/liveliness events |
+| History/Depth 被和可靠性混在一起 | 区分消息缓存策略与 endpoint compatibility；补充 ROS 2 RMW 当前默认和 Sensor Data profile 的源码值，但要求目标发行版复核 |
+| Fast DDS SHM/Data Sharing/ROS intra-process 混为零拷贝 | 三种机制分别解释；指出 rmw_fastrtps 当前 README 的 Data Sharing 默认配置并非自动启用 |
+| Cyclone DDS 组播关闭/静态 peer 和 Fast DDS discovery server 被写成 Wi-Fi/跨网段通用方案 | 按网卡、VLAN、AP、multicast、peer、locator、router/discovery server 和数据路径测试，不输出无条件选型口诀 |
+| net.core.rmem_max 固定为 8MB | 删除统一 sysctl，改为按 socket drops、队列、RTPS 抓包和端到端延迟实测 |
+| DDS、Zenoh 与 RMW package 许可证混为一谈 | 分别核验 Fast DDS Apache-2.0、Cyclone EPL-2.0/EDL-1.0、RMW wrapper、Zenoh 核心和 bridge 的版本/许可 |
+
+### 40.3 来源与未关闭事项
+
+新增来源台账 #391–#407：ROS 2 QoS/vendor/RMW 文档、DDS QoS design、RMW QoS profiles 源码、Fast DDS Discovery Server、Cyclone DDS 配置/多播/网卡/发现文档、Fast/Cyclone/Zenoh ROS 2 RMW 仓库及 middleware LICENSE。
+
+尚未在项目目标 ROS 2 发行版、硬件和网络拓扑上运行 Fast DDS、Cyclone DDS 或 Zenoh RMW；未验证实际 endpoint QoS、发现 server/router 故障恢复、跨厂商 wire interoperability、共享内存/数据共享、网络分区与安全访问策略；未完成目标系统端到端时延、丢包和资源占用基准。
+
+资产仍保持 `unaccepted_claim_level_review_pending`。本节为公开资料支持的主张定向复核，不构成通信栈部署验收、实时性/安全验证或软件许可法律意见。
