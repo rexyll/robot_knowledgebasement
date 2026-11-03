@@ -154,3 +154,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/卡尔曼滤波.md 开展 P1 状态估计基础算法定向复核：纠正 PF/KF 分类、IMU 预积分与偏置修正描述、VIO 尺度可观性条件、Q/R 调参边界、PF 粒子数/ESS 通用常数及 AMCL odom_alpha 与 EKF Q 的混淆；审计报告第25节。只完成局部主张纠错，全文 claim-level 审核、推导/API/版本/许可证核验及真实传感器验证未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/SLAM总览.md 开展 P1 算法选型与指标主张定向复核：删除无条件 FAST-LIO2/黄金组合推荐和脱离测试口径的精度/成功率阈值；纠正 3DGS 与 NeRF/导航地图的关系；区分 Cartographer upstream 与 ROS fork 状态，补充 slam_toolbox 与 ORB-SLAM3/FAST-LIO2/FAST-LIVO2 官方来源；审计报告第26节。未运行算法、未实机测试、全文 claim-level 验收未完成。 |
