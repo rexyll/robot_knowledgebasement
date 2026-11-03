@@ -179,3 +179,7 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/多机协同与调度算法.md 开展 P1 任务分配、VRP、MAPF、车队交通与安全资源预约定向复核：拆分 assignment/VRP/MAPF/traffic reservation；纠正 CBBA 收敛假设及 CBS/ECBS/LaCAM/LaCAM* 性质；补充运动学/footprint约束、资源真实释放规则与 Open-RMF Traffic Schedule/Negotiation/Fleet Adapter；删除无依据的车队规模、批处理提效、KPI、SOC 与充电排队数字。来源台账 #320–#334，审计报告第33节。未连接真实车队/设施或运行多机算法，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 根据用户明确反馈，将第31节路径规划与第32节局部规划/避障此前列出的测试执行状态更新为“用户确认已完成”；未收到原始测试报告/数值，不补填性能结果；资产验收状态仍保持待主张级证据核对。基线审计报告第34节，CSV scope同步更新。 |
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/视觉感知算法.md 开展 P1 感知任务边界、检测/分割/跟踪/3D 点云/深度/VLM、端侧部署、时序融合、评测与模型许可定向复核：清除未绑定测试条件的 FPS/功耗/近场/同步数字；纠正 CLIP/SAM2/Depth Anything/DROID-SLAM、OpenPCDet/Patchwork++ 职责边界；区分 Ultralytics 授权和 Depth Anything V2 checkpoint 许可。来源台账 #335–#353，审计报告第35节。未采集目标机器人数据或测量部署性能，全文 claim-level 验收未完成。 |
