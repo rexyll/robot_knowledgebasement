@@ -11,6 +11,8 @@
 
 - [知识库总目录](knowledge/README.md)
 - [知识地图](knowledge/maps/README.md)
+- [零基础学习路径](knowledge/getting-started/00-零基础学习路径.md)
+- [从零到量产路线](knowledge/getting-started/端到端产品化路线总览.md)
 - [知识分类与元数据规范](docs/knowledge-schema.md)
 - [系统架构说明](docs/architecture.md)
 - [知识库编写规范](docs/编写规范.md)

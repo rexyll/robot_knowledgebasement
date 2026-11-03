@@ -31,6 +31,7 @@
 | 22 | 项目、集成部署与全生命周期 | [TaskPlan](22-项目集成部署与全生命周期/TaskPlan.md) |
 | 23 | 数据工程、AI 与具身智能 | [TaskPlan](23-数据工程AI与具身智能/TaskPlan.md) |
 | 24 | 知识管理、检索与工具链 | [TaskPlan](24-知识管理检索与工具链/TaskPlan.md) |
+| 25 | 零基础到量产的端到端产品化路线 | [TaskPlan](25-零基础到量产端到端路线/TaskPlan.md) |
 
 ## 使用方法
 

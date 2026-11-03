@@ -34,6 +34,8 @@
 ## 快速入口
 
 - [知识地图索引](maps/README.md)
+- [零基础学习路径](getting-started/00-零基础学习路径.md)
+- [从零到量产端到端路线](getting-started/端到端产品化路线总览.md)
 - [首页](maps/首页.md)
 - [术语表](术语表.md)
 - [知识库编写规范](../docs/编写规范.md)
