@@ -644,3 +644,34 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 - 未采集目标传感器数据，未验证时间同步、外参、协方差、地图基准、定位精度、端到端延迟和失效恢复。
 - 未检查项目实际安装的 ROS/Nav2/robot_localization 版本、依赖锁定和每个开源项目准确 tag/commit 的许可证。
 - 全篇其他 API、发行版和参数默认值仍需逐项 claim-level 复核。资产状态仍为 `unaccepted_claim_level_review_pending`；本轮不构成系统测试、安全批准或产品验收。
+
+
+## 28. P1 激光 SLAM/LIO 选型、兼容性与许可主张定向复核（2026-11-03）
+
+### 28.1 本轮范围
+
+审查 `knowledge/algorithms/激光SLAM.md` 中 2D/3D 代表算法状态、LIO 任务边界、硬件/时间同步阈值、地图参数、ROS 发行版兼容性及开源许可证。
+
+### 28.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| “3D LIO 是 2023–2026 工程主力”、FAST-LIO2 黄金组合/通用机器人默认选项 | 删除普遍性行业排名，按传感器、运动、地图/回环需求、平台、ROS 版本和许可约束进行条件化选型 |
+| LeGO-LOAM“只支持 VLP 型” | 改为上游以水平安装 VLP-16 地面车辆为设计假设；其他传感器需适配 range-image 投影、ring/线束与地面检测 |
+| LIO-SAM 只概括为一个因子图，并称“9轴IMU”无条件限制 | 按上游 README 说明两个图的职责；将 9 轴描述限定为原始实现配置，6 轴需要其他初始化/实现条件；区分 ROS1 与独立 ROS2 分支 |
+| FAST-LIO2 写入固定 P4 CPU、运行频率及无回环结论 | 改为按论文描述直接点注册与 ikd-Tree 设计；删除跨平台性能保证，并将 FAST-LIO-LOCALIZATION 作为相关独立扩展处理 |
+| Point-LIO 被写成任意 LiDAR/平台上的高动态通用方案 | 根据官方 README 限定上游测试环境、catkin/ROS Noetic、Livox 驱动与逐点时间 CustomMsg 依赖 |
+| 固定 5–10cm 栅格、5ms 时间阈值、0.5° 外参、Mid-360 点频及固定 voxel 范围 | 删除通用数字，改为以扫描周期、运动强度、时间戳、外参敏感性、点云密度和误差预算开展测量 |
+| 将 3D LIO 输出视为可直接供 2D Nav2 使用 | 明确点云/体素地图与 OccupancyGrid 的差异，要求定义投影、坐标系和更新策略 |
+| FAST-LIO license 与 LIO-SAM license 信息过度简化 | FAST-LIO LICENSE 为 GPL-2.0、package.xml 写 BSD，存在冲突；LIO-SAM LICENSE 为 BSD-3-Clause、package.xml 为 TODO，分别登记并保留未澄清状态 |
+
+### 28.3 核验来源
+
+新增来源台账 #261–#274：FAST-LIO、Point-LIO、LIO-SAM、LeGO-LOAM、slam_toolbox、Cartographer 的上游 README/源码/许可文件，以及 FAST-LIO2 和 LIO-SAM 同行评审论文。论文结果与软件仓库能力分开记录；main/master/ros2 分支不代表项目已锁定部署版本。
+
+### 28.4 未关闭事项
+
+- 未构建/运行任何 LiDAR SLAM/LIO 系统，未在目标雷达、IMU、计算平台与运行环境上测试。
+- 未验证目标传感器时间基准、逐点时间、外参、去畸变、回环、轨迹精度、地图质量、持续算力及热稳态。
+- FAST-LIO 的 LICENSE/package.xml 声明冲突需要维护者澄清；LIO-SAM package.xml 仍为 TODO；Point-LIO 及第三方驱动/子模块依赖仍需固定版本并审查。
+- ROS 2 移植版本需锁定准确 fork/commit、依赖和测试证据。本文仅完成定向主张纠错，不构成代码运行、实机验证、完整许可意见或全文 claim-level 验收。
