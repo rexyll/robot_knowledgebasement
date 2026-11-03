@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v2.5  
+> 版本：v2.6  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -401,3 +401,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-03 | v2.4 | 25-14 对照 Feetech 官方 STS 内存表 Wiki 与官方 FTServo_Arduino SMS_STS.h，新增保护寄存器地址/位定义、阈值单位、EEPROM 锁标志和源码覆盖边界核验；确认通用表部分初始值因型号而异、地址14/19无统一默认值，官方头文件未定义本轮关注的保护寄存器常量；新增报告 1.6.2、控制板计划 4.4、链接台账 #228–#229；25-14 继续进行中，根目录主任务仍为 00-01 | Feetech 官方 STS Wiki 与官方 FTServo_Arduino 头文件；未取得 C046 实机寄存器读回/供应商书面确认，未写入参数或执行保护故障注入 |
 
 | 2026-11-03 | v2.5 | 25-14 完成 LeRobot SO-Follower 应用层源码静态审查：仅 gripper 显式写入 Max_Torque_Limit=500、Protection_Current=250、Overload_Torque=25（STS 地址16/28/36），其余五轴未在该分支显式覆盖这三项；地址34 Protective_Torque 与地址36 Overload_Torque 不同；常规观测只读取 Present_Position，不主动读取 Status/Current/Temperature/Voltage。新增报告 1.8.1、控制板计划 4.5、链接台账 #230–#232；源码审查不等于实机验证，25-14 继续进行中，根目录主任务仍为 00-01 | Hugging Face LeRobot main 的 SO-Follower/SerialMotorsBus 源码与 Pollen Robotics rustypot STS3215 定义；未运行程序、未连接实物、未读回寄存器或执行保护测试 |
+
+
+| 2026-11-03 | v2.6 | 25-14 深入核验 LeRobot 状态错误字节、Feetech `status_alarms_only`、rustypot 拒绝/报警判别及 disconnect 扭矩关闭失败边界；明确传输故障、状态包错误字节和 STS 地址65 Status 是不同观测对象；新增报告 1.8.2、控制板计划 4.6、链接台账 #233–#234；25-14 继续进行中，根目录当前主任务仍为 00-01 | LeRobot Motors API/main 源码、rustypot 1.13.x Changelog/README；仅静态源码和文档审查，未运行代码、未注入故障、未连接实机或验证真实扭矩卸载 |
