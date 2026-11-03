@@ -96,4 +96,4 @@ aliases: [桌面分拣机械臂参考项目, Reference Desktop Manipulator]
 新增 [TODO 硬件信息缺口台账](TODO.md)，用于记录缺少准确硬件型号、批次BOM、铭牌、固件映射、寄存器默认值、板卡修订版或实测数据的事项，并标注所属章节与解除条件。非阻塞缺口不应阻断其他工作；涉及供电、运动、负载、保护或人员安全的实机操作必须等证据补齐后再进行。
 
 
-软件审计补充：`register_definition_audit.py` 除地址/宽度/访问权限/wire encoding 外，还比对 rustypot `generate_servo!` 的转换器类型；JSON 白名单记录位置/速度/负载/电压/温度/电流单位及 API 路径限制。报告23第16节列出位置类型化读取与 sign-magnitude 不一致、速度负零边界、负载旧式类型化读取不解码符号位等静态发现。CI/源码审计不代表实机读数或单位校准。
+软件审计补充：`register_definition_audit.py` 除地址/宽度/访问权限/wire encoding 外，还比对 rustypot `generate_servo!` 的转换器类型；JSON 白名单记录位置/速度/负载/电压/温度/电流单位及 API 路径限制。报告23第16节区分 rustypot 旧式类型化 API 的位置/速度/负载转换风险与 LeRobot 当前 read_register_with_error 整数解码路径；LeRobot 不调用上述旧式转换器，电压/温度/电流仍需调用层换算。CI/源码审计不代表实机读数或单位校准。
