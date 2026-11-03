@@ -1,34 +1,44 @@
 ---
 title: LiDAR Integration Checklist
 category: sensors
-robot: example_mobile_base
-source: project_template
-version: 1
+robot: project_specific
+version: 2
 tags: [lidar, tf, ros2, sensor_validation]
 status: illustrative
 ---
 
 # LiDAR Integration Checklist
 
-> Template checklist only. Confirm the sensor manufacturer's specifications and the robot's safety requirements before deployment.
+This is a project checklist, not a product validation report. Fill it with the exact sensor model, documentation, robot configuration and recorded test results. Navigation LiDAR is not automatically a safety-rated scanner.
+
+## Model and documentation
+- [ ] Manufacturer, complete model/order code, serial number, hardware and firmware revision.
+- [ ] Datasheet, user manual, protocol, driver/SDK version and product label.
+- [ ] Intended use: mapping, localization, perception, measurement or other defined task.
+- [ ] Operating mode and saved configuration revision.
 
 ## Mechanical and electrical
+- [ ] Mounting rigidity, measured transform, field of view, occlusion and blind regions.
+- [ ] Supply range, current, connector pinout, protective bonding, cable routing and EMC.
+- [ ] Vibration, shock, thermal conditions, cleaning method and environmental rating.
+- [ ] Optical classification and precautions from the exact product label/manual.
 
-- [ ] Confirm mounting rigidity and field of view.
-- [ ] Verify supply voltage, current budget, connector pinout, and grounding.
-- [ ] Check cable strain relief and environmental rating.
+## Software, timing and frames
+- [ ] OS, driver, firmware, SDK compatibility and license.
+- [ ] Topic/message type, units, range/angle limits, invalid-return encoding and diagnostics.
+- [ ] Timestamp meaning, scan timing, synchronization, latency and dropped-message handling.
+- [ ] Sensor frame and measured transform in the robot TF tree.
+- [ ] Time alignment with IMU/odometry and motion-compensation needs.
 
-## Software and coordinate frames
+## Scenario validation
+- [ ] Target size/material/reflectivity, distance, incidence angle and motion.
+- [ ] Robot speed, direction, turn, load and final mounting geometry.
+- [ ] Intended ambient light, temperature, dust/water and contamination conditions.
+- [ ] Accuracy/repeatability measurement against a reference target.
+- [ ] Task-relevant detection, missed detection, data loss, reboot and reconnect tests.
+- [ ] Record deviations, configuration, test files, acceptance decision and responsible reviewer.
 
-- [ ] Confirm the driver version and supported firmware.
-- [ ] Verify timestamp behavior and expected scan frequency.
-- [ ] Confirm the published topic and message type.
-- [ ] Verify the sensor frame exists in the TF tree and its transform is measured.
-- [ ] Check range limits, angle limits, and invalid-return encoding.
-
-## Validation
-
-- [ ] Inspect data while stationary and while moving.
-- [ ] Compare scan geometry against known physical dimensions.
-- [ ] Check for dropped messages and timestamp discontinuities.
-- [ ] Record hardware serial/model, firmware, driver version, ROS distribution, and test environment.
+## Release and maintenance
+- [ ] Save calibration/configuration against robot serial number and software release.
+- [ ] Define cleaning, replacement, recalibration, firmware update and supplier-change triggers.
+- [ ] If connected to a safety function, use a separate risk assessment and safety verification process; this checklist alone is not evidence of that function.
