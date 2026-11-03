@@ -200,3 +200,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/software/advanced-topics/DDS专题.md 开展 P1 ROS 2 通信栈主张定向复核：拆分 DDS/RTPS/RMW/传输，更新 DDS vendor 与 Zenoh RMW/bridge 边界，补齐 Request-vs-Offered QoS 兼容性、SPDP/SEDP/Discovery Server/Cyclone peer 与网卡配置，区分 SHM/Data Sharing/intra-process，清除固定 socket buffer 和跨网段选型口号，并分别记录 middleware/RMW 许可证。来源台账 #391–#407，审计报告第40节。未在目标发行版/硬件/网络拓扑执行互操作或端到端性能测试，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/software/advanced-topics/ROS1与迁移.md 开展 P1 Noetic 生命周期、Ubuntu Focal ESM、ros1_bridge 发行版兼容、自定义接口编译/映射、dynamic_bridge、双栈网络/时间与行动接口迁移定向复核：纠正 Ubuntu 24.04 安装 Noetic bridge 的错误示例，明确三工作区自定义消息构建、编译时类型支持、YAML mapping、Action/QoS 与 ROS1/ROS2 两侧运行依赖；删除无依据迁移工时数字及 Docker 化等同安全说法。来源台账 #408–#413，审计报告第41节。未构建本项目 bridge 或逐接口进行互操作/时延/故障测试，全文 claim-level 验收未完成。 |
