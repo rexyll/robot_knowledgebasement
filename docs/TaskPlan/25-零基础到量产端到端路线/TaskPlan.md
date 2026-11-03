@@ -217,3 +217,5 @@
 | 2026-11-03 | 25-14（STS3215转换器与工程单位审计） | 固定 rustypot v1.13.1 源码核对 generate_servo! 转换器与 API 路径：发现 present_position 的旧式类型化读取将 wire bytes 直接解释为 i16，与 STS sign-magnitude 定义不一致；present_speed 的 Velocity 转换对 0x8000 负零边界处理错误；present_load 的 None 类型化路径不解码 sign bit。区分 ServoDefinition 解码整数、旧式类型化转换结果和 wire bytes；为白名单增加 conversion/单位元数据，并扩展 CI 比对字段。报告23第16节、README 更新。当前仅静态审计，尚未执行转换器运行测试或实机单位校准；25-14继续进行中。 |
 
 | 2026-11-03 | 25-14（STS3215转换器审计CI验收） | 首轮CI发现转换器审计输出行超出Ruff E501限制，已拆分字符串并修复；最新 GitHub Actions run 41642021222 的 Python 3.10/3.11/3.12 三个矩阵全部成功：Ruff通过、26字段与62项 rustypot 定义的布局/编码/转换器元数据比对通过、pytest 20 passed。更新报告23第16节、README软件入口。CI仅验证静态源码元数据和仓库软件测试，不证明转换公式物理正确、目标环境依赖兼容或实机单位校准；25-14继续进行中。 |
+
+| 2026-11-03 | 25-14（LeRobot读接口与旧式转换器边界澄清） | 进一步核对固定 LeRobot commit 154fdfb595573ae9c7e0b3b48102b0318235e306 的 SerialMotorsBus：`_read()` 调用 rustypot `read_register_with_error()`，`sync_read()` 调用 `sync_read_register_with_error()`，因此 LeRobot read/sync_read 取得的是 ServoDefinition 按 wire encoding 解码的整数，不调用旧式类型化 AnglePosition/Velocity 转换器；此前发现的类型化路径风险不能直接归因于 LeRobot。报告23第16节、README和链接台账#252已澄清。仍需在调用层明确换算电压/温度/电流/负载单位；未连接实机、未做单位校准，25-14继续进行中。 |
