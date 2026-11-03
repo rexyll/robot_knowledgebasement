@@ -21,7 +21,7 @@ generate_servo!(
 
 
 def test_parser_extracts_address_width_access_and_encoding():
-    parsed = register_definition_audit.register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
+    parsed = register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
     assert parsed["firmware_major_version"] == {
         "address": 0,
         "width_bytes": 1,
@@ -37,7 +37,7 @@ def test_parser_extracts_address_width_access_and_encoding():
 
 def test_parser_rejects_non_sts3215_source():
     try:
-        parse_sts3215_definition("generate_servo!(OTHER, v1);")
+        register_definition_audit.parse_sts3215_definition("generate_servo!(OTHER, v1);")
     except register_definition_audit.DefinitionParseError as exc:
         assert "STS3215" in str(exc)
     else:
@@ -45,7 +45,7 @@ def test_parser_rejects_non_sts3215_source():
 
 
 def test_validator_accepts_matching_whitelist_subset():
-    parsed = parse_sts3215_definition(RUST_SOURCE)
+    parsed = register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
     whitelist = {
         "registers": [
             {
@@ -68,7 +68,7 @@ def test_validator_accepts_matching_whitelist_subset():
 
 
 def test_validator_reports_layout_and_encoding_mismatches():
-    parsed = parse_sts3215_definition(RUST_SOURCE)
+    parsed = register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
     whitelist = {
         "registers": [
             {
@@ -89,7 +89,7 @@ def test_validator_reports_layout_and_encoding_mismatches():
 
 
 def test_validator_rejects_unknown_and_duplicate_fields():
-    parsed = parse_sts3215_definition(RUST_SOURCE)
+    parsed = register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
     row = {
         "name": "not_a_real_register",
         "address": 0,
