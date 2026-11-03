@@ -99,7 +99,7 @@
 | 日期 | 节点 | 记录与证据 |
 | --- | --- | --- |
 | 2026-11-03 | 00-01 | 基线快照（提交 5aaac95c）：238 个 Git Tree 条目、171 个文件对象、147 个 Markdown；knowledge/ 110 份 Markdown，docs/TaskPlan 27 份 Markdown（25 章计划+索引+归档）。完整结构快照见 docs/audits/2026-11-03-baseline-inventory.md。 |
-| 2026-11-03 | 00-01 | 深度抽样与当前资产清单：更新后的 main 有 244 个 Git Tree 条目、175 个文件对象、151 个 Markdown；knowledge/ 有 112 份 Markdown。生成 docs/audits/2026-11-03-knowledge-asset-inventory.csv，逐项记录 112 个知识文件，其中 72 个进入结构/内容抽样，40 个仅完成元数据级记录；本阶段抽样覆盖机器人类型、传感器、执行器、底盘、电源、算法、ROS/导航/仿真/RMS、项目案例、地图和入门路线。逐篇事实、参数、链接及法规复核尚未完成。 |
+| 2026-11-03 | 00-01 | 深度抽样与资产清单更新：基线为 244 个 Git Tree 条目、175 个文件对象、151 个 Markdown、112 个 knowledge Markdown。第一轮对 72 份文件做结构/正文片段抽样；第二轮对剩余 40 份逐一检查标题、章节结构和开篇。当前 112/112 已完成标题/结构/开篇检查，72/112 有更细抽样，40/112 仍未完成全文专业审查。最新清单见 docs/audits/2026-11-03-knowledge-asset-inventory.csv；所有文件仍待 claim-level 来源核验。 |
 
 ## 7. 补充节点（只追加）
 
