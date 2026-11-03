@@ -1,3 +1,12 @@
-# Sensors
+# Sensors | 传感器
 
-Sensor specifications, driver notes, calibration procedures, coordinate frames, and validation results.
+传感器原理、选型、标定、驱动、坐标系和验证资料。
+
+主要内容：
+- LiDAR：[[激光雷达]]、[[传感器总览]]、现有 [LiDAR integration checklist](lidar-checklist.md)
+- 视觉：[[深度相机]]
+- 惯性与运动测量：[[IMU]]、[[编码器与里程计]]
+- 近距/冗余感知：[[毫米波雷达与超声波]]
+- 安全感知器件：参见 [safety](../safety/)
+
+硬件地图：[[硬件地图]]。传感器标定与定位融合可继续阅读 [[多传感器融合定位]]。

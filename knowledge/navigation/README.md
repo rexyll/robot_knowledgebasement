@@ -1,3 +1,13 @@
-# Navigation
+# Navigation | 导航
 
-Mapping, localization, odometry, path planning, obstacle avoidance, and navigation system notes.
+导航系统、移动机器人定位和运动执行相关实践。
+
+本目录保留 main 原有差速里程计标定文章： [Differential drive odometry](differential-drive-odometry.md)。
+
+相关迁入知识：
+- 传感器侧：[[编码器与里程计]]、[[IMU]]、[[激光雷达]]
+- 算法侧：[[SLAM总览]]、[[多传感器融合定位]]、[[路径规划算法]]、[[局部规划与避障]]
+- 软件侧：[[ROS与ROS2]]、[[Nav2导航框架]]
+- 流程侧：[[建图流程]]、[[导航流程]]
+
+完整导航知识地图见 [[算法地图]] 和 [[流程架构地图]]。

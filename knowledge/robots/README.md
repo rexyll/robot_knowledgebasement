@@ -1,3 +1,7 @@
-# Robots
+# 机器人分类
 
-Robot platform profiles, capabilities, frames, hardware revisions, and software configuration notes.
+机器人产品类型、应用领域、运动形态和典型平台。
+
+迁入自 local 分支 `01-机器人分类/`，包括工业、协作、移动、仓储物流、清洁、服务、人形、特种、医疗、足式与无人机等主题。
+
+总览见 [[机器人分类地图]]；各类机器人技术通常与底盘、传感器、软件和算法板块交叉关联。
