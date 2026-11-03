@@ -7,10 +7,11 @@ The returned values are decoded register integers/booleans, not wire bytes.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter_ns
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
 
 class ReadOnlyBus(Protocol):
