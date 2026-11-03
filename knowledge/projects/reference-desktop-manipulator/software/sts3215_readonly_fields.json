@@ -19,7 +19,8 @@
       "access": "R",
       "encoding": "u8",
       "description": "固件主版本",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "firmware_minor_version",
@@ -28,7 +29,8 @@
       "access": "R",
       "encoding": "u8",
       "description": "固件次版本",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "model_number",
@@ -37,7 +39,8 @@
       "access": "R",
       "encoding": "u16",
       "description": "驱动型号响应；不可直接映射商品SKU",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "id",
@@ -46,7 +49,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "总线ID读回",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "baudrate",
@@ -55,7 +59,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "波特率代码读回",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "max_temperature_limit",
@@ -64,7 +69,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "温度保护配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "max_voltage_limit",
@@ -73,7 +79,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "过压配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "min_voltage_limit",
@@ -82,7 +89,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "欠压配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "max_torque_limit",
@@ -91,7 +99,8 @@
       "access": "RW",
       "encoding": "u16",
       "description": "扭矩上限配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "unloading_condition",
@@ -100,7 +109,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "卸载条件位配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "led_alarm_condition",
@@ -109,7 +119,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "LED报警条件配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "protection_current",
@@ -118,7 +129,8 @@
       "access": "RW",
       "encoding": "u16",
       "description": "保护电流配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "protective_torque",
@@ -127,7 +139,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "保护后保持扭矩比例",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "protection_time",
@@ -136,7 +149,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "过载保护计时配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "overload_torque",
@@ -145,7 +159,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "过载扭矩比例",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "over_current_protection_time",
@@ -154,7 +169,8 @@
       "access": "RW",
       "encoding": "u8",
       "description": "过流保护计时配置",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "torque_enable",
@@ -163,7 +179,8 @@
       "access": "RW",
       "encoding": "bool",
       "description": "当前扭矩使能状态",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "bool"
     },
     {
       "name": "lock",
@@ -172,7 +189,8 @@
       "access": "RW",
       "encoding": "bool",
       "description": "EEPROM锁状态；禁止解锁",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "bool"
     },
     {
       "name": "present_position",
@@ -181,7 +199,10 @@
       "access": "R",
       "encoding": "i16/sign-magnitude(15)",
       "description": "当前位置寄存器值",
-      "wire_encoding": "sign_magnitude(15)"
+      "wire_encoding": "sign_magnitude(15)",
+      "conversion": "AnglePosition",
+      "engineering_unit": "rad",
+      "unit_basis": "AnglePosition::from_raw formula in rustypot v1.13.1; legacy typed read path does not apply the STS sign-magnitude decoder and is not approved for negative-value use"
     },
     {
       "name": "present_speed",
@@ -190,7 +211,10 @@
       "access": "R",
       "encoding": "u16/sign-magnitude(15)",
       "description": "当前速度寄存器值",
-      "wire_encoding": "sign_magnitude(15)"
+      "wire_encoding": "sign_magnitude(15)",
+      "conversion": "Velocity",
+      "engineering_unit": "rad/s",
+      "unit_basis": "Velocity::from_raw in rustypot v1.13.1; sign-magnitude conversion has a zero-negative edge case at raw 0x8000"
     },
     {
       "name": "present_load",
@@ -199,7 +223,10 @@
       "access": "R",
       "encoding": "u16/sign-magnitude(10)",
       "description": "当前负载寄存器值",
-      "wire_encoding": "sign_magnitude(10)"
+      "wire_encoding": "sign_magnitude(10)",
+      "conversion": "None",
+      "engineering_unit": "percent (0.1%/count)",
+      "unit_basis": "FEETECH generic STS memory table; rustypot conversion=None, retain signed decoded count"
     },
     {
       "name": "present_voltage",
@@ -208,7 +235,10 @@
       "access": "R",
       "encoding": "u8",
       "description": "当前电压寄存器值",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None",
+      "engineering_unit": "V (0.1 V/count)",
+      "unit_basis": "FEETECH generic STS memory table; rustypot conversion=None"
     },
     {
       "name": "present_temperature",
@@ -217,7 +247,10 @@
       "access": "R",
       "encoding": "u8",
       "description": "当前温度寄存器值",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None",
+      "engineering_unit": "°C (1 count/°C)",
+      "unit_basis": "FEETECH generic STS memory table; rustypot conversion=None"
     },
     {
       "name": "status",
@@ -226,7 +259,8 @@
       "access": "R",
       "encoding": "u8",
       "description": "STS地址65状态寄存器",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None"
     },
     {
       "name": "moving",
@@ -235,7 +269,8 @@
       "access": "R",
       "encoding": "bool",
       "description": "运动状态",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "bool"
     },
     {
       "name": "present_current",
@@ -244,7 +279,15 @@
       "access": "R",
       "encoding": "u16",
       "description": "当前电流寄存器值",
-      "wire_encoding": "unsigned"
+      "wire_encoding": "unsigned",
+      "conversion": "None",
+      "engineering_unit": "A (0.0065 A/count)",
+      "unit_basis": "FEETECH generic STS memory table; rustypot conversion=None"
     }
-  ]
+  ],
+  "conversion_audit": {
+    "source": "rustypot v1.13.1 commit 7aa85e13143594ea4fd4ed9f29e3e29d39b5de85",
+    "meaning": "conversion records the generate_servo! converter type. ServoDefinition.read_register returns an integer decoded for wire byte order and sign encoding; it does not call Conversion::from_raw.",
+    "caution": "Engineering-unit notes are separate from wire decoding. Generic FEETECH STS units are not proof of SKU-specific calibration or accuracy. See report section 16 for conversion-path caveats."
+  }
 }
