@@ -8,7 +8,7 @@ Only conversions with a documented generic STS scale are implemented here.
 Position and speed are deliberately left unsupported pending an unambiguous
 mode/encoding-specific conversion contract for the exact servo configuration.
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from typing import Any
 
