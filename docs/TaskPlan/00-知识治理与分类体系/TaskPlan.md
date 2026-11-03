@@ -160,3 +160,6 @@
 
 
 | 2026-11-03 | 00-01 | SLAM 总览定向复核的二次一致性检查发现正文仍残留固定 KPI 阈值和旧决策树，已补充替换为有测试口径的指标表和条件化算法选型规则；更新文章日期，并刷新资产 CSV 的 Blob SHA/文件大小。仍未完成全文 claim-level 审查与算法/实机验证。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/多传感器融合定位.md 开展 P1 主张定向复核：按 REP-105 纠正 map/odom/base_link 语义，修订 robot_localization 的 TF 发布和双 EKF 适用边界、重复底层信息/协方差关系、navsat_transform_node 数据流、Nav2 AMCL 生命周期及故障退化建议；来源台账 #255–#260，审计报告第27节。未运行 ROS 节点、未使用目标传感器数据、全文 claim-level 验收未完成。 |
