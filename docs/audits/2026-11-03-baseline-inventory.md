@@ -675,3 +675,35 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 - 未验证目标传感器时间基准、逐点时间、外参、去畸变、回环、轨迹精度、地图质量、持续算力及热稳态。
 - FAST-LIO 的 LICENSE/package.xml 声明冲突需要维护者澄清；LIO-SAM package.xml 仍为 TODO；Point-LIO 及第三方驱动/子模块依赖仍需固定版本并审查。
 - ROS 2 移植版本需锁定准确 fork/commit、依赖和测试证据。本文仅完成定向主张纠错，不构成代码运行、实机验证、完整许可意见或全文 claim-level 验收。
+
+
+## 29. P1 视觉 SLAM / VIO 尺度、传感器前提与部署边界定向复核（2026-11-03）
+
+### 29.1 本轮范围
+
+审查 `knowledge/algorithms/视觉SLAM.md` 对单目尺度、双目/RGB-D/VIO 观测条件、直接法适用性、视觉惯性初始化、代表系统能力、ROS 发行版和许可证的主张。
+
+### 29.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| “纯视觉有尺度不确定性（单目），所以实际都是 VIO” | 改为区分单目、双目、RGB-D、视觉惯性；纯视觉 VSLAM 不是 VIO 的同义词 |
+| 将 VIO 描述为无条件恢复米制尺度 | 增加运动激励、可观性、时间同步、相机/IMU 外参和噪声模型等初始化条件；退化运动可能导致失败/不稳定 |
+| 直接法被描述为“弱纹理可用” | 限定其依赖可用图像梯度与光度模型；不意味着在无纹理场景可稳定定位 |
+| 将 VINS-Fusion 的特定流水线细节写成通用流程 | 移除未经当前上游 README 支持的固定 10–15 关键帧、输出 10–30Hz、固定四自由度回环描述；区分概念流程与特定实现 |
+| 混合 MSCKF、VIO、完整 SLAM 的能力边界 | 说明滤波式视觉惯性状态估计并不自动具备持久地图、回环和重定位能力 |
+| 将 RTAB-Map 泛称为“直接输出稠密地图” | 区分 RGB-D/双目/LiDAR 图优化工作流与 RGB-only appearance loop closure；后者不提供 odometry、graph optimization 或 metric map |
+| 将 stella_vslam 当作成熟 VIO 系统并直接建议闭源商用 | 当前 README 将 IMU integration 列为开发事项；分开记录核心 BSD-2-Clause 和依赖许可；移除“BSD=商用友好”的简单推荐 |
+| 将 ORB-SLAM3/VINS-Fusion 等的算法能力与 ROS 2 部署兼容性混为一谈 | 分别记录 ORB-SLAM3 可选 ROS 示例测试于 Melodic/Ubuntu 18.04；VINS-Fusion README 以 Kinetic/Melodic、Ubuntu 16.04/18.04 和 catkin 为基础 |
+| 视觉/激光成本、语义能力和扫地机器人路线作为无来源普遍结论 | 删除固定价格和行业趋势说法；说明语义需另有感知模块，成本/方案选择由任务与系统配置决定 |
+
+### 29.3 软件与许可来源
+
+来源台账 #275–#288 核验 ORB-SLAM3、VINS-Fusion、RTAB-Map/rtabmap_ros、DROID-SLAM 与 stella_vslam 的论文、README 和根目录许可文件。必须分别审查核心代码、ROS wrapper、Thirdparty/子模块、CUDA/PyTorch、预训练权重、训练数据与实际打包方式；本轮只记录公开文件，不出具法律结论。
+
+### 29.4 未关闭事项
+
+- 未使用目标相机、IMU、双目或 RGB-D 设备做标定、时钟同步和采集。
+- 未构建/运行任何 VSLAM/VIO 实现，未复现论文数据集或验证目标平台精度、延迟、显存/热稳态、回环与重定位。
+- 未锁定最终部署 commit、ROS 发行版、依赖树、GPU/CUDA/PyTorch、权重和许可来源。
+- 全文 claim-level 审核、实机验证、产品安全批准与商业许可审查均未完成；资产状态保持 `unaccepted_claim_level_review_pending`。
