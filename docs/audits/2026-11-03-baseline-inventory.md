@@ -910,3 +910,32 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 ### 37.3 结果与边界
 
 该文件为导航索引，不包含需要单独验证的性能或产品能力主张。本轮完成目录结构/链接覆盖审查；各专题页面是否完成主张级验证仍由资产 CSV 状态分别决定，不因索引整理而改变。
+
+
+## 38. P1 Nav2 导航框架架构、插件、BT、Costmap 与版本边界定向复核（2026-11-03）
+
+### 38.1 本轮范围
+
+审查 `knowledge/software/Nav2导航框架.md` 中 Nav2 服务器架构、Planner/Controller 插件列表、TEB/MPPI/RPP 角色、Costmap layers/filters、BT 自定义、Lifecycle Manager 顺序、固定参数、CLI/Bringup、发行版/许可边界。
+
+### 38.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| Nav2 被写为固定“四大服务器 + BT” | 按官方 Jazzy/Rolling 配置目录区分 Planner/Controller/Behavior/BT、Costmap、Lifecycle/Map、Waypoint、Smoother/Velocity Smoother、Collision Monitor、Route/Docking 等组件，说明可选性随版本/bringup变化 |
+| 将所有服务器都称为 Action/Service server | 改为按组件职责区分 action、service、topic 和 plugin interface，不作一刀切 |
+| TEB 被列为 Nav2 原生官方 controller plugin、MPPI 是“2024 起官方主打” | 删除 TEB 原生插件/官方主打说法；按当前 Nav2 plugin list 介绍 DWB、MPPI、RPP、Rotation Shim 等，TEB 上游 ROS1 接口需单独确认 port/fork |
+| 固定恢复顺序“清图→旋转→后退”与 DWB 20Hz | 说明 Behavior Server 托管行为插件，恢复流程通常由 BT XML 编排；频率和重试由版本/参数和产品配置决定 |
+| Lifecycle 启动节点固定为 map_server→amcl→planner→controller→BT | 根据官方 node_names 有序列表/逆序 shutdown 语义修订；具体顺序由项目配置和依赖决定 |
+| 固定 inflation/goal tolerance/controller_frequency/满载降速/恢复次数作为 AMR 默认 | 删除通用数值，要求对照目标发行版和机器人 footprint/驱动/停靠误差配置 |
+| 将 BT XML 改动描述为无需代码即可扩展任意行为 | 区分已有节点重组与新增自定义 BT plugin/设施 API 的开发工作 |
+| Voxel/Range、Keepout/Speed 作为同类 Costmap layer | 分离 layer 与 Costmap filter；补充未覆盖 plugins 时 Static/Obstacle/Inflation 的官方默认层 |
+| 将 Costmap/Collision Monitor 当成安全功能 | 明确其为导航软件组件，不替代安全额定保护设备、急停与整机风险评估 |
+| 所有 Nav2 代码统一 Apache-2.0 | 按官方仓库 LICENSE 多 SPDX 许可记录，要求逐 package.xml / 依赖检查 |
+| Rolling 参数当成任何 ROS2 版本都适用 | 明确发布版本锁定，Rolling 仅作当前开发版资料，不直接替代 Humble/Jazzy 等部署文档 |
+
+### 38.3 来源与未关闭事项
+
+新增来源台账 #363–#378：Nav2 Jazzy/Rolling 配置目录、插件清单、BT 教程/节点清单、Lifecycle Manager、Costmap2D、Behavior Server、Velocity Smoother、Smoother Server、Docking Server，以及 Nav2 仓库 README/LICENSE 和 Planner/Controller/Lifecycle/Bringup 包 README。
+
+未在目标机器人运行 Nav2 bringup、BT 或插件；未确认项目最终 ROS 2 发行版、Nav2 包版本/commit、RMW、驱动、地图/TF、插件清单；未执行目标地图规划/控制/恢复/多机 namespace/故障注入测试。资产状态保持 `unaccepted_claim_level_review_pending`。
