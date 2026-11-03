@@ -172,3 +172,7 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/学习型机器人算法.md 开展 P1 RL/IL/VLA 与工具链主张定向复核：删除通用训练步数/并行环境/数据体量/成功率和行业趋势数字；纠正 Diffusion Policy/ACT/VLA 分类；更新 OpenVLA、π₀/openpi、GR00T N1.7、Figure Helix/Helix 02 架构和许可差异；补充模型部署、数据质量与安全监督边界。来源台账 #289–#305，审计报告第30节。未运行训练/模型或实机系统，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/路径规划算法.md 开展 P1 图搜索、采样规划、Nav2 Smac、路径/轨迹与覆盖规划主张定向复核：移除固定速度倍数、Weighted A* 默认权重、覆盖重叠/覆盖率门槛和“99% AMR 默认方案”；补充 A* 理论边界、Hybrid-A*/State Lattice/OMPL 前提和 nav_msgs/Path 接口。来源台账 #306–#310，审计报告第31节。未运行目标机器人规划器或覆盖实验，全文 claim-level 验收未完成。 |
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/局部规划与避障.md 开展 P1 Nav2 局部控制器/Costmap/安全制动边界主张定向复核：纠正 MPPI CPU-only 实现、RPP 碰撞检查能力、TEB ROS1 catkin 接口；删除通用频率/时延/行人距离和让行规则，厘清 inflation、costmap filters 与安全保护功能边界。来源台账 #311–#319，审计报告第32节。未做目标底盘对比或停止距离实测，全文 claim-level 验收未完成。 |
