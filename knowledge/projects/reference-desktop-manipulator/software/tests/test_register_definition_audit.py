@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import register_definition_audit
 
@@ -97,6 +97,6 @@ def test_validator_rejects_unknown_and_duplicate_fields():
         "access": "R",
         "wire_encoding": "unsigned",
     }
-    errors = validate_whitelist({"registers": [row, row]}, parsed)
+    errors = register_definition_audit.validate_whitelist({"registers": [row, row]}, parsed)
     assert any("not present" in error for error in errors)
     assert any("duplicate" in error for error in errors)
