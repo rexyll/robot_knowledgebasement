@@ -517,3 +517,51 @@ NVIDIA FAQ 明确开发套件用于开发/原型验证，不用于生产部署�
 四份资产已完成**指定市场数字、定义和厂商状态主张**的定向核验/改写，但并非全文所有主张均逐条核验。四条资产的 \`initial_status\` 保留 \`unaccepted_claim_level_review_pending\`；资产清单 \`targeted_review=yes\` 只表示本次所列主张已做定向复核，不代表全文验收、市场尽调、产品采购建议或独立性能测试。
 
 后续仍需继续处理剩余 P1 资产，尤其是机器人产品/市场状态、开源项目维护状态、准确型号生命周期和项目案例公开授权。
+
+## 24. P1 ROS 2 QoS、实时性、组件组合与中间件主张定向复核（2026-11-03）
+
+本轮对 knowledge/software/ROS与ROS2.md 中影响软件架构、通信互操作与控制时序的主张开展官方文档定向复核。来源登记于链接台账 #186–#194。此次处理仅覆盖下列主张，不代表全文每个 API、软件包、版本和产品适配声明均已审查。
+
+### 24.1 QoS 兼容性纠错
+
+ROS 2 QoS 的兼容性按发布者 OFFERED 与订阅者 REQUESTED 判定，而不是要求两端设置完全相同。官方可靠性兼容表给出的结果是：
+
+| 发布者 Reliability | 订阅者 Reliability | 兼容性 |
+|---|---|---|
+| Best Effort | Best Effort | 是 |
+| Best Effort | Reliable | 否 |
+| Reliable | Best Effort | 是 |
+| Reliable | Reliable | 是 |
+
+原文“Reliable 发布者 + BestEffort 订阅者会直接收不到数据”与官方表相反，已纠正。补充默认 Reliable/Volatile 与 SensorData BestEffort/较小队列的语义区别；transient_local 用于有意保留历史样本的场景，不能把它不加区分地当作运动指令的默认 durability。瞬时指令的迟到重放、时效性、watchdog 和失效安全仍须做系统设计与验证。
+
+### 24.2 实时性边界
+
+删除“ROS 2 支持 executor 级实时”的笼统表达。实时计算的核心是指定任务在 deadline 内完成并限制 jitter，而不是仅有较低平均延迟。ROS 2 官方实时教程强调控制循环中避免 page fault、动态内存分配/释放和可能无限阻塞的同步操作，并通过内存锁定、调度权限、latency 与 page-fault 统计开展验证。ROS 2 Design 背景进一步强调实时 OS 与确定性用户代码缺一不可。
+
+因此，使用 ROS 2、选择某个 executor 或启用 PREEMPT_RT 本身均不能自动证明硬实时。产品需要给出目标周期、允许最大抖动、最坏执行时间、负载/干扰、CPU 亲和性/优先级、内存策略和实测数据；安全相关快速保护链路还应根据风险分析决定是否由独立硬件/安全控制器实现。
+
+### 24.3 Composition 与零拷贝边界
+
+将“组合节点等于共享内存零拷贝、点云吞吐提升 3–5 倍”这一没有可迁移基准条件的表述删除。官方 Composition 文档说明组件可以部署在同一进程或独立进程，进程布局可在部署时选择；同进程组合可减少部分开销，但会改变进程/故障隔离边界。Intra-process communication 是相关但不同的机制，必须显式启用。官方演示仅在特定 C++ std::unique_ptr 发布/订阅通路展示零拷贝，不支持推广成任意消息类型、任意所有权方式或所有 RMW 都零拷贝。
+
+知识页改为要求在目标负载下测量端到端时延、CPU、内存、消息丢失和故障隔离效果，不再保留通用倍数。
+
+### 24.4 DDS、Zenoh 与平台支持
+
+- 将 rmw_zenoh_cpp 从“DDS 替代/弱网方案”模糊描述改为“映射 ROS 2 RMW API 的 Zenoh RMW 实现”，并记录其设计文档中的 Router/发现拓扑；不能据此推断目标产品部署零配置或自动满足安全要求。
+- 删除“Cyclone DDS 多机发现更稳、Wi-Fi 推荐切换”的无条件推荐；要求在实际网络拓扑和目标负载上比较发现时间、吞吐、尾延迟、丢包、断线恢复、CPU/内存和安全配置。
+- Fast DDS 作为常见默认 rmw_fastrtps_cpp 的描述保留并明确需要核对具体发行版及安装清单。
+- 依据 REP 2000，将 OS、CPU 架构和 RMW 的支持等级按具体 ROS 2 发行版组合检查；Tier 1/2/3 的持续测试强度不同，不能将 Linux/Windows/macOS/RTOS 说成所有发行版的统一保证。
+- 将 ROS Noetic EOL 日期更正为 2025-05-31。
+
+### 24.5 其他工程主张处理
+
+- 删除“20 万点/s 固定等于约 20 MB/s”的无数据结构假设换算；改为基于 PointCloud2 实际字段布局、每点字节数、频率和传输封装计算。
+- 多机通信问题先检查网卡、VLAN/路由、防火墙、组播、ROS_DOMAIN_ID 和 DDS discovery 配置，再选 Discovery Server、静态 peer 或 Zenoh；不把跨网段场景简单归结为“切换某中间件”。
+- OTA 不再被简化为差分推送；增加签名验证、原子切换/回滚、断电恢复、版本兼容和审计边界。
+- Action 仅作为需要反馈/结果/取消语义的长任务接口选项；不把 OTA 升级视为固定的 Action 应用。
+
+### 24.6 本轮结论与未关闭事项
+
+knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错，来源台账 #186–#194；资产清单可标记 targeted_review=yes，但 initial_status 仍保留 unaccepted_claim_level_review_pending。尚未完成全文 API/包/发行版逐项核验，也没有在目标机器人、真实网络、目标 CPU/内核和实际点云负载下进行构建、互操作、实时性、性能、故障恢复或安全验证。不能据此批准具体产品软件基线、硬实时声明或量产放行。
