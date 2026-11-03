@@ -49,7 +49,7 @@ Nav2 不应简单概括为固定的“四大服务器”。不同 ROS 2 发行�
 | Docking Server | 管理停靠任务与 dock 插件 | 需配置充电桩/工位位置、识别与接近策略、硬件交互 |
 | 可选 Navigator/扩展 | 例如覆盖导航、FollowPoint 或项目自定义导航任务 | 由 navigator 插件、BT 节点和任务接口扩展 |
 
-上述是按官方组件职责整理的架构视图，并非每个 Nav2 bringup 都会启用全部模块。配置指南会随版本增加/调整组件和插件，部署时必须对照目标发行版文档和源码。<Cite refs={["turn197413search0","turn615692search1","turn197413search9"]}/>
+上述是按官方组件职责整理的架构视图，并非每个 Nav2 bringup 都会启用全部模块。配置指南会随版本增加/调整组件和插件，部署时必须对照目标发行版文档和源码。
 
 ### 2.1 常见单机导航数据流
 
@@ -92,7 +92,7 @@ Planner Server 负责规划请求与插件管理；具体搜索算法由 planner
 | Smac State Lattice | 按预定义状态/运动原语搜索 | 适合需要配置运动学约束、非圆形足迹或特定原语的底盘；原语覆盖与碰撞检查需要设计 |
 | Theta Star Planner | 在栅格搜索中利用视线连接产生 any-angle 路径 | 路径仍需按 footprint/栅格碰撞规则验证；不等于任意连续空间最短路 |
 
-Planner Server 的 action 输出通常是路径位姿序列，而不是完整时间参数化轨迹。若下游控制器对曲率、倒车、方向和速度有要求，需使 planner 的输出模型与 controller 的可跟踪能力保持一致。<Cite refs={["turn197413search10","turn615692search1","turn615692search4"]}/>
+Planner Server 的 action 输出通常是路径位姿序列，而不是完整时间参数化轨迹。若下游控制器对曲率、倒车、方向和速度有要求，需使 planner 的输出模型与 controller 的可跟踪能力保持一致。
 
 不要把某个 planner plugin 设成所有 AMR/叉车的默认选项。差速/全向、阿克曼、窄巷道叉车和具有非圆形 footprint 的机器人应按实际运动模型选择，并对规划成功率、路径代价、最小障碍间隙、耗时和控制器可跟踪性测试。
 
@@ -110,7 +110,7 @@ Controller Server 接收路径、当前状态和局部环境信息，再由 cont
 
 **TEB 不应写成 Nav2 原生官方 controller plugin。** 上游 rst-tu-dortmund/teb_local_planner 原始包使用 ROS 1/catkin 与 base_local_planner/nav_core 接口；若采用 ROS 2 port/fork，必须独立检查仓库、接口、维护状态和依赖。
 
-控制器选型时要同时考虑全局规划器产生的路径模型、footprint、定位质量、动态障碍、底盘动力学、速度/加速度约束、执行器延迟和真实算力；不能套用“重载 RPP、动态密集 MPPI、倒车 TEB”作为不带条件的选型口诀。<Cite refs={["turn615692search2","turn615692search4","turn247940search1","turn247940search7"]}/>
+控制器选型时要同时考虑全局规划器产生的路径模型、footprint、定位质量、动态障碍、底盘动力学、速度/加速度约束、执行器延迟和真实算力；不能套用“重载 RPP、动态密集 MPPI、倒车 TEB”作为不带条件的选型口诀。
 
 ## 5. 行为树（BT）与恢复策略
 
@@ -122,13 +122,13 @@ BT Navigator 通过 BehaviorTree.CPP 执行 XML 行为树，将多个 action、c
 - 失败后按 BT 节点设计执行清理 Costmap、重规划、Spin、Wait、BackUp 等动作；
 - 通过 PipelineSequence、RecoveryNode、RoundRobin 等控制节点决定并行/顺序和重试策略。
 
-BT XML 可以改变已有节点的调用顺序、重试逻辑和条件策略；若要增加新的业务动作、设备 API 或新的 BT node 类型，通常需要实现/注册自定义插件或通过其他受支持接口对接，不是仅改 XML 就能获得任意功能。官方示例 BT 不是产品安全策略；重试次数、后退距离、旋转动作和等待时间需根据场地、机器人状态和风险评估配置。<Cite refs={["turn615692search0","turn615692search5","turn615692search8"]}/>
+BT XML 可以改变已有节点的调用顺序、重试逻辑和条件策略；若要增加新的业务动作、设备 API 或新的 BT node 类型，通常需要实现/注册自定义插件或通过其他受支持接口对接，不是仅改 XML 就能获得任意功能。官方示例 BT 不是产品安全策略；重试次数、后退距离、旋转动作和等待时间需根据场地、机器人状态和风险评估配置。
 
 ### 5.1 Behavior Server 与恢复逻辑
 
 Behavior Server 默认插件（例如 Spin、BackUp、DriveOnHeading、Wait）由版本/参数的 behavior_plugins 列表决定。恢复行为的编排通常在 BT 中完成，而不是由一个固定“Recovery Server”自动按清 Costmap → 旋转 → 后退的顺序执行。
 
-任何后退、旋转、清图或再次规划动作，都应检查机器人周边空间、定位质量、实际 footprint 和安全保护状态。清除 Costmap 只是更新软件环境表示，不会清除现实障碍；恢复循环需要超时/次数限制与故障上报。<Cite refs={["turn197413search1","turn197413search4","turn615692search5"]}/>
+任何后退、旋转、清图或再次规划动作，都应检查机器人周边空间、定位质量、实际 footprint 和安全保护状态。清除 Costmap 只是更新软件环境表示，不会清除现实障碍；恢复循环需要超时/次数限制与故障上报。
 
 ## 6. Costmap 2D：环境代价与传感器融合
 
@@ -150,7 +150,7 @@ Nav2 Costmap2D 是二维栅格环境代价表达。每个 cell 表示未知、�
 - **Speed Filter**：在指定区域施加速度限制；
 - **Binary/Zone Parameter 等 Filters**：按掩码/区域执行其他空间规则。
 
-当配置没有覆盖 plugins 参数时，官方文档描述的默认层为 Static、Obstacle、Inflation；Voxel、Range、Denoise 等是可选层。Filters 也需要单独配置，不应和普通 layer 混为一谈。<Cite refs={["turn615692search3","turn615692search4","turn615692search6","turn615692search10"]}/>
+当配置没有覆盖 plugins 参数时，官方文档描述的默认层为 Static、Obstacle、Inflation；Voxel、Range、Denoise 等是可选层。Filters 也需要单独配置，不应和普通 layer 混为一谈。
 
 Costmap 分辨率、inflation_radius、footprint、obstacle range 和 clearing 行为都依目标传感器、机器人尺寸、地图误差和通道几何确定。不要把“inflation_radius=对角半径+5cm”或固定停靠容差写成所有产品的工程默认。
 
@@ -168,7 +168,7 @@ Nav2 本身并不替所有机器人生成定位结果。常见移动机器人会
 
 ## 8. Lifecycle Manager、Bringup 与 ROS 2 发行版
 
-Lifecycle Manager 对指定的 lifecycle nodes 执行受控 configure/activate/shutdown 流程。管理节点的列表及顺序由 node_names 参数定义，启动按所配置顺序推进，关闭则按相反顺序处理；它还可通过 bond 机制监测节点健康。并不存在所有 Nav2 产品都必须采用同一条固定节点序列。<Cite refs={["turn615692search7"]}/>
+Lifecycle Manager 对指定的 lifecycle nodes 执行受控 configure/activate/shutdown 流程。管理节点的列表及顺序由 node_names 参数定义，启动按所配置顺序推进，关闭则按相反顺序处理；它还可通过 bond 机制监测节点健康。并不存在所有 Nav2 产品都必须采用同一条固定节点序列。
 
 nav2_bringup 提供可修改的示例启动系统，而非所有产品的唯一 launch 配置。官方 README 描述了可选 component composition；实际是否使用同进程组合、是否 respawn、是否 autostart、仿真时间和 namespace，应按目标资源、部署方式和 ROS 2 发行版设置。
 
