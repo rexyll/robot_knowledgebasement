@@ -163,3 +163,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/多传感器融合定位.md 开展 P1 主张定向复核：按 REP-105 纠正 map/odom/base_link 语义，修订 robot_localization 的 TF 发布和双 EKF 适用边界、重复底层信息/协方差关系、navsat_transform_node 数据流、Nav2 AMCL 生命周期及故障退化建议；来源台账 #255–#260，审计报告第27节。未运行 ROS 节点、未使用目标传感器数据、全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/激光SLAM.md 开展 P1 算法/兼容性/许可证定向复核：区分 LiDAR odometry、LIO、SLAM 和已知地图定位；纠正 LeGO-LOAM 传感器假设、LIO-SAM 双因子图/ROS1与ROS2分支、FAST-LIO2与Point-LIO仓库环境；删除固定时间/外参/体素/地图分辨率阈值；登记 FAST-LIO LICENSE 与 package.xml 冲突及 LIO-SAM package.xml TODO。来源台账 #261–#274，审计报告第28节。未运行代码或实机测试，全文 claim-level 验收未完成。 |
