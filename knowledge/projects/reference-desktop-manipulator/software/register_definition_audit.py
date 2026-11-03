@@ -4,7 +4,7 @@ No network access and no Rust/Python servo runtime are required. Pass the
 sts3215.rs file checked out from the rustypot v1.13.1 commit recorded in the
 allowlist metadata.
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import json
