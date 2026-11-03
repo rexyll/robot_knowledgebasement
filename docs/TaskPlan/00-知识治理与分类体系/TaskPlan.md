@@ -157,3 +157,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/SLAM总览.md 开展 P1 算法选型与指标主张定向复核：删除无条件 FAST-LIO2/黄金组合推荐和脱离测试口径的精度/成功率阈值；纠正 3DGS 与 NeRF/导航地图的关系；区分 Cartographer upstream 与 ROS fork 状态，补充 slam_toolbox 与 ORB-SLAM3/FAST-LIO2/FAST-LIVO2 官方来源；审计报告第26节。未运行算法、未实机测试、全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | SLAM 总览定向复核的二次一致性检查发现正文仍残留固定 KPI 阈值和旧决策树，已补充替换为有测试口径的指标表和条件化算法选型规则；更新文章日期，并刷新资产 CSV 的 Blob SHA/文件大小。仍未完成全文 claim-level 审查与算法/实机验证。 |
