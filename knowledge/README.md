@@ -38,9 +38,9 @@
 - [术语表](术语表.md)
 - [知识库编写规范](../docs/编写规范.md)
 - [知识 Schema](../docs/knowledge-schema.md)
-- [任务规划与历史记录](../docs/TaskPlan.md)
+- [全域知识体系建设 TaskPlan](../TaskPlan.md) · [章节计划索引](../docs/TaskPlan/README.md)
 - [来源链接台账](../docs/链接台账.md)
-- [分支迁移映射](../docs/migration-map.md)
+- [分支迁移映射](../docs/migration-map.md) · [旧版 TaskPlan 归档](../docs/TaskPlan/archive/local-v2-history.md)
 
 ## 分类原则
 

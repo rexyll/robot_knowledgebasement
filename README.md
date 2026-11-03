@@ -15,6 +15,8 @@
 - [系统架构说明](docs/architecture.md)
 - [知识库编写规范](docs/编写规范.md)
 - [来源链接台账](docs/链接台账.md)
+- [全域知识体系建设 TaskPlan](TaskPlan.md)
+- [TaskPlan 分册索引](docs/TaskPlan/README.md)
 - [Local 分支整理说明](docs/merge-notes.md)
 
 ## Main knowledge domains
