@@ -197,3 +197,6 @@
 
 
 | 2026-11-03 | 25-14（LeRobot 状态错误字节与故障恢复路径） | 核验 LeRobot Motors API / SerialMotorsBus 与 rustypot Changelog：区分总线传输失败、Status Packet error byte 和 STS 地址65 Status；确认 Feetech `status_alarms_only` 表示状态字节只报告报警，不把报警当作协议拒绝；普通 Motors API 不把原始状态字节作为常规 observation 暴露；Sync Write 不等待应答；disconnect 默认尝试全轴 disable torque，但失败时仍释放串口，失联轴可能保持扭矩。新增报告 1.8.2、验证计划 4.6、链接台账 #233–#234。仅静态审查与测试设计，未做 mock 故障注入或实机测试，25-14 继续进行中。 |
+
+
+| 2026-11-03 | 25-14（SO-101/STS3215 准确型号绑定与只读基线） | 新增 `23-STS3215准确型号绑定与实机只读基线方案.md`：区分 LeRobot 通用 `sts3215` 驱动族、Feetech 产品 SKU 和实机个体身份；纠正 C046 主要对应 leader 1:147 轴位，follower 1:345 需按套件版本核对 C001/C018/C047；建立地址0/1/3/5/6/13/14/15/16/19/28/34/35/36/38/40/55/62/63/65/69 的候选只读快照字段、采集前检查、原始数据结构和安全边界。仅完成文档/公开资料核验，未连接实机、未读寄存器、未写寄存器、未执行保护测试；25-14 继续进行中。 |
