@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 import pytest
-from software.readonly_capture import capture_snapshot, load_register_whitelist
+from readonly_capture import capture_snapshot, load_register_whitelist
 
 
 class FakeBus:
