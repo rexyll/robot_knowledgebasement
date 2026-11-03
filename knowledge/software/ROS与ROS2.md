@@ -2,24 +2,28 @@
 tags: [软件, ROS2, 中间件]
 aliases: [ROS, ROS2, Robot Operating System]
 创建日期: 2026-11-01
-更新日期: 2026-11-01
+更新日期: 2026-11-03
 ---
 
 # ROS 与 ROS 2
 
 > 机器人软件事实标准。ROS1 已 EOL（Noetic 2025.5 停止支持），新项目一律 ROS2。本库两个内部项目（[[项目-amr]] · [[项目-清洁机器人]]）均为 ROS2 工程。
 
-## 版本时间线（每年 5 月发版，偶数年 LTS）
+## ROS 2 发行版与维护窗口（快照 2026-11-03）
 
-| 发行版 | 发布 | 类型 | 支持到 |
-|---|---|---|---|
-| Humble Hawksbill | 2022.5 | LTS | 2027.5 |
-| Iron Irwini | 2023.5 | 非 LTS | 2024.11 |
-| Jazzy Jalisco | 2024.5 | **LTS（当前生产基准）** | 2029.5 |
-| Kilted Kaiju | 2025.5 | 非 LTS | 2026.12 |
-| **Lyrical Luth** | 2026.5 | 新 LTS | 2031.5 |
+ROS 2 发行版是有版本边界的软件集合；LTS 表示长期维护窗口，不代表每个第三方驱动、BSP、仿真器和机器人厂商 SDK 都已支持该版本。
 
-> 选型建议：新产品上 Jazzy（Ubuntu 24.04），存量 Humble 继续维护到 2027。
+| 发行版 | 发布日期 | 类型 | 官方支持到 | 2026-11-03 状态 |
+|---|---|---|---|---|
+| Humble Hawksbill | 2022-05-23 | LTS | 2027-05 | 仍受支持，但已进入生命周期后段 |
+| Iron Irwini | 2023-05-23 | 非 LTS | 2024-12-04 | 已 EOL |
+| Jazzy Jalisco | 2024-05-23 | LTS | 2029-05 | 仍受支持，生态成熟度需按项目核验 |
+| Kilted Kaiju | 2025-05-23 | 非 LTS | 2026-12 | 接近 EOL，不宜作为长生命周期新产品默认基线 |
+| **Lyrical Luth** | **2026-05-22** | **最新 LTS** | **2031-05** | 新发布 LTS，须核对目标硬件与第三方包支持 |
+
+> **选型建议：** 新项目先评估 Lyrical Luth 是否已获得目标 CPU 架构、操作系统、厂商 BSP、传感器驱动、Nav2/MoveIt 及关键第三方包的完整支持；若供应链或生态尚未就绪，可选仍在维护期内的 Jazzy，并形成明确迁移计划。不要因为“最新 LTS”就跳过集成与回归验证，也不要把旧文档中的 Jazzy 默认选择视为所有产品的强制答案。
+
+产品基线应同时锁定 ROS 发行版、OS 发行版/内核、CPU 架构、RMW/DDS 实现、驱动与关键应用包版本。发行版支持期限不等于厂商 BSP 或第三方包的支持期限。
 
 ## 核心概念（ROS1→ROS2 变化）
 
@@ -59,7 +63,7 @@ aliases: [ROS, ROS2, Robot Operating System]
 
 ## DDS 实现选择
 
-- **Fast DDS**（默认，eProsima）：Jazzy 默认
+- **Fast DDS**（eProsima）：Jazzy 的常见默认 RMW；具体默认实现与包版本应以目标发行版安装清单为准
 - **Cyclone DDS**（Eclipse）：多机发现更稳，Wi-Fi 组网推荐切它
 - **RTI Connext**：商业级，车规/航天
 - 调优点：`RMW_IMPLEMENTATION` 环境变量、发现流量（组播风暴）、shared memory（进程内大数据如点云）
@@ -73,7 +77,7 @@ aliases: [ROS, ROS2, Robot Operating System]
 5. **容器化部署**：Docker 镜像固化依赖，OTA 只推差分 → [[云端协同与OTA流程]]
 
 ## 上游板块
-- [[09-06-操作系统选型与内核裁剪]] —— Jazzy 绑定 Ubuntu 24.04，OS 是其地基（软件）
+- [[09-06-操作系统选型与内核裁剪]] —— ROS 发行版、Ubuntu/RHEL 版本、内核和 BSP 必须作为联合基线评估（软件）
 - [[DDS专题]] —— rmw 层下的通信内核（软件）
 
 ## 下游板块
@@ -82,8 +86,10 @@ aliases: [ROS, ROS2, Robot Operating System]
 - [[ROS1与迁移]] —— 存量 ROS1 的迁移路径（软件）
 - [[项目-amr]] · [[项目-清洁机器人]] —— 两内部项目均为 Jazzy 工程（项目）
 
-## 细节加深（V2）
-- **安装官方路线**（快照 2026-11-01，台账 #16）：Jazzy 仅官方支持 Ubuntu 24.04 的 deb 安装；`ros-jazzy-ros-base`（服务器）vs `ros-jazzy-desktop`（调试）按需取舍。国内网络可用鱼香 ROS 一键脚本（台账 #44）。
+## 细节加深（版本快照 2026-11-03）
+- **Jazzy 安装路线**：Jazzy 的官方 Ubuntu Debian 安装文档以 Ubuntu 24.04 为基线；服务器与桌面安装包按用途选择。Lyrical 是新的 LTS，必须以其官方 supported platforms 页面确认 OS/架构，不可沿用 Jazzy 的 Ubuntu 24.04 假设。
+- **维护策略**：Humble 将于 2027-05 到期，Jazzy 到 2029-05，Lyrical 到 2031-05；把升级验证安排纳入产品生命周期，而不是等 EOL 才迁移。
+- **官方版本证据**：[ROS 2 发行版维护列表](https://github.com/ros2/ros2_documentation/blob/rolling/source/Releases.rst)；[Lyrical Luth 发布说明与支持平台入口](https://github.com/ros2/ros2_documentation/blob/rolling/source/Releases/Release-Lyrical-Luth.rst)。
 - **rosbag2 是调试刚需**（官方文档台账 #83）：`ros2 bag record/play` + `ros2 bag info`；机器人系统的"录屏回放"——异常必录，回归必放。
 - **ros2 doctor**：内置自检（网络/环境/版本），多机联调第一步先跑它。
 - **组合节点（composable nodes）**：把多个节点编进一个进程共享内存零拷贝——点云管线的 3-5 倍吞吐提升来源；`ros2 component list` 查看已加载组件。
@@ -95,7 +101,7 @@ aliases: [ROS, ROS2, Robot Operating System]
 | rosbag2 文档 | Python/C++ | Apache-2.0 | 录包/回放/离线分析 | https://docs.ros.org/en/rolling/p/rosbag2/ |
 | ros1_bridge | C++ | Apache-2.0 | ROS1/ROS2 图互通（渐进迁移） | https://github.com/ros2/ros1_bridge |
 
-> 链接验证：[[链接台账]] #16/#18/#83（#17 Noetic EOL，快照 2026-11-01）。
+> 历史安装/rosbag2 链接快照见 [[链接台账]] #16/#18/#83；本次发行版维护窗口核验见 #160–#161（2026-11-03）。
 
 ## 相关链接
 - 上位：[[软件地图]]
