@@ -99,4 +99,4 @@ aliases: [桌面分拣机械臂参考项目, Reference Desktop Manipulator]
 软件审计补充：`register_definition_audit.py` 除地址/宽度/访问权限/wire encoding 外，还比对 rustypot `generate_servo!` 的转换器类型；JSON 白名单记录位置/速度/负载/电压/温度/电流单位及 API 路径限制。报告23第16节区分 rustypot 旧式类型化 API 的位置/速度/负载转换风险与 LeRobot 当前 read_register_with_error 整数解码路径；LeRobot 不调用上述旧式转换器，电压/温度/电流仍需调用层换算。CI/源码审计不代表实机读数或单位校准。
 
 
-工程单位转换补充：`software/engineering_units.py` 提供独立纯函数，将 LeRobot/rustypot 已解码整数转换为通用 STS 的负载百分比、电压、温度和电流单位；原始解码值始终保留，并对超出通用名义范围的值告警，不裁剪。位置/速度因模式与编码语义仍未完全确认而不提供自动换算。参见报告23第17节及 `tests/test_engineering_units.py`。纯软件转换不代表 SKU 校准或实机测量。
+工程单位转换补充：`software/engineering_units.py` 提供独立纯函数，将 LeRobot/rustypot 已解码整数转换为通用 STS 的负载百分比、电压、温度和电流单位；原始解码值始终保留，并对超出通用名义范围的值告警，不裁剪。位置/速度因模式与编码语义仍未完全确认而不提供自动换算。参见报告23第17节及 `tests/test_engineering_units.py`。GitHub Actions run 41644477531：Python 3.10/3.11/3.12 全部通过，Ruff通过，pytest 42 passed；纯软件转换不代表 SKU 校准或实机测量。
