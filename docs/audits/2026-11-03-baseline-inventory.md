@@ -594,3 +594,17 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 ### 25.4 下一步
 
 继续审查 `knowledge/algorithms/SLAM总览.md` 与 `knowledge/algorithms/多传感器融合定位.md` 的算法选型绝对化结论、性能指标缺少测试条件、map/odom TF 职责与双 EKF 架构边界；之后再核对激光 SLAM 页中的通用硬件参数、时延阈值与型号搭配。
+
+
+## 26. P1 SLAM 总览与算法选型主张定向复核（2026-11-03）
+
+对 `knowledge/algorithms/SLAM总览.md` 进行定向审查并修订：
+
+1. 删除“通用机器人默认 FAST-LIO2”“黄金组合”“2025 工程主力”等普遍性推荐，改为按传感器、运动、场景、计算平台、地图/回环需求、发行版与许可证建立选型条件。
+2. 删除脱离数据集/真值/成功判据的 2D 5cm、3D 10cm、回环检出率95%、重定位99%“优秀水平”；改为要求定义 APE/RPE、Precision/Recall、定位时间和端到端延迟口径。
+3. 删除“3DGS 取代 NeRF”，明确神经场景表示与导航地图/定位后端的任务边界。
+4. Cartographer 上游维护状态与 ROS fork/发行版状态分开描述；依据 ROS Index 记录 slam_toolbox 发行版状态和功能边界；用 ORB-SLAM3/FAST-LIO2/FAST-LIVO2 论文核对系统能力，禁止跨数据集外推精度。
+
+来源：Cartographer upstream README、ROS Index、ORB-SLAM3 IEEE T-RO、FAST-LIO2 IEEE T-RO、FAST-LIVO2 IEEE T-RO；链接已写入知识页并记录访问日期。
+
+本轮为局部主张定向复核，不包含代码运行、实机/数据集复现、全仓许可证审查或全文 claim-level 验收。资产状态保持 `unaccepted_claim_level_review_pending`。
