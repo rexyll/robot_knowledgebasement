@@ -219,3 +219,5 @@
 | 2026-11-03 | 25-14（STS3215转换器审计CI验收） | 首轮CI发现转换器审计输出行超出Ruff E501限制，已拆分字符串并修复；最新 GitHub Actions run 41642021222 的 Python 3.10/3.11/3.12 三个矩阵全部成功：Ruff通过、26字段与62项 rustypot 定义的布局/编码/转换器元数据比对通过、pytest 20 passed。更新报告23第16节、README软件入口。CI仅验证静态源码元数据和仓库软件测试，不证明转换公式物理正确、目标环境依赖兼容或实机单位校准；25-14继续进行中。 |
 
 | 2026-11-03 | 25-14（LeRobot读接口与旧式转换器边界澄清） | 进一步核对固定 LeRobot commit 154fdfb595573ae9c7e0b3b48102b0318235e306 的 SerialMotorsBus：`_read()` 调用 rustypot `read_register_with_error()`，`sync_read()` 调用 `sync_read_register_with_error()`，因此 LeRobot read/sync_read 取得的是 ServoDefinition 按 wire encoding 解码的整数，不调用旧式类型化 AnglePosition/Velocity 转换器；此前发现的类型化路径风险不能直接归因于 LeRobot。报告23第16节、README和链接台账#252已澄清。仍需在调用层明确换算电压/温度/电流/负载单位；未连接实机、未做单位校准，25-14继续进行中。 |
+
+| 2026-11-03 | 25-14（LeRobot解码整数工程单位转换层） | 新增独立纯函数 `software/engineering_units.py`，仅将 ServoDefinition 已解码整数转换为 FEETECH 通用 STS 负载百分比、电压、温度、电流；原始整数保留，验证字段类型/寄存器范围，对负载>1000 count和电流>500 count发出名义范围告警而不裁剪；位置/速度因工作模式和编码语义尚未充分确认，明确拒绝自动换算。新增测试 `test_engineering_units.py`、JSON单位配置、报告23第17节、README及链接台账#253。当前 CI 因 Ruff I001 导入分组失败，已在最新提交修正，等待重跑；尚不能标记测试验收完成。无实机连接/校准，25-14继续进行中。 |
