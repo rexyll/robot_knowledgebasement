@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-from register_definition_audit import (
-    DefinitionParseError,
-    parse_sts3215_definition,
-    validate_whitelist,
-)
+import register_definition_audit
 
 
 RUST_SOURCE = """
@@ -25,7 +21,7 @@ generate_servo!(
 
 
 def test_parser_extracts_address_width_access_and_encoding():
-    parsed = parse_sts3215_definition(RUST_SOURCE)
+    parsed = register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
     assert parsed["firmware_major_version"] == {
         "address": 0,
         "width_bytes": 1,
@@ -42,7 +38,7 @@ def test_parser_extracts_address_width_access_and_encoding():
 def test_parser_rejects_non_sts3215_source():
     try:
         parse_sts3215_definition("generate_servo!(OTHER, v1);")
-    except DefinitionParseError as exc:
+    except register_definition_audit.DefinitionParseError as exc:
         assert "STS3215" in str(exc)
     else:
         raise AssertionError("expected DefinitionParseError")
@@ -68,7 +64,7 @@ def test_validator_accepts_matching_whitelist_subset():
             },
         ]
     }
-    assert validate_whitelist(whitelist, parsed) == []
+    assert register_definition_audit.validate_whitelist(whitelist, parsed) == []
 
 
 def test_validator_reports_layout_and_encoding_mismatches():
