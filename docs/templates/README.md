@@ -10,6 +10,7 @@
 
 - [产品需求与系统需求模板](engineering/product-brief-and-requirements.md)：产品机会、CONOPS/ODD、PRD、SRS 和需求追踪。
 - [接口控制文件模板](engineering/interface-control-document.md)：机械、电气、通信、数据、时序和安全接口。
+- [产品阶段门评审模板](engineering/robot-product-stage-gate-review.md)：覆盖 G0–G11，从能力准备到量产、交付、售后与退役的评审记录。
 - [设计评审记录模板](engineering/design-review.md)：设计基线、跨专业接口、风险、DFM/DFA/DFT 和评审结论。
 
 ## 验证与制造
