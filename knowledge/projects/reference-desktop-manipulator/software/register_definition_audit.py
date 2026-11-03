@@ -143,7 +143,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"OK: {len(whitelist['registers'])} read-only whitelist entries match layout, wire encoding, and conversion declarations across "
+        f"OK: {len(whitelist['registers'])} read-only whitelist entries match "
+        "layout, wire encoding, and conversion declarations across "
         f"{len(definition)} rustypot STS3215 registers."
     )
     return 0
