@@ -24,17 +24,17 @@ aliases: [SLAM, 同步定位与建图, SLAM总览]
 | 分支 | 传感器 | 代表 | 深入页 |
 |---|---|---|---|
 | 2D 激光 SLAM | 2D LiDAR(+IMU/里程计) | Gmapping、Hector、**Cartographer**、slam_toolbox | [[激光SLAM]] |
-| 3D 激光 SLAM / LIO | 3D LiDAR+IMU | LOAM → LIO-SAM → **FAST-LIO2 → Point-LIO**（2025 工程主力） | [[激光SLAM]] |
+| 3D 激光 SLAM / LIO | 3D LiDAR+IMU | LOAM、LIO-SAM、FAST-LIO2、Point-LIO（代表性研究/实现，需按数据与平台评估） | [[激光SLAM]] |
 | 视觉 SLAM | 单目/双目/RGB-D | ORB-SLAM3、VINS-Fusion | [[视觉SLAM]] |
-| 激光-视觉-惯性融合 | 全家桶 | FAST-LIVO2、R3LIVE | [[多传感器融合定位]] |
-| 语义/稠密 SLAM | +深度学习 | SGS-SLAM（3DGS 语义）、GaussNav | [[学习型机器人算法]] |
+| 激光-视觉-惯性融合 | LiDAR+相机+IMU | FAST-LIVO2、R3LIVE | [[多传感器融合定位]] |
+| 语义/稠密/神经场景表示 | 语义特征、NeRF/3D Gaussian Splatting 等 | 代表系统随研究方向演进，需区分定位建图与场景重建目标 | [[学习型机器人算法]] |
 
 ## SLAM 系统五要素（任何 SLAM 拆开都是这五块）
 
 1. **前端（数据关联）**：扫描匹配（ICP/NDT/相关性扫描匹配 CSM）或视觉特征跟踪 → 产生帧间约束
 2. **后端（优化）**：因子图 + 非线性最小二乘（Levenberg-Marquardt/GN），增量式（iSAM2/GTSAM）或分批
 3. **回环检测（Loop Closure）**：识别"回到老地方"消除累积漂移——2D 用扫描上下文/分支定界（Cartographer 分支定界）；3D 用 Scan Context/STD；视觉用词袋 DBoW2
-4. **地图表示**：2D 栅格（占据概率）、点云、体素地图（ikd-Tree/VDB）、TSDF/ESDF（规划用）、**3D 高斯泼溅 3DGS**（2025 起新主流，取代 NeRF）
+4. **地图表示**：2D 栅格（占据概率）、点云、体素地图（ikd-Tree/VDB）、TSDF/ESDF（规划用）、3D Gaussian Splatting、NeRF 等显式/隐式场景表示（并非传统占据地图或定位后端的直接替代品）
 5. **图管理/长期运行**：位姿图剪枝、地图合并、重定位（AMR 7×24 的实际难点）
 
 ## 关键指标（→ [[性能指标体系]]）
@@ -96,3 +96,25 @@ aliases: [SLAM, 同步定位与建图, SLAM总览]
 - 流程落地：[[建图流程]] · [[导航流程]]
 - 传感器：[[激光雷达]] · [[深度相机]] · [[IMU]]
 - 项目：[[项目-amr]]（localization_slam/mapping 目录） · [[项目-清洁机器人]]（vSLAM）
+
+
+## 2026-11-03｜P1 SLAM 总览主张定向复核
+
+本轮对本页算法成熟度、通用性能阈值、3DGS 与 NeRF 关系及选型结论做定向纠偏：
+
+- 删除“2025 工程主力”“通用机器人选 FAST-LIO2”“黄金组合”等无法由统一行业证据支持的普遍性推荐。算法选择必须受传感器、运动、场景、计算平台、地图/回环需求、ROS 发行版和许可证约束。
+- 删除建图一致性 5/10cm、回环检出率 95%、重定位成功率 99% 等脱离数据集、真值、成功判据和工况的“优秀水平”；改为要求定义 APE/RPE、Precision/Recall、首次定位时间和端到端延迟等指标及测试口径。
+- 纠正“3DGS 取代 NeRF”的表述。3DGS/NeRF 属于场景表示与重建方向，不能未经任务验证就视为传统占据栅格、点云地图或 SLAM 定位后端的替代品。
+- Cartographer 上游仓库 README 明确称其不再积极维护；ROS 包索引中仍有发行版/分支状态信息，需区分上游与 ROS fork，不能只写“停止维护”而忽略实际分支和目标发行版。
+- slam_toolbox ROS 包索引列示 Lyrical/Humble 等发行版的维护与发布状态，且官方项目文档说明其 2D pose-graph、地图序列化/续图和 localization mode 能力；具体能力仍应按版本和配置验证。
+- ORB-SLAM3 论文支持其单目/双目/RGB-D、视觉/视觉惯性、多地图/多会话能力，但论文基准精度不应直接外推到任意相机、环境或机器人。
+
+### 核验来源（访问日期：2026-11-03）
+
+1. Cartographer upstream README：<https://github.com/cartographer-project/cartographer/blob/master/README.rst>。
+2. ROS Index：Cartographer <https://index.ros.org/p/cartographer/>；slam_toolbox <https://index.ros.org/p/slam_toolbox/>。
+3. ORB-SLAM3，IEEE T-RO 2021：<https://doi.org/10.1109/TRO.2021.3075644>。
+4. FAST-LIO2，IEEE T-RO 2022：<https://doi.org/10.1109/TRO.2022.3141876>。
+5. FAST-LIVO2，IEEE T-RO 2025：<https://doi.org/10.1109/TRO.2024.3502198>。
+
+**未关闭事项：** 本轮没有运行任何 SLAM 软件，没有在目标传感器/机器人上测试，也未逐一核验本页所有算法仓库的 commit、许可证、依赖与 ROS 发行版兼容性；本页仍未通过全文 claim-level 验收。
