@@ -62,3 +62,13 @@ def test_does_not_guess_unapproved_conversions(field):
 def test_rejects_non_integer_decoded_values(value):
     with pytest.raises(TypeError):
         convert_decoded_reading("present_voltage", value)
+
+
+def test_flags_values_beyond_generic_nominal_ranges_without_clipping():
+    load = convert_decoded_reading("present_load", 1001)
+    current = convert_decoded_reading("present_current", 501)
+
+    assert load["engineering_value"] == 100.1
+    assert current["engineering_value"] == pytest.approx(3.2565)
+    assert load["outside_documented_nominal_range"] is True
+    assert current["outside_documented_nominal_range"] is True
