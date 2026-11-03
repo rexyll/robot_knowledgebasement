@@ -608,3 +608,8 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 来源：Cartographer upstream README、ROS Index、ORB-SLAM3 IEEE T-RO、FAST-LIO2 IEEE T-RO、FAST-LIVO2 IEEE T-RO；链接已写入知识页并记录访问日期。
 
 本轮为局部主张定向复核，不包含代码运行、实机/数据集复现、全仓许可证审查或全文 claim-level 验收。资产状态保持 `unaccepted_claim_level_review_pending`。
+
+
+### 26.1 修订完整性复核
+
+首次提交后的复查发现正文仍残留原有固定 KPI 阈值和决策树推荐，已在后续提交中直接替换为条件化选型规则与需记录测试口径的指标表，并更新文章 front matter 日期。该补充修订已核对：固定 2D/3D 精度、95% 回环、99% 重定位阈值及固定 FAST-LIO2/Point-LIO 决策树不再作为通用建议保留。其余全文主张和实现验证仍未完成。
