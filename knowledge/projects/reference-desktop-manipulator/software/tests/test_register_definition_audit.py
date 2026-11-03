@@ -32,6 +32,9 @@ def test_parser_extracts_address_width_access_and_encoding():
     }
     assert parsed["present_position"]["wire_encoding"] == "sign_magnitude(15)"
     assert parsed["present_position"]["width_bytes"] == 2
+    assert parsed["present_position"]["conversion"] == "AnglePosition"
+    assert parsed["present_load"]["conversion"] == "None"
+    assert parsed["torque_enable"]["conversion"] == "bool"
     assert parsed["torque_enable"]["wire_encoding"] == "unsigned"
 
 
@@ -54,6 +57,7 @@ def test_validator_accepts_matching_whitelist_subset():
                 "width_bytes": 1,
                 "access": "R",
                 "wire_encoding": "unsigned",
+                "conversion": "None",
             },
             {
                 "name": "present_position",
@@ -61,6 +65,7 @@ def test_validator_accepts_matching_whitelist_subset():
                 "width_bytes": 2,
                 "access": "R",
                 "wire_encoding": "sign_magnitude(15)",
+                "conversion": "AnglePosition",
             },
         ]
     }
@@ -77,15 +82,17 @@ def test_validator_reports_layout_and_encoding_mismatches():
                 "width_bytes": 1,
                 "access": "RW",
                 "wire_encoding": "unsigned",
+                "conversion": "Velocity",
             }
         ]
     }
     errors = register_definition_audit.validate_whitelist(whitelist, parsed)
-    assert len(errors) == 4
+    assert len(errors) == 5
     assert any("address mismatch" in error for error in errors)
     assert any("width_bytes mismatch" in error for error in errors)
     assert any("access mismatch" in error for error in errors)
     assert any("wire_encoding mismatch" in error for error in errors)
+    assert any("conversion mismatch" in error for error in errors)
 
 
 def test_validator_rejects_unknown_and_duplicate_fields():
