@@ -243,6 +243,6 @@ Rolling 文档用于了解开发版当前功能；它不能直接作为 Humble/J
 5. Nav2 Costmap2D/Environmental Representation：https://docs.nav2.org/rolling/configuration_and_development/configuration_guide/core_servers/costmap_2d/；https://docs.nav2.org/rolling/getting_started/navigation_concepts/environmental_representation/
 6. Nav2 Behavior Server、Velocity Smoother、Smoother Server 与 Docking Server：https://docs.nav2.org/rolling/configuration_and_development/configuration_guide/core_servers/configuring_behavior_server/；https://docs.nav2.org/rolling/configuration_and_development/configuration_guide/core_servers/configuring_velocity_smoother/；https://docs.nav2.org/rolling/configuration_and_development/configuration_guide/core_servers/configuring_smoother_server/；https://docs.nav2.org/rolling/configuration_and_development/configuration_guide/core_servers/configuring_docking_server/
 7. Nav2 官方仓库 README/LICENSE 与 Planner/Controller/Lifecycle/Bringup 包 README：https://github.com/ros-navigation/navigation2
-8. 本地来源台账：[[链接台账]] #363–#371（访问日期：2026-11-03）
+8. 本地来源台账：[[链接台账]] #363–#378（访问日期：2026-11-03）
 
 **未关闭事项：** 未在目标机器人运行 Nav2 bringup、BT 或插件；未确认本项目最终 ROS 2 发行版、Nav2 包版本/commit、RMW、硬件驱动、地图/TF 配置和插件清单；未执行目标地图上的规划/控制/恢复/多机 namespace/故障注入测试。本文仅完成官方文档与上游接口的定向主张审查，不构成目标平台部署验收、实时性/安全性能验证或产品批准。
