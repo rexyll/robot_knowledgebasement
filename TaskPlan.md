@@ -411,3 +411,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-03 | v2.9 | 25-14 进一步固定 LeRobot commit 154fdfb…（版本0.6.2）与 rustypot v1.13.1 tag 的静态审查配对基线；区分 LeRobot v0.6.1 稳定发行版与使用 rustypot 的 0.6.2 main 快照；导出 STS3215 只读字段白名单，记录地址3/4语义冲突并扩展 TODO HW-002；新增项目文档24、报告23第13节、链接台账#244–#246。25-14继续进行中，根目录当前主任务仍为00-01 | Hugging Face LeRobot 固定源码、rustypot v1.13.1 ServoDefinition/读取实现及官方 FEETECH STS Wiki；仅静态源码审查，未解析目标环境依赖、未运行采集器或离线测试、未连接实机 |
+
+| 2026-11-03 | v3.0 | 25-14 基于固定 LeRobot/rustypot 源码基线新增 STS3215 机器可读只读字段白名单、依赖注入式逐字段采集器与 fake bus/AST 测试；离线 pytest 5 passed。采集器不连接/断开总线、不含写入/校准/扭矩操作；目标运行环境兼容和实机验证仍未完成。新增项目报告23第14节与软件入口；25-14继续进行中，根目录当前主任务仍为00-01 | LeRobot commit 154fdfb…、rustypot v1.13.1 ServoDefinition；离线隔离副本测试，无串口、无实机 |
