@@ -768,7 +768,7 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 
 ### 31.3 来源与未关闭事项
 
-新增来源台账 #306–#310：Nav2 Smac 与 ComputePathToPose 文档、OMPL 官网/README/许可证，以及 Boustrophedon 覆盖规划经典论文。尚未在目标 AMR/清洁机器人/阿克曼底盘上运行各规划器，也未对项目的 Nav2/OMPL commit、footprint、代价模型、覆盖率真值和轨迹可执行性做测试。
+新增来源台账 #306–#310：Nav2 Smac 与 ComputePathToPose 文档、OMPL 官网/README/许可证，以及 Boustrophedon 覆盖规划经典论文。用户于 2026-11-03 确认本节此前列出的目标 AMR/清洁机器人/阿克曼底盘规划测试项已完成；测试报告/原始数据未归档到仓库，因此未推断精度、耗时、成功率等数值。仍需归档证据并核对 Nav2/OMPL commit、footprint、代价模型、覆盖率真值和轨迹可执行性。
 
 本文仅为局部主张定向修订，资产状态保持 `unaccepted_claim_level_review_pending`。
 
@@ -794,7 +794,7 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 
 ### 32.3 来源与未关闭事项
 
-新增来源台账 #311–#319：Nav2 DWB、MPPI、RPP、tuning guide、Costmap2D/Inflation Layer 文档，以及 TEB 上游 README、package.xml、CMakeLists。未在目标底盘/传感器/载荷下对各 controller 运行对比；未测量感知到制动最坏时延、最大载荷/坡度停止距离、局部规划失效恢复及安全扫描仪/控制器链路。
+新增来源台账 #311–#319：Nav2 DWB、MPPI、RPP、tuning guide、Costmap2D/Inflation Layer 文档，以及 TEB 上游 README、package.xml、CMakeLists。用户于 2026-11-03 确认本节此前列出的局部规划/避障测试项已完成；测试报告/原始日志未归档到仓库，因此未推断控制器对比、停止距离、时延等量化结果。仍需归档证据并核对目标底盘/传感器/载荷、感知到制动最坏时延、最大载荷/坡度停止距离、局部规划失效恢复及安全扫描仪/控制器链路。
 
 两篇文档都只完成局部主张定向复核，不代表完整 claim-level 验收、实机性能测试或安全批准。相关资产仍维持 `unaccepted_claim_level_review_pending`。
 
