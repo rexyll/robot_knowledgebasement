@@ -105,9 +105,17 @@ Feetech STS3215 定义启用 `status_alarms_only`。报警状态不等同于协�
 
 **重要：** `connect(handshake=True)` 会执行型号/固件握手读取；它不是“仅打开串口”。连接前仍须由硬件负责人完成供电、机械固定、端口占用和风险评审。本文不授权任何实际连接或上电操作。
 
-## 7. 离线验收建议
+## 7. 离线采集器与验收结果
 
-1. 将本表转为机器可读的只读字段清单，并在启动时拒绝任何白名单外字段。
+已新增离线实现：
+- `software/sts3215_readonly_fields.json`：机器可读字段白名单；
+- `software/readonly_capture.py`：只注入已连接总线对象，仅逐字段调用 `read()`，不负责连接/断开，不含写 API；
+- `software/tests/test_readonly_capture.py`：fake bus 与 AST 静态约束测试。
+
+本轮在隔离的本地测试副本上执行 pytest，结果为 **5 passed**。测试覆盖白名单唯一性、仅读调用/normalize=False/num_retry=0、字段级异常保留、不以0填充失败值、禁止写 API/私有总线成员。该测试不连接真实串口，不证明硬件安全或目标环境版本兼容。
+
+后续验收建议：
+1. 每次更改 JSON 白名单时，必须与锁定版本的 ServoDefinition 重新比对。
 2. 用 fake bus 验证只调用 read/sync_read，且所有字段名均在白名单。
 3. 用 AST/静态检查禁止出现写 API、校准 API、私有总线成员和默认 `disconnect()`。
 4. 验证每个 motor 的字段读取独立记录成功/失败，不用 0 填补缺失值。
