@@ -166,3 +166,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/激光SLAM.md 开展 P1 算法/兼容性/许可证定向复核：区分 LiDAR odometry、LIO、SLAM 和已知地图定位；纠正 LeGO-LOAM 传感器假设、LIO-SAM 双因子图/ROS1与ROS2分支、FAST-LIO2与Point-LIO仓库环境；删除固定时间/外参/体素/地图分辨率阈值；登记 FAST-LIO LICENSE 与 package.xml 冲突及 LIO-SAM package.xml TODO。来源台账 #261–#274，审计报告第28节。未运行代码或实机测试，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/视觉SLAM.md 开展 P1 视觉 SLAM/VIO 定向复核：区分单目/双目/RGB-D/VIO 尺度约束及初始化可观性；纠正直接法弱纹理、VINS-Fusion 固定流水线细节、MSCKF/VIO 与完整 SLAM 能力边界、RTAB-Map RGB-only/metric mapping 边界和 stella_vslam IMU 开发状态；核验 ROS 兼容与许可证依赖。来源台账 #275–#288，审计报告第29节。未采集目标设备数据、未构建运行算法，全文 claim-level 验收未完成。 |
