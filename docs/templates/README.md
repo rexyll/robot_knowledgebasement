@@ -16,6 +16,7 @@
 ## 验证与制造
 
 - [DVP&R 验证计划模板](verification/dvp-r-test-plan.md)：需求到测试方法、工况、判据和证据的追踪。
+- [故障诊断与 FRACAS/CAPA 记录模板](verification/fault-diagnostic-and-fracas-record.md)：故障配置、复现、证据、根因、围堵、纠正预防、回归与关闭评审。
 - [EBOM/MBOM CSV 模板](manufacturing/bom-template.csv)：设计物料和制造物料字段示例。
 - [制造与质量控制模板](manufacturing/process-quality-pack.md)：NPI、工艺流程、PFMEA、Control Plan、IQC/IPQC/OQC、追溯与 CAPA。
 

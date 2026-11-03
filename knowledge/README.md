@@ -11,7 +11,7 @@
 | 执行器 | [actuators/](actuators/) | 电机、驱动器、减速器及执行机构 |
 | 导航 | [navigation/](navigation/) | 定位、导航实践与里程计标定 |
 | 操作 | [manipulation/](manipulation/) | 机械臂操作与抓取入门、运动学、运动规划、末端执行器与力控（当前已建立基础教材，深化主题待补） |
-| 故障排查 | [troubleshooting/](troubleshooting/) | 故障现象、诊断、恢复与验证（当前主要是目录占位） |
+| 故障排查 | [troubleshooting/](troubleshooting/) | 机器人故障分层诊断、根因分析、复现证据、FRACAS/CAPA 与现场质量闭环（基础教材已建立，专题案例待补） |
 | 机械与底盘 | [mechanics/](mechanics/) | 底盘、运动机构、机械结构和材料选型 |
 | 电源与能源 | [power/](power/) | 电池、电源系统、充电桩与自动回充 |
 | 功能安全 | [safety/](safety/) | 安全防护器件、功能安全体系 |
