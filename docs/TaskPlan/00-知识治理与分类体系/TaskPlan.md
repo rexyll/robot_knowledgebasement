@@ -197,3 +197,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/software/实时系统与嵌入式.md 开展 P1 实时调度、PREEMPT_RT、Ubuntu Real-time、RTOS/功能安全、总线和 watchdog 主张定向复核：删除通用控制频率/抖动/WCET/急停/心跳数字；纠正 Ubuntu 实时内核包命名、Zephyr Safety 声明边界、FreeRTOS kernel 与 demo 许可证差异；区分 CAN FD、EtherCAT DC 同步与端到端控制延迟；补充 cyclictest/rtla/trace 工具和代表性负载验证。来源台账 #379–#390，审计报告第39节。未在目标硬件开展实时基准/总线负载/故障注入，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/software/advanced-topics/DDS专题.md 开展 P1 ROS 2 通信栈主张定向复核：拆分 DDS/RTPS/RMW/传输，更新 DDS vendor 与 Zenoh RMW/bridge 边界，补齐 Request-vs-Offered QoS 兼容性、SPDP/SEDP/Discovery Server/Cyclone peer 与网卡配置，区分 SHM/Data Sharing/intra-process，清除固定 socket buffer 和跨网段选型口号，并分别记录 middleware/RMW 许可证。来源台账 #391–#407，审计报告第40节。未在目标发行版/硬件/网络拓扑执行互操作或端到端性能测试，全文 claim-level 验收未完成。 |
