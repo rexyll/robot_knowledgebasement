@@ -797,3 +797,33 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 新增来源台账 #311–#319：Nav2 DWB、MPPI、RPP、tuning guide、Costmap2D/Inflation Layer 文档，以及 TEB 上游 README、package.xml、CMakeLists。未在目标底盘/传感器/载荷下对各 controller 运行对比；未测量感知到制动最坏时延、最大载荷/坡度停止距离、局部规划失效恢复及安全扫描仪/控制器链路。
 
 两篇文档都只完成局部主张定向复核，不代表完整 claim-level 验收、实机性能测试或安全批准。相关资产仍维持 `unaccepted_claim_level_review_pending`。
+
+
+## 33. P1 多机任务分配、MAPF 与车队交通协同主张定向复核（2026-11-03）
+
+### 33.1 本轮范围
+
+审查 `knowledge/algorithms/多机协同与调度算法.md` 中任务指派、VRP/时间窗、CBBA 收敛假设、CBS/ECBS/LaCAM 性质、路网预约、死锁/资源释放、充电策略、车队 KPI 与 Open-RMF 功能边界。
+
+### 33.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| 最近邻 O(NM)、匈牙利 O(N³) 作为所有任务分配扩展的复杂度 | 限定经典一对一/至多一项 assignment 模型；与含容量/时间窗/多站点的广义指派与 VRP 分开 |
+| 将 assignment、VRP 和 MAPF 写成同一层“任务分配/路径协调” | 重新分为任务指派、任务顺序/VRP、MAPF、时空交通预约、车队执行/恢复 |
+| CP-SAT/MILP“精确规划，指数级”而没有求解状态边界 | 加入 OPTIMAL/FEASIBLE/INFEASIBLE/UNKNOWN 等状态区别；时限内可行解不表示已证明最优 |
+| CBBA 被泛化为弱通信场景下自动收敛 | 根据论文补充本地通信与评分/收益函数假设；指出冲突自由任务指派不代表路径无碰撞 |
+| CBS/ECBS/LaCAM 都笼统称最优或“新 SOTA” | 明确经典 MAPF 假设下 CBS 最优、ECBS 有界次优、LaCAM complete/sub-optimal、LaCAM* 条件下 eventually optimal |
+| 离散 MAPF 结果直接等同可执行机器人路径 | 补充 footprint、转向/倒车、运动学、连续碰撞检查、制动和时间不确定性约束 |
+| “百台以上车队几乎都用路网+预约表” | 删除无来源的行业普遍率；保留路网、时间预约作为一种常见结构化场地方案 |
+| 锁超时直接释放导致资源重新分配 | 改为必须验证实际退出/位置和资源状态；确认不明时进入保守锁定/恢复 |
+| 死锁=0、拥堵率15%、SOC20–80%、队列2–3台、夜间满充作为通用 KPI/参数 | 全部移除通用数字，改为测量指标和依电池/BMS/场地策略设置 |
+| 将 RMF 简化为“路网+预约表” | 增加 Traffic Schedule、Negotiation、Fleet Adapter、Navigation Graph 和设施协作接口说明；明确仍需厂商适配，且不属于安全认证 |
+
+### 33.3 来源与未关闭事项
+
+新增来源台账 #320–#334：Google OR-Tools assignment/generalized assignment/VRPTW 文档，CBBA、LaCAM/LaCAM*、MAPF with Turn Actions、MET-MAPF 论文，以及 Open-RMF Core/Fleet Adapter/Traffic Editor 官方文档和相关开源项目 README/LICENSE。
+
+尚未连接实际车队 API、现场地图、任务/订单数据、门/电梯/充电桩和通信设施；未运行本项目的分配、VRP、MAPF 或 RMF 实例；未测量多车时钟、预约冲突、资源释放、死锁恢复、充电策略与实机安全行为。
+
+本节仅为公开资料支持的定向主张复核；资产状态维持 `unaccepted_claim_level_review_pending`，不代表产品验收或安全批准。
