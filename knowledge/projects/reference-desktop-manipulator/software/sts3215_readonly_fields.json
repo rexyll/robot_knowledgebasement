@@ -226,7 +226,7 @@
       "wire_encoding": "sign_magnitude(10)",
       "conversion": "None",
       "engineering_unit": "percent (0.1%/count)",
-      "unit_basis": "FEETECH generic STS memory table; rustypot conversion=None, retain signed decoded count"
+      "unit_basis": "FEETECH generic STS memory table: 0.1%/count; ServoDefinition.read_register decodes sign-magnitude, but legacy typed read_present_load uses raw u16 identity conversion and does not decode the sign bit"
     },
     {
       "name": "present_voltage",
