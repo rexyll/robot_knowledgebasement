@@ -80,7 +80,7 @@ def test_validator_reports_layout_and_encoding_mismatches():
             }
         ]
     }
-    errors = validate_whitelist(whitelist, parsed)
+    errors = register_definition_audit.validate_whitelist(whitelist, parsed)
     assert len(errors) == 4
     assert any("address mismatch" in error for error in errors)
     assert any("width_bytes mismatch" in error for error in errors)
