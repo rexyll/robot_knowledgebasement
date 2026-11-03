@@ -38,7 +38,7 @@ aliases: [桌面分拣机械臂参考项目, Reference Desktop Manipulator]
 | [12 控制板供应商澄清与电气验证计划](12-控制板供应商澄清与电气验证计划.md) | 控制板身份核对、供应商问题清单、电源/通信/保护验证矩阵；实物核对当前标记“需要实物，未完成” | 计划草案 |
 | [13 LeRobot版本锁定与运行时依赖审计](13-LeRobot版本锁定与运行时依赖审计.md) | 区分稳定发行版、固定源码快照和实际运行时依赖 | 进行中 |
 | [14 STS3215 rustypot只读寄存器白名单](24-STS3215-rustypot-v1.13.1只读寄存器白名单.md) | 固定 rustypot v1.13.1 控制表字段、地址/宽度/权限与地址3/4语义差异 | 静态源码基线 |
-| [离线只读采集器与测试](software/) | 机器可读白名单、逐字段 read-only 采集器、fake bus/AST 测试及 rustypot ServoDefinition 自动比对工具；不连接实机 | GitHub Actions Python 3.10/3.11/3.12 均通过，20 passed；26字段与62项定义比对一致 |
+| [离线只读采集器与测试](software/) | 机器可读白名单、逐字段 read-only 采集器、fake bus/AST 测试及 rustypot ServoDefinition 自动比对工具（字段布局、wire encoding、转换器类型）与工程单位审计说明；不连接实机 | CI 上一版20 passed；转换器审计已加入，待本轮 CI 验收 |
 
 ## 4. 项目阶段和证据状态
 
@@ -94,3 +94,6 @@ aliases: [桌面分拣机械臂参考项目, Reference Desktop Manipulator]
 ## 9. 硬件信息缺口处理
 
 新增 [TODO 硬件信息缺口台账](TODO.md)，用于记录缺少准确硬件型号、批次BOM、铭牌、固件映射、寄存器默认值、板卡修订版或实测数据的事项，并标注所属章节与解除条件。非阻塞缺口不应阻断其他工作；涉及供电、运动、负载、保护或人员安全的实机操作必须等证据补齐后再进行。
+
+
+软件审计补充：`register_definition_audit.py` 除地址/宽度/访问权限/wire encoding 外，还比对 rustypot `generate_servo!` 的转换器类型；JSON 白名单记录位置/速度/负载/电压/温度/电流单位及 API 路径限制。报告23第16节列出位置类型化读取与 sign-magnitude 不一致、速度负零边界、负载旧式类型化读取不解码符号位等静态发现。CI/源码审计不代表实机读数或单位校准。
