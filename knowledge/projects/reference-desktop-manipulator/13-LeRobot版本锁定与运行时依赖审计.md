@@ -77,3 +77,16 @@ LeRobot 当前 main 的 `pyproject.toml` 声明项目版本为 0.6.2；其 `rust
 4. rustypot Changelog：https://docs.rs/crate/rustypot/latest/source/Changelog.md
 
 访问日期：2026-11-03。
+
+
+## 6. 固定源码快照与稳定发行版的区分（2026-11-03）
+
+进一步核验后，将本项目的版本基线分为“公开稳定发行版”和“固定源码审查快照”，不得混称：
+
+- LeRobot 官方文档首页当前标示稳定版为 v0.6.1；v0.6.1 tag 对应 commit `7e241bd630a3719a56157a497ce5d08f244784f1`，该 tag 的 `pyproject.toml` 使用 Feetech Python SDK extra，而不是 rustypot。
+- 前序审查的 LeRobot commit `154fdfb595573ae9c7e0b3b48102b0318235e306` 中，`pyproject.toml` 声明版本0.6.2、Python `>=3.12`，并将 `rustypot>=1.13.1,<2.0.0` 作为串行电机 extra 的依赖。该提交适合复核当前 SerialMotorsBus/rustypot 调用链，但不能写成 v0.6.1 稳定发行版。
+- 本项目将该固定 LeRobot commit 与 rustypot v1.13.1 tag（commit `7aa85e13143594ea4fd4ed9f29e3e29d39b5de85`）作为静态源码审查配对基线；这不是经依赖解析生成的完整 lockfile，也不是用户设备的安装清单。
+- LeRobot commit 的依赖声明只给出 rustypot 版本范围；本轮没有取得目标设备 `pip freeze`、uv/pip lock 或安装元数据。精确运行时版本仍为未知。
+- 当前公开 main 可能继续变化，所有 API/寄存器结论必须绑定上述 SHA/tag；若将来选择正式发行版或其他 commit，需重新审查 API、控制表和读写调用链。
+
+**后续策略：** 只读白名单先以固定源码配对基线推进离线实现；真实设备连接前，必须从目标环境导出 LeRobot、rustypot、Python 版本和依赖解析文件，并对照本文件及项目文档24复核差异。当前没有运行 LeRobot 或连接硬件。
