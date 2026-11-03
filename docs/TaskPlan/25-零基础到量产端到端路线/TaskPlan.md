@@ -194,3 +194,6 @@
 | 2026-11-03 | 25-14（SO-101/C046 保护寄存器映射） | 对照 Feetech 官方 STS 内存表 Wiki 与官方 FTServo_Arduino 的 SMS_STS.h：梳理地址13/14/15温度/电压阈值、19卸载位、20报警位、28保护电流、34/35/36过载降扭、38过流时间及65状态位；确认通用表部分初始值按型号变化，地址14/19无统一初始值；官方头文件未定义本轮关注的保护寄存器常量，不能证明 C046 固件默认值/实现。新增报告 1.6.2 和控制板计划 4.4 寄存器级只读/获批写入测试要求；25-14 继续进行中，未读实机寄存器、未写入配置、未执行保护故障注入。 |
 
 | 2026-11-03 | 25-14（LeRobot 保护配置与健康观测审查） | 审查 LeRobot main 的 SO-Follower、SerialMotorsBus 与 rustypot STS3215 定义：确认六轴统一配置位置模式/PID与通用加速度/回包延迟参数，只有夹爪显式写 Max_Torque_Limit=500、Protection_Current=250、Overload_Torque=25，对应地址16/28/36；地址34 Protective_Torque 是独立字段；常规观测仅读取 Present_Position，未主动读取状态/电流/温度/电压。新增报告 1.8.1、控制板计划 4.5、链接台账 #230–#232。源码审查完成，未运行代码、未连接实机、未读回寄存器；25-14 继续进行中。 |
+
+
+| 2026-11-03 | 25-14（LeRobot 状态错误字节与故障恢复路径） | 核验 LeRobot Motors API / SerialMotorsBus 与 rustypot Changelog：区分总线传输失败、Status Packet error byte 和 STS 地址65 Status；确认 Feetech `status_alarms_only` 表示状态字节只报告报警，不把报警当作协议拒绝；普通 Motors API 不把原始状态字节作为常规 observation 暴露；Sync Write 不等待应答；disconnect 默认尝试全轴 disable torque，但失败时仍释放串口，失联轴可能保持扭矩。新增报告 1.8.2、验证计划 4.6、链接台账 #233–#234。仅静态审查与测试设计，未做 mock 故障注入或实机测试，25-14 继续进行中。 |
