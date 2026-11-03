@@ -21,7 +21,7 @@ generate_servo!(
 
 
 def test_parser_extracts_address_width_access_and_encoding():
-    parsed = register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
+    parsed = register_definition_audit.register_definition_audit.parse_sts3215_definition(RUST_SOURCE)
     assert parsed["firmware_major_version"] == {
         "address": 0,
         "width_bytes": 1,
