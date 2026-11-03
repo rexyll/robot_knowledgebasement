@@ -169,3 +169,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/视觉SLAM.md 开展 P1 视觉 SLAM/VIO 定向复核：区分单目/双目/RGB-D/VIO 尺度约束及初始化可观性；纠正直接法弱纹理、VINS-Fusion 固定流水线细节、MSCKF/VIO 与完整 SLAM 能力边界、RTAB-Map RGB-only/metric mapping 边界和 stella_vslam IMU 开发状态；核验 ROS 兼容与许可证依赖。来源台账 #275–#288，审计报告第29节。未采集目标设备数据、未构建运行算法，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/algorithms/学习型机器人算法.md 开展 P1 RL/IL/VLA 与工具链主张定向复核：删除通用训练步数/并行环境/数据体量/成功率和行业趋势数字；纠正 Diffusion Policy/ACT/VLA 分类；更新 OpenVLA、π₀/openpi、GR00T N1.7、Figure Helix/Helix 02 架构和许可差异；补充模型部署、数据质量与安全监督边界。来源台账 #289–#305，审计报告第30节。未运行训练/模型或实机系统，全文 claim-level 验收未完成。 |
