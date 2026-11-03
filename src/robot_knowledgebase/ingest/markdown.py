@@ -9,7 +9,7 @@ from typing import Any
 
 from robot_knowledgebase.models import KnowledgeDocument
 
-_FRONT_MATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
+_FRONT_MATTER = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
 _HEADING = re.compile(r"^#\s+(.+?)\s*#*\s*$", re.MULTILINE)
 
 
