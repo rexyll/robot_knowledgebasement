@@ -38,7 +38,7 @@ aliases: [桌面分拣机械臂参考项目, Reference Desktop Manipulator]
 | [12 控制板供应商澄清与电气验证计划](12-控制板供应商澄清与电气验证计划.md) | 控制板身份核对、供应商问题清单、电源/通信/保护验证矩阵；实物核对当前标记“需要实物，未完成” | 计划草案 |
 | [13 LeRobot版本锁定与运行时依赖审计](13-LeRobot版本锁定与运行时依赖审计.md) | 区分稳定发行版、固定源码快照和实际运行时依赖 | 进行中 |
 | [14 STS3215 rustypot只读寄存器白名单](24-STS3215-rustypot-v1.13.1只读寄存器白名单.md) | 固定 rustypot v1.13.1 控制表字段、地址/宽度/权限与地址3/4语义差异 | 静态源码基线 |
-| [离线只读采集器与测试](software/) | 机器可读白名单、逐字段 read-only 采集器、fake bus/AST 测试及 rustypot ServoDefinition 自动比对工具（字段布局、wire encoding、转换器类型）与工程单位审计说明；不连接实机 | CI 上一版20 passed；转换器审计已加入，待本轮 CI 验收 |
+| [离线只读采集器与测试](software/) | 机器可读白名单、逐字段 read-only 采集器、fake bus/AST 测试及 rustypot ServoDefinition 自动比对工具（字段布局、wire encoding、转换器类型）与工程单位审计说明；不连接实机 | GitHub Actions run 41642021222：Python 3.10/3.11/3.12 全部通过，Ruff通过、26字段/62定义转换器元数据比对通过、pytest 20 passed |
 
 ## 4. 项目阶段和证据状态
 
