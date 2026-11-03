@@ -743,3 +743,57 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 - 未复现论文 benchmark，未对模型做目标硬件推理延迟、成功率、泛化、能耗/温升或失败恢复测试。
 - 未对数据集逐条授权、模型权重和依赖树进行法律许可审查；OpenVLA 预训练模型许可提醒、openpi checkpoint 及所有工具链第三方许可仍需固定版本并逐项核实。
 - 本轮仅为局部主张定向纠错，不构成学习策略性能复现、实机验证、安全批准、许可法律意见或全文 claim-level 验收；资产状态继续为 `unaccepted_claim_level_review_pending`。
+
+
+## 31. P1 全局路径规划算法与 Nav2 Planner 接口主张定向复核（2026-11-03）
+
+### 31.1 本轮范围
+
+审查 `knowledge/algorithms/路径规划算法.md` 中图搜索最优性、Weighted A*、D*/Theta*/JPS 前提、RRT*/OMPL 能力、Nav2 Smac 插件边界、Path 与 Trajectory、覆盖规划指标和工程默认参数。
+
+### 31.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| A* “通常快 10–100×”、JPS “快 10–30×” | 删除跨地图/实现/平台的固定倍数，强调图结构、启发函数和实现相关 |
+| Weighted A* 固定 epsilon 范围且作为工程默认 | 改为特定假设下可获得有界次优，权重与理论保证需要逐实现核验 |
+| Dijkstra 复杂度/最优性无实现前提 | 区分非负边权与图上的最短路；补充常见二叉堆实现的复杂度表达边界 |
+| D* Lite 被描述成“动态环境只修复受影响部分” | 限定为边代价变化下复用搜索信息的增量规划；它不自动预测动态对象 |
+| Theta*/JPS 直接推广到任意加权代价地图 | 限定 Theta* 的视线/栅格碰撞检查前提、JPS 的均匀规则栅格等假设 |
+| RRT* 渐近最优和有限时间求解混淆 | 明确渐近性质不等于有限时间内达到最优；需要状态空间、采样和连接假设 |
+| Nav2 SMAC 混作一个 Hybrid-A* 默认方案 | 按官方文档区分 2D A*、SE2 Hybrid-A* 与 State Lattice 的平台/运动学边界 |
+| 将 nav_msgs/Path 描述为完整轨迹 | 明确其位姿序列不含完整速度剖面/时间参数化，需控制器/轨迹处理层继续完成 |
+| 全覆盖固定 10% 重叠、95% 覆盖率 | 删除通用阈值；由有效工作宽度、跟踪误差、边界、工艺和验收要求确定 |
+| “Weighted A* + inflation + 转向惩罚足够 99% 室内 AMR” | 删除无证据行业比例和默认方案，改成任务/平台/地图测试矩阵 |
+
+### 31.3 来源与未关闭事项
+
+新增来源台账 #306–#310：Nav2 Smac 与 ComputePathToPose 文档、OMPL 官网/README/许可证，以及 Boustrophedon 覆盖规划经典论文。尚未在目标 AMR/清洁机器人/阿克曼底盘上运行各规划器，也未对项目的 Nav2/OMPL commit、footprint、代价模型、覆盖率真值和轨迹可执行性做测试。
+
+本文仅为局部主张定向修订，资产状态保持 `unaccepted_claim_level_review_pending`。
+
+
+## 32. P1 Nav2 局部控制器、Costmap 与制动边界主张定向复核（2026-11-03）
+
+### 32.1 本轮范围
+
+审查 `knowledge/algorithms/局部规划与避障.md` 中 DWB/TEB/RPP/MPPI 算法定位、Nav2 插件兼容性、动态障碍预测、costmap layer/filter、延迟/停止距离与安全功能边界。
+
+### 32.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| 固定局部控制频率、TEB 优化时延及端到端回路预算 | 删除通用数值，要求在目标平台、负载、场地测量 |
+| “MPPI GPU 加速” | 根据 Nav2 上游 README 更正为高度优化 CPU-only 实现；性能与版本/平台有关 |
+| “RPP 避障弱” | 补充曲率/障碍距离调速及前向 footprint 碰撞投影检查，同时说明其偏向跟踪给定路径 |
+| TEB 作为 Nav2/ROS1+ROS2 通用插件 | 原始 TEB package.xml/CMake 是 catkin、base_local_planner、nav_core 接口；ROS2 port/fork 必须独立核验 |
+| 动态行人恒速预测、社会距离及让行规则写死 | 移除统一秒数/米数/右让左等跨场景规则，要求按法规、任务、运动模型和风险评估设定 |
+| Inflation Layer 速度相关自动膨胀 | 按 Nav2 文档纠正为指数衰减空间代价；Keepout/Speed 是 filters，Voxel/Range 为不同传感器 layer |
+| 仅靠 costmap 和控制器作为安全避障链 | 明确普通导航组件不是安全额定保护系统，需独立风险评估、保护装置和停止验证 |
+| 固定 10ms 安全回路、固定盲走距离 | 删除无来源阈值，给出简化反应距离/制动距离关系，并要求最坏工况实测 |
+
+### 32.3 来源与未关闭事项
+
+新增来源台账 #311–#319：Nav2 DWB、MPPI、RPP、tuning guide、Costmap2D/Inflation Layer 文档，以及 TEB 上游 README、package.xml、CMakeLists。未在目标底盘/传感器/载荷下对各 controller 运行对比；未测量感知到制动最坏时延、最大载荷/坡度停止距离、局部规划失效恢复及安全扫描仪/控制器链路。
+
+两篇文档都只完成局部主张定向复核，不代表完整 claim-level 验收、实机性能测试或安全批准。相关资产仍维持 `unaccepted_claim_level_review_pending`。
