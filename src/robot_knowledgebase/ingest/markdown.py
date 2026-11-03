@@ -62,7 +62,7 @@ def load_markdown(path: str | Path) -> KnowledgeDocument:
     heading = _HEADING.search(content)
     title = str(metadata.get("title") or (heading.group(1) if heading else source_path.stem))
     document_id = hashlib.sha256(
-        f"{source_path.as_posix()}\0{raw_text}".encode("utf-8")
+        f"{source_path.as_posix()}\0{raw_text}".encode()
     ).hexdigest()
 
     metadata.setdefault("category", "general")
