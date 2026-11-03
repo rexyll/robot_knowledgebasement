@@ -30,7 +30,7 @@ class DefinitionParseError(ValueError):
 
 
 def parse_sts3215_definition(source: str) -> dict[str, dict[str, object]]:
-    """Extract register layout and wire encoding from generate_servo! source."""
+    """Extract register layout, wire encoding, and conversion type from generate_servo! source."""
     if "generate_servo!(" not in source or "STS3215" not in source:
         raise DefinitionParseError("Source does not look like rustypot STS3215 definition")
 
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"OK: {len(whitelist['registers'])} read-only whitelist entries match "
+        f"OK: {len(whitelist['registers'])} read-only whitelist entries match layout, wire encoding, and conversion declarations across "
         f"{len(definition)} rustypot STS3215 registers."
     )
     return 0
