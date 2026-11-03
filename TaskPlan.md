@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v2.6  
+> 版本：v3.2  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -415,3 +415,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-03 | v3.0 | 25-14 基于固定 LeRobot/rustypot 源码基线新增 STS3215 机器可读只读字段白名单、依赖注入式逐字段采集器与 fake bus/AST 测试；离线 pytest 5 passed。采集器不连接/断开总线、不含写入/校准/扭矩操作；目标运行环境兼容和实机验证仍未完成。新增项目报告23第14节与软件入口；25-14继续进行中，根目录当前主任务仍为00-01 | LeRobot commit 154fdfb…、rustypot v1.13.1 ServoDefinition；离线隔离副本测试，无串口、无实机 |
 
 | 2026-11-03 | v3.1 | 25-14 修复 CI 三版本矩阵 Ruff 失败与 pytest 子目录测试未发现问题：修正 Mapping 导入和 import 规范，扩展 pytest testpaths/pythonpath；新增 rustypot v1.13.1 STS3215 ServoDefinition 源码解析比对工具，CI 固定拉取 commit 7aa85e... 并核对26个白名单字段的地址/宽度/权限/wire encoding。最新 Actions run 41640224192：Python 3.10/3.11/3.12 全部通过，Ruff通过、源码比对26/62一致、pytest 20 passed。新增报告23第15节。25-14继续进行中，根目录当前主任务仍为00-01 | 固定 rustypot STS3215 源码与自动比对、GitHub Actions三版本矩阵；CI成功不代表目标设备依赖已锁定或实机安全验证 |
+
+| 2026-11-03 | v3.2 | 25-14 对 rustypot v1.13.1 STS3215 转换器与工程单位进行固定源码审计；识别 present_position 类型化 API 与 sign-magnitude 不一致、present_speed 的 0x8000 负零边界问题、present_load 类型化读取未解码符号位；白名单与 CI 比对扩展 conversion 类型并记录工程单位边界，报告23第16节。根目录当前主任务仍为00-01；25-14继续进行中。 | rustypot v1.13.1 固定 commit 的 STS3215、servo_macro、definition、info、MX 转换器源码及 FEETECH 通用 STS 单位表；静态审查，不代表实际依赖安装、硬件读数或单位校准 |
