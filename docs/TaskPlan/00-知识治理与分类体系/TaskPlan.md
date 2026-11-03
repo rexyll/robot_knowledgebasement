@@ -191,3 +191,6 @@
 
 
 | 2026-11-03 | 00-01 | 对 knowledge/algorithms/README.md 完成 P1 索引结构与导航完整性复核：按感知定位建图、规划轨迹控制、多机器人/学习型算法分组；补充算法地图、导航流程、Nav2、性能指标和功能安全入口；明确索引只负责导航，技术主张以专题正文/证据为准。审计报告第37节，资产 CSV 更新。 |
+
+
+| 2026-11-03 | 00-01 | 对 knowledge/software/Nav2导航框架.md 开展 P1 官方架构/插件/BT/Costmap/Lifecycle/版本与许可证边界定向复核：拆分实际核心、可选服务器和插件，移除固定“四大服务器”、TEB 原生插件、统一恢复顺序和参数/频率，补充 Lifecycle Manager node_names、Costmap layer/filter 区分、版本锁定与多许可证边界。来源台账 #363–#378，审计报告第38节。未在目标机器人运行 Nav2 bringup/BT/插件，全文 claim-level 验收未完成。 |
