@@ -866,3 +866,29 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 新增来源台账 #335–#353：Ultralytics、PaddleDetection RT-DETR、OpenPCDet、Patchwork++、ByteTrack、SAM 2、Grounding DINO、Depth Anything V2 及多个模型卡、Open3D-ML 的官方 README/LICENSE/model card。
 
 未使用本项目目标相机、深度相机或 LiDAR 数据执行标定、采集和模型训练；未在目标 Jetson/RK/工业 PC 测量实际端到端精度、延迟、功耗；未连接真实导航/机械臂消费者验证坐标变换、误检漏检与保护策略。最终 checkpoint、导出模型、训练数据与第三方依赖的完整许可仍需按固定版本审查。
+
+
+## 36. P1 轨迹优化、路径跟踪与运动控制主张定向复核（2026-11-03）
+
+### 36.1 本轮范围
+
+审查 `knowledge/algorithms/轨迹优化与运动控制.md` 中控制栈通用频率、Pure Pursuit/Stanley/LQR/PID/MPC 算法排序、轨迹平滑、运动学/动力学约束、OSQP/acados 求解器边界、ros2_control 实时接口与足式/人形控制主张。
+
+### 36.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| 电流环 kHz、底盘速度环 100Hz–1kHz、路径跟踪 20–50Hz、MPC 10–20Hz 写作通用控制栈 | 删除固定频率，改为按 Controller Manager、驱动器、硬件配置与实测链路定义 |
+| Pure Pursuit lookahead 常数、加速度/向心加速度上限、满载降速百分比写为 AMR 通用建议 | 删除固定参数，增加曲率表达、运动学转换与按底盘/载荷/地面验证要求 |
+| “Stanley 高速好、LQR 理论优、MPC 最强” | 删除无条件算法排名，分别解释误差模型、线性化范围、约束和实现条件 |
+| 将路径平滑等同可执行安全轨迹 | 区分几何平滑、速度/时间参数化与轨迹碰撞/可跟踪性验证；说明 B-spline/Bezier 可能切入障碍或未知区域 |
+| OSQP/acados 的求解问题类别混淆 | OSQP 修正为凸 QP，acados 为结构化 OCP/NLP/SQP 求解框架；删除 1–5ms、100Hz/1kHz“绰绰有余”的泛化性能声明 |
+| ros2_control 的控制周期和 watchdog 写死 | 说明 update_rate 为配置项；补充 SCHED_FIFO、权限、内核、CPU/IRQ、硬件驱动和测量；删除固定 200ms watchdog/刹停结论 |
+| 足式控制以 ZMP/WBC 1kHz 和 RL“行业主流”概括 | 增加 centroidal dynamics、接触约束、WBC QP、伺服层以及 RL/模型控制组合边界；删除行业一刀切判断 |
+| se2_navigation 被推荐为一般高速运动控制参考 | 根据上游 README 限定为 car-like 低速机动/停车，明确不适合高速驾驶 |
+
+### 36.3 来源与未关闭事项
+
+新增来源台账 #354–#362：Nav2 RPP 文档/README、OSQP 求解器文档与许可证、acados README/许可证、ros2_control Jazzy Controller Manager 文档，以及 ETH se2_navigation README/许可证。
+
+未运行目标底盘、机械臂或足式平台控制器；未获取目标机器人动力学/伺服器模式、实际轨迹/状态数据或安全需求；未测量端到端控制延迟、跟踪误差、求解超时、载荷/坡度停止行为与热稳态。资产状态继续为 `unaccepted_claim_level_review_pending`。
