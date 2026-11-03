@@ -21,7 +21,7 @@
 | 系统架构与流程 | [architecture/](architecture/) | AMR 总体架构、建图、导航、调度、OTA 和安全流程 |
 | 核心参数 | [parameters/](parameters/) | 传感器、底盘、系统性能指标及对比 |
 | 产业与生态 | [ecosystem/](ecosystem/) | 厂商、产业链、标准法规和行业趋势 |
-| 项目案例 | [projects/](projects/) | AMR、清洁机器人、视觉框架项目梳理（公开前仍需披露审查） |
+| 项目案例 | [projects/](projects/) | AMR、清洁机器人、视觉框架真实项目分析，以及明确标注为教学假设的桌面机械臂端到端参考项目 |
 | 从零搭建指南 | [getting-started/](getting-started/) | 零基础学习、AMR 教学样机和从零到量产主线 |
 | 代码实例 | [examples/](examples/) | 可运行代码示例、代码来源与许可证信息 |
 | 知识地图 | [maps/](maps/) | 首页、分类地图、硬件/软件/算法/流程地图 |
@@ -49,6 +49,7 @@
 
 - [零基础学习路径](getting-started/00-零基础学习路径.md)
 - [从零到量产端到端路线](getting-started/端到端产品化路线总览.md)
+- [桌面型物料分拣机械臂教学参考项目](projects/reference-desktop-manipulator/README.md)
 - [知识地图索引](maps/README.md)
 - [首页](maps/首页.md)
 - [术语表](术语表.md)
