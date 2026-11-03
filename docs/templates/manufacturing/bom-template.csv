@@ -1,0 +1,2 @@
+item_id,parent_item_id,level,designator,description,manufacturer,manufacturer_part_number,revision,specification,quantity,unit,substitute_group,criticality,supplier,supplier_part_number,unit_price,currency,tax_basis,quote_date,MOQ,lead_time_days,lifecycle_status,source_url,lot_traceability_required,inspection_requirement,notes
+ITEM-001,ROOT,1,,待填写,待填写,待填写,待填写,待填写,待填写,1,ea,,待评估,待询价,待填写,,,未报价,待填写,待填写,待填写,待确认,待填写,待评估,待填写,教学模板行请替换

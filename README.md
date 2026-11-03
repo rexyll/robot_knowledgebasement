@@ -11,6 +11,8 @@
 
 - [知识库总目录](knowledge/README.md)
 - [知识地图](knowledge/maps/README.md)
+- [工程与知识文档模板](docs/templates/README.md)
+- [知识资产清单与审计报告](docs/audits/README.md)
 - [零基础学习路径](knowledge/getting-started/00-零基础学习路径.md)
 - [从零到量产路线](knowledge/getting-started/端到端产品化路线总览.md)
 - [知识分类与元数据规范](docs/knowledge-schema.md)

@@ -1,7 +1,7 @@
 ---
 tags: [项目, 视觉框架, 建筑机器人]
 aliases: [项目-Bozlin视觉框架, Bozlin, boz framework, VisionServer]
-路径: E:\boz\framework
+路径: 本地工作区路径未公开（公开仓库不记录绝对路径）
 创建日期: 2026-11-01
 更新日期: 2026-11-01
 ---
@@ -9,7 +9,7 @@ aliases: [项目-Bozlin视觉框架, Bozlin, boz framework, VisionServer]
 # 项目：Bozlin Vision Framework V2（跨平台机器人视觉框架）
 
 > **定位**：面向**建筑/装修机器人**（铺地砖、抹墙、刮腻子、打磨、贴墙纸、举升、测量）的**跨平台机器视觉框架**（Windows/Linux，送检版本运行于 Jetson TX2）。Poco 为核心库、GTest 单测、V2.0.0 于 2019-2020 送检测中心。
-> **路径**：`E:\boz\framework`
+> **路径**：`本地工作区路径未公开（公开仓库不记录绝对路径）`
 
 ## 1. 项目构成（5 个模块）
 

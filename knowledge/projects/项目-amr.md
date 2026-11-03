@@ -1,7 +1,7 @@
 ---
 tags: [项目, AMR, ROS2]
 aliases: [项目-amr, amr项目, GenRobo AMR]
-路径: Z:\GeneralPurpose_Robot\amr
+路径: 本地工作区路径未公开（公开仓库不记录绝对路径）
 创建日期: 2026-11-01
 更新日期: 2026-11-01
 ---
@@ -9,7 +9,7 @@ aliases: [项目-amr, amr项目, GenRobo AMR]
 # 项目：amr（GenRobo AMR 全栈系统）
 
 > **定位**：一套多机型 AMR（潜伏/牵引/叉举系列，models/ 下 d1/d2/ft2/ft4 等机型）的**整机全栈软件**：机端 ROS2 + 调度通信 + 云端 + 上位机，已完成"能力插件化"重构。
-> **路径**：`Z:\GeneralPurpose_Robot\amr`　**梳理基线**：项目内 `doc/ARCHITECTURE.md`（2026-10-30 基线，16 篇 arch 文档）
+> **路径**：`本地工作区路径未公开（公开仓库不记录绝对路径）`　**梳理基线**：项目内 `doc/ARCHITECTURE.md`（2026-10-30 基线，16 篇 arch 文档）
 
 ## 1. 系统构成（三端 + 一套机型资产）
 
