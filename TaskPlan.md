@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v3.5  
+> 版本：v3.6  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -423,3 +423,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-03 | v3.4 | 25-14 进一步核对固定 LeRobot SerialMotorsBus 实现：read/sync_read 走 rustypot ServoDefinition 的 read_register_with_error/sync_read_register_with_error，应用 wire encoding 并返回整数，不调用旧式 AnglePosition/Velocity 类型化转换器；将旧式 API 的符号/负零风险与 LeRobot 实际读路径分开记录，避免错误归因。报告23第16节、README、链接台账#252及章节TaskPlan已更新。根目录当前主任务仍为00-01，25-14继续进行中。 | LeRobot 固定 commit 154fdfb595573ae9c7e0b3b48102b0318235e306 与 rustypot v1.13.1 固定源码；静态源码核验，不代表实际安装版本或硬件单位校准 |
 
 | 2026-11-03 | v3.5 | 25-14 新增 LeRobot/rustypot 解码整数到通用 FEETECH STS 工程单位的独立纯函数转换层：负载%、电压V、温度°C、电流A；保留原始整数、输入范围校验、名义范围告警；位置/速度不做未经证实的单位换算。新增转换器及测试、JSON单位profile、报告23第17节、README、链接台账#253。首轮CI发现 Ruff I001 已修复，等待最新 Actions run；25-14继续进行中，根目录当前主任务仍为00-01。 | FEETECH 官方通用 STS 教程、固定 rustypot/LeRobot 源码路径；仅软件转换和通用单位资料，不代表具体SKU校准、设备测量或安全阈值 |
+
+| 2026-11-03 | v3.6 | 25-14 独立工程单位转换层完成CI验收；修复 Ruff I001 和浮点精确比较测试问题。Actions run 41644477531：Python 3.10/3.11/3.12 全部成功，Ruff通过、26/62项 rustypot元数据比对通过、pytest 42 passed。转换层覆盖通用 STS 负载%、电压V、温度°C、电流A，保留原始整数并标记超名义范围值；位置/速度仍不自动换算。报告23第17节、README、章节TaskPlan和链接台账已更新。根目录当前主任务仍为00-01，25-14继续进行中。 | FEETECH官方通用STS教程、固定LeRobot/rustypot源码、GitHub Actions三版本矩阵；不代表具体SKU校准、真实测量或安全阈值 |
