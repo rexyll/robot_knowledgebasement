@@ -15,14 +15,14 @@ from typing import Any
 
 
 _REGISTER_PATTERN = re.compile(
-    r"reg:\\s*\\(\\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\\s*,"
-    r"\\s*(?P<access>rw|r)\\s*,\\s*(?P<address>\\d+)\\s*,"
-    r"\\s*(?P<rust_type>u8|u16|u32|u64|i8|i16|i32|i64|bool)\\s*,"
-    r"\\s*(?P<conversion>[a-zA-Z_][a-zA-Z0-9_]*|None)\\s*\\)"
+    r"reg:\s*\(\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*,"
+    r"\s*(?P<access>rw|r)\s*,\s*(?P<address>\d+)\s*,"
+    r"\s*(?P<rust_type>u8|u16|u32|u64|i8|i16|i32|i64|bool)\s*,"
+    r"\s*(?P<conversion>[a-zA-Z_][a-zA-Z0-9_]*|None)\s*\)"
 )
 _ENCODING_PATTERN = re.compile(
-    r"\\(\\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*"
-    r"(?P<encoding>unsigned|twos_complement|sign_magnitude\\(\\s*\\d+\\s*\\))\\s*\\)"
+    r"\(\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*"
+    r"(?P<encoding>unsigned|twos_complement|sign_magnitude\(\s*\d+\s*\))\s*\)"
 )
 
 
@@ -37,9 +37,9 @@ def parse_sts3215_definition(source: str) -> dict[str, dict[str, Any]]:
 
     # Remove line comments before parsing so commented-out examples cannot be treated
     # as live register declarations.
-    source_without_comments = re.sub(r"//[^\\n]*", "", source)
+    source_without_comments = re.sub(r"//[^\n]*", "", source)
     encoding_match = re.search(
-        r"encoding:\\s*\\[(?P<body>.*?)\\]\\s*,\\s*reg:",
+        r"encoding:\s*\[(?P<body>.*?)\]\s*,\s*reg:",
         source_without_comments,
         flags=re.DOTALL,
     )
@@ -48,7 +48,7 @@ def parse_sts3215_definition(source: str) -> dict[str, dict[str, Any]]:
 
     overrides: dict[str, str] = {}
     for match in _ENCODING_PATTERN.finditer(encoding_match.group("body")):
-        overrides[match.group("name")] = re.sub(r"\\s+", "", match.group("encoding"))
+        overrides[match.group("name")] = re.sub(r"\s+", "", match.group("encoding"))
 
     registers: dict[str, dict[str, Any]] = {}
     for match in _REGISTER_PATTERN.finditer(source_without_comments):
