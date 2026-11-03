@@ -11,7 +11,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
 
 
 _REGISTER_PATTERN = re.compile(
@@ -30,7 +29,7 @@ class DefinitionParseError(ValueError):
     """Raised when the expected rustypot STS3215 macro data cannot be parsed."""
 
 
-def parse_sts3215_definition(source: str) -> dict[str, dict[str, Any]]:
+def parse_sts3215_definition(source: str) -> dict[str, dict[str, object]]:
     """Extract register layout and wire encoding from generate_servo! source."""
     if "generate_servo!(" not in source or "STS3215" not in source:
         raise DefinitionParseError("Source does not look like rustypot STS3215 definition")
@@ -76,7 +75,7 @@ def parse_sts3215_definition(source: str) -> dict[str, dict[str, Any]]:
 
 
 def validate_whitelist(
-    whitelist: dict[str, Any], definition: dict[str, dict[str, Any]]
+    whitelist: dict[str, object], definition: dict[str, dict[str, object]]
 ) -> list[str]:
     """Return all differences between whitelist rows and rustypot source."""
     errors: list[str] = []
