@@ -997,3 +997,30 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 尚未在项目目标 ROS 2 发行版、硬件和网络拓扑上运行 Fast DDS、Cyclone DDS 或 Zenoh RMW；未验证实际 endpoint QoS、发现 server/router 故障恢复、跨厂商 wire interoperability、共享内存/数据共享、网络分区与安全访问策略；未完成目标系统端到端时延、丢包和资源占用基准。
 
 资产仍保持 `unaccepted_claim_level_review_pending`。本节为公开资料支持的主张定向复核，不构成通信栈部署验收、实时性/安全验证或软件许可法律意见。
+
+
+## 41. P1 ROS 1 → ROS 2 生命周期、ros1_bridge 兼容矩阵与迁移边界定向复核（2026-11-03）
+
+### 41.1 本轮范围
+
+审查 `knowledge/software/advanced-topics/ROS1与迁移.md` 中 Noetic EOL、Ubuntu Focal 生命周期、ros1_bridge 安装/发行版兼容性、custom interface 构建工作区、消息/服务自动映射、dynamic_bridge 条件、ROS 1/ROS 2 双栈网络与时间、Action/QoS 和迁移工作量估算。
+
+### 41.2 关键纠错
+
+| 原文风险点 | 本轮处理 |
+|---|---|
+| ROS 1 EOL 与 Ubuntu 生命周期混成一项 | 明确 Noetic EOL 是 2025-05-31；Ubuntu Focal 标准支持结束与 Ubuntu Pro/ESM 是另一条生命周期，ESM 不延长 ROS Noetic 上游支持 |
+| 示例命令安装 ros-jazzy-ros1-bridge 并 source Noetic | 删除错误通用命令；当前上游 README 明确 Noble 24.04 无 ROS 1/不支持 bridge，Jammy 22.04 需源码构建，Focal 20.04 按 README 兼容表和具体版本核验 |
+| “同名同类型消息自动桥接”被泛化成任意消息全支持 | 按上游说明限定：bridge 支持的类型在编译时确定；预编译二进制仅含常用接口；custom types 需 ROS1/ROS2 接口工作区和独立 bridge workspace |
+| 未说明消息/服务字段映射规则 | 根据官方 doc 补充包名后缀、消息名、字段名/类型、YAML custom mapping；service 自定义字段重命名受限 |
+| bridge 只要运行就会桥接全部 topic | 补充 dynamic_bridge 依据实际匹配 publisher/subscriber 按需创建；CLI echo 需显式类型或使用 all-topic 选项时也要理解流量与安全影响 |
+| 同机双环境仅靠 source 就全互通 | 说明 ROS1 侧仍需要 roscore/ROS_MASTER_URI，ROS2 侧仍需 RMW discovery/network；构建时需避免 ROS1 路径污染 ROS2 CMAKE_PREFIX_PATH |
+| 迁移工作量按“每包半天/全仓一两人月”估算 | 删除无项目数据支撑的经验数字，改为接口、驱动、算法、任务、运维和安全的分阶段资产清单/验收矩阵 |
+| ROS1 actionlib 被视为可透明桥接 ROS2 Action | 明确 bridge 官方映射文档覆盖 message/service 关联，不应假设 actionlib 与 ROS2 Action 的取消/反馈/状态协议自动等价，需设计任务适配器并测试 |
+| Docker 化被写成存量系统的安全/合法通用方案 | 改为生命周期风险管理、网络隔离、补丁来源、权限、备份/回滚和退役期限；容器不解决上游 EOL 或驱动漏洞 |
+
+### 41.3 来源与未关闭事项
+
+新增来源台账 #408–#413：ROS 1 Noetic 上游归档 README、REP-0003、Ubuntu Release Cycle、ros1_bridge 官方 README、接口映射文档与 Apache-2.0 LICENSE。
+
+未获取本项目实际 ROS 1 workspace、包清单、Noetic/Focal 镜像、厂商驱动和自定义消息；未构建项目自定义 ros1_bridge；未逐 topic/service/action 做消息映射、时间、TF、QoS、网络断连和端到端时延验证；未形成迁移计划的包级工作量/风险基线。本文仅完成公开资料支持的主张定向复核，不构成具体项目迁移完成、运行性能、安全或产品验收。
