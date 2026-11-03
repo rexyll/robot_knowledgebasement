@@ -18,7 +18,8 @@
       "width_bytes": 1,
       "access": "R",
       "encoding": "u8",
-      "description": "固件主版本"
+      "description": "固件主版本",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "firmware_minor_version",
@@ -26,7 +27,8 @@
       "width_bytes": 1,
       "access": "R",
       "encoding": "u8",
-      "description": "固件次版本"
+      "description": "固件次版本",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "model_number",
@@ -34,7 +36,8 @@
       "width_bytes": 2,
       "access": "R",
       "encoding": "u16",
-      "description": "驱动型号响应；不可直接映射商品SKU"
+      "description": "驱动型号响应；不可直接映射商品SKU",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "id",
@@ -42,7 +45,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "总线ID读回"
+      "description": "总线ID读回",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "baudrate",
@@ -50,7 +54,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "波特率代码读回"
+      "description": "波特率代码读回",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "max_temperature_limit",
@@ -58,7 +63,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "温度保护配置"
+      "description": "温度保护配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "max_voltage_limit",
@@ -66,7 +72,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "过压配置"
+      "description": "过压配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "min_voltage_limit",
@@ -74,7 +81,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "欠压配置"
+      "description": "欠压配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "max_torque_limit",
@@ -82,7 +90,8 @@
       "width_bytes": 2,
       "access": "RW",
       "encoding": "u16",
-      "description": "扭矩上限配置"
+      "description": "扭矩上限配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "unloading_condition",
@@ -90,7 +99,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "卸载条件位配置"
+      "description": "卸载条件位配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "led_alarm_condition",
@@ -98,7 +108,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "LED报警条件配置"
+      "description": "LED报警条件配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "protection_current",
@@ -106,7 +117,8 @@
       "width_bytes": 2,
       "access": "RW",
       "encoding": "u16",
-      "description": "保护电流配置"
+      "description": "保护电流配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "protective_torque",
@@ -114,7 +126,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "保护后保持扭矩比例"
+      "description": "保护后保持扭矩比例",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "protection_time",
@@ -122,7 +135,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "过载保护计时配置"
+      "description": "过载保护计时配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "overload_torque",
@@ -130,7 +144,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "过载扭矩比例"
+      "description": "过载扭矩比例",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "over_current_protection_time",
@@ -138,7 +153,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "u8",
-      "description": "过流保护计时配置"
+      "description": "过流保护计时配置",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "torque_enable",
@@ -146,7 +162,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "bool",
-      "description": "当前扭矩使能状态"
+      "description": "当前扭矩使能状态",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "lock",
@@ -154,7 +171,8 @@
       "width_bytes": 1,
       "access": "RW",
       "encoding": "bool",
-      "description": "EEPROM锁状态；禁止解锁"
+      "description": "EEPROM锁状态；禁止解锁",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "present_position",
@@ -162,7 +180,8 @@
       "width_bytes": 2,
       "access": "R",
       "encoding": "i16/sign-magnitude(15)",
-      "description": "当前位置寄存器值"
+      "description": "当前位置寄存器值",
+      "wire_encoding": "sign_magnitude(15)"
     },
     {
       "name": "present_speed",
@@ -170,7 +189,8 @@
       "width_bytes": 2,
       "access": "R",
       "encoding": "u16/sign-magnitude(15)",
-      "description": "当前速度寄存器值"
+      "description": "当前速度寄存器值",
+      "wire_encoding": "sign_magnitude(15)"
     },
     {
       "name": "present_load",
@@ -178,7 +198,8 @@
       "width_bytes": 2,
       "access": "R",
       "encoding": "u16/sign-magnitude(10)",
-      "description": "当前负载寄存器值"
+      "description": "当前负载寄存器值",
+      "wire_encoding": "sign_magnitude(10)"
     },
     {
       "name": "present_voltage",
@@ -186,7 +207,8 @@
       "width_bytes": 1,
       "access": "R",
       "encoding": "u8",
-      "description": "当前电压寄存器值"
+      "description": "当前电压寄存器值",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "present_temperature",
@@ -194,7 +216,8 @@
       "width_bytes": 1,
       "access": "R",
       "encoding": "u8",
-      "description": "当前温度寄存器值"
+      "description": "当前温度寄存器值",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "status",
@@ -202,7 +225,8 @@
       "width_bytes": 1,
       "access": "R",
       "encoding": "u8",
-      "description": "STS地址65状态寄存器"
+      "description": "STS地址65状态寄存器",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "moving",
@@ -210,7 +234,8 @@
       "width_bytes": 1,
       "access": "R",
       "encoding": "bool",
-      "description": "运动状态"
+      "description": "运动状态",
+      "wire_encoding": "unsigned"
     },
     {
       "name": "present_current",
@@ -218,7 +243,8 @@
       "width_bytes": 2,
       "access": "R",
       "encoding": "u16",
-      "description": "当前电流寄存器值"
+      "description": "当前电流寄存器值",
+      "wire_encoding": "unsigned"
     }
   ]
 }
