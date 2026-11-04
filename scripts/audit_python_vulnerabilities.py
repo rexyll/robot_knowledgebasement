@@ -67,7 +67,7 @@ def main():
  ap=argparse.ArgumentParser(description=__doc__); ap.add_argument("--output",type=Path,required=True); ap.add_argument("--fail-on-findings",action="store_true"); args=ap.parse_args()
  report={"schema_version":"1.0","scanner":"repository-standard-library-osv-query","advisory_source":"OSV API","advisory_source_url":API,"generated_at":dt.datetime.now(dt.timezone.utc).isoformat(),"status":"scan_error","scope":["uv.lock packages","uv.lock PEP 517 build constraints","requirements-sbom-tools.txt","requirements-build-tools.txt"],"excluded_scope":["ROS 2 packages","apt/dpkg","containers","GPU/CUDA/BSP/kernel/native system libraries","firmware/PLC/vendor SDKs/deployed product components","GitHub Actions and remote source files"]}
  try:
-  packages,counts=collect(); findings,n=scan(packages); report.update(status="completed_with_findings" if findings else "completed_no_findings",package_version_count=len(packages),source_entry_counts=counts,unique_advisory_count=n,finding_count=len(findings),packages=packages,findings=findings)
+  packages,counts=collect(); findings,n=scan(packages); report.update(status="completed_with_findings" if findings else "completed_no_findings",package_version_count=len(packages),source_entry_counts=counts,unique_advisory_count=n,unique_cve_count=len({c for item in findings for c in item['cve_ids']}),finding_count=len(findings),packages=packages,findings=findings)
   args.output.parent.mkdir(parents=True,exist_ok=True); args.output.write_text(json.dumps(report,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
   print(f"OSV completed: {len(packages)} package versions; {n} advisories; {len(findings)} findings.")
   return 1 if args.fail_on_findings and findings else 0
