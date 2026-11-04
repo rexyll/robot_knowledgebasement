@@ -123,3 +123,5 @@
 | 2026-11-04 | 21-03/21-06 | 对机器人软件生态索引开展软件供应链初始分层：区分仓库 Python 工具包真实声明依赖、CI/构建依赖、Actions/外部源码与 ROS/PLC/EtherCAT/传感器等调研候选项目；新增声明式依赖 CSV 与 SBOM 初始审计报告，确定 CycloneDX 1.7 与 cyclonedx-py 实际环境生成路线，记录无锁文件/版本未解析、Actions 未 SHA pinning、第三方许可证未完成逐组件审查等风险。来源台账 #632–#635。21-03 继续进行中：未安装/构建项目、未生成环境 SBOM、未对产品 ROS workspace/PLC/固件/容器建立完整 BOM，未执行漏洞扫描或法律审查。 | 根 pyproject.toml/LICENSE/CI workflow、Ecma/CycloneDX/GitHub 官方文档；静态审查 |
 
 | 2026-11-04 | 21-03/21-06 | 建立产品级 ROS 2 软件供应链采集模板：从生态候选索引扩展至具体产品 BOM，定义 ROS workspace/overlay、package.xml 与 rosdep、系统包、容器 digest、GPU runtime、BSP/内核、固件、厂商 SDK、PLC runtime 的采集范围和证据字段；新增空白 CSV、链接台账 #636–#638，并将模板入口加入开源项目索引与兼容矩阵。节点继续进行中：尚无确定产品 SKU/硬件 revision/software release，未执行目标设备/镜像采集、SBOM 生成、漏洞扫描、逐组件许可证审查或供应商确认。 | ROS REP-140、ROS 2 build system/package development 官方资料；静态模板设计 |
+
+| 2026-11-04 | 21-03/21-06 | 为仓库 Python 工具包增加 CI 生成 SBOM 的流水线配置：runtime/dev 双环境隔离、CycloneDX 1.7 校验、生成器版本记录、环境 freeze/SHA256SUMS 与 artifact 上传；固定三项 GitHub Actions 完整 commit SHA。增加供应链审计报告并将生成器纳入依赖清单。此为知识库 Python 包的软件清单自动化，不等于具体机器人产品 BOM；首次 CI 运行/产物复核待完成，产品 ROS workspace/固件/PLC/SDK 仍未采集，21-03 继续进行中。 | CycloneDX Python 官方文档与发布页、GitHub Actions 官方 refs；静态 CI 配置审查 |
