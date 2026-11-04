@@ -1,0 +1,2 @@
+component_id,layer,name,version,supplier,package_url,source_url,source_commit,artifact_sha256,image_digest,license_declared,license_concluded,license_evidence,notice_obligations,relationship,scope,direct_or_transitive,device_or_image,architecture,ros_distro,os_release,evidence_ref,collected_at_utc,collector,verification_status,notes
+,,,,,,,,,,,,,,,,,,,,,,,,,
