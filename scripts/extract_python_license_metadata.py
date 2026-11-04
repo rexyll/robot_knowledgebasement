@@ -32,7 +32,9 @@ FIELDS = [
 ]
 
 
-def extract_license_metadata(component: dict[str, Any]) -> tuple[list[str], list[str], list[str], str]:
+def extract_license_metadata(
+    component: dict[str, Any],
+) -> tuple[list[str], list[str], list[str], str]:
     raw = component.get("licenses") or []
     values: list[str] = []
     forms: list[str] = []
