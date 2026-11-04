@@ -66,4 +66,4 @@ Artifact：`python-sbom-cyclonedx-1.7`，ID `13296392548`，ZIP 4,328 bytes，di
 - [uv pip sync](https://docs.astral.sh/uv/pip/sync/)
 - [pip secure installs / --require-hashes](https://pip.pypa.io/en/stable/topics/secure-installs/)
 
-状态：CycloneDX generator 的直接和传递 Python 包已 hash-lock 并由 CI 实测安装；pip 25.0.1 的 OSV 发现已触发升级至 26.3，复扫结果待验证；PEP 517 build isolation 已单独 hash-lock。
+状态：CycloneDX generator 的直接和传递 Python 包已 hash-lock 并由 CI 实测安装；pip 25.0.1 的 6 个 CVE 已触发升级至 26.3，复扫完成且当前 OSV 未再命中；PEP 517 build isolation 已单独 hash-lock。
