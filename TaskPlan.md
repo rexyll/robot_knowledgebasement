@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.5  
+> 版本：v6.6  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -512,3 +512,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.5 | 00-01 对开源生态索引补充感知驱动、测试可观测性和工业互操作项目，并建立静态软件兼容矩阵：纳入 Ouster/Livox/RealSense/DepthAI、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen 与 open62541；按 Humble/Jazzy/Kilted/Lyrical 核对 ROS-Gazebo 官方配对和代表性驱动/工具发行版线索。明确 Livox Driver 2 上游不建议直接用于量产、ROS 2 CANopen 仍在开发、RealSense SDK/固件与 wrapper 需锁定、DepthAI Kilted 起包名变更；区分源码构建、ROS Index RELEASED 和实机验证。新增《知识生态兼容矩阵》，更新开源索引、ecosystem README、资产清单、链接台账 #563–#580、00/21 章子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮没有在目标硬件完成构建/运行/长期稳定性/性能/安全验证，也未完成全依赖 SBOM 或法律审查，不提前验收。 | Ouster/Livox/RealSense/Luxonis 官方驱动文档、ROS Index、Gazebo 官方兼容表、ROS-Industrial/micro-ROS/open62541 上游资料；静态快照截至 2026-11-04，需按实际 commit、SDK、固件、BSP 和硬件配置复核 |
+
+| 2026-11-04 | v6.6 | 00-01 继续审查第 21 章机器人开源生态：开源索引新增 MoveIt Servo、Velodyne ROS 2 Driver 和 Hesai LiDAR ROS 2；兼容矩阵按证据层级标注 MoveIt Servo 的包发行/稳定分支、Velodyne 的 Humble/Jazzy/Lyrical ROS Index 记录、Hesai 的 Humble/Jazzy/Lyrical 源码构建路线。将 VDA5050 Connector 标记为仅 Galactic/2022 年旧更新的适配器参考，将 ROS-Industrial industrial_core 标记为 ROS 1 历史社区维护项目；避免把旧项目或源码入口误写为当前 ROS 2 量产支持。更新开源索引、兼容矩阵、资产 CSV、链接台账 #581–#590 及 00/21 章子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮仅完成静态资料核验，没有目标机械臂伺服/雷达连接、构建运行、长期稳定性、硬实时、功能安全或 VDA5050 现场互操作测试；全依赖 SBOM、许可证法律审查和完整 claim-level 验收仍未完成。 | ROS Index、MoveIt 2、ROS Drivers Velodyne、Hesai Technology、InOrbit VDA5050 connector、ROS-Industrial 上游资料；静态快照截至 2026-11-04，须按实际 release/tag、型号、SDK/固件和目标平台复核 |
