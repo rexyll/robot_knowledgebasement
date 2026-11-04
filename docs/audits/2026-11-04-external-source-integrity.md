@@ -44,3 +44,9 @@ tags: [外部源码, SHA-256, 来源完整性, rustypot, 供应链]
 已完成：固定 commit、原始文件大小与 SHA-256、仓库级 Apache-2.0 LICENSE 证据、CI 摘要校验步骤。
 
 仍未完成：对上游许可证适用范围的法律审查、第三方贡献/NOTICE 逐项审查、上游升级责任人与周期策略。SBOM-004 仅完成来源完整性证据部分，不关闭全部许可证审查。
+
+## 6. CI 实际校验结果（补记）
+
+GitHub Actions [run #534](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41773862412)（run ID `41773862412`，head commit `4bb611aac8dbb0b2079c09eed2ba595b5a68477b`）最终 `completed / success`。Python 3.10、3.11、3.12 三个测试 job 中的源文件 SHA-256 校验步骤均为 success，随后寄存器审计和 pytest 也通过；SBOM job 同样成功。
+
+校验配置迭代中，早期 run #528/#533 曾失败：先是 checksum 行换行格式错误，随后单引号阻止 `${RUNNER_TEMP}` 展开。通过改用双引号展开临时路径后，run #534 验证通过。失败原因属于 CI shell 命令格式，不是源文件摘要不匹配。今后更改源文件 commit 或摘要时，必须重新运行三版本矩阵。
