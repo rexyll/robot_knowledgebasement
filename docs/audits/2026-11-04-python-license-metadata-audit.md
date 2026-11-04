@@ -47,14 +47,14 @@ CycloneDX 的 `acknowledgement=declared` 仅出现在 packaging 的三个环境�
 | cyclonedx-python-lib 11.12.0 | [tag v11.12.0 commit 52cb3c9](https://github.com/CycloneDX/cyclonedx-python-lib/tree/52cb3c94f023df887ac65a6125bce4d63ab7857e)；LICENSE 为 Apache 2.0 | 与 PyPI 版本声明一致 | 检查工具链内部使用与再分发边界 |
 | jsonpointer 3.8 | [commit 7c78531](https://github.com/stefankoegl/python-json-pointer/tree/7c78531542c81ee0d308cb044244c0b1adf37b39) 的提交信息为 bump version to 3.8；LICENSE.txt 与源码均声明 Modified BSD License | 上游三条款文本包含 source/binary notice 保留和禁止未经许可背书条款；不自动转换为 SPDX 标识 | 需人工确认 SPDX 对应关系、版权声明和 notice |
 | py-serializable 2.1.0 | [tag v2.1.0 commit 85628fd](https://github.com/madpah/serializable/tree/85628fd392101627993bb69732630a6e66dd63be)；LICENSE 为 Apache 2.0 | 与 PyPI 声明一致 | 检查工具链内部使用与再分发边界 |
-| sortedcontainers 2.4.0 | [PyPI 2.4.0 release page](https://pypi.org/project/sortedcontainers/2.4.0/) 内嵌 Apache 2.0 许可文本；[当前上游 LICENSE](https://github.com/grantjenks/python-sortedcontainers/blob/master/LICENSE) 亦为 Apache 2.0 | 版本页许可文本与当前上游文件一致 | 未定位 2021 年 release sdist 对应的确切 Git commit；不得将当前 master 当成 release commit |
+| sortedcontainers 2.4.0 | [tag v2.4.0 commit a1f52d6](https://github.com/grantjenks/python-sortedcontainers/tree/a1f52d6713dd2c2713a881d4f4d86ed68ff71cab)；该 commit 的 `sortedcontainers/__init__.py` 声明 2.4.0，`setup.py` 声明 Apache 2.0，LICENSE 为 Apache 2.0 | 精确 release tag、版本源码与 LICENSE 一致 | 核对分发场景和 Apache NOTICE/版权义务 |
 | webcolors 25.10.0 | [tag 25.10.0 commit e6392ba](https://github.com/ubernostrum/webcolors/tree/e6392ba6eeba81b02e666eb3ed02ef2e006344c0)；pyproject 明确 BSD-3-Clause，LICENSE 含三条款文本 | 与 CycloneDX SPDX 候选一致 | 核对 BSD notice 在未来分发包中的保留 |
 | packaging 26.3（3 个 scope） | [tag 26.3 commit 929fd4b](https://github.com/pypa/packaging/tree/929fd4b1410ac7ef61ef3f45b2f5d7e87711a9b5)；LICENSE 指向 LICENSE.APACHE 或 LICENSE.BSD；两份许可文件均已读取 | 上游明确声明二选一；贡献者贡献条款则声明 under both，保留 Apache-2.0 OR BSD-2-Clause | 项目是否需要选定并记录分发时采用的许可，须由法务/合规决定 |
 
 ### 证据分级与状态
 
-- 9/10 个 component-scope 队列行（8 个不同 package/version 中，packaging 占 3 行）已取得版本 tag/commit 或 PyPI release 级许可证证据。
-- sortedcontainers 2.4.0 的证据为版本页 + 当前上游 LICENSE，缺少 release sdist 到 commit 的映射，状态为 partial。
+- 10/10 个 component-scope 队列行（8 个不同 package/version，其中 packaging 占 3 行）已取得对应版本 tag/commit 或 PyPI provenance/release 级 LICENSE 证据。
+- sortedcontainers 2.4.0 已定位 tag v2.4.0 和 commit `a1f52d6713dd2c2713a881d4f4d86ed68ff71cab`；同一 commit 中的版本声明、setup.py 许可声明和 LICENSE 相互一致。
 - 10/10 行仍为法律复核待办；没有任何记录被标记为“许可证审查完成”或“允许再分发”。
 - jsonpointer 的 “Modified BSD” 保留上游名称，不因三条款结构而擅自重写成 SPDX ID。
 - packaging 的 OR expression 保持上游原意；不替用户选择 Apache 或 BSD 许可。
