@@ -91,6 +91,11 @@ jobs:
           "${RUNNER_TEMP}/sbom-generator/bin/cyclonedx-py" environment "${RUNNER_TEMP}/sbom-build-tools/bin/python" \
             --pyproject pyproject.toml --spec-version 1.7 --validate --output-reproducible \
             --output-file sbom/robot-knowledgebase-build-tools.cdx.json
+      - name: Extract license metadata candidates from all four BOMs
+        run: |
+          python scripts/extract_python_license_metadata.py \
+            --sbom-dir sbom \
+            --output sbom/python-license-metadata-candidates.csv
       - name: Archive observed environment inventories
         run: |
           uv pip freeze --python "${RUNNER_TEMP}/sbom-runtime/bin/python" > sbom/runtime-python-freeze.txt
