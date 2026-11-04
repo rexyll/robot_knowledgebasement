@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.27  
+> 版本：v6.28  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -567,3 +567,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.27 | 00-01 完成 Python 许可证候选队列全部上游版本证据定位：补齐 sortedcontainers 2.4.0 的 tag v2.4.0，解析至 commit `a1f52d6713dd2c2713a881d4f4d86ed68ff71cab`；同一 commit 的 `sortedcontainers/__init__.py` 版本号、`setup.py` Apache 2.0 声明和 LICENSE 文本相互一致。人工复核队列 10/10 component-scope 记录（8 个不同 package/version）现均有版本 tag/commit 或 PyPI provenance/release 级许可证证据；更新 CSV、许可证审计报告、供应链基线和审计 README。10/10 法律复核仍 pending，不能视为兼容性/再分发批准；根主章节00、主节点00-01继续进行中，第21章21-03继续进行中。 | sortedcontainers v2.4.0 upstream tag/commit/version/license; updated 16-column review queue and audit report |
+
+
+| 2026-11-04 | v6.28 | 00-01 将本轮许可证证据来源纳入外链台账：新增链接台账 #651–#673 共 23 条，覆盖 8 个 Python 包版本的 PyPI release 页面、上游 tag/commit LICENSE、pyproject/setup 元数据和 packaging 双许可文件。链接均经实际访问，版本 revision 与审计队列一致。资产清单随后同步。该工作只完善证据可追溯性，不构成法律审查；10/10 记录法律复核仍 pending，根主章节00、主节点00-01继续进行中，第21章21-03继续进行中。 | docs/链接台账 #651–#673；上游 PyPI/GitHub exact version evidence |
