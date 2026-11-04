@@ -92,3 +92,22 @@ jobs:
           path: sbom/
           if-no-files-found: error
           retention-days: 30
+
+  bootstrap-build-tools-lock:
+    # One-time bootstrap: resolve build backend dependencies for review and commit.
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'bootstrap build tools lock')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.7"
+      - name: Compile build backend requirements with hashes
+        run: |
+          uv pip compile requirements-build-tools.in --generate-hashes --output-file requirements-build-tools.txt
+          echo "BEGIN_BUILD_TOOLS_LOCK_CONTENT"
+          cat requirements-build-tools.txt
+          echo "END_BUILD_TOOLS_LOCK_CONTENT"
