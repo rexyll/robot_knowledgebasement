@@ -75,3 +75,8 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 - [CycloneDX Python 工具用法](https://github.com/CycloneDX/cyclonedx-python/blob/main/docs/usage.rst)（#633）
 - [GitHub Actions 安全使用参考](https://docs.github.com/en/actions/reference/security/secure-use)（#634）
 - [SPDX 3.0 正式规范入口](https://www.omg.org/spec/SPDX/3.0)（#635）
+
+
+## 6. Python 锁定依赖漏洞扫描
+
+已新增 [Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md) 与标准库脚本 `scripts/audit_python_vulnerabilities.py`。CI 使用独立 job 查询 OSV，覆盖 uv.lock package entries、manifest build constraints、requirements-sbom-tools.txt 和 requirements-build-tools.txt。首次 CI 扫描完成前，不声明当前漏洞数量；人工可利用性分诊、VEX、许可证复核及产品级非 Python 组件扫描仍未完成。
