@@ -79,7 +79,7 @@ Run #585 artifact 已实际下载：
 
 ### Run #41780128626：四环境 SBOM 与许可证元数据候选抽取
 
-[GitHub Actions run #41780128626](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41780128626)，最终 success；Python 3.10/3.11/3.12 测试矩阵、OSV 复扫、四环境 SBOM job 全部通过。Artifact #13297629985，12,856 bytes，digest `sha256:4df21e05e03904055ebcf53c1756842c8f93aff50f59670d566f37fe56e12ed5`。下载后 ZIP SHA-256 与 GitHub digest 一致，SHA256SUMS 9 项全部通过。
+[GitHub Actions run #41780128626](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41780128626)，最终 success；Python 3.10/3.11/3.12 测试矩阵、OSV 复扫、四环境 SBOM job 全部通过。Artifact #13297629985，12,856 bytes，digest `sha256:4df21e05e03904055ebcf53c1756842c8f93aff50f59670d566f37fe56e12ed5`。下载后 ZIP SHA-256 与 GitHub digest 一致。后续对新 artifact 的独立检查发现：上传时 artifact 将 `sbom/` 目录扁平化，但 `SHA256SUMS` 仍写入 `sbom/` 前缀，故在解压目录直接运行 `sha256sum -c SHA256SUMS` 会因路径不存在失败；逐项去除该前缀后，9 个文件的实际 SHA-256 均与清单一致。已修复 CI 清单生成路径，见 run #41783904623 后续修复记录。
 
 - Runtime BOM：1 component / 2 dependency entries。
 - Development BOM：7 components / 8 dependency entries。
@@ -90,6 +90,13 @@ Run #585 artifact 已实际下载：
 
 CycloneDX CLI 对部分环境 BOM 输出 root component 缺少直接依赖、dependency graph 不完整的 warning。四份 JSON 均通过 1.7 schema validation；本次将其作为环境组件与许可证 metadata 快照，不将其解释为完整依赖关系图。
 
+### Run #41783904623：许可证证据更新后的 CI 与 artifact 复核
+
+[GitHub Actions run #41783904623](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41783904623)，最终 success；Python 3.10/3.11/3.12、OSV 与四环境 SBOM jobs 全部通过。Artifact #13300332133，12,856 bytes，GitHub digest `sha256:03f9310578c31ea8f9d7e9678fe44a7bad9366f098c44305dd4c0c53adc9f377`。已下载，ZIP SHA-256 与 digest 一致；四份 CycloneDX 1.7 JSON 可解析，component/dependency entries 分别为 runtime 1/2、development 7/8、generator 34/35、build-tools 3/4；许可证候选 CSV 45 行，0 条缺失。
+
+此次独立验证发现 artifact flattening 与 checksum 路径不一致：ZIP 中文件位于根目录，而 `SHA256SUMS` 内路径仍为 `sbom/<file>`。直接 `sha256sum -c SHA256SUMS` 因路径不匹配失败；逐项去除 `sbom/` 前缀后，9 个实际文件摘要全部匹配。该问题是清单路径错误，不是文件内容摘要不一致。
+
+已在 CI workflow 提交修复：由 `sha256sum sbom/* > sbom/SHA256SUMS` 改为 `(cd sbom && sha256sum * > SHA256SUMS)`，使归档根目录中的 `SHA256SUMS` 使用相对文件名。修复提交 `6c35218571d5b1dbf24fdeb6727980474a936ce7`；该提交触发的直接校验运行待完成，修复尚不标记为 CI 验收通过。
 ## 5. 解释限制
 
 - Runtime BOM 只描述该 CI Python 3.12 Linux 环境；项目声明的 Python runtime dependencies 为空，不能据此推断产品系统无依赖。
@@ -102,7 +109,7 @@ CycloneDX CLI 对部分环境 BOM 输出 root component 缺少直接依赖、dep
 ## 6. 关闭状态
 
 - SBOM-001：**已关闭（限定范围）**。项目 runtime/dev 使用 uv.lock，generator 使用独立 hash-locked requirements，build backend 使用 pyproject build constraints + uv.lock hashes。
-- SBOM-003：**已关闭（限定范围）**。仓库 Python runtime/dev、generator、PEP 517 build-tools 四个 CI 环境的 CycloneDX 1.7 BOM 生成、校验、artifact 归档和下载复核完成；依赖图完整性限制见本报告。
+- SBOM-003：**已关闭（限定范围）**。仓库 Python runtime/dev、generator、PEP 517 build-tools 四个 CI 环境的 CycloneDX 1.7 BOM 生成、校验、artifact 归档和下载复核完成；artifact checksum 路径修复已提交，待修复后 CI 直接验证；依赖图完整性限制见本报告。
 - SBOM-008：**已关闭（当前项目 build-system 范围）**。Python 3.10/3.11/3.12 的 `uv build --require-build-hashes` 全部通过。
 - SBOM-004：上游文件 commit/SHA-256 校验已实施；许可证适用性审查仍待完成。
 - SBOM-005/006：产品实际集成组件和第三方许可证审查未完成。
