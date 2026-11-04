@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.16  
+> 版本：v6.17  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -534,3 +534,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.16 | 00-01 继续软件供应链完整性：为 CI 下载的 pollen-robotics/rustypot STS3215 源文件计算并登记 SHA-256（7,434 bytes，`4dbb829228d13492e7dcf80bfbd3d48642a9bbc58c8158e6bdcec1cc35811fa7`），在 Python 3.10/3.11/3.12 每个测试任务中增加 `sha256sum --check --strict` 强制校验；固定上游 commit 的仓库 LICENSE 记录 Apache-2.0 证据与签名验证状态，新增外部源码完整性审计报告、更新依赖清单/基线/审计 README/链接台账 #640–#641、00/21 章计划与资产清单。SBOM-004 完成来源完整性证据部分，但逐文件许可证适用性、NOTICE/贡献者和再分发审查仍未关闭。根主章节仍为00、主节点仍为00-01；Python 依赖 hash-lock、CVE/VEX、产品级 ROS/PLC/硬件 BOM 继续未完成。 | 固定 commit 的 raw source 与 LICENSE；GitHub commit verification；CI SHA-256 强校验配置 |
+
+
+| 2026-11-04 | v6.17 | 00-01 对外部源码完整性校验完成真实 CI 验证：run #534 最终成功；Python 3.10/3.11/3.12 三个测试 job 的 rustypot STS3215 SHA-256 检查均通过，随后寄存器审计与 pytest 均通过，Python SBOM job 亦成功。记录校验配置迭代中 run #528/#533 的 shell 格式/路径引用失败及修正，避免将失败隐藏；更新外部源码完整性报告、依赖清单和审计 README。SBOM-004 仅来源/摘要证据部分完成，许可证适用范围、NOTICE/贡献者/再分发审查仍未关闭；Python 依赖锁定、CVE/VEX、产品级 ROS/PLC/硬件 BOM 仍未完成。根主章节00、主节点00-01保持进行中。 | GitHub Actions run #534 与 job step 结果；固定 commit raw source SHA-256 |
