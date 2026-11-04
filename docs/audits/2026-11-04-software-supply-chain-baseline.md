@@ -80,3 +80,8 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 ## 7. Python 锁定依赖漏洞扫描
 
 已新增 [Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md) 与标准库脚本 `scripts/audit_python_vulnerabilities.py`。CI 使用独立 job 查询 OSV，覆盖 uv.lock package entries、manifest build constraints、requirements-sbom-tools.txt 和 requirements-build-tools.txt。首轮 OSV 扫描在 45 个 package/version 中发现 generator pip 25.0.1 的 6 个 CVE（12 条 GHSA/PYSEC advisory 记录），已升级至 pip 26.3；复扫已完成，45 个 package/version 返回 0 advisory/0 finding。首轮发现的人工可利用性分诊/VEX、许可证复核及产品级非 Python 组件扫描仍未完成。
+
+
+## 8. Python 许可证元数据候选审计
+
+run #41780128626 已为 runtime、development、SBOM generator 和 PEP 517 build-tools 四个 CI 环境生成 CycloneDX 1.7 BOM，并从 license metadata 提取 45 条候选记录。10 条包含 classifier/free-text 或 OR expression 的记录已进入人工复核队列；其余 SPDX ID 候选也不能替代逐包上游 LICENSE/NOTICE 核验。CycloneDX 输出存在 root dependency graph incomplete warning，不能将这些环境快照解释为完整依赖图。SBOM-005/006 的产品集成组件/第三方许可证法律审查仍未完成。
