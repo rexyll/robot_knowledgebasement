@@ -245,3 +245,5 @@
 
 
 | 2026-11-04 | 00-01 | 扩展机器人开源资产索引并新增 knowledge/ecosystem/知识生态兼容矩阵.md：补充 Ouster/Livox/RealSense/DepthAI 驱动、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen、open62541；按 Humble/Jazzy/Kilted/Lyrical 与 Gazebo 官方配对、驱动、测试工具及工业通信条目建立静态兼容证据矩阵。修正兼容状态语义，区分 ROS Index 二进制发布、源码构建入口、上游限制/开发中和目标硬件验证；记录 Livox Driver 2 不建议直接量产、CANopen 栈尚未生产就绪、RealSense SDK/固件需跟 wrapper 配套。新增来源台账 #563–#580，更新生态 README 和资产 CSV。尚未完成全依赖 SBOM、逐包许可证法律审查、完整目标硬件构建/长稳/性能/安全测试，00-01 继续进行中。 |
+
+| 2026-11-04 | 00-01 | 继续扩展开源软件生态索引与兼容矩阵：加入 MoveIt Servo 机械臂伺服组件、Velodyne 与 Hesai LiDAR ROS 2 驱动，按证据区分 ROS Index 二进制发行、仓库稳定分支和厂商源码构建入口；对 VDA5050 Connector（Galactic/2022 年旧记录）及 ROS-Industrial industrial_core（ROS 1 历史项目）标注维护风险，避免作为当前 ROS 2 产品基线。同步资产清单和链接台账 #581–#590。仍未完成全依赖 SBOM/许可证法律审查、目标机器人/传感器实机验证、硬实时/安全验收及全文 claim-level 验收；00-01 继续进行中。 |
