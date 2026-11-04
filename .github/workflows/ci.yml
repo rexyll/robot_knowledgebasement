@@ -102,7 +102,7 @@ jobs:
           uv pip freeze --python "${RUNNER_TEMP}/sbom-development/bin/python" > sbom/development-python-freeze.txt
           uv pip freeze --python "${RUNNER_TEMP}/sbom-generator/bin/python" > sbom/generator-tool-freeze.txt
           uv pip freeze --python "${RUNNER_TEMP}/sbom-build-tools/bin/python" > sbom/build-tool-freeze.txt
-          sha256sum sbom/* > sbom/SHA256SUMS
+          (cd sbom && sha256sum * > SHA256SUMS)
       # actions/upload-artifact v4 — pinned to the commit currently resolved by the official v4 tag.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
