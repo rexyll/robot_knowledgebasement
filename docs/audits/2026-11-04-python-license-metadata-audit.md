@@ -2,7 +2,7 @@
 tags: [许可证, SPDX, CycloneDX, Python, 软件供应链]
 创建日期: 2026-11-04
 更新日期: 2026-11-04
-状态: 元数据候选清单已生成，人工法律复核未完成
+状态: 已完成首轮上游许可证证据采集；人工法律复核未完成
 ---
 
 # Python SBOM 许可证元数据候选审计
@@ -32,17 +32,40 @@ Artifact `python-sbom-cyclonedx-1.7`：ID `13297629985`，12,856 bytes，ZIP SHA
 - 4 条同时提供 SPDX ID 与 classifier 文本。
 - 0 条缺少 license metadata。
 
-需人工复核的 10 条 component-scope 记录见 [许可证元数据人工复核队列 CSV](2026-11-04-python-license-metadata-review-queue.csv)：7 条包含非 SPDX classifier/free-text 的 generator 组件记录，以及 3 条 packaging 的 OR 表达式记录。classifier 如 `License :: OSI Approved :: BSD License` 不能自动推断为 BSD-2-Clause 或 BSD-3-Clause；混合字段也不能假定 classifier 与 SPDX ID 完全一致。
+需复核的 10 条 component-scope 记录见 [许可证元数据人工复核队列 CSV](2026-11-04-python-license-metadata-review-queue.csv)。本轮已为 9 条记录采集到版本对应的上游 tag/commit 和 LICENSE 文件证据（包括 packaging 在三个 scope 的重复记录）；sortedcontainers 2.4.0 仅取得 PyPI 版本页嵌入的 Apache-2.0 许可文本和当前上游 LICENSE，尚未将 2021 年 sdist 与确切上游 commit 对应。**所有 10 条的法律复核状态仍未完成。** classifier 如 `License :: OSI Approved :: BSD License` 不能自动推断为 BSD-2-Clause 或 BSD-3-Clause；混合字段也不能假定 classifier 与 SPDX ID 完全一致。
 
 CycloneDX 的 `acknowledgement=declared` 仅出现在 packaging 的三个环境记录中；其他记录未提供该字段。元数据缺少 acknowledgement 不代表许可证不存在，也不代表已经人工核实。
 
-## 3. 自动化限制
+## 3. 上游许可证证据采集结果（2026-11-04）
+
+本轮逐一核对了人工复核队列中的 8 个不同包版本。证据优先使用版本 tag/commit 下的上游 LICENSE、pyproject 声明和 PyPI 对应版本页；证据 URL 与 revision 已写入 CSV。采集到许可证文本不等于完成许可证法律审查。
+
+| 包 / 版本 | 上游证据 | 当前判断 | 剩余事项 |
+|---|---|---|---|
+| arrow 1.4.0 | [release tag commit 2c1f518](https://github.com/arrow-py/arrow/tree/2c1f5185ad66bf3b1cf8c0812f4b4fe65ac46656)；该版本 pyproject 指向 LICENSE，LICENSE 为 Apache 2.0 | 与 PyPI classifier 一致 | 核查分发场景、版权/NOTICE 要求 |
+| cyclonedx-bom 7.6.0 | [PyPI 7.6.0 provenance](https://pypi.org/project/cyclonedx-bom/7.6.0/) 指向发布 commit [bb678472](https://github.com/CycloneDX/cyclonedx-python/tree/bb67847232d9034c2fb0ce858cb7d1177d97162a)；该 commit 的 LICENSE 为 Apache 2.0 | 版本发布 provenance 与上游许可证文件互相印证 | 检查工具链内部使用与再分发边界 |
+| cyclonedx-python-lib 11.12.0 | [tag v11.12.0 commit 52cb3c9](https://github.com/CycloneDX/cyclonedx-python-lib/tree/52cb3c94f023df887ac65a6125bce4d63ab7857e)；LICENSE 为 Apache 2.0 | 与 PyPI 版本声明一致 | 检查工具链内部使用与再分发边界 |
+| jsonpointer 3.8 | [commit 7c78531](https://github.com/stefankoegl/python-json-pointer/tree/7c78531542c81ee0d308cb044244c0b1adf37b39) 的提交信息为 bump version to 3.8；LICENSE.txt 与源码均声明 Modified BSD License | 上游三条款文本包含 source/binary notice 保留和禁止未经许可背书条款；不自动转换为 SPDX 标识 | 需人工确认 SPDX 对应关系、版权声明和 notice |
+| py-serializable 2.1.0 | [tag v2.1.0 commit 85628fd](https://github.com/madpah/serializable/tree/85628fd392101627993bb69732630a6e66dd63be)；LICENSE 为 Apache 2.0 | 与 PyPI 声明一致 | 检查工具链内部使用与再分发边界 |
+| sortedcontainers 2.4.0 | [PyPI 2.4.0 release page](https://pypi.org/project/sortedcontainers/2.4.0/) 内嵌 Apache 2.0 许可文本；[当前上游 LICENSE](https://github.com/grantjenks/python-sortedcontainers/blob/master/LICENSE) 亦为 Apache 2.0 | 版本页许可文本与当前上游文件一致 | 未定位 2021 年 release sdist 对应的确切 Git commit；不得将当前 master 当成 release commit |
+| webcolors 25.10.0 | [tag 25.10.0 commit e6392ba](https://github.com/ubernostrum/webcolors/tree/e6392ba6eeba81b02e666eb3ed02ef2e006344c0)；pyproject 明确 BSD-3-Clause，LICENSE 含三条款文本 | 与 CycloneDX SPDX 候选一致 | 核对 BSD notice 在未来分发包中的保留 |
+| packaging 26.3（3 个 scope） | [tag 26.3 commit 929fd4b](https://github.com/pypa/packaging/tree/929fd4b1410ac7ef61ef3f45b2f5d7e87711a9b5)；LICENSE 指向 LICENSE.APACHE 或 LICENSE.BSD；两份许可文件均已读取 | 上游明确声明二选一；贡献者贡献条款则声明 under both，保留 Apache-2.0 OR BSD-2-Clause | 项目是否需要选定并记录分发时采用的许可，须由法务/合规决定 |
+
+### 证据分级与状态
+
+- 9/10 个 component-scope 队列行（8 个不同 package/version 中，packaging 占 3 行）已取得版本 tag/commit 或 PyPI release 级许可证证据。
+- sortedcontainers 2.4.0 的证据为版本页 + 当前上游 LICENSE，缺少 release sdist 到 commit 的映射，状态为 partial。
+- 10/10 行仍为法律复核待办；没有任何记录被标记为“许可证审查完成”或“允许再分发”。
+- jsonpointer 的 “Modified BSD” 保留上游名称，不因三条款结构而擅自重写成 SPDX ID。
+- packaging 的 OR expression 保持上游原意；不替用户选择 Apache 或 BSD 许可。
+- 本次仅审查 generator/build-tools 环境中队列所列包，不构成 runtime 产品许可批准，也不覆盖其传递依赖、产品集成组件或最终交付物。
+## 4. 自动化限制
 
 四份 BOM 均通过 CycloneDX 1.7 schema validation。生成日志同时出现 root component 未定义直接依赖、dependency graph 不完整的 warning。因此本轮将 BOM 用作环境组件与许可证元数据清单，不宣称依赖关系图完整。环境 freeze、BOM JSON、候选 CSV 与 SHA256SUMS 一并归档，便于复核。
 
 提取器只转录 CycloneDX `licenses` 字段，不推断许可证、不把自由文本转换为 SPDX ID、不选择 OR expression 的许可选项，也不生成法律结论。CSV 中所有记录均标记 `pending_manual_review`。
 
-## 4. 后续审查要求
+## 5. 后续审查要求
 
 1. 对 10 条复核队列逐项查阅对应 release/tag 的 LICENSE、COPYING、NOTICE、项目声明和再分发条件。
 2. 对其余 SPDX ID 候选也抽查上游 license text 与 metadata 一致性；不能仅凭 SPDX ID 自动视为法律审核完成。
