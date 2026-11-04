@@ -236,3 +236,6 @@
 
 
 | 2026-11-04 | 00-01 | 对 knowledge/ecosystem/manufacturers/硬件厂商资源汇总.md 开展 P1 厂商资源与型号/版本边界定向审查：核验 SLAMTEC、Livox、Hesai、RealSense、Orbbec、Stereolabs、Bosch、ADI、SICK、OMRON、Oriental Motor、Inovance、Harmonic Drive、Nabtesco、EVE、MiR、Hikrobot、NVIDIA、Rockchip、Raspberry Pi 的官方产品/下载/生命周期入口；修订 SICK TiM571 官方数据表可访问状态，补充 S300 至 2026-11-30 的替代窗口、Jetson Orin 供货周期、CM4/CM5 生命周期及 JetPack 当前版本；删除跨型号聚合参数、未经核验价格和“全部链接已验证”概括。新增链接台账 #497–#520；所有价格/交期、精确 SKU 和供应商资格仍待独立核验。 |
+
+
+| 2026-11-04 | 00-01 | 对 knowledge/ecosystem/主要厂商.md 开展 P1 厂商产品线、并购/控制权变化与商业化证据定向复核：补充 ABB、FANUC、KUKA、Yaskawa、Universal Robots 工业/协作产品线；Geek+、Quicktron、Hai Robotics、MiR、Hikrobot、ForwardX 的移动/仓储产品线；Gaussian/Tennant 清洁机器人入口；Tesla、Figure、Unitree、AGIBOT、UBTECH 人形机器人状态。将产品目录、厂商自报下线/产能、客户到场/案例和独立部署证据分开；记录 ABB–SoftBank 交易交割未由已检查页面确认、AGIBOT 15,000 台为机器人组合下线数、Figure 02/03 案例归属差异、Tesla 产线启动未披露交付量。来源台账 #521–#540，资产 CSV 更新 Blob SHA/大小；未完成全文逐条 claim-level 验收、所有厂商逐型号资料审查、供应商尽调或采购交付验证。 |
