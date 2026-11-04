@@ -5,7 +5,7 @@
 "python-build","wheel","unspecified minimum","pyproject.toml [build-system]","unresolved","Build backend requirement; exact resolved version not recorded"
 "python-dev","pytest",">=8.0","pyproject.toml [project.optional-dependencies.dev]","range_unresolved","Test dependency; exact resolved version not recorded"
 "python-dev","ruff",">=0.6","pyproject.toml [project.optional-dependencies.dev]","range_unresolved","Lint/format dependency; exact resolved version not recorded"
-"ci-action","actions/checkout","v4"," .github/workflows/ci.yml","tag_not_sha_pinned","Resolve official tag to verified full commit SHA before pinning"
+"ci-action","actions/checkout","v4",".github/workflows/ci.yml","tag_not_sha_pinned","Resolve official tag to verified full commit SHA before pinning"
 "ci-action","actions/setup-python","v5"," .github/workflows/ci.yml","tag_not_sha_pinned","Resolve official tag to verified full commit SHA before pinning"
 "ci-runtime","Python","3.10;3.11;3.12",".github/workflows/ci.yml","matrix_declared","Workflow tests three Python minor versions"
 "ci-external-source","pollen-robotics/rustypot","7aa85e13143594ea4fd4ed9f29e3e29d39b5de85",".github/workflows/ci.yml","commit_pinned_content_hash_not_recorded","Downloads sts3215.rs from raw GitHub URL for register-definition audit"
