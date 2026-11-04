@@ -151,3 +151,5 @@
 | 2026-11-04 | 21-03/21-06 | 修复并验收 SBOM artifact SHA256SUMS 路径：清单改为在 sbom 工作目录写入 basename-only 相对路径，run #41784066050 success；artifact #13300800214 下载后 ZIP digest 匹配，解压目录直接 `sha256sum -c SHA256SUMS` 9 项全部 OK。四份 CycloneDX 1.7 JSON 可解析，45 条许可证候选 CSV 正常。上游许可证证据队列继续保持 10 条法律复核 pending，sortedcontainers release commit 映射待确认；21-03 继续进行中。 | run #41784066050；artifact #13300800214 下载与 9 项 checksum 直接验证 |
 
 | 2026-11-04 | 21-03/21-06 | 补齐 sortedcontainers 2.4.0 的上游 release 证据：tag v2.4.0 指向 commit `a1f52d6713dd2c2713a881d4f4d86ed68ff71cab`，同一 revision 的 `sortedcontainers/__init__.py` 版本声明、`setup.py` Apache 2.0 声明和 LICENSE 相互印证。许可证人工复核队列 10/10 component-scope 记录（8 个不同 package/version）均已取得版本 tag/commit 或 PyPI provenance/release 级证据；10/10 法律审查仍 pending，未作许可兼容性或再分发批准。21-03 继续进行中。 | upstream sortedcontainers v2.4.0 tag/commit; 16-column license review queue; license audit report |
+
+| 2026-11-04 | 21-03/21-06 | 将 8 个 Python 包版本的上游许可证证据纳入 `docs/链接台账.md` #651–#673，共新增 23 条 PyPI release、GitHub tag/commit LICENSE、pyproject/setup 和双许可文件来源链接。版本证据可追溯；10/10 记录法律复核仍 pending，未作许可证兼容性或再分发批准；21-03 继续进行中。 | link ledger #651–#673；Python license metadata audit and review queue |
