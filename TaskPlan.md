@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.12  
+> 版本：v6.13  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -522,3 +522,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-04 | v6.7 | 00-01 继续补全第 21 章工业软件生态：开源索引加入 Basler pylon、Zivid、SICK 工业视觉/LiDAR 驱动，IgH EtherCAT Master、SOEM、Open-RMF fleet adapter 与 VDA 5050 v3.0.0；兼容矩阵区分厂商源码构建、ROS Index 已发布、SDK 版本差异、总览/包级发行版文档冲突及旧版接口限制。专门记录 SOEM v2.0.0 GPLv3/商业双许可、IgH GPL-2.0 与 EtherCAT 工业产权边界、Basler BCD License/无项目技术支持、Zivid driver/SDK 版本差异、SICK 包版号不一致、Open-RMF Lyrical 包页与总览 README 差异；VDA 5050 当前规范更新至 v3.0.0，旧 Galactic connector 不代表新协议实现。新增链接台账 #591–#607，更新开源索引、兼容矩阵、资产清单和 00/21 章子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮未对相机、雷达、EtherCAT、驱动器或车队系统实施构建、接线、实时/长稳/一致性/现场互操作测试，未形成全依赖 SBOM 或完整法律审查，不提前验收。 | SICK/Basler/Zivid 官方驱动文档、EtherLab/IgH、SOEM、Open-RMF、ROS Index、VDA/VDMA VDA 5050 v3.0.0 官方规范；静态快照截至 2026-11-04，具体型号、tag、SDK、固件、BSP、分发包和协议配置仍需逐项核验 |
 
 | 2026-11-04 | v6.8 | 00-01 继续补充机器人 PLC/运动控制与标定工具链：新增 Beremiz v1.6.0（IEC 61131-3、PLCopen XML、IDE/CLI/runtime 分组件许可证和 ERPC 未加密风险）、ethercat_driver_ros2（IgH + ros2_control Hardware Interface、Jazzy 分支与 Humble 安装文档冲突）、industrial_calibration/industrial_calibration_ros2、camera_calibration、robot_calibration；把 moveit_calibration 归类为仅 Melodic/Noetic 验证的 ROS 1 历史工具。增加端到端集成 Mermaid 图，分别表达 PLC/现场总线协议桥、EtherCAT 硬件接口、相机内参、手眼外参与机器人/底盘几何标定的关系，强调唯一 EtherCAT master 所有者、安全回路独立和标定结果实测。新增链接台账 #608–#621，更新开源索引、兼容矩阵、资产清单和 00/21 章计划。根计划当前主章节仍为00、主任务仍为00-01；本轮仅完成静态资料与架构关系整理，没有运行 PLC、EtherCAT、ros2_control、相机标定或现场互操作测试，也未生成完整 SBOM/许可证法律意见/硬实时和安全证据，不提前验收。 | Beremiz 官方 README/release/许可、ICube Robotics EtherCAT Driver ROS 2 文档、ROS-Industrial calibration、ROS Index camera_calibration/robot_calibration 与 MoveIt Calibration 上游资料；静态快照截至 2026-11-04，目标发行版、驱动/SDK/固件、设备与协议桥仍需逐项构建验证 |
+
+
+| 2026-11-04 | v6.13 | 00-01 继续软件供应链治理：新增 ROS 2 产品级 SBOM 采集模板与 CSV 空白表，覆盖 ROS workspace/package.xml/rosdep、OS/语言依赖、容器 digest、GPU/CUDA runtime、BSP/内核、固件、厂商 SDK 和 PLC runtime；将生态候选、声明依赖与实际产品部署组件明确分层。更新审计 README、开源生态索引、兼容矩阵、链接台账 #636–#638、00/21 章 TaskPlan 和资产清单。根计划主章节仍为00、主节点仍为00-01；仅完成模板设计，未确定产品配置、未采集设备/镜像、未生成产品 SBOM/漏洞扫描或法律结论，不提前验收。 | ROS REP-140、ROS 2 build system/package development 官方文档；静态模板设计 |
