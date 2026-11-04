@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.4  
+> 版本：v6.5  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -509,3 +509,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.4 | 00-01 对第 21 章开源项目与工具链资产开展 P1 定向审查：新增《开源项目与工具链》索引，覆盖 ROS 2 Lyrical、Nav2、MoveIt 2、ros2_control、BehaviorTree.CPP、Open-RMF、Gazebo Jetty/Harmonic、NVIDIA Isaac Sim/Lab/ROS、slam_toolbox、RTAB-Map、KISS-ICP、Cartographer、evo、OMPL、PX4、ArduPilot、LeRobot、Isaac GR00T。区分上游 release 与 ROS Index 包版本、LTS/稳定版/预发布、代码与模型/数据/资产许可证，标记 Cartographer 上游维护状态及 Isaac Sim/Omniverse Kit 的许可边界；更新 ecosystem README、资产清单、链接台账 #541–#562、00/21 章子计划。根计划当前主章节仍为00、主节点仍为00-01；本轮未形成全依赖 SBOM/法律意见、未在目标硬件完整构建或进行性能/安全验证，不提前验收。 | ROS 2/Gazebo/NVIDIA 官方文档、ROS Index、各上游 GitHub release/README/LICENSE；快照日期 2026-11-04，版本与许可证仍需按实际部署 commit、package、资产和分发方式复核 |
+
+
+| 2026-11-04 | v6.5 | 00-01 对开源生态索引补充感知驱动、测试可观测性和工业互操作项目，并建立静态软件兼容矩阵：纳入 Ouster/Livox/RealSense/DepthAI、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen 与 open62541；按 Humble/Jazzy/Kilted/Lyrical 核对 ROS-Gazebo 官方配对和代表性驱动/工具发行版线索。明确 Livox Driver 2 上游不建议直接用于量产、ROS 2 CANopen 仍在开发、RealSense SDK/固件与 wrapper 需锁定、DepthAI Kilted 起包名变更；区分源码构建、ROS Index RELEASED 和实机验证。新增《知识生态兼容矩阵》，更新开源索引、ecosystem README、资产清单、链接台账 #563–#580、00/21 章子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮没有在目标硬件完成构建/运行/长期稳定性/性能/安全验证，也未完成全依赖 SBOM 或法律审查，不提前验收。 | Ouster/Livox/RealSense/Luxonis 官方驱动文档、ROS Index、Gazebo 官方兼容表、ROS-Industrial/micro-ROS/open62541 上游资料；静态快照截至 2026-11-04，需按实际 commit、SDK、固件、BSP 和硬件配置复核 |
