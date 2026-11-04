@@ -49,7 +49,7 @@
 - **严格禁止：** 不得因 GitHub Star 数高就判断工程成熟；不得复制许可证不清的代码。
 - **依赖：** 先完成本章资产盘点；其余依赖按根计划第 6 章执行。
 - **交付物与验收：** 关键生态项目有许可证地图和维护风险说明。
-- **状态：** 进行中（已新增代表性开源项目与工具链索引，覆盖 ROS 2/导航/机械臂控制、仿真、SLAM、运动规划、飞控、具身智能及轨迹评测；记录上游仓库、版本快照和许可证边界。完整依赖许可证/SBOM、各发行版兼容矩阵、更多感知/驱动/测试开源项目和目标硬件构建验证仍未完成）
+- **状态：** 进行中（已新增代表性开源项目与工具链索引，扩展至 Ouster/Livox/RealSense/DepthAI 驱动、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen 和 open62541；另建立 Humble/Jazzy/Kilted/Lyrical 与 Gazebo/传感器驱动/测试/工业互操作兼容矩阵。仍未完成全依赖许可证/SBOM、更多开源感知/工业自动化项目、目标硬件构建/长稳测试和完整兼容性验收）
 
 ### 21-04｜市场数据与商业模式
 
@@ -108,3 +108,6 @@
 
 
 | 2026-11-04 | 21-03/21-06 | 新增《开源项目与工具链》代表性生态索引：覆盖 ROS 2 Lyrical、Nav2、MoveIt 2、ros2_control、BehaviorTree.CPP、Open-RMF、Gazebo Jetty/Harmonic、Isaac Sim/Lab/ROS、slam_toolbox、RTAB-Map、KISS-ICP、Cartographer、evo、OMPL、PX4、ArduPilot、LeRobot 和 Isaac GR00T；逐项区分上游版本/ROS Index 包版本、稳定版/预发布、仓库/包/模型权重/数据集/资产许可证与维护状态。特别记录 Cartographer 上游不再积极维护、Nav2 多许可证、Isaac Sim 附加条款和 Omniverse Kit 再分发边界、PX4 RC 与稳定版区别。来源台账 #541–#562，生态 README 已更新。节点仍进行中：未生成全依赖 SBOM/法律意见，未在目标硬件完整构建/运行，也未完成算法/实时/安全实测。 |
+
+
+| 2026-11-04 | 21-03/21-06 | 扩展开源生态索引，补充 Ouster、Livox、RealSense、Luxonis DepthAI 传感器驱动，robot_localization 状态估计，launch_testing/rosbag2/ros2_tracing/industrial_ci 测试与可观测性工具，micro-ROS、ROS 2 CANopen、open62541 工业互操作组件；新增《知识生态兼容矩阵》，按 Humble/Jazzy/Kilted/Lyrical 核对 Gazebo 官方配对、驱动支持、ROS Index 发布、源码构建线索和工程限制。记录 Livox Driver 2 不建议未经修改直接用于量产、ROS 2 CANopen 仍未生产就绪、DepthAI 在 Kilted 起更改包名、Zenbedded 示例的 Lyrical/Jazzy/Kilted 支持等级差异。来源台账 #563–#580。节点继续进行中：本轮仅静态资料核验，未在目标传感器、MCU、底盘、GPU 载板或飞控上构建/运行，也未生成完整 SBOM 或验证产品级实时/安全表现。 |
