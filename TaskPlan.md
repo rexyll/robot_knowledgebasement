@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.11  
+> 版本：v6.12  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -354,6 +354,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-04 | v6.9 | 00-01/21-03 继续补充 PLC 与 ROS 2 协议桥：新增 b-robotized/ros2_opc_ua（Jazzy+、OPC UA Client 型 ros2_control SystemInterface、示例能力有限）、Capacites/ros2_modbus（Modbus TCP I/O topic、未声明发行版矩阵）及 Mariunil/ros2-opcua（实验性 PubSub hybrid nodes）；兼容矩阵将“README 版本门槛”“源码构建入口”“发行版包发布证据”分开，并增加 PLC tag/寄存器/NodeId 映射、权限、质量位/时间戳、超时/重连、幂等性、故障注入和抓包/rosbag 验收门。链接台账新增 #622–#624，更新开源索引、兼容矩阵、资产 CSV 和 00/21 子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮仅静态仓库核验，未连接 PLC、未验证 OPC UA/Modbus 互操作、证书安全、网络分区恢复、硬实时或现场安全功能，不生成完整 SBOM/法律意见，不提前验收。 | b-robotized/ros2_opc_ua、Capacites/ros2_modbus、Mariunil/ros2-opcua 上游 README；静态快照截至 2026-11-04，项目维护、发行版构建和 PLC 型号互操作仍待验证 |
 | 2026-11-04 | v6.10 | 00-01/21-03 补充 PLC 厂商生态与 ROS 2 接口：Beckhoff ADS ROS 2 Hardware Interface（ROS Index Jazzy 1.0.0、RELEASED/MAINTAINED、ros2_control；底层 ADS MIT 库支持 Linux 客户端，但 driver 仅有 Jazzy 包级证据）；Siemens SIMATIC/Industrial Edge OPC UA/S7 connector（厂商数据接入，不是 ROS driver；匿名无安全配置仅用于测试）；CODESYS OPC UA Server/Client/PubSub 与 EtherCAT/Modbus/CANopen 能力（依 runtime/设备/license）；ros2_medkit_opcua（SOVD/REST 诊断插件，不作运动控制链路）。更新开源索引、兼容矩阵、链接台账 #625–#631、资产清单及 00/21 子计划。根计划主章节仍为00、主任务仍为00-01；本轮仅静态资料核验，未进行 PLC 实物互操作、周期性能、断线恢复、FAT/HIL 或安全验证，不提前验收。 | Beckhoff ADS ROS Index/官方库、Siemens OPC UA/Industrial Edge 官方文档、CODESYS 官方通信/现场总线资料、ROS Index ros2_medkit_opcua；静态快照截至 2026-11-04 |
 | 2026-11-04 | v6.11 | 00-01/21-03 将 PLC—ROS 2 接口控制文件（ICD）模板纳入工程交付：新增 docs/templates/PLC-ROS2-ICD.md，覆盖 PLC/ROS/安全控制责任分配、ADS/OPC UA/S7/Modbus 网络与证书配置、PLC tag/NodeId/寄存器到 ROS 接口映射、命令确认/幂等/超时、周期与延迟预算、故障注入、SIL/HIL/FAT/SAT 证据及变更控制；开源项目索引增加模板入口，兼容矩阵增加 5.7.1 工程准入清单，资产清单登记模板。根计划当前主章节仍为00、主任务仍为00-01，21-03 继续进行中；模板未绑定具体 PLC 型号/项目变量，未连接 PLC 或完成互操作、性能、FAT/HIL/SAT 和安全验证；全依赖 SBOM、许可证法律审查及全库 claim-level 验收未完成，不提前验收。 | ROS 2 Jazzy SystemInterface、Beckhoff ADS 官方库/AMS route 资料、Siemens Industrial Edge OPC UA connector；静态设计快照截至 2026-11-04 |
+| 2026-11-04 | v6.12 | 00-01/21-03 开始建立软件供应链与 SBOM 基线：静态审查根 pyproject.toml、LICENSE、CI workflow 与 Python 工具包入口；确认 robot-knowledgebase 0.1.0/Python>=3.10，声明式 runtime dependencies 为空，build requirements 为 setuptools>=68/wheel，dev extras 为 pytest>=8.0/ruff>=0.6；CI 覆盖 Python 3.10–3.12，使用 actions/checkout@v4、setup-python@v5 标签，另从 rustypot 固定 commit 下载 STS3215 源文件。核对根目录未发现 requirements/poetry/uv/Pipenv/npm 锁文件；版本范围未解析、未生成真实环境 SBOM。新增软件依赖清单 CSV 与 SBOM 初始审计报告，记录 CycloneDX 1.7、cyclonedx-py 生成策略、SPDX 3.0 补充评估及 Actions SHA pinning 风险；链接台账 #632–#635。根计划当前主章节仍为00、主任务仍为00-01；本轮仅静态审查，未安装依赖、构建/运行测试、生成/验证 CycloneDX JSON、扫描 CVE 或形成法律意见；ROS/PLC/硬件产品级 BOM、完整依赖闭包和许可证审查仍未完成，不提前验收。 | 根 pyproject.toml/LICENSE/CI workflow；Ecma ECMA-424、CycloneDX Python usage、GitHub Actions Secure Use、OMG SPDX 3.0；静态快照截至 2026-11-04 |
 
 ## 9. 当前任务节点与执行队列
 
