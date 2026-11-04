@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.3  
+> 版本：v6.4  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -506,3 +506,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.3 | 00-01 对《主要厂商名录》开展 P1 厂商产品线、交易/控制权和商业化状态定向复核：更新 ABB、FANUC、KUKA、Yaskawa、Universal Robots 工业/协作机器人；Geek+、Quicktron、Hai Robotics、MiR、Hikrobot、ForwardX 仓储/移动机器人；Gaussian Robotics、Tennant 清洁机器人；Tesla、Figure、Unitree、AGIBOT、UBTECH 人形机器人。区分产品目录、厂商自报下线/产能、客户到场/案例和独立部署证据；核实 ABB–SoftBank 交易尚未在已检查页面确认交割，纠正 AGIBOT 15,000 台口径、Figure 02/03 案例归属以及 Tesla 产线启动不等于客户交付。更新资产清单、链接台账 #521–#540、00/21 章子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮不是完整 claim-level 验收、供应商资格评审、价格/交期核验或客户现场验证。 | 各厂商官方产品目录、官方交易公告/投资者页面、SEC/Tesla Q3 2026 更新及厂商案例新闻；厂商自报产能和下线数字未独立审计，未完成逐型号供应和现场运行确认 |
+
+
+| 2026-11-04 | v6.4 | 00-01 对第 21 章开源项目与工具链资产开展 P1 定向审查：新增《开源项目与工具链》索引，覆盖 ROS 2 Lyrical、Nav2、MoveIt 2、ros2_control、BehaviorTree.CPP、Open-RMF、Gazebo Jetty/Harmonic、NVIDIA Isaac Sim/Lab/ROS、slam_toolbox、RTAB-Map、KISS-ICP、Cartographer、evo、OMPL、PX4、ArduPilot、LeRobot、Isaac GR00T。区分上游 release 与 ROS Index 包版本、LTS/稳定版/预发布、代码与模型/数据/资产许可证，标记 Cartographer 上游维护状态及 Isaac Sim/Omniverse Kit 的许可边界；更新 ecosystem README、资产清单、链接台账 #541–#562、00/21 章子计划。根计划当前主章节仍为00、主节点仍为00-01；本轮未形成全依赖 SBOM/法律意见、未在目标硬件完整构建或进行性能/安全验证，不提前验收。 | ROS 2/Gazebo/NVIDIA 官方文档、ROS Index、各上游 GitHub release/README/LICENSE；快照日期 2026-11-04，版本与许可证仍需按实际部署 commit、package、资产和分发方式复核 |
