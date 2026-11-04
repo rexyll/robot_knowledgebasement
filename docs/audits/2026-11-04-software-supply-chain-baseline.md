@@ -41,7 +41,7 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 
 Python 项目使用 CycloneDX 官方 Python 工具 `cyclonedx-py` 从**实际虚拟环境**生成 BOM。已在 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) 实施独立 runtime/dev/generator 三环境流水线：runtime 与 development 分开扫描，生成器版本固定为 `cyclonedx-bom==7.6.0`，输出 CycloneDX 1.7 JSON，工具内 schema 校验成功，环境 freeze 与 SHA256SUMS 一并上传。首次成功运行与下载复核见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。
 
-Python 项目依赖锁定策略已选择 uv 0.13.7 / uv.lock，决策记录见 [Python 依赖锁定策略](2026-11-04-python-lockfile-decision.md)。当前仍处于锁文件生成和 CI 接入前阶段，不能把策略选择记作 SBOM-001 已关闭。项目 runtime/dev 依赖已由 `uv.lock` 锁定，CI 通过 `uv sync --locked` 验证；CycloneDX generator 的直接和传递依赖已由 `requirements-sbom-tools.txt` hash-lock，并通过 `uv pip sync --require-hashes` 验证。PEP 517 build isolation 的 setuptools/wheel 及其传递依赖已单独约束；uv.lock 与 pyproject.toml 均包含哈希，run #585 三版本 `uv build --require-build-hashes` 通过。运行环境、开发/测试环境、生成器工具、构建隔离依赖、CI Actions 和外部下载源分别建账，避免将一个 Python 环境 SBOM 误称为整个仓库/产品 SBOM。
+Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked` 验证；CycloneDX generator 的直接和传递依赖由 `requirements-sbom-tools.txt` hash-lock，并通过 `uv pip sync --require-hashes` 验证；PEP 517 build isolation 的 setuptools/wheel 及其传递依赖通过 pyproject.toml 的 `build-constraint-dependencies` 精确约束并记录 SHA-256，uv.lock 同步包含哈希。run #585 的 Python 3.10/3.11/3.12 `uv build --require-build-hashes` 全部通过。运行环境、开发/测试环境、生成器工具、构建隔离依赖、CI Actions 和外部下载源分别建账，避免将一个 Python 环境 SBOM 误称为整个仓库/产品 SBOM。
 
 ## 4. 主要缺口与风险
 
