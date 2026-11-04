@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.26  
+> 版本：v6.27  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -564,3 +564,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.26 | 00-01 完成 SBOM artifact checksum 路径缺陷修复与实物产物验收：在 `.github/workflows/ci.yml` 将清单生成改为 `(cd sbom && sha256sum * > SHA256SUMS)`，避免 GitHub artifact flatten 目录后 `sbom/` 前缀失效。修复 CI run #41784066050 success；artifact #13300800214（12,848 bytes，digest `b0bdcb2309e213d12aba4c3a91168f9a7fa8f69402312683c3b351ec50174e99`）已下载，ZIP SHA-256 与 GitHub digest 一致；解压目录直接 `sha256sum -c SHA256SUMS` 9 项全部 OK。四份 CycloneDX 1.7 JSON 均可解析，组件/依赖 1/2、7/8、34/35、3/4；license CSV 45 行。更新流水线、许可证审计、供应链基线、审计 README、资产清单。上游许可证法律审查仍未完成，sortedcontainers sdist-to-commit 仍待确认；根主章节00、主任务00-01保持进行中，21-03继续进行中。 | GitHub Actions run #41784066050；artifact #13300800214 下载、ZIP digest、SHA256SUMS 9 项直接校验、四份 CycloneDX JSON 和 CSV 解析 |
+
+
+| 2026-11-04 | v6.27 | 00-01 完成 Python 许可证候选队列全部上游版本证据定位：补齐 sortedcontainers 2.4.0 的 tag v2.4.0，解析至 commit `a1f52d6713dd2c2713a881d4f4d86ed68ff71cab`；同一 commit 的 `sortedcontainers/__init__.py` 版本号、`setup.py` Apache 2.0 声明和 LICENSE 文本相互一致。人工复核队列 10/10 component-scope 记录（8 个不同 package/version）现均有版本 tag/commit 或 PyPI provenance/release 级许可证证据；更新 CSV、许可证审计报告、供应链基线和审计 README。10/10 法律复核仍 pending，不能视为兼容性/再分发批准；根主章节00、主节点00-01继续进行中，第21章21-03继续进行中。 | sortedcontainers v2.4.0 upstream tag/commit/version/license; updated 16-column review queue and audit report |
