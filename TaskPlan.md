@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.17  
+> 版本：v6.18  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -537,3 +537,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.17 | 00-01 对外部源码完整性校验完成真实 CI 验证：run #534 最终成功；Python 3.10/3.11/3.12 三个测试 job 的 rustypot STS3215 SHA-256 检查均通过，随后寄存器审计与 pytest 均通过，Python SBOM job 亦成功。记录校验配置迭代中 run #528/#533 的 shell 格式/路径引用失败及修正，避免将失败隐藏；更新外部源码完整性报告、依赖清单和审计 README。SBOM-004 仅来源/摘要证据部分完成，许可证适用范围、NOTICE/贡献者/再分发审查仍未关闭；Python 依赖锁定、CVE/VEX、产品级 ROS/PLC/硬件 BOM 仍未完成。根主章节00、主节点00-01保持进行中。 | GitHub Actions run #534 与 job step 结果；固定 commit raw source SHA-256 |
+
+
+| 2026-11-04 | v6.18 | 00-01 完成 Python 项目 runtime/dev 依赖锁定闭环（限定范围）：采用 uv 0.13.7，CI 生成并提交根目录 uv.lock（11 个 package 项，Python >=3.10，registry artifacts SHA-256），pyproject.toml 设置 required-version；CI test 与 SBOM jobs 全部切换 uv sync --locked。run #551 最终 success，Python 3.10/3.11/3.12 测试、固定 rustypot 源码 SHA-256 校验、runtime/dev CycloneDX 1.7 生成/校验和 artifact 上传均通过。下载 artifact #13296277606（4,330 bytes），runtime BOM 1/2、development BOM 7/8，5 项 SHA256SUMS 全部通过。更新依赖锁定决策、SBOM 流水线报告、供应链基线、依赖 CSV、审计 README、00/21 TaskPlan 与资产清单；SBOM-001 仅对项目 Python runtime/dev 依赖图关闭。setuptools/wheel build isolation、CycloneDX generator 传递依赖、许可证法律审查、CVE/VEX 与产品级 ROS/PLC/硬件 BOM 仍未完成。根主章节00、主节点00-01保持进行中。 | GitHub Actions bootstrap run #548、CI run #551、uv.lock；artifact 下载、JSON 解析和 SHA256SUMS 校验 |
