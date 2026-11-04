@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Query OSV for every exact Python package version in repository lockfiles."""
 from __future__ import annotations
+# ruff: noqa: E401, E701, E702, I001
 import argparse, concurrent.futures, datetime as dt, json, re, sys, tomllib, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]; API="https://api.osv.dev/v1"
-LINE=re.compile(r"^([A-Za-z0-9_.-]+)==([^\\s\\\\]+)")
+LINE=re.compile(r"^([A-Za-z0-9_.-]+)==([^\s\\]+)")
 def norm(s:str)->str: return re.sub(r"[-_.]+","-",s).lower()
 def add(items:dict,name:str,version:str,scope:str,source:str)->None:
  n=norm(name); x=items.setdefault((n,version),{"name":name,"normalized_name":n,"version":version,"purl":f"pkg:pypi/{urllib.parse.quote(n,safe='-.')}@{urllib.parse.quote(version,safe='')}","scopes":[],"sources":[]})
