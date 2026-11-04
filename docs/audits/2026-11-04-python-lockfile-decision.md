@@ -2,7 +2,7 @@
 tags: [Python, 依赖锁定, uv, 软件供应链, 可复现构建]
 创建日期: 2026-11-04
 更新日期: 2026-11-04
-状态: 策略已选定；uv.lock 生成与 CI 接入待验证
+状态: uv.lock 已由 CI 生成并提交；三版本 --locked CI 与 SBOM 产物已验证
 ---
 
 # Python 依赖锁定策略决策（2026-11-04）
@@ -54,4 +54,14 @@ uv 的 universal resolution 会为项目声明的 Python 版本范围及不同�
 - [uv 0.13.7 release](https://github.com/astral-sh/uv/releases/tag/0.13.7)
 - [setup-uv v10.3.3 release](https://github.com/astral-sh/setup-uv/releases/tag/v10.3.3)
 
-当前策略已选定；锁文件生成、CI 接入和重新生成 SBOM 仍待执行验证。
+## 6. 实际生成与 CI 验证结果
+
+- 锁文件由 GitHub Actions bootstrap run #548 使用 uv 0.13.7 生成；根目录 `uv.lock` 已提交，Git Blob SHA `cb8709dfd8c9cdcaa5e7265cca404d795387553d`，UTF-8 32,892 bytes，203 行。
+- 锁文件适用 Python `>=3.10`，记录 11 个 package 项（含本项目、pytest 9.2.0、ruff 0.17.3 和其传递依赖）；registry artifacts 带 SHA-256。
+- CI run #551 最终 `completed / success`。Python 3.10/3.11/3.12 均通过 `uv sync --locked --extra dev`、lint、固定上游源码摘要校验和 pytest；SBOM job 的 runtime `uv sync --locked`、development `uv sync --locked --extra dev`、CycloneDX 1.7 生成校验及 artifact 上传全部通过。
+- SBOM artifact #13296277606，ZIP 4,330 bytes，digest `sha256:c02bc03264123e5b47151b32b3f11410ce6950fd88d4ff8b1132142a1f37de25`。下载后两份 JSON 均可解析，runtime BOM 1 component/2 dependency entries，development BOM 7 components/8 dependency entries；SHA256SUMS 中 5 个文件全部通过。
+- uv 环境使用 `uv pip freeze` 归档，避免 pip 未安装时 freeze 失败；CycloneDX generator 仍独立使用 pip venv。
+
+**范围限制：** 本次可关闭 SBOM-001 对项目 Python runtime/dev 依赖锁定的缺口。PEP 517 build-system 的 setuptools/wheel 解析版本不在这份 uv.lock 的 package graph 内；CycloneDX generator 目前仅固定顶层 `cyclonedx-bom==7.6.0`，传递依赖尚未独立 hash-lock。这两类工具链仍须单独处理。
+
+当前策略与锁文件已落地并通过 CI 验证；构建隔离依赖与 SBOM generator 工具环境仍待锁定。
