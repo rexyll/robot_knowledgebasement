@@ -2,7 +2,7 @@
 tags: [Python, 依赖锁定, uv, 软件供应链, 可复现构建]
 创建日期: 2026-11-04
 更新日期: 2026-11-04
-状态: uv.lock 已由 CI 生成并提交；三版本 --locked CI 与 SBOM 产物已验证
+状态: runtime/dev、generator 与 PEP 517 build backend 已分别锁定并经 CI 验证
 ---
 
 # Python 依赖锁定策略决策（2026-11-04）
@@ -29,7 +29,7 @@ uv 的 universal resolution 会为项目声明的 Python 版本范围及不同�
 
 `uv.lock` 仅覆盖本仓库 Python 项目的解析依赖，不是完整构建供应链或产品 BOM。以下内容单独管理：
 
-1. PEP 517 build isolation 中的 `setuptools`/`wheel` 及其传递依赖：需要进一步评估 uv build constraints / build hashes，不能假定普通项目依赖锁自动覆盖所有构建隔离安装。
+1. **已完成 PEP 517 build isolation 锁定：** setuptools 84.2.1、wheel 0.48.0、packaging 26.3 通过 build constraints 精确 pin 并记录 SHA-256；`require-build-hashes = true`，CI run #585 的三版本 `uv build --require-build-hashes` 均通过。
 2. CycloneDX generator 工具环境：独立锁定，避免混入目标 runtime/dev BOM。
 3. GitHub Actions：继续使用完整 commit SHA。
 4. rustypot 上游源文件：使用固定 commit + SHA-256 校验。
@@ -37,13 +37,15 @@ uv 的 universal resolution 会为项目声明的 Python 版本范围及不同�
 
 ## 4. 执行与验收
 
-策略决策不等于锁文件已生成。必须完成以下证据后才能关闭 SBOM-001：
+以下为原始验收条件及当前证据状态：
 
 - uv 0.13.7 在 CI 实际生成根目录 `uv.lock`，并检查版本、平台/Python marker、包版本和哈希记录。
 - 将 `uv.lock` 提交版本控制。
 - CI 使用 `uv sync --locked`，三版本矩阵测试通过。
 - Runtime/dev CycloneDX BOM 从锁定环境重新生成，组件集合与锁文件解析结果可解释。
-- 明确 build-system 与 SBOM generator 环境仍有哪些独立未锁依赖。
+- **已完成：** build-system 与 SBOM generator 均使用独立锁定/约束，并由 CI 验证；详情分别见 [PEP 517 构建依赖锁定记录](2026-11-04-pep517-build-dependency-lock.md) 和 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)。
+
+**验收结论：** SBOM-001 对项目 Python runtime/dev、SBOM generator 和当前 PEP 517 build backend 的锁定缺口已在限定范围内关闭。产品级 ROS/OS/容器/固件/PLC/SDK BOM、CVE/VEX 与许可证法律审查不属于该关闭范围。
 
 ## 5. 官方依据
 
