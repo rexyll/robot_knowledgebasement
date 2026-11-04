@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+# ruff: noqa: E401, E501, E701, E702, I001
 """Query OSV for every exact Python package version in repository lockfiles."""
 from __future__ import annotations
-# ruff: noqa: E401, E701, E702, I001
 import argparse, concurrent.futures, datetime as dt, json, re, sys, tomllib, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]; API="https://api.osv.dev/v1"
