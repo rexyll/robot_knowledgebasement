@@ -1,0 +1,4 @@
+# SBOM generator toolchain for the Python 3.12 Linux CI job.
+# Compile with uv 0.13.7 and --generate-hashes; install with pip --require-hashes.
+cyclonedx-bom==7.6.0
+pip==25.0.1
