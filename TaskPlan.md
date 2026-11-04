@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.23  
+> 版本：v6.24  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -555,3 +555,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.23 | 00-01 完成当前 Python 锁定依赖 OSV 扫描与一次漏洞修复复扫（限定范围）：首轮 run #41779173369 覆盖 45 个 package/version，发现 generator 环境 pip 25.0.1 的 6 个 CVE（12 条 GHSA/PYSEC advisory 记录）；升级 requirements-sbom-tools.in/.txt 至 pip 26.3 并加入 PyPI sdist/wheel SHA-256。复扫 run #41779562839 返回 45 个 package/version、0 advisory、0 CVE、0 finding；artifact #13298332580 下载后 ZIP SHA-256 `0fd577f66c7cd0943617d2ce39ee997cffdb9ec1939b2ff66ebd991fbef2cf5e` 与 GitHub digest 一致，JSON 状态 `completed_no_findings`。Python 锁定依赖当前 OSV 匹配基线已建立；首轮 CVE 可利用性人工分诊/VEX、许可证法律审查、恶意包/来源风险与产品级 ROS/OS/容器/固件/PLC/SDK 审计仍未完成。根主章节00、主节点00-01保持进行中。 | OSV 首轮与复扫 CI；artifact 下载、SHA-256、JSON 解析；PyPI pip 26.3 发布证明 |
+
+
+| 2026-11-04 | v6.24 | 00-01 扩展 Python SBOM 许可证元数据审计：CI 新增 generator 与 PEP 517 build-tools 两个独立环境，生成四份 CycloneDX 1.7 BOM；新增标准库提取器，从四份 BOM 导出 45 条 license metadata 候选 CSV。run #41780128626 全部 jobs success，artifact #13297629985 下载核验，ZIP digest 和 SHA256SUMS 9 项通过。45 条记录/42 个去重 name-version；35 SPDX ID 候选、3 SPDX expression、3 classifier-only、4 mixed、无 metadata 缺失；10 条进入人工复核队列。CycloneDX 日志对 root dependency graph incomplete 发出 warning，BOM 仅作为环境组件/许可元数据快照。新增许可证审计报告、10 行人工复核队列、更新流水线/依赖清单/README/资产清单。许可证法律审查与首轮 CVE 可利用性/VEX 仍未完成，根主章节00、主节点00-01保持进行中。 | CI run #41780128626；四份 CycloneDX JSON schema validation；artifact 下载、ZIP digest、SHA256SUMS；许可证 metadata CSV 45 行 |
