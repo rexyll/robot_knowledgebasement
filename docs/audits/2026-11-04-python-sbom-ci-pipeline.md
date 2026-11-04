@@ -1,7 +1,7 @@
 # Python SBOM CI 生成流水线记录
 
 > 日期：2026-11-04  
-> 状态：工作流配置已提交；首次 GitHub Actions 运行与产物核验待执行。  
+> 状态：首次 GitHub Actions 运行成功；两个 SBOM 已下载、解析，内部 SHA256SUMS 全部校验通过。  
 > 范围：仓库 Python 包的 runtime 与 development 两个 Python 3.12 环境，不代表 ROS 2/机器人产品 BOM。
 
 ## 1. 本次变更
@@ -47,13 +47,24 @@
 - Python 3.10/3.11/3.12 测试矩阵仍在 test job；本次 SBOM job 只在 Python 3.12 生成。若需跨解释器 BOM，应另行扩展。
 - 当前 CI 不扫描 ROS workspace、apt/dpkg 全量系统包、C/C++ 静态链接库、容器镜像、GPU/CUDA、BSP、内核模块、固件、PLC runtime、厂商 SDK 或设备预装软件。
 
-## 4. 验证状态与关闭条件
+## 4. 首次运行与产物核验
 
-**已完成：** 工作流文件静态审查、动作 SHA 来源核对、runtime/dev/generator 环境隔离设计、输出文件与 artifact 路径配置。
+**GitHub Actions：** [CI run #515](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41773062051)，run ID `41773062051`，head commit `15db2c04c42eca8fde5e67299e98183af8f9374e`，最终状态 `completed / success`。Python 3.10、3.11、3.12 三个测试矩阵均通过；SBOM job 的安装、生成器安装、两个 BOM 生成/校验、环境归档和 artifact 上传步骤均成功。
 
-**待完成：** 在 GitHub Actions 实际运行；确认两个 CycloneDX 1.7 JSON 成功生成并通过工具内 schema 校验；下载 artifact；复核 SBOM 组件范围、依赖图、SHA256SUMS 与 freeze 清单一致性。若首次运行失败，应记录失败日志并修正后重新执行。
+**Artifact：** `python-sbom-cyclonedx-1.7`，artifact ID `13295617233`，ZIP 大小 4,602 bytes，GitHub artifact digest `sha256:5e3a760bfb1ec34f7cd9bc4ac646e2983291270499efc94a70dc3db7361f8393`，保留至 2026-12-04 04:25:30 UTC。
 
-在首次成功运行和 artifact 复核前，SBOM-003 只能标记为“CI 已实现、运行待验证”，不能标记为关闭。
+**下载后复核：**
+
+| 文件 | 结果 |
+|---|---|
+| `robot-knowledgebase-runtime.cdx.json` | CycloneDX 1.7；JSON 可解析；1 个 environment component，2 个 dependency entries；metadata root component 为 `robot-knowledgebase` 0.1.0 |
+| `robot-knowledgebase-development.cdx.json` | CycloneDX 1.7；JSON 可解析；8 个 components，9 个 dependency entries；包含 pytest、ruff 及其 Python 依赖 |
+| 三份 `pip freeze --all` | runtime、development、generator tool 环境分别归档；生成器环境未混入目标 BOM |
+| `SHA256SUMS` | 5 个 BOM/freeze 文件校验全部通过 |
+
+`cyclonedx-py` 的 `--validate` 在 CI 生成步骤中成功；下载后另行执行 JSON 解析与 SHA-256 校验。runtime 环境没有声明的第三方运行时依赖，因此 BOM 只呈现项目 metadata root 与 runner 基础 pip 组件，不应误读为产品完整依赖闭包。
+
+**关闭判定：** SBOM-003 对“仓库 Python runtime/dev 两种环境的 CycloneDX 1.7 CI 生成、校验与 artifact 归档”已完成。它不关闭 SBOM-001（传递依赖 hash-lock）、SBOM-004（外部源文件内容哈希）、SBOM-005/006（产品实际组件与许可证）、SBOM-007（漏洞/VEX）。
 
 ## 5. 参考资料
 
