@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.24  
+> 版本：v6.25  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -558,3 +558,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.24 | 00-01 扩展 Python SBOM 许可证元数据审计：CI 新增 generator 与 PEP 517 build-tools 两个独立环境，生成四份 CycloneDX 1.7 BOM；新增标准库提取器，从四份 BOM 导出 45 条 license metadata 候选 CSV。run #41780128626 全部 jobs success，artifact #13297629985 下载核验，ZIP digest 和 SHA256SUMS 9 项通过。45 条记录/42 个去重 name-version；35 SPDX ID 候选、3 SPDX expression、3 classifier-only、4 mixed、无 metadata 缺失；10 条进入人工复核队列。CycloneDX 日志对 root dependency graph incomplete 发出 warning，BOM 仅作为环境组件/许可元数据快照。新增许可证审计报告、10 行人工复核队列、更新流水线/依赖清单/README/资产清单。许可证法律审查与首轮 CVE 可利用性/VEX 仍未完成，根主章节00、主节点00-01保持进行中。 | CI run #41780128626；四份 CycloneDX JSON schema validation；artifact 下载、ZIP digest、SHA256SUMS；许可证 metadata CSV 45 行 |
+
+
+| 2026-11-04 | v6.25 | 00-01 完成 Python 许可证候选队列首轮上游证据采集（限定 8 个不同包版本、10 个 component-scope 记录）：arrow 1.4.0、cyclonedx-bom 7.6.0、cyclonedx-python-lib 11.12.0、jsonpointer 3.8、py-serializable 2.1.0、webcolors 25.10.0、packaging 26.3 均取得版本 tag/commit 对应 LICENSE/许可声明；packaging 两份许可文件已核对并保留 Apache-2.0 OR BSD-2-Clause，不擅自选择；jsonpointer 保留 Modified BSD 名称，不擅自转换 SPDX。sortedcontainers 2.4.0 取得 PyPI 版本页许可文本与当前上游 LICENSE，但未定位 release sdist 对应 commit，标记 partial。10/10 记录法律复核仍 pending；更新 16 列人工复核 CSV、许可证审计报告、供应链基线、README。上游 tag/commit 与 LICENSE 证据只完成证据采集，不构成法律意见、兼容性结论或再分发批准。根主章节00、主任务00-01保持进行中；第21章21-03继续进行中。 | PyPI exact version pages; GitHub version tags/commits and raw LICENSE files; evidence URLs/revisions in review queue; static review only |
