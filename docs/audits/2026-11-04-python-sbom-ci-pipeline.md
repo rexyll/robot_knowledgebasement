@@ -1,7 +1,7 @@
 # Python SBOM CI 生成流水线记录
 
 > 日期：2026-11-04  
-> 状态：首次 GitHub Actions 运行成功；两个 SBOM 已下载、解析，内部 SHA256SUMS 全部校验通过。  
+> 状态：Python SBOM 已切换到 uv.lock 锁定环境；run #551 全矩阵通过，最新 artifact 已下载、解析，内部 SHA256SUMS 全部校验通过。  
 > 范围：仓库 Python 包的 runtime 与 development 两个 Python 3.12 环境，不代表 ROS 2/机器人产品 BOM。
 
 ## 1. 本次变更
@@ -72,3 +72,14 @@
 - [CycloneDX Python environment usage](https://github.com/CycloneDX/cyclonedx-python/blob/main/docs/usage.rst)
 - [GitHub Actions secure use](https://docs.github.com/en/actions/reference/security/secure-use)
 - [GitHub Actions artifact upload](https://github.com/actions/upload-artifact)
+
+## 6. 锁文件接入后的复验（2026-11-04）
+
+GitHub Actions [run #551](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41774325434)，run ID `41774325434`，head commit `72064325982fe2c73e3df25249e34edde88876a6`，最终 `completed / success`。Python 3.10/3.11/3.12 测试矩阵均通过 `uv sync --locked --extra dev`、ruff、上游源码 SHA-256 校验和 pytest；SBOM job 的 runtime/dev 锁定同步、CycloneDX 1.7 生成/校验、环境 freeze 与 artifact 上传均成功。
+
+- `uv.lock`：11 个 package 项，Python `>=3.10`，包含 PyPI artifact SHA-256；Git Blob SHA `cb8709dfd8c9cdcaa5e7265cca404d795387553d`，32,892 bytes。
+- 新 artifact：`python-sbom-cyclonedx-1.7`，ID `13296277606`，ZIP 4,330 bytes，digest `sha256:c02bc03264123e5b47151b32b3f11410ce6950fd88d4ff8b1132142a1f37de25`。
+- 下载复核：runtime BOM 1 component/2 dependency entries；development BOM 7 components/8 dependency entries；两份 JSON 的 `specVersion` 均为 1.7，metadata root 均为 `robot-knowledgebase`；SHA256SUMS 的 5 个文件全部通过。
+- 新 runtime/dev 环境由 uv 创建，freeze 使用 `uv pip freeze`；SBOM generator 仍处于独立 pip 环境。
+
+SBOM-001 可在项目 runtime/dev 依赖图范围内关闭。构建隔离 setuptools/wheel 与 SBOM generator 的传递依赖仍未 hash-lock，不能把这次锁文件扩大解释为整个 CI 工具链锁定。
