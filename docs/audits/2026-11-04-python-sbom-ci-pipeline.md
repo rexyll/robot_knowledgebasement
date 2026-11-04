@@ -79,7 +79,7 @@ Run #585 artifact 已实际下载：
 - Generator freeze 和 generator lock 描述 SBOM 工具环境，不纳入产品 runtime BOM。
 - PEP 517 build lock 描述当前仓库 setuptools/wheel build backend 及其传递依赖，不覆盖第三方 ROS workspace 或产品构建链。
 - 当前 CI 未扫描 ROS workspace、apt/dpkg 全量系统包、C/C++ 静态链接库、容器镜像、GPU/CUDA、BSP、内核模块、固件、PLC runtime、厂商 SDK 或设备预装软件。
-- 已对 Python 锁定依赖接入 OSV 匹配；首轮命中 generator pip 25.0.1 的 6 个 CVE 并触发升级至 26.3，复扫、VEX/可利用性处置和第三方许可证法律审查仍待完成。
+- 已对 Python 锁定依赖接入 OSV 匹配；首轮命中 generator pip 25.0.1 的 6 个 CVE，升级至 26.3 后 run #41779562839 复扫 45 个 package/version 返回 0 advisory/0 finding。首轮发现的人工可利用性处置/VEX 和第三方许可证法律审查仍待完成。
 
 ## 6. 关闭状态
 
@@ -88,7 +88,7 @@ Run #585 artifact 已实际下载：
 - SBOM-008：**已关闭（当前项目 build-system 范围）**。Python 3.10/3.11/3.12 的 `uv build --require-build-hashes` 全部通过。
 - SBOM-004：上游文件 commit/SHA-256 校验已实施；许可证适用性审查仍待完成。
 - SBOM-005/006：产品实际集成组件和第三方许可证审查未完成。
-- SBOM-007：OSV 扫描机制已接入；首次扫描发现 generator `pip==25.0.1` 对应 6 个 CVE，已升级至 `pip==26.3`，复扫与人工可利用性分诊/VEX 仍待完成。
+- SBOM-007：Python 锁定依赖 OSV 扫描已完成；首轮发现 generator `pip==25.0.1` 对应 6 个 CVE，升级至 `pip==26.3` 后复扫 45 个 package/version 返回 0 advisory/0 finding。首轮发现的人工可利用性分诊/VEX、恶意包/来源风险处置及产品级组件扫描仍待完成。
 
 详细 build backend 证据见 [PEP 517 构建隔离依赖哈希锁定记录](2026-11-04-pep517-build-dependency-lock.md)，generator 证据见 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)，项目依赖策略见 [Python 依赖锁定策略](2026-11-04-python-lockfile-decision.md)。
 
