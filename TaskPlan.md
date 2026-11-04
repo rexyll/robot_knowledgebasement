@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.13  
+> 版本：v6.14  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -525,3 +525,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.13 | 00-01 继续软件供应链治理：新增 ROS 2 产品级 SBOM 采集模板与 CSV 空白表，覆盖 ROS workspace/package.xml/rosdep、OS/语言依赖、容器 digest、GPU/CUDA runtime、BSP/内核、固件、厂商 SDK 和 PLC runtime；将生态候选、声明依赖与实际产品部署组件明确分层。更新审计 README、开源生态索引、兼容矩阵、链接台账 #636–#638、00/21 章 TaskPlan 和资产清单。根计划主章节仍为00、主节点仍为00-01；仅完成模板设计，未确定产品配置、未采集设备/镜像、未生成产品 SBOM/漏洞扫描或法律结论，不提前验收。 | ROS REP-140、ROS 2 build system/package development 官方文档；静态模板设计 |
+
+
+| 2026-11-04 | v6.14 | 00-01 继续软件供应链自动化：在 CI 增加独立 Python SBOM job，分别对 runtime 与 development 环境生成 CycloneDX 1.7 JSON、工具内校验并上传 30 天 artifact；将 CycloneDX generator 放入独立 venv，归档三个环境 freeze 与 SHA256SUMS；checkout/setup-python/upload-artifact 固定完整 commit SHA。新增流水线审计报告，更新软件依赖清单、供应链基线、链接台账 #639、审计 README、00/21 章 TaskPlan 和资产清单。根计划主章节仍为00、主节点仍为00-01；工作流尚待首次真实运行和 artifact 复核，传递依赖未 hash-lock，未执行 CVE/许可证法律审查，也未形成 ROS/PLC/硬件产品 SBOM，不提前验收。 | CycloneDX Python 7.6.0 官方发布/用法、GitHub Actions 官方 refs；仓库 CI 配置静态审查 |
