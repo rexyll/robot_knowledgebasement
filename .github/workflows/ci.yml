@@ -32,7 +32,7 @@ jobs:
           curl --fail --silent --show-error --location \
             https://raw.githubusercontent.com/pollen-robotics/rustypot/7aa85e13143594ea4fd4ed9f29e3e29d39b5de85/src/servo/feetech/sts3215.rs \
             --output "${RUNNER_TEMP}/sts3215.rs"
-          echo '4dbb829228d13492e7dcf80bfbd3d48642a9bbc58c8158e6bdcec1cc35811fa7  ${RUNNER_TEMP}/sts3215.rs' | sha256sum --check --strict
+          echo "4dbb829228d13492e7dcf80bfbd3d48642a9bbc58c8158e6bdcec1cc35811fa7  ${RUNNER_TEMP}/sts3215.rs" | sha256sum --check --strict
           sha256sum "${RUNNER_TEMP}/sts3215.rs"
           python knowledge/projects/reference-desktop-manipulator/software/register_definition_audit.py \
             --source "${RUNNER_TEMP}/sts3215.rs"
