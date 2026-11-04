@@ -5,7 +5,7 @@
 本目录记录 Robot Knowledge Basement 的仓库资产、内容质量、来源和公开发布审查。
 
 ## 当前记录
-- [2026-11-04 Python SBOM 许可证元数据候选审计](2026-11-04-python-license-metadata-audit.md)：四环境 45 条 CycloneDX license metadata 候选；10 条 classifier/OR 表达式记录进入人工复核队列，法律审查未完成。
+- [2026-11-04 Python SBOM 许可证元数据候选审计](2026-11-04-python-license-metadata-audit.md)：四环境 45 条 CycloneDX license metadata 候选；10 条记录已补充上游证据（9 条版本级 LICENSE/tag/commit，sortedcontainers 为部分证据），法律复核仍未完成。
 - [许可证元数据人工复核队列 CSV](2026-11-04-python-license-metadata-review-queue.csv)：7 条 classifier/free-text 组件记录及 3 条 packaging OR expression 记录。
 - [2026-11-04 PEP 517 构建隔离依赖哈希锁定记录](2026-11-04-pep517-build-dependency-lock.md)：setuptools/wheel/packaging 版本及 SHA-256 锁定，Python 3.10/3.11/3.12 `uv build --require-build-hashes` 通过。
 - [2026-11-04 SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)：uv 0.13.7 生成带 SHA-256 的工具依赖锁，pip 26.3 修复首轮 OSV 命中，CI 复扫无匹配；generator/build-tools SBOM 与 license metadata 候选已归档。
