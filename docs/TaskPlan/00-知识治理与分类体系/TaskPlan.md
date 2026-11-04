@@ -233,3 +233,6 @@
 
 
 | 2026-11-04 | 00-01 | 对 knowledge/robots/足式与无人机.md 开展 P1 足式形态/自由度、步态控制与状态估计、学习型控制/Sim2Real、型号参数、UAS 架构、PX4/ArduPilot/Pixhawk 层级与许可证、failsafe、飞行法规和标准状态定向复核：删除通用 DoF、控制频率、MPC 时域、状态漂移、关节扭矩密度、负载/续航/爬坡和无人机 RTK/链路数字；保留 Spot、Go2、Matrice 350 RTK 型号级资料并注明口径，记录 Go2 官方页速度描述冲突；核验 ISO 21384-3:2026、ISO 23665:2026、FAA Remote ID/Part 107 与 EASA Open Category。更新资产 CSV；未进行目标足式设备测试、飞行测试或适用市场法规评审，全文 claim-level 验收未完成。 |
+
+
+| 2026-11-04 | 00-01 | 对 knowledge/ecosystem/manufacturers/硬件厂商资源汇总.md 开展 P1 厂商资源与型号/版本边界定向审查：核验 SLAMTEC、Livox、Hesai、RealSense、Orbbec、Stereolabs、Bosch、ADI、SICK、OMRON、Oriental Motor、Inovance、Harmonic Drive、Nabtesco、EVE、MiR、Hikrobot、NVIDIA、Rockchip、Raspberry Pi 的官方产品/下载/生命周期入口；修订 SICK TiM571 官方数据表可访问状态，补充 S300 至 2026-11-30 的替代窗口、Jetson Orin 供货周期、CM4/CM5 生命周期及 JetPack 当前版本；删除跨型号聚合参数、未经核验价格和“全部链接已验证”概括。新增链接台账 #497–#520；所有价格/交期、精确 SKU 和供应商资格仍待独立核验。 |
