@@ -13,7 +13,7 @@ SBOM 生成器运行在独立 Python 3.12 Linux 工具环境，不与被扫描�
 
 `requirements-sbom-tools.in`
 - `cyclonedx-bom==7.6.0`
-- `pip==25.0.1`
+- `pip==26.3`
 
 使用 uv 0.13.7 生成 `requirements-sbom-tools.txt`，命令：
 
@@ -48,13 +48,15 @@ GitHub Actions [run #566](https://github.com/rexyll/robot_knowledgebasement/acti
 - 两份 CycloneDX 1.7 BOM 生成与工具内 schema 校验成功。
 - Artifact 上传成功并下载复核。
 
-工具环境 freeze 共 34 个 package（包含 `cyclonedx-bom==7.6.0`、`cyclonedx-python-lib==11.12.0`、`pip==25.0.1` 等），完整包版本见 artifact 中的 `generator-tool-freeze.txt`。
+工具环境 freeze 共 34 个 package（包含 `cyclonedx-bom==7.6.0`、`cyclonedx-python-lib==11.12.0`、`pip==26.3` 等），完整包版本见 artifact 中的 `generator-tool-freeze.txt`。
 
 Artifact：`python-sbom-cyclonedx-1.7`，ID `13296392548`，ZIP 4,328 bytes，digest `sha256:53096815cf1963cc624aaebb495218ddd30124e19bdb64a9551ded206d7c2306`。下载后 runtime BOM 为 1 component/2 dependency entries，development BOM 为 7 components/8 dependency entries；两份 JSON 均可解析，5 个 SHA256SUMS 项全部通过。
 
-## 4. 仍未覆盖的依赖范围
+## 4. 漏洞扫描反馈与剩余范围
 
-- PEP 517 build isolation 的 `setuptools>=68` 与 `wheel` 及其传递依赖尚未单独 hash-lock。
+首次 OSV 扫描（run #41779173369）覆盖 45 个去重 package/version，返回 12 个 advisory 记录，对应 6 个 CVE，全部命中 generator venv 的 `pip==25.0.1`。已将该工具链升级到 `pip==26.3`，其 PyPI release 于 2026-11-02 发布，文件 SHA-256 已写入 requirements hash lock；升级后的复扫待 CI 确认。
+
+- PEP 517 build isolation 的 `setuptools==84.2.1`、`wheel==0.48.0` 和 `packaging==26.3` 已由独立锁文件/pyproject build constraints hash-lock，见构建依赖审计记录。
 - GitHub Actions 本身使用完整 commit SHA，但其 runner 镜像、系统工具与托管服务不在 Python package lock 内。
 - 该工具链 BOM 只描述 SBOM generator 环境，不应混入产品 runtime/dev BOM，也不代表 ROS/PLC/硬件产品 BOM。
 
@@ -64,4 +66,4 @@ Artifact：`python-sbom-cyclonedx-1.7`，ID `13296392548`，ZIP 4,328 bytes，di
 - [uv pip sync](https://docs.astral.sh/uv/pip/sync/)
 - [pip secure installs / --require-hashes](https://pip.pypa.io/en/stable/topics/secure-installs/)
 
-状态：CycloneDX generator 的直接和传递 Python 包已 hash-lock 并由 CI 实测安装；build isolation 仍待处理。
+状态：CycloneDX generator 的直接和传递 Python 包已 hash-lock 并由 CI 实测安装；pip 25.0.1 的 OSV 发现已触发升级至 26.3，复扫结果待验证；PEP 517 build isolation 已单独 hash-lock。
