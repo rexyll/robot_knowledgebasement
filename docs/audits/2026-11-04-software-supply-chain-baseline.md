@@ -47,9 +47,9 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 
 | ID | 风险/缺口 | 优先级 | 关闭条件 |
 |---|---|---|---|
-| SBOM-001 | Python 项目与 SBOM 工具依赖缺少可复现锁定 | P1 | **已关闭（限定范围）：** 项目 runtime/dev 使用 uv.lock；generator 使用 requirements-sbom-tools.txt 哈希锁；run #551/#566 locked sync 均通过。PEP 517 build-system 单列 SBOM-008 |
+| SBOM-001 | Python 项目与 SBOM 工具依赖缺少可复现锁定 | P1 | **已关闭（限定范围）：** 项目 runtime/dev 使用 uv.lock，generator 使用 requirements-sbom-tools.txt 哈希锁，PEP 517 build backend 使用 build constraints + SHA-256；run #551/#566/#585 均通过。产品级依赖不在此范围 |
 | SBOM-002 | CI Action 升级与供应链变更缺少定期复核机制 | P2 | checkout/setup-python/upload-artifact 已固定完整 commit SHA；建立版本升级审查与自动提醒后关闭 |
-| SBOM-003 | 尚无真实 CI 虚拟环境生成的 CycloneDX JSON | P1 | **已关闭（限定范围）：** CI run #515 成功生成/校验 runtime 与 dev 两份 CycloneDX 1.7，并下载核对 SHA256SUMS；仅覆盖仓库 Python 环境 |
+| SBOM-003 | 尚无真实 CI 虚拟环境生成的 CycloneDX JSON | P1 | **已关闭（限定范围）：** CI run #515 建立流水线，run #551/#566/#585 持续生成/校验 runtime 与 dev 两份 CycloneDX 1.7，最新 artifact 已下载并核对 SHA256SUMS；仅覆盖仓库 Python 环境 |
 | SBOM-004 | 上游 rustypot 文件来源完整性与许可证审查 | P2 | **完整性部分已完成：** 固定 URL/commit、7,434-byte 源文件 SHA-256 并纳入 CI 强校验；仓库级 Apache-2.0 LICENSE 已留证。逐文件许可适用性、NOTICE/贡献者与再分发审查、升级责任人仍待完成 |
 | SBOM-005 | 生态索引含大量第三方候选项目，未按具体产品配置确认哪些真正集成 | P1 | 形成产品级软件配置清单，逐项标注实际部署、版本、许可证和来源 |
 | SBOM-006 | 根目录 MIT 许可不能代表第三方 ROS 包、SDK、模型、数据集和固件许可 | P1 | 对每个实际分发组件完成许可证与再分发条件审查 |
