@@ -39,7 +39,7 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 
 采用 CycloneDX 1.7（ECMA-424）作为本仓库后续 SBOM 的首选交换格式；SPDX 3.0 作为需要更丰富许可证、来源、构建与软件供应链语义时的补充评估格式。CycloneDX 支持组件、服务、依赖关系、许可证及软件/硬件等 BOM 场景；具体输出版本应由工具显式指定并验证。
 
-Python 项目使用 CycloneDX 官方 Python 工具 `cyclonedx-py` 从**实际虚拟环境**生成 BOM。已在 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) 实施独立 runtime/dev/generator 三环境流水线：runtime 与 development 分开扫描，生成器 34 个 Python 包使用带 SHA-256 的独立锁文件，输出 CycloneDX 1.7 JSON，工具内 schema 校验成功，环境 freeze 与 SHA256SUMS 一并上传。首次成功运行与下载复核见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。
+Python 项目使用 CycloneDX 官方 Python 工具 `cyclonedx-py` 从**实际虚拟环境**生成 BOM。已在 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) 实施 runtime/dev/generator/build-tools 四环境流水线：四个隔离环境分别输出 CycloneDX 1.7 JSON，工具内 schema 校验成功，环境 freeze、许可证元数据候选 CSV 与 SHA256SUMS 一并上传。首次成功运行与下载复核见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。
 
 Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked` 验证；CycloneDX generator 的直接和传递依赖由 `requirements-sbom-tools.txt` hash-lock，并通过 `uv pip sync --require-hashes` 验证；PEP 517 build isolation 的 setuptools/wheel 及其传递依赖通过 pyproject.toml 的 `build-constraint-dependencies` 精确约束并记录 SHA-256，uv.lock 同步包含哈希。run #585 的 Python 3.10/3.11/3.12 `uv build --require-build-hashes` 全部通过。运行环境、开发/测试环境、生成器工具、构建隔离依赖、CI Actions 和外部下载源分别建账，避免将一个 Python 环境 SBOM 误称为整个仓库/产品 SBOM。
 
@@ -49,17 +49,17 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 |---|---|---|---|
 | SBOM-001 | Python 项目与 SBOM 工具依赖缺少可复现锁定 | P1 | **已关闭（限定范围）：** 项目 runtime/dev 使用 uv.lock，generator 使用 requirements-sbom-tools.txt 哈希锁，PEP 517 build backend 使用 build constraints + SHA-256；run #551/#566/#585 均通过。产品级依赖不在此范围 |
 | SBOM-002 | CI Action 升级与供应链变更缺少定期复核机制 | P2 | checkout/setup-python/upload-artifact 已固定完整 commit SHA；建立版本升级审查与自动提醒后关闭 |
-| SBOM-003 | 尚无真实 CI 虚拟环境生成的 CycloneDX JSON | P1 | **已关闭（限定范围）：** CI run #515 建立流水线，run #551/#566/#585 持续生成/校验 runtime 与 dev 两份 CycloneDX 1.7，最新 artifact 已下载并核对 SHA256SUMS；仅覆盖仓库 Python 环境 |
+| SBOM-003 | 尚无真实 CI 虚拟环境生成的 CycloneDX JSON | P1 | **已关闭（限定范围）：** CI run #41780128626 生成 runtime/dev/generator/build-tools 四份 CycloneDX 1.7，artifact #13297629985 下载并核对 digest 与 9 项 SHA256SUMS；依赖图完整性 warning 和范围限制见专项报告 |
 | SBOM-004 | 上游 rustypot 文件来源完整性与许可证审查 | P2 | **完整性部分已完成：** 固定 URL/commit、7,434-byte 源文件 SHA-256 并纳入 CI 强校验；仓库级 Apache-2.0 LICENSE 已留证。逐文件许可适用性、NOTICE/贡献者与再分发审查、升级责任人仍待完成 |
 | SBOM-005 | 生态索引含大量第三方候选项目，未按具体产品配置确认哪些真正集成 | P1 | 形成产品级软件配置清单，逐项标注实际部署、版本、许可证和来源 |
 | SBOM-006 | 根目录 MIT 许可不能代表第三方 ROS 包、SDK、模型、数据集和固件许可 | P1 | 对每个实际分发组件完成许可证与再分发条件审查 |
-| SBOM-007 | 未执行漏洞匹配、VEX、恶意包/来源完整性和构建溯源审查 | P2 | 对锁定 BOM 运行扫描，人工判定可利用性并保存 VEX/处置记录 |
+| SBOM-007 | Python 锁定依赖 OSV 匹配已完成一次修复复扫，但首轮 CVE 可利用性/VEX、恶意包/来源风险与产品级扫描未完成 | P2 | 对首轮 6 个 CVE 完成人工可利用性分析/VEX；补充恶意包/来源风险审查，并对真实产品 BOM 扫描 |
 | SBOM-008 | PEP 517 build isolation 的 setuptools/wheel 及其传递依赖未 hash-lock | P2 | **已关闭（当前项目构建范围）：** pyproject.toml 精确 pin+SHA-256 build constraints，uv.lock 刷新；run #585 Python 3.10/3.11/3.12 `uv build --require-build-hashes` 均通过 |
 
 ## 5. 下一阶段执行顺序
 
 1. **已完成项目 Python runtime/dev 与 PEP 517 build backend 锁定：** uv.lock 记录 runtime/dev package 和 build constraint hashes；pyproject.toml 开启 `require-build-hashes`，run #585 三版本 `uv build --require-build-hashes` 成功；详见 [构建依赖锁定记录](2026-11-04-pep517-build-dependency-lock.md)。
-2. **已完成 Python SBOM 自动化与 generator 哈希锁定：** runtime/dev 双环境 CycloneDX 1.7 生成、schema 校验、artifact 下载复核均成功；generator 34 个 Python 包通过 `--require-hashes` 安装。
+2. **已完成 Python SBOM 自动化与工具链哈希锁定：** runtime/dev/generator/build-tools 四环境 CycloneDX 1.7 生成、schema 校验、artifact 下载复核均成功；generator 34 个 Python 包通过 `--require-hashes` 安装。
 3. 已将 checkout/setup-python/upload-artifact 固定为完整 commit SHA；需建立 Action 升级复核机制。
 4. 已记录 rustypot STS3215 上游文件 SHA-256，并在 CI 下载后强制校验；许可证适用性审查仍待完成。对 ROS 2 workspace 单独采集 `package.xml`、rosdep 解析、vcs import 清单、系统 apt 包、SDK/固件和构建产物；Python SBOM 不覆盖这些内容。
 5. 选定一个真实目标机器人配置，汇总 ROS、PLC、EtherCAT、相机、雷达、GPU/BSP、容器和第三方二进制，形成产品级组合 BOM。
@@ -67,7 +67,7 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 
 ## 6. 审计边界
 
-本轮已实际执行 GitHub Actions run #515、#551、#566、#585 和 OSV 漏洞扫描/复扫 run #41779173369、#41779562839：项目 runtime/dev、generator、PEP 517 build backend 分别采用锁定策略；run #585 Python 3.10/3.11/3.12 的 `uv build --require-build-hashes`、测试和 SBOM job 全部成功。OSV 首轮覆盖 45 个 package/version，发现 generator pip 25.0.1 的 6 个 CVE；升级至 pip 26.3 后复扫返回 0 advisory/0 finding，artifact 已下载核验。首轮 CVE 可利用性/VEX 和第三方许可证法律审查仍未完成，也未对 ROS/PLC/硬件产品配置建立完整 BOM。详见 [Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md)、[Python SBOM CI 流水线](2026-11-04-python-sbom-ci-pipeline.md) 和 [PEP 517 构建隔离依赖哈希锁定记录](2026-11-04-pep517-build-dependency-lock.md)。该记录不构成安全认证或产品发布放行结论。
+本轮已实际执行 GitHub Actions run #515、#551、#566、#585、#41780128626、#41780597481 和 OSV 漏洞扫描/复扫 run #41779173369、#41779562839：项目 runtime/dev、generator、PEP 517 build backend 分别采用锁定策略；run #585 Python 3.10/3.11/3.12 的 `uv build --require-build-hashes`、测试和 SBOM job 全部成功。OSV 首轮覆盖 45 个 package/version，发现 generator pip 25.0.1 的 6 个 CVE；升级至 pip 26.3 后复扫返回 0 advisory/0 finding，artifact 已下载核验。首轮 CVE 可利用性/VEX 和第三方许可证法律审查仍未完成，也未对 ROS/PLC/硬件产品配置建立完整 BOM。run #41780128626 的四环境 BOM 与许可证候选 CSV 已下载核验；10 条待审 component-scope 记录中，9 条取得版本 tag/commit 与 LICENSE 证据，sortedcontainers 2.4.0 仍缺精确 sdist-to-commit 映射。许可证法律审查均未完成，详见 [Python 许可证元数据审计](2026-11-04-python-license-metadata-audit.md)。详见 [Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md)、[Python SBOM CI 流水线](2026-11-04-python-sbom-ci-pipeline.md) 和 [PEP 517 构建隔离依赖哈希锁定记录](2026-11-04-pep517-build-dependency-lock.md)。该记录不构成安全认证或产品发布放行结论。
 
 ## 8. 参考资料
 
