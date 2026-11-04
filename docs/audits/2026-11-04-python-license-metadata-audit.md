@@ -11,7 +11,7 @@ tags: [许可证, SPDX, CycloneDX, Python, 软件供应链]
 
 CI 已将 SBOM 生成范围扩展为四个独立 Python 环境：项目 runtime、项目 development、CycloneDX generator、PEP 517 build-tools。GitHub Actions [run #41780128626](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41780128626) 成功生成并校验四份 CycloneDX 1.7 JSON，并由标准库脚本 `scripts/extract_python_license_metadata.py` 提取 license metadata candidate CSV。
 
-Artifact `python-sbom-cyclonedx-1.7`：ID `13297629985`，12,856 bytes，ZIP SHA-256 `4df21e05e03904055ebcf53c1756842c8f93aff50f59670d566f37fe56e12ed5`。已下载，ZIP digest 与 GitHub artifact metadata 一致；SHA256SUMS 中 9 项全部通过。CSV 共 45 个 component-scope 记录，42 个去重 name/version 组合。
+Artifact `python-sbom-cyclonedx-1.7`：ID `13297629985`，12,856 bytes，ZIP SHA-256 `4df21e05e03904055ebcf53c1756842c8f93aff50f59670d566f37fe56e12ed5`。已下载后续 run #41783904623 的同结构 artifact #13300332133（12,856 bytes），ZIP SHA-256 与 GitHub digest 一致；四份 CycloneDX 1.7 JSON 均可解析，组件/依赖计数与上述环境快照一致，license CSV 45 行。发现 ZIP 扁平化后 SHA256SUMS 中的 `sbom/` 路径前缀失配：直接 `sha256sum -c` 失败，但去除前缀后 9 项实际文件摘要均匹配。已提交 CI 修复 `6c35218571d5b1dbf24fdeb6727980474a936ce7`，使 checksum 清单使用归档根目录相对路径；修复后 CI 直接验证待完成。CSV 共 45 个 component-scope 记录，42 个去重 name/version 组合。
 
 | BOM scope | 组件记录 | Dependency entries |
 |---|---:|---:|
@@ -65,7 +65,13 @@ CycloneDX 的 `acknowledgement=declared` 仅出现在 packaging 的三个环境�
 
 提取器只转录 CycloneDX `licenses` 字段，不推断许可证、不把自由文本转换为 SPDX ID、不选择 OR expression 的许可选项，也不生成法律结论。CSV 中所有记录均标记 `pending_manual_review`。
 
-## 5. 后续审查要求
+## 6. Artifact 校验修正记录
+
+run #41783904623 的 artifact #13300332133 下载后，ZIP digest 与 GitHub artifact digest `sha256:03f9310578c31ea8f9d7e9678fe44a7bad9366f098c44305dd4c0c53adc9f377` 一致。四份 BOM 均为 CycloneDX 1.7 且可解析，45 条许可证候选 CSV 记录可解析。独立执行 `sha256sum -c SHA256SUMS` 时发现归档扁平化导致清单仍带 `sbom/` 路径前缀；将路径前缀去除后，9 项文件摘要全部匹配。
+
+已修复 `.github/workflows/ci.yml`：在 `sbom/` 目录内生成 basename-only 的 `SHA256SUMS`，而不是写入 `sbom/<filename>`。修复 commit 为 `6c35218571d5b1dbf24fdeb6727980474a936ce7`；需以该 commit 触发的 CI 下载产物直接 `sha256sum -c` 成功作为关闭条件。
+
+## 7. 后续审查要求
 
 1. 对 10 条复核队列逐项查阅对应 release/tag 的 LICENSE、COPYING、NOTICE、项目声明和再分发条件。
 2. 对其余 SPDX ID 候选也抽查上游 license text 与 metadata 一致性；不能仅凭 SPDX ID 自动视为法律审核完成。
