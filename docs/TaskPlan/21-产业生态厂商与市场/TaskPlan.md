@@ -131,3 +131,5 @@
 | 2026-11-04 | 21-03/21-06 | 为生态工具链调研中的 rustypot STS3215 上游源码建立可验证来源记录：固定 commit、源文件 SHA-256（7,434 bytes）、CI 下载后强制摘要校验；记录相同 commit 根 LICENSE 的 Apache-2.0 声明及 commit 签名验证状态，更新外部源码审计报告、依赖清单与链接台账 #640–#641。仅证明 CI 使用的单一源文件来源快照可校验，不等于完成整个 rustypot 项目许可审查或将其列为产品部署依赖；许可证覆盖范围、NOTICE、贡献者与再分发审查未完成，21-03 继续进行中。 | rustypot 固定 commit/raw source/LICENSE；CI SHA-256 校验配置 |
 
 | 2026-11-04 | 21-03/21-06 | rustypot STS3215 单一上游源码文件的固定 commit/SHA-256 校验已由 GitHub Actions run #534 验证通过，Python 3.10/3.11/3.12 三个测试 job 全部通过摘要检查、寄存器审计和 pytest；记录并修正早期 shell 校验命令失败。该证据限于一个 CI 对照源文件，未完成上游逐文件许可/NOTICE/贡献者审查，也未形成机器人产品级 BOM，21-03 继续进行中。 | GitHub Actions run #534；rustypot 固定 commit 与 LICENSE 来源证据 |
+
+| 2026-11-04 | 21-03/21-06 | 为知识库 Python 工具包建立 uv.lock 并将 CI 测试与 SBOM job 改为 locked sync：uv 0.13.7 生成 11 个 package 项，覆盖 Python >=3.10，包归档哈希写入锁文件；run #551 的 Python 3.10/3.11/3.12 测试、runtime/dev CycloneDX 1.7 和 artifact 全部成功，下载后 5 项 SHA256SUMS 通过。此成果仅覆盖知识库自身 Python runtime/dev 依赖，不覆盖 build-system/generator、ROS 2 产品 workspace、系统 apt 包、容器、GPU/BSP、固件、PLC runtime 或厂商 SDK；产品级 SBOM 与许可证/CVE 审查仍未完成，21-03 继续进行中。 | uv 官方 lock/sync 文档、run #548/#551、CycloneDX artifact 核验 |
