@@ -1,6 +1,6 @@
 # 审计与资产盘点
 
-- [2026-11-04 Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md)：OSV API 批量查询 uv.lock、PEP 517 build constraints、SBOM generator 与 build-tools 锁；首轮扫描发现 SBOM generator pip 25.0.1 的 6 个 CVE，已升级 pip 26.3，复扫待验证；扫描范围不等于机器人产品级漏洞审计。
+- [2026-11-04 Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md)：OSV API 批量查询 uv.lock、PEP 517 build constraints、SBOM generator 与 build-tools 锁；首轮扫描发现 SBOM generator pip 25.0.1 的 6 个 CVE，已升级 pip 26.3；run #41779562839 对 45 个 package/version 复扫为 0 advisory/0 finding，扫描范围不等于机器人产品级漏洞审计。
 
 本目录记录 Robot Knowledge Basement 的仓库资产、内容质量、来源和公开发布审查。
 
