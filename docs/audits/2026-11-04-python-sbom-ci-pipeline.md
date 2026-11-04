@@ -83,3 +83,11 @@ GitHub Actions [run #551](https://github.com/rexyll/robot_knowledgebasement/acti
 - 新 runtime/dev 环境由 uv 创建，freeze 使用 `uv pip freeze`；SBOM generator 仍处于独立 pip 环境。
 
 SBOM-001 可在项目 runtime/dev 依赖图范围内关闭。构建隔离 setuptools/wheel 与 SBOM generator 的传递依赖仍未 hash-lock，不能把这次锁文件扩大解释为整个 CI 工具链锁定。
+
+## 7. SBOM generator 传递依赖哈希锁定（2026-11-04）
+
+新增 `requirements-sbom-tools.in` 与 `requirements-sbom-tools.txt`，使用 uv 0.13.7 的 `uv pip compile --generate-hashes` 锁定 `cyclonedx-bom==7.6.0`、`pip==25.0.1` 及完整传递依赖。CI generator venv 使用 `python -m venv --without-pip`，再通过 `uv pip sync --require-hashes` 安装，避免将 venv 自带的 pip 当作未校验工具。
+
+GitHub Actions [run #566](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41774740672) 最终成功，三版本测试、runtime/dev locked sync、generator hash-checked sync、BOM 生成/校验和 artifact 上传全部通过。artifact #13296392548 下载后 JSON 解析与 5 项 SHA256SUMS 全部通过。详细依赖清单与证据见 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)。
+
+该项关闭 CycloneDX generator 传递依赖未锁定的缺口；PEP 517 build isolation 的 setuptools/wheel 及其传递依赖仍未锁定。
