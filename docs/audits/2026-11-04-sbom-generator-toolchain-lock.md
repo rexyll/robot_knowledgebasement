@@ -54,7 +54,7 @@ Artifact：`python-sbom-cyclonedx-1.7`，ID `13296392548`，ZIP 4,328 bytes，di
 
 ## 4. 漏洞扫描反馈与剩余范围
 
-首次 OSV 扫描（run #41779173369）覆盖 45 个去重 package/version，返回 12 个 advisory 记录，对应 6 个 CVE，全部命中 generator venv 的 `pip==25.0.1`。已将该工具链升级到 `pip==26.3`，其 PyPI release 于 2026-11-02 发布，文件 SHA-256 已写入 requirements hash lock；升级后的复扫待 CI 确认。
+首次 OSV 扫描（run #41779173369）覆盖 45 个去重 package/version，返回 12 个 advisory 记录，对应 6 个 CVE，全部命中 generator venv 的 `pip==25.0.1`。已将该工具链升级到 `pip==26.3`，其 PyPI release 于 2026-11-02 发布，文件 SHA-256 已写入 requirements hash lock；复扫已由 run #41779562839 完成：45 个 package/version、0 advisory/0 finding；artifact #13298332580 下载核验通过。
 
 - PEP 517 build isolation 的 `setuptools==84.2.1`、`wheel==0.48.0` 和 `packaging==26.3` 已由独立锁文件/pyproject build constraints hash-lock，见构建依赖审计记录。
 - GitHub Actions 本身使用完整 commit SHA，但其 runner 镜像、系统工具与托管服务不在 Python package lock 内。
