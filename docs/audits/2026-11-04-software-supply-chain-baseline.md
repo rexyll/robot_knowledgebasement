@@ -13,7 +13,7 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 
 - 项目：`robot-knowledgebase`，版本 `0.1.0`，Python `>=3.10`。
 - 项目声明的运行时依赖：空列表（`dependencies = []`）；当前核心 Markdown loader 使用 Python 标准库。
-- 构建依赖：`setuptools>=68`、`wheel`。
+- 构建依赖：`setuptools>=68`、`wheel`；uv build constraints 固定为 setuptools 84.2.1、wheel 0.48.0、packaging 26.3，均含 SHA-256。
 - 开发可选依赖：`pytest>=8.0`、`ruff>=0.6`。
 - CI：Python 3.10/3.11/3.12 测试矩阵均通过；独立 Python 3.12 SBOM job 分别对 runtime/dev venv 生成 CycloneDX 1.7 并上传 artifact。
 - 根目录 `uv.lock` 已由 uv 0.13.7 生成并提交；记录 11 个 Python package 项及 registry artifact SHA-256，适用 Python `>=3.10`。其他根目录锁文件（requirements/poetry/Pipfile/package-lock）在初始审计时未发现。
@@ -29,7 +29,7 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 | 范围 | 声明 | 当前状态 |
 |---|---|---|
 | Python 运行时 | 无第三方运行时依赖 | 由 `pyproject.toml` 声明；尚未对所有入口做动态依赖扫描 |
-| 构建 | setuptools、wheel | 仅有最低版本约束，未锁定解析版本 |
+| 构建 | setuptools、wheel | 已由 uv build-constraint-dependencies 精确锁定并提供 hashes |
 | 开发/测试 | pytest、ruff | 仅有最低版本约束，未锁定解析版本 |
 | CI Action | checkout、setup-python、upload-artifact | 已固定完整 commit SHA；仍需建立升级复核机制 |
 | CI 外部源码 | rustypot 指定 commit 的 STS3215 源文件 | 已固定 commit；下载内容仍需校验哈希并归档 |
@@ -41,7 +41,7 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 
 Python 项目使用 CycloneDX 官方 Python 工具 `cyclonedx-py` 从**实际虚拟环境**生成 BOM。已在 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) 实施独立 runtime/dev/generator 三环境流水线：runtime 与 development 分开扫描，生成器版本固定为 `cyclonedx-bom==7.6.0`，输出 CycloneDX 1.7 JSON，工具内 schema 校验成功，环境 freeze 与 SHA256SUMS 一并上传。首次成功运行与下载复核见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。
 
-Python 项目依赖锁定策略已选择 uv 0.13.7 / uv.lock，决策记录见 [Python 依赖锁定策略](2026-11-04-python-lockfile-decision.md)。当前仍处于锁文件生成和 CI 接入前阶段，不能把策略选择记作 SBOM-001 已关闭。项目 runtime/dev 依赖已由 `uv.lock` 锁定，CI 通过 `uv sync --locked` 验证；CycloneDX generator 的直接和传递依赖已由 `requirements-sbom-tools.txt` hash-lock，并通过 `uv pip sync --require-hashes` 验证。PEP 517 build isolation 的 setuptools/wheel 及其传递依赖仍需单独约束。运行环境、开发/测试环境、生成器工具、构建隔离依赖、CI Actions 和外部下载源分别建账，避免将一个 Python 环境 SBOM 误称为整个仓库/产品 SBOM。
+Python 项目依赖锁定策略已选择 uv 0.13.7 / uv.lock，决策记录见 [Python 依赖锁定策略](2026-11-04-python-lockfile-decision.md)。当前仍处于锁文件生成和 CI 接入前阶段，不能把策略选择记作 SBOM-001 已关闭。项目 runtime/dev 依赖已由 `uv.lock` 锁定，CI 通过 `uv sync --locked` 验证；CycloneDX generator 的直接和传递依赖已由 `requirements-sbom-tools.txt` hash-lock，并通过 `uv pip sync --require-hashes` 验证。PEP 517 build isolation 的 setuptools/wheel 及其传递依赖已单独约束；uv.lock 与 pyproject.toml 均包含哈希，run #585 三版本 `uv build --require-build-hashes` 通过。运行环境、开发/测试环境、生成器工具、构建隔离依赖、CI Actions 和外部下载源分别建账，避免将一个 Python 环境 SBOM 误称为整个仓库/产品 SBOM。
 
 ## 4. 主要缺口与风险
 
@@ -54,12 +54,12 @@ Python 项目依赖锁定策略已选择 uv 0.13.7 / uv.lock，决策记录见 [
 | SBOM-005 | 生态索引含大量第三方候选项目，未按具体产品配置确认哪些真正集成 | P1 | 形成产品级软件配置清单，逐项标注实际部署、版本、许可证和来源 |
 | SBOM-006 | 根目录 MIT 许可不能代表第三方 ROS 包、SDK、模型、数据集和固件许可 | P1 | 对每个实际分发组件完成许可证与再分发条件审查 |
 | SBOM-007 | 未执行漏洞匹配、VEX、恶意包/来源完整性和构建溯源审查 | P2 | 对锁定 BOM 运行扫描，人工判定可利用性并保存 VEX/处置记录 |
-| SBOM-008 | PEP 517 build isolation 的 setuptools/wheel 及其传递依赖未 hash-lock | P2 | 建立独立 build constraints/lock，配置 require-build-hashes，并在 CI 验证干净构建 |
+| SBOM-008 | PEP 517 build isolation 的 setuptools/wheel 及其传递依赖未 hash-lock | P2 | **已关闭（当前项目构建范围）：** pyproject.toml 精确 pin+SHA-256 build constraints，uv.lock 刷新；run #585 Python 3.10/3.11/3.12 `uv build --require-build-hashes` 均通过 |
 
 ## 5. 下一阶段执行顺序
 
-1. **已完成项目 Python runtime/dev 锁定：** uv 0.13.7 生成并提交 uv.lock，CI run #551 三版本 `uv sync --locked` 成功；决策与验证见 [文档](2026-11-04-python-lockfile-decision.md)。
-2. 已在 CI 增加 runtime/dev 双环境 CycloneDX 1.7 生成与 artifact 上传；待首次实际运行、下载和复核后关闭 SBOM-003。生成器顶层版本已固定，但传递依赖尚未 hash-lock。
+1. **已完成项目 Python runtime/dev 与 PEP 517 build backend 锁定：** uv.lock 记录 runtime/dev package 和 build constraint hashes；pyproject.toml 开启 `require-build-hashes`，run #585 三版本 `uv build --require-build-hashes` 成功；详见 [构建依赖锁定记录](2026-11-04-pep517-build-dependency-lock.md)。
+2. **已完成 Python SBOM 自动化与 generator 哈希锁定：** runtime/dev 双环境 CycloneDX 1.7 生成、schema 校验、artifact 下载复核均成功；generator 34 个 Python 包通过 `--require-hashes` 安装。
 3. 已将 checkout/setup-python/upload-artifact 固定为完整 commit SHA；需建立 Action 升级复核机制。
 4. 已记录 rustypot STS3215 上游文件 SHA-256，并在 CI 下载后强制校验；许可证适用性审查仍待完成。对 ROS 2 workspace 单独采集 `package.xml`、rosdep 解析、vcs import 清单、系统 apt 包、SDK/固件和构建产物；Python SBOM 不覆盖这些内容。
 5. 选定一个真实目标机器人配置，汇总 ROS、PLC、EtherCAT、相机、雷达、GPU/BSP、容器和第三方二进制，形成产品级组合 BOM。
@@ -67,7 +67,7 @@ Python 项目依赖锁定策略已选择 uv 0.13.7 / uv.lock，决策记录见 [
 
 ## 6. 审计边界
 
-本轮已实际执行 GitHub Actions run #515 和 #551：#515 建立初始 SBOM 流水线；#551 使用 uv.lock 锁定 runtime/dev 环境，Python 3.10/3.11/3.12 测试、源文件摘要校验、CycloneDX 1.7 生成/校验均成功，artifact 已下载且 SHA256SUMS 全部通过。未扫描 CVE、未对第三方许可证形成法律意见，PEP 517 build isolation 仍未锁定，也未对 ROS/PLC/硬件产品配置建立完整 BOM。首次 CI 运行报告见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)；外部源码摘要和许可证证据见 [rustypot 外部源码完整性记录](2026-11-04-external-source-integrity.md)。该记录不构成安全认证或产品发布放行结论。
+本轮已实际执行 GitHub Actions run #515、#551、#566 和 #585：项目 runtime/dev、generator、PEP 517 build backend 分别采用锁定策略；run #585 Python 3.10/3.11/3.12 的 `uv build --require-build-hashes`、测试和 SBOM job 全部成功，artifact 下载后 SHA256SUMS 全部通过。未扫描 CVE、未对第三方许可证形成法律意见，也未对 ROS/PLC/硬件产品配置建立完整 BOM。首次 CI 运行报告见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)，构建隔离锁定见 [PEP 517 build dependency lock](2026-11-04-pep517-build-dependency-lock.md)；外部源码摘要和许可证证据见 [rustypot 外部源码完整性记录](2026-11-04-external-source-integrity.md)。该记录不构成安全认证或产品发布放行结论。
 
 ## 7. 参考资料
 
