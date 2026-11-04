@@ -1,0 +1,4 @@
+# PEP 517 build-system requirements for the repository's setuptools backend.
+# Compile with uv 0.13.7 and --generate-hashes.
+setuptools>=68
+wheel
