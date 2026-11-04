@@ -91,3 +91,11 @@ SBOM-001 可在项目 runtime/dev 依赖图范围内关闭。构建隔离 setupt
 GitHub Actions [run #566](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41774740672) 最终成功，三版本测试、runtime/dev locked sync、generator hash-checked sync、BOM 生成/校验和 artifact 上传全部通过。artifact #13296392548 下载后 JSON 解析与 5 项 SHA256SUMS 全部通过。详细依赖清单与证据见 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)。
 
 该项关闭 CycloneDX generator 传递依赖未锁定的缺口；PEP 517 build isolation 的 setuptools/wheel 及其传递依赖仍未锁定。
+
+## 8. PEP 517 build isolation 依赖哈希锁定（2026-11-04）
+
+新增 `requirements-build-tools.in/.txt`，通过 uv 0.13.7 `uv pip compile --generate-hashes` 解析并记录 setuptools 84.2.1、wheel 0.48.0 和传递依赖 packaging 26.3，共 6 个 distribution SHA-256。项目 `pyproject.toml` 的 `[tool.uv]` 进一步通过 `build-constraint-dependencies` 固定上述版本与 hashes，开启 `require-build-hashes = true`；uv.lock 已刷新并包含这些 build constraint 哈希。
+
+CI 测试矩阵新增 `uv build --require-build-hashes`，对 PEP 517 隔离环境实际构建 sdist/wheel。GitHub Actions [run #585](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41777632096) 最终成功，Python 3.10/3.11/3.12 的构建哈希校验均通过，runtime/dev SBOM job 也成功。Artifact #13298086142，4,328 bytes，digest `sha256:706a8bd3be5cde5d2fc34aa47b7c129354f694abae458b832107dab78046742b`；下载后两份 JSON 可解析，5 项 SHA256SUMS 全部通过。
+
+详细版本、哈希、限制和 CI 证据见 [PEP 517 构建隔离依赖哈希锁定记录](2026-11-04-pep517-build-dependency-lock.md)。SBOM-008 可在当前项目 build-system 范围内关闭；uv 文档将 `require-build-hashes` 标注为实验性功能，因此升级 uv 时必须复验。该关闭不覆盖第三方 ROS/系统/容器/固件/PLC 产品依赖。
