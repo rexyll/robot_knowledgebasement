@@ -1,7 +1,7 @@
 # Python SBOM CI 与依赖锁定流水线记录
 
 > 日期：2026-11-04  
-> 状态：项目 Python runtime/dev、CycloneDX generator 与 PEP 517 build backend 已分别锁定；CI 实测通过。  
+> 状态：项目 Python runtime/dev、CycloneDX generator 与 PEP 517 build backend 已分别锁定；四环境 CycloneDX 1.7 BOM 与许可证元数据候选抽取 CI 实测通过。  
 > 范围：仓库 Python 包及 CI Python 工具链，不代表 ROS 2/机器人产品 BOM。
 
 ## 1. CI 工作流
@@ -14,17 +14,22 @@
 3. `uv build --require-build-hashes` 实际构建 sdist/wheel，并强制校验 PEP 517 隔离构建依赖哈希。
 4. 执行 ruff、固定 commit 的 rustypot 源码 SHA-256 校验和 pytest。
 
-SBOM job 分别创建 runtime、development 和 generator 三个独立环境：
+SBOM job 分别创建 runtime、development、generator 和 PEP 517 build-tools 四个独立环境：
 - runtime/dev：uv 0.13.7 + `uv sync --locked`，各自生成 CycloneDX 1.7 JSON。
-- generator：无 pip 初始 venv，通过 `uv pip sync --require-hashes` 安装独立哈希锁定的 CycloneDX 工具链。
-- 归档三个环境的 freeze、两份 BOM 和 SHA256SUMS，artifact 保留 30 天。
+- generator：无 pip 初始 venv，通过 `uv pip sync --require-hashes` 安装独立哈希锁定的 CycloneDX 工具链（pip 26.3）。
+- build-tools：无 pip 初始 venv，通过 `uv pip sync --require-hashes` 安装 PEP 517 build 工具锁。
+- 对四份 BOM 运行标准库提取器，生成 45 条许可证元数据候选 CSV；归档四个环境的 freeze、四份 BOM、候选 CSV 和 SHA256SUMS，artifact 保留 30 天。
 
 主要产物：
 - `robot-knowledgebase-runtime.cdx.json`
 - `robot-knowledgebase-development.cdx.json`
+- `robot-knowledgebase-generator.cdx.json`
+- `robot-knowledgebase-build-tools.cdx.json`
+- `python-license-metadata-candidates.csv`
 - `runtime-python-freeze.txt`
 - `development-python-freeze.txt`
 - `generator-tool-freeze.txt`
+- `build-tool-freeze.txt`
 - `SHA256SUMS`
 
 ## 2. 锁定策略与文件
@@ -32,7 +37,7 @@ SBOM job 分别创建 runtime、development 和 generator 三个独立环境：
 | 作用域 | 锁文件/配置 | 锁定范围 | CI 验证 |
 |---|---|---|---|
 | 项目 runtime/dev | `uv.lock` | Python >=3.10；项目和开发依赖精确版本、registry artifact hashes | `uv sync --locked --extra dev`，Python 3.10/3.11/3.12 |
-| SBOM generator | `requirements-sbom-tools.in/.txt` | 34 个包，含 cyclonedx-bom 7.6.0、pip 25.0.1 及传递依赖的 SHA-256 | `uv pip sync --require-hashes` |
+| SBOM generator | `requirements-sbom-tools.in/.txt` | 34 个包，含 cyclonedx-bom 7.6.0、pip 26.3 及传递依赖的 SHA-256 | `uv pip sync --require-hashes` |
 | PEP 517 build backend | `requirements-build-tools.in/.txt`、`pyproject.toml`、`uv.lock` | setuptools 84.2.1、wheel 0.48.0、packaging 26.3；6 个 distribution SHA-256 | `uv build --require-build-hashes`，Python 3.10/3.11/3.12 |
 
 `pyproject.toml [tool.uv]` 设置 `require-build-hashes = true`，并通过 `build-constraint-dependencies` 记录精确版本和 hashes。uv.lock 已刷新并包含这些 build constraint hashes。升级 uv 时必须重新验证该功能，因为 uv 文档将 require-build-hashes 标注为实验性。
@@ -72,11 +77,24 @@ Run #585 artifact 已实际下载：
 - 两份 JSON 均可解析，metadata root 均为 `robot-knowledgebase`。
 - ZIP 内 SHA256SUMS 的 5 个文件全部校验通过。
 
+### Run #41780128626：四环境 SBOM 与许可证元数据候选抽取
+
+[GitHub Actions run #41780128626](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41780128626)，最终 success；Python 3.10/3.11/3.12 测试矩阵、OSV 复扫、四环境 SBOM job 全部通过。Artifact #13297629985，12,856 bytes，digest `sha256:4df21e05e03904055ebcf53c1756842c8f93aff50f59670d566f37fe56e12ed5`。下载后 ZIP SHA-256 与 GitHub digest 一致，SHA256SUMS 9 项全部通过。
+
+- Runtime BOM：1 component / 2 dependency entries。
+- Development BOM：7 components / 8 dependency entries。
+- Generator BOM：34 components / 35 dependency entries。
+- PEP 517 build-tools BOM：3 components / 4 dependency entries。
+- `python-license-metadata-candidates.csv`：45 条 component-scope 记录，覆盖四个环境；35 条 SPDX ID 候选、3 条 SPDX expression、3 条 classifier/free-text、4 条 SPDX ID 与 classifier 混合，0 条缺少 license metadata。
+- 提取器与人工复核队列见 [Python SBOM 许可证元数据候选审计](2026-11-04-python-license-metadata-audit.md)。
+
+CycloneDX CLI 对部分环境 BOM 输出 root component 缺少直接依赖、dependency graph 不完整的 warning。四份 JSON 均通过 1.7 schema validation；本次将其作为环境组件与许可证 metadata 快照，不将其解释为完整依赖关系图。
+
 ## 5. 解释限制
 
 - Runtime BOM 只描述该 CI Python 3.12 Linux 环境；项目声明的 Python runtime dependencies 为空，不能据此推断产品系统无依赖。
 - Development BOM 包含 pytest、ruff 等开发依赖，不得与 runtime BOM 混用。
-- Generator freeze 和 generator lock 描述 SBOM 工具环境，不纳入产品 runtime BOM。
+- Generator BOM/freeze 和 build-tools BOM/freeze 分别描述 SBOM 工具与 PEP 517 构建环境，不纳入产品 runtime BOM。
 - PEP 517 build lock 描述当前仓库 setuptools/wheel build backend 及其传递依赖，不覆盖第三方 ROS workspace 或产品构建链。
 - 当前 CI 未扫描 ROS workspace、apt/dpkg 全量系统包、C/C++ 静态链接库、容器镜像、GPU/CUDA、BSP、内核模块、固件、PLC runtime、厂商 SDK 或设备预装软件。
 - 已对 Python 锁定依赖接入 OSV 匹配；首轮命中 generator pip 25.0.1 的 6 个 CVE，升级至 26.3 后 run #41779562839 复扫 45 个 package/version 返回 0 advisory/0 finding。首轮发现的人工可利用性处置/VEX 和第三方许可证法律审查仍待完成。
@@ -84,7 +102,7 @@ Run #585 artifact 已实际下载：
 ## 6. 关闭状态
 
 - SBOM-001：**已关闭（限定范围）**。项目 runtime/dev 使用 uv.lock，generator 使用独立 hash-locked requirements，build backend 使用 pyproject build constraints + uv.lock hashes。
-- SBOM-003：**已关闭（限定范围）**。仓库 Python runtime/dev 两种环境的 CycloneDX 1.7 CI 生成、校验、artifact 归档和下载复核完成。
+- SBOM-003：**已关闭（限定范围）**。仓库 Python runtime/dev、generator、PEP 517 build-tools 四个 CI 环境的 CycloneDX 1.7 BOM 生成、校验、artifact 归档和下载复核完成；依赖图完整性限制见本报告。
 - SBOM-008：**已关闭（当前项目 build-system 范围）**。Python 3.10/3.11/3.12 的 `uv build --require-build-hashes` 全部通过。
 - SBOM-004：上游文件 commit/SHA-256 校验已实施；许可证适用性审查仍待完成。
 - SBOM-005/006：产品实际集成组件和第三方许可证审查未完成。
