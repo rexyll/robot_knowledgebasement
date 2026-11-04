@@ -67,9 +67,9 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 
 ## 6. 审计边界
 
-本轮已实际执行 GitHub Actions run #515、#551、#566 和 #585：项目 runtime/dev、generator、PEP 517 build backend 分别采用锁定策略；run #585 Python 3.10/3.11/3.12 的 `uv build --require-build-hashes`、测试和 SBOM job 全部成功，artifact 下载后 SHA256SUMS 全部通过。未扫描 CVE、未对第三方许可证形成法律意见，也未对 ROS/PLC/硬件产品配置建立完整 BOM。首次 CI 运行报告见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)，构建隔离锁定见 [PEP 517 build dependency lock](2026-11-04-pep517-build-dependency-lock.md)；外部源码摘要和许可证证据见 [rustypot 外部源码完整性记录](2026-11-04-external-source-integrity.md)。该记录不构成安全认证或产品发布放行结论。
+本轮已实际执行 GitHub Actions run #515、#551、#566、#585 和 OSV 漏洞扫描/复扫 run #41779173369、#41779562839：项目 runtime/dev、generator、PEP 517 build backend 分别采用锁定策略；run #585 Python 3.10/3.11/3.12 的 `uv build --require-build-hashes`、测试和 SBOM job 全部成功。OSV 首轮覆盖 45 个 package/version，发现 generator pip 25.0.1 的 6 个 CVE；升级至 pip 26.3 后复扫返回 0 advisory/0 finding，artifact 已下载核验。首轮 CVE 可利用性/VEX 和第三方许可证法律审查仍未完成，也未对 ROS/PLC/硬件产品配置建立完整 BOM。详见 [Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md)、[Python SBOM CI 流水线](2026-11-04-python-sbom-ci-pipeline.md) 和 [PEP 517 构建隔离依赖哈希锁定记录](2026-11-04-pep517-build-dependency-lock.md)。该记录不构成安全认证或产品发布放行结论。
 
-## 7. 参考资料
+## 8. 参考资料
 
 - [CycloneDX / ECMA-424 规范与版本概览](https://ecma-international.org/publications-and-standards/standards/ecma-424/)（链接台账 #632）
 - [CycloneDX Python 工具用法](https://github.com/CycloneDX/cyclonedx-python/blob/main/docs/usage.rst)（#633）
@@ -77,6 +77,6 @@ Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked
 - [SPDX 3.0 正式规范入口](https://www.omg.org/spec/SPDX/3.0)（#635）
 
 
-## 6. Python 锁定依赖漏洞扫描
+## 7. Python 锁定依赖漏洞扫描
 
 已新增 [Python 锁定依赖漏洞扫描基线](2026-11-04-python-vulnerability-scan.md) 与标准库脚本 `scripts/audit_python_vulnerabilities.py`。CI 使用独立 job 查询 OSV，覆盖 uv.lock package entries、manifest build constraints、requirements-sbom-tools.txt 和 requirements-build-tools.txt。首轮 OSV 扫描在 45 个 package/version 中发现 generator pip 25.0.1 的 6 个 CVE（12 条 GHSA/PYSEC advisory 记录），已升级至 pip 26.3；复扫已完成，45 个 package/version 返回 0 advisory/0 finding。首轮发现的人工可利用性分诊/VEX、许可证复核及产品级非 Python 组件扫描仍未完成。
