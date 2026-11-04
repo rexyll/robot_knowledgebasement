@@ -65,3 +65,7 @@ uv 的 universal resolution 会为项目声明的 Python 版本范围及不同�
 **范围限制：** 本次可关闭 SBOM-001 对项目 Python runtime/dev 依赖锁定的缺口。PEP 517 build-system 的 setuptools/wheel 解析版本不在这份 uv.lock 的 package graph 内；CycloneDX generator 目前仅固定顶层 `cyclonedx-bom==7.6.0`，传递依赖尚未独立 hash-lock。这两类工具链仍须单独处理。
 
 当前策略与锁文件已落地并通过 CI 验证；构建隔离依赖与 SBOM generator 工具环境仍待锁定。
+
+## 7. 相关工具链补充锁定
+
+CycloneDX generator 的独立环境已另行使用 `requirements-sbom-tools.in/.txt` 和 uv `--generate-hashes` / `uv pip sync --require-hashes` 锁定，run #566 通过。具体版本、包范围和 artifact 证据见 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)。因此本决策中的 generator 工具例外已通过独立锁文件处理；PEP 517 build isolation 的 setuptools/wheel 仍单独待锁。
