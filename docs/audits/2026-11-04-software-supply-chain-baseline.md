@@ -17,7 +17,7 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 - 开发可选依赖：`pytest>=8.0`、`ruff>=0.6`。
 - CI：Python 3.10/3.11/3.12 测试矩阵均通过；独立 Python 3.12 SBOM job 分别对 runtime/dev venv 生成 CycloneDX 1.7 并上传 artifact。
 - 根目录 `uv.lock` 已由 uv 0.13.7 生成并提交；记录 11 个 Python package 项及 registry artifact SHA-256，适用 Python `>=3.10`。其他根目录锁文件（requirements/poetry/Pipfile/package-lock）在初始审计时未发现。
-- GitHub Actions 的 checkout、setup-python 和 upload-artifact 已固定到完整 commit SHA；具体版本见 CI 流水线记录。另一个远程 Rust 源文件使用完整 commit SHA `7aa85e13143594ea4fd4ed9f29e3e29d39b5de85` 下载。
+- GitHub Actions 的 checkout、setup-python 和 upload-artifact 已固定到完整 commit SHA；具体版本见 CI 流水线记录。另一个远程 Rust 源文件使用完整 commit SHA `7aa85e13143594ea4fd4ed9f29e3e29d39b5de85` 下载，并对 7,434-byte 源文件执行 SHA-256 strict check。
 - 根许可证文件声明 MIT；该结论只适用于该许可证文件所覆盖的仓库软件，不自动覆盖索引中列出的第三方项目、模型、数据集、固件、SDK 或产品资产。
 
 **重要区分：** `knowledge/ecosystem/开源项目与工具链.md` 中列出的 ROS 2、PLC、EtherCAT、视觉、SLAM 等项目属于调研候选/生态参考，并非当前 Python 工具包的实际依赖。没有产品 BOM、目标 ROS workspace、容器镜像、目标板卡软件清单和锁定构建产物时，不把这些候选项目写入“已安装/已交付组件”。
@@ -32,14 +32,14 @@ tags: [SBOM, 软件供应链, 依赖审计, CycloneDX, SPDX]
 | 构建 | setuptools、wheel | 已由 uv build-constraint-dependencies 精确锁定并提供 hashes |
 | 开发/测试 | pytest、ruff | 仅有最低版本约束，未锁定解析版本 |
 | CI Action | checkout、setup-python、upload-artifact | 已固定完整 commit SHA；仍需建立升级复核机制 |
-| CI 外部源码 | rustypot 指定 commit 的 STS3215 源文件 | 已固定 commit；下载内容仍需校验哈希并归档 |
+| CI 外部源码 | rustypot 指定 commit 的 STS3215 源文件 | commit 与 SHA-256 已固定，CI strict checksum 校验通过；许可证适用性审查仍待完成 |
 | ROS/PLC/现场总线候选 | 生态索引中的外部仓库/包 | 仅研究参考；不属于当前 Python package 的 resolved dependency graph |
 
 ## 3. SBOM 格式与生成策略
 
 采用 CycloneDX 1.7（ECMA-424）作为本仓库后续 SBOM 的首选交换格式；SPDX 3.0 作为需要更丰富许可证、来源、构建与软件供应链语义时的补充评估格式。CycloneDX 支持组件、服务、依赖关系、许可证及软件/硬件等 BOM 场景；具体输出版本应由工具显式指定并验证。
 
-Python 项目使用 CycloneDX 官方 Python 工具 `cyclonedx-py` 从**实际虚拟环境**生成 BOM。已在 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) 实施独立 runtime/dev/generator 三环境流水线：runtime 与 development 分开扫描，生成器版本固定为 `cyclonedx-bom==7.6.0`，输出 CycloneDX 1.7 JSON，工具内 schema 校验成功，环境 freeze 与 SHA256SUMS 一并上传。首次成功运行与下载复核见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。
+Python 项目使用 CycloneDX 官方 Python 工具 `cyclonedx-py` 从**实际虚拟环境**生成 BOM。已在 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) 实施独立 runtime/dev/generator 三环境流水线：runtime 与 development 分开扫描，生成器 34 个 Python 包使用带 SHA-256 的独立锁文件，输出 CycloneDX 1.7 JSON，工具内 schema 校验成功，环境 freeze 与 SHA256SUMS 一并上传。首次成功运行与下载复核见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。
 
 Python 项目 runtime/dev 依赖由 uv.lock 锁定，CI 通过 `uv sync --locked` 验证；CycloneDX generator 的直接和传递依赖由 `requirements-sbom-tools.txt` hash-lock，并通过 `uv pip sync --require-hashes` 验证；PEP 517 build isolation 的 setuptools/wheel 及其传递依赖通过 pyproject.toml 的 `build-constraint-dependencies` 精确约束并记录 SHA-256，uv.lock 同步包含哈希。run #585 的 Python 3.10/3.11/3.12 `uv build --require-build-hashes` 全部通过。运行环境、开发/测试环境、生成器工具、构建隔离依赖、CI Actions 和外部下载源分别建账，避免将一个 Python 环境 SBOM 误称为整个仓库/产品 SBOM。
 
