@@ -57,8 +57,8 @@ cyclonedx-py environment --pyproject pyproject.toml --spec-version 1.7 --output-
 | ID | 风险/缺口 | 优先级 | 关闭条件 |
 |---|---|---|---|
 | SBOM-001 | 没有锁文件，依赖仅有下限版本；不同时间构建可能解析出不同版本 | P1 | 选择并提交锁定策略，CI 按锁文件安装，记录哈希 |
-| SBOM-002 | CI Action 以 v4/v5 标签引用，未固定完整 commit SHA | P1 | 核对官方仓库发布 tag 与 SHA，固定 SHA 并建立升级流程 |
-| SBOM-003 | 尚无真实 CI 虚拟环境生成的 CycloneDX JSON | P1 | CI 生成、schema 验证、归档并附构建元数据 |
+| SBOM-002 | CI Action 以 v4/v5 标签引用，未固定完整 commit SHA | P1 | **本轮已实现：** checkout/setup-python/upload-artifact 均固定完整 commit SHA；后续需建立定期升级复核 |
+| SBOM-003 | 尚无真实 CI 虚拟环境生成的 CycloneDX JSON | P1 | **CI 已实现、运行待验证：** runtime/dev 双环境生成 CycloneDX 1.7、校验并上传；首次成功运行和 artifact 复核后才关闭 |
 | SBOM-004 | 上游 rustypot 文件虽固定 commit，但未在仓库内记录下载内容 SHA-256/来源快照 | P2 | 记录源 URL、commit、文件 SHA-256、许可与更新责任 |
 | SBOM-005 | 生态索引含大量第三方候选项目，未按具体产品配置确认哪些真正集成 | P1 | 形成产品级软件配置清单，逐项标注实际部署、版本、许可证和来源 |
 | SBOM-006 | 根目录 MIT 许可不能代表第三方 ROS 包、SDK、模型、数据集和固件许可 | P1 | 对每个实际分发组件完成许可证与再分发条件审查 |
@@ -67,15 +67,15 @@ cyclonedx-py environment --pyproject pyproject.toml --spec-version 1.7 --output-
 ## 5. 下一阶段执行顺序
 
 1. 确定 Python 依赖锁定工具和 lockfile 策略；不要在未评估兼容性的情况下直接引入新包管理器。
-2. 在 CI 中使用已锁定依赖生成 CycloneDX 1.7，验证 JSON schema，并将 SBOM 作为构建产物保存。
-3. 对 GitHub Actions 核验并固定完整 commit SHA；为 Action 升级建立定期更新和审查机制。
+2. 已在 CI 增加 runtime/dev 双环境 CycloneDX 1.7 生成与 artifact 上传；待首次实际运行、下载和复核后关闭 SBOM-003。生成器顶层版本已固定，但传递依赖尚未 hash-lock。
+3. 已将 checkout/setup-python/upload-artifact 固定为官方 tag 当前解析到的完整 commit SHA；仍需建立 Action 升级复核机制。
 4. 对 ROS 2 workspace 单独采集 `package.xml`、rosdep 解析、vcs import 清单、系统 apt 包、SDK/固件和构建产物；Python SBOM 不覆盖这些内容。
 5. 选定一个真实目标机器人配置，汇总 ROS、PLC、EtherCAT、相机、雷达、GPU/BSP、容器和第三方二进制，形成产品级组合 BOM。
 6. 在锁定组件上做漏洞与许可证扫描，区分已知漏洞、可利用性、修复版本和分发义务。
 
 ## 6. 审计边界
 
-本轮为仓库文件静态审查。未运行 `pip install`、未执行测试/构建、未生成或验证 CycloneDX JSON、未扫描 CVE、未对第三方许可证形成法律意见，也未对 ROS/PLC/硬件产品配置建立完整 BOM。该记录不构成安全认证或产品发布放行结论。
+本轮仓库侧完成 CI 配置静态审查，但未在本会话执行 GitHub Actions runner；因此尚未确认 pip 安装、测试/构建、CycloneDX JSON 生成与 artifact 上传成功。未扫描 CVE、未对第三方许可证形成法律意见，也未对 ROS/PLC/硬件产品配置建立完整 BOM。首次 CI 运行报告见 [Python SBOM CI 生成流水线记录](2026-11-04-python-sbom-ci-pipeline.md)。该记录不构成安全认证或产品发布放行结论。
 
 ## 7. 参考资料
 
