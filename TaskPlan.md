@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.8  
+> 版本：v6.9  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -351,6 +351,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-03 | v1.7 | 25-14 补充 SO-101 leader/follower 配置深度核验，明确两臂 12 个 STS3215 的齿比 BOM 差异、7.4 V/12 V 供电边界、MotorBus/ID/1 Mbps 配置和 LeRobot 标定流程；链接台账新增 #205–#207；25-14 继续进行中 | Hugging Face LeRobot 官方文档与 TheRobotStudio SO-ARM100/SO-101 官方仓库；未取得完整舵机/控制板数据手册，未做实机总线、热、负载与安全验证 |
 
 ---
+| 2026-11-04 | v6.9 | 00-01/21-03 继续补充 PLC 与 ROS 2 协议桥：新增 b-robotized/ros2_opc_ua（Jazzy+、OPC UA Client 型 ros2_control SystemInterface、示例能力有限）、Capacites/ros2_modbus（Modbus TCP I/O topic、未声明发行版矩阵）及 Mariunil/ros2-opcua（实验性 PubSub hybrid nodes）；兼容矩阵将“README 版本门槛”“源码构建入口”“发行版包发布证据”分开，并增加 PLC tag/寄存器/NodeId 映射、权限、质量位/时间戳、超时/重连、幂等性、故障注入和抓包/rosbag 验收门。链接台账新增 #622–#624，更新开源索引、兼容矩阵、资产 CSV 和 00/21 子计划。根计划当前主章节仍为00、主任务仍为00-01；本轮仅静态仓库核验，未连接 PLC、未验证 OPC UA/Modbus 互操作、证书安全、网络分区恢复、硬实时或现场安全功能，不生成完整 SBOM/法律意见，不提前验收。 | b-robotized/ros2_opc_ua、Capacites/ros2_modbus、Mariunil/ros2-opcua 上游 README；静态快照截至 2026-11-04，项目维护、发行版构建和 PLC 型号互操作仍待验证 |
 
 ## 9. 当前任务节点与执行队列
 
