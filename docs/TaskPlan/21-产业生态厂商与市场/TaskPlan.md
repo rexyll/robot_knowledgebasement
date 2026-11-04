@@ -49,7 +49,7 @@
 - **严格禁止：** 不得因 GitHub Star 数高就判断工程成熟；不得复制许可证不清的代码。
 - **依赖：** 先完成本章资产盘点；其余依赖按根计划第 6 章执行。
 - **交付物与验收：** 关键生态项目有许可证地图和维护风险说明。
-- **状态：** 进行中（已新增代表性开源项目与工具链索引，扩展至 Ouster/Livox/RealSense/DepthAI 驱动、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen 和 open62541；另建立 Humble/Jazzy/Kilted/Lyrical 与 Gazebo/传感器驱动/测试/工业互操作兼容矩阵。本轮继续补充 MoveIt Servo 机械臂伺服、Velodyne 与 Hesai LiDAR 驱动，并将 VDA5050 Connector（仅 Galactic/2022 年更新）和 ROS-Industrial industrial_core（ROS 1/社区尽力维护）标为历史/维护风险；已扩展兼容矩阵。仍未完成全依赖许可证/SBOM、更多工业视觉/现场总线及车队互操作项目筛查、目标硬件构建/长稳测试和完整兼容性验收）
+- **状态：** 进行中（已新增代表性开源项目与工具链索引，扩展至 Ouster/Livox/RealSense/DepthAI 驱动、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen 和 open62541；另建立 Humble/Jazzy/Kilted/Lyrical 与 Gazebo/传感器驱动/测试/工业互操作兼容矩阵。本轮继续补充 MoveIt Servo 机械臂伺服、Velodyne 与 Hesai LiDAR 驱动，并将 VDA5050 Connector（仅 Galactic/2022 年更新）和 ROS-Industrial industrial_core（ROS 1/社区尽力维护）标为历史/维护风险；已扩展兼容矩阵。本轮继续补充 Basler pylon、Zivid、SICK 工业视觉/激光雷达驱动，IgH EtherLab 与 SOEM EtherCAT 主站实现，以及 Open-RMF rmf_fleet_adapter 和 VDA 5050 v3.0 协议；明确 SOEM v2.0.0 GPLv3/商业双许可、IgH GPL-2.0 与 EtherCAT 工业产权分开评估，记录 SICK 与 Open-RMF 包版本/总览文档不一致。仍未完成全依赖许可证/SBOM、更多视觉及现场总线项目筛查、OEM 车队适配实现、目标硬件构建/长稳测试和完整兼容性验收）
 
 ### 21-04｜市场数据与商业模式
 
@@ -113,3 +113,5 @@
 | 2026-11-04 | 21-03/21-06 | 扩展开源生态索引，补充 Ouster、Livox、RealSense、Luxonis DepthAI 传感器驱动，robot_localization 状态估计，launch_testing/rosbag2/ros2_tracing/industrial_ci 测试与可观测性工具，micro-ROS、ROS 2 CANopen、open62541 工业互操作组件；新增《知识生态兼容矩阵》，按 Humble/Jazzy/Kilted/Lyrical 核对 Gazebo 官方配对、驱动支持、ROS Index 发布、源码构建线索和工程限制。记录 Livox Driver 2 不建议未经修改直接用于量产、ROS 2 CANopen 仍未生产就绪、DepthAI 在 Kilted 起更改包名、Zenbedded 示例的 Lyrical/Jazzy/Kilted 支持等级差异。来源台账 #563–#580。节点继续进行中：本轮仅静态资料核验，未在目标传感器、MCU、底盘、GPU 载板或飞控上构建/运行，也未生成完整 SBOM 或验证产品级实时/安全表现。 |
 
 | 2026-11-04 | 21-03/21-06 | 继续扩展开源项目与兼容性证据：新增 MoveIt Servo（机械臂笛卡尔/关节伺服，区分 Humble 包页与 Jazzy/Kilted 稳定分支证据）、Velodyne ROS 2 Driver（Humble/Jazzy/Lyrical ROS Index 记录）和 Hesai LiDAR ROS 2（Humble/Jazzy/Lyrical 厂商源码构建路线）；将 VDA5050 Connector 限定为 Galactic/2022 年旧项目参考，并指出 ROS-Industrial industrial_core 为 ROS 1 历史包、社区尽力维护。扩展兼容矩阵与资产 CSV，链接台账 #581–#590。节点继续进行中：本轮仅上游/ROS Index 静态检查，未执行任何目标平台构建、设备接线、运动伺服、传感器实测、硬实时或功能安全验证；全依赖 SBOM、许可证审查和完整工业协议一致性测试仍未完成。 |
+
+| 2026-11-04 | 21-03/21-06 | 补充工业视觉、现场总线和车队互操作生态：新增 Basler pylon ROS 2 Jazzy driver（厂商不提供该开源项目技术支持、BCD License）、Zivid ROS driver（SDK/driver release 文档版本边界差异、OpenCL GPU 依赖）、SICK sick_scan_xd（Humble ROS Index 已发布，Jazzy/Kilted 有上游发布流程，但版本字段不一致）；新增 IgH EtherCAT Master（stable-1.6、GPL-2.0，另有 EtherCAT 技术/商标权边界）与 SOEM v2.0.0（GPLv3/商业双许可、legacy API 移除）；扩展 Open-RMF fleet adapter（ROS Index Lyrical 2.14.0 与总览 README 发行版列表口径差异）和 VDA 5050 v3.0.0（自由导航路径/zone、MQTT/JSON、安全配置边界）。新增链接台账 #591–#607，更新开源索引、兼容矩阵及资产 CSV。节点继续进行中：本轮仅静态上游核验，未连接工业相机、SICK 雷达、EtherCAT 从站或 AMR 车队，也未做总线周期/实时性、VDA5050 一致性或现场任务互操作测试；未生成完整 SBOM/许可证法律意见。 |
