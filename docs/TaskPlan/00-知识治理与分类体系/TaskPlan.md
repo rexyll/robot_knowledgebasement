@@ -242,3 +242,6 @@
 
 
 | 2026-11-04 | 00-01 | 新增 knowledge/ecosystem/开源项目与工具链.md，建立代表性机器人软件生态索引：覆盖 ROS 2/Nav2/MoveIt/ros2_control、Gazebo/Isaac、SLAM/轨迹评测、OMPL、PX4/ArduPilot、LeRobot/GR00T；记录版本快照、发行版支持、许可证粒度、维护状态和工程使用边界，并链接至技术章节。更新 ecosystem README、资产 CSV 与链接台账 #541–#562。该索引属于 P1 结构/来源定向审查，尚未形成全依赖 SBOM/完整许可证审计，也未完成目标硬件构建、运行、实时性能/安全测试或全文 claim-level 验收。 |
+
+
+| 2026-11-04 | 00-01 | 扩展机器人开源资产索引并新增 knowledge/ecosystem/知识生态兼容矩阵.md：补充 Ouster/Livox/RealSense/DepthAI 驱动、robot_localization、launch_testing、rosbag2、ros2_tracing、industrial_ci、micro-ROS、ROS 2 CANopen、open62541；按 Humble/Jazzy/Kilted/Lyrical 与 Gazebo 官方配对、驱动、测试工具及工业通信条目建立静态兼容证据矩阵。修正兼容状态语义，区分 ROS Index 二进制发布、源码构建入口、上游限制/开发中和目标硬件验证；记录 Livox Driver 2 不建议直接量产、CANopen 栈尚未生产就绪、RealSense SDK/固件需跟 wrapper 配套。新增来源台账 #563–#580，更新生态 README 和资产 CSV。尚未完成全依赖 SBOM、逐包许可证法律审查、完整目标硬件构建/长稳/性能/安全测试，00-01 继续进行中。 |
