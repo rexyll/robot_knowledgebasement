@@ -239,3 +239,6 @@
 
 
 | 2026-11-04 | 00-01 | 对 knowledge/ecosystem/主要厂商.md 开展 P1 厂商产品线、并购/控制权变化与商业化证据定向复核：补充 ABB、FANUC、KUKA、Yaskawa、Universal Robots 工业/协作产品线；Geek+、Quicktron、Hai Robotics、MiR、Hikrobot、ForwardX 的移动/仓储产品线；Gaussian/Tennant 清洁机器人入口；Tesla、Figure、Unitree、AGIBOT、UBTECH 人形机器人状态。将产品目录、厂商自报下线/产能、客户到场/案例和独立部署证据分开；记录 ABB–SoftBank 交易交割未由已检查页面确认、AGIBOT 15,000 台为机器人组合下线数、Figure 02/03 案例归属差异、Tesla 产线启动未披露交付量。来源台账 #521–#540，资产 CSV 更新 Blob SHA/大小；未完成全文逐条 claim-level 验收、所有厂商逐型号资料审查、供应商尽调或采购交付验证。 |
+
+
+| 2026-11-04 | 00-01 | 新增 knowledge/ecosystem/开源项目与工具链.md，建立代表性机器人软件生态索引：覆盖 ROS 2/Nav2/MoveIt/ros2_control、Gazebo/Isaac、SLAM/轨迹评测、OMPL、PX4/ArduPilot、LeRobot/GR00T；记录版本快照、发行版支持、许可证粒度、维护状态和工程使用边界，并链接至技术章节。更新 ecosystem README、资产 CSV 与链接台账 #541–#562。该索引属于 P1 结构/来源定向审查，尚未形成全依赖 SBOM/完整许可证审计，也未完成目标硬件构建、运行、实时性能/安全测试或全文 claim-level 验收。 |
