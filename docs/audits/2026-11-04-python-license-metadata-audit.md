@@ -69,7 +69,7 @@ CycloneDX 的 `acknowledgement=declared` 仅出现在 packaging 的三个环境�
 
 run #41783904623 的 artifact #13300332133 下载后，ZIP digest 与 GitHub artifact digest `sha256:03f9310578c31ea8f9d7e9678fe44a7bad9366f098c44305dd4c0c53adc9f377` 一致。四份 BOM 均为 CycloneDX 1.7 且可解析，45 条许可证候选 CSV 记录可解析。独立执行 `sha256sum -c SHA256SUMS` 时发现归档扁平化导致清单仍带 `sbom/` 路径前缀；将路径前缀去除后，9 项文件摘要全部匹配。
 
-已修复 `.github/workflows/ci.yml`：在 `sbom/` 目录内生成 basename-only 的 `SHA256SUMS`，而不是写入 `sbom/<filename>`。修复 commit 为 `6c35218571d5b1dbf24fdeb6727980474a936ce7`；需以该 commit 触发的 CI 下载产物直接 `sha256sum -c` 成功作为关闭条件。
+已修复 `.github/workflows/ci.yml`：在 `sbom/` 目录内生成 basename-only 的 `SHA256SUMS`，而不是写入 `sbom/<filename>`。修复 commit `6c35218571d5b1dbf24fdeb6727980474a936ce7` 由 [run #41784066050](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41784066050) 验证成功；artifact #13300800214 下载后，在解压目录直接执行 `sha256sum -c SHA256SUMS`，9 项全部 OK。四份 BOM 均为 CycloneDX 1.7、JSON 可解析，license CSV 45 行。
 
 ## 7. 后续审查要求
 
