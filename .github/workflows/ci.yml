@@ -111,3 +111,22 @@ jobs:
           echo "BEGIN_BUILD_TOOLS_LOCK_CONTENT"
           cat requirements-build-tools.txt
           echo "END_BUILD_TOOLS_LOCK_CONTENT"
+
+  bootstrap-build-lockfile:
+    # One-time bootstrap: refresh uv.lock after adding hash-verified build constraints.
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'bootstrap')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.7"
+      - name: Regenerate lockfile with build dependency hashes
+        run: |
+          uv lock --refresh
+          echo "BEGIN_UV_LOCK_CONTENT"
+          cat uv.lock
+          echo "END_UV_LOCK_CONTENT"
