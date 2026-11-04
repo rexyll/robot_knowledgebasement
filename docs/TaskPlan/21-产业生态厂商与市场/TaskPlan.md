@@ -49,7 +49,7 @@
 - **严格禁止：** 不得因 GitHub Star 数高就判断工程成熟；不得复制许可证不清的代码。
 - **依赖：** 先完成本章资产盘点；其余依赖按根计划第 6 章执行。
 - **交付物与验收：** 关键生态项目有许可证地图和维护风险说明。
-- **状态：** 未开始（存量待审计）
+- **状态：** 进行中（已新增代表性开源项目与工具链索引，覆盖 ROS 2/导航/机械臂控制、仿真、SLAM、运动规划、飞控、具身智能及轨迹评测；记录上游仓库、版本快照和许可证边界。完整依赖许可证/SBOM、各发行版兼容矩阵、更多感知/驱动/测试开源项目和目标硬件构建验证仍未完成）
 
 ### 21-04｜市场数据与商业模式
 
@@ -105,3 +105,6 @@
 
 
 | 2026-11-04 | 21-02/21-05/21-06 | 对《主要厂商名录》开展 P1 公司产品线、产品生命周期线索、交易主体和商业化证据定向核验：补充 ABB、FANUC、KUKA、Yaskawa、Universal Robots 工业/协作产品线；Geek+、Quicktron、Hai Robotics、MiR、Hikrobot、ForwardX 仓储/移动机器人矩阵；Gaussian Robotics 与 Tennant 清洁产品入口；Tesla、Figure、Unitree、AGIBOT、UBTECH 人形/具身机器人状态。纠正 ABB–SoftBank 交易未在已检查页面确认交割、AGIBOT 15,000 台是公司机器人组合下线数而非人形机器人客户交付数、Figure 02/03 客户案例归属及 Tesla 生产线启动不等同交付；新增链接台账 #521–#540。节点继续进行中：仍有多家国产协作/服务机器人和核心供应商未逐型号审查，所有厂商自报量产/部署统计未独立审计。 |
+
+
+| 2026-11-04 | 21-03/21-06 | 新增《开源项目与工具链》代表性生态索引：覆盖 ROS 2 Lyrical、Nav2、MoveIt 2、ros2_control、BehaviorTree.CPP、Open-RMF、Gazebo Jetty/Harmonic、Isaac Sim/Lab/ROS、slam_toolbox、RTAB-Map、KISS-ICP、Cartographer、evo、OMPL、PX4、ArduPilot、LeRobot 和 Isaac GR00T；逐项区分上游版本/ROS Index 包版本、稳定版/预发布、仓库/包/模型权重/数据集/资产许可证与维护状态。特别记录 Cartographer 上游不再积极维护、Nav2 多许可证、Isaac Sim 附加条款和 Omniverse Kit 再分发边界、PX4 RC 与稳定版区别。来源台账 #541–#562，生态 README 已更新。节点仍进行中：未生成全依赖 SBOM/法律意见，未在目标硬件完整构建/运行，也未完成算法/实时/安全实测。 |
