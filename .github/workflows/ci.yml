@@ -72,6 +72,10 @@ jobs:
           python -m venv --without-pip "${RUNNER_TEMP}/sbom-generator"
           uv pip sync --require-hashes --python "${RUNNER_TEMP}/sbom-generator/bin/python" requirements-sbom-tools.txt
           "${RUNNER_TEMP}/sbom-generator/bin/cyclonedx-py" --version
+      - name: Install hash-locked PEP 517 build tools in a separate audit environment
+        run: |
+          python -m venv --without-pip "${RUNNER_TEMP}/sbom-build-tools"
+          uv pip sync --require-hashes --python "${RUNNER_TEMP}/sbom-build-tools/bin/python" requirements-build-tools.txt
       - name: Generate and validate CycloneDX 1.7 SBOMs
         run: |
           mkdir -p sbom
@@ -81,11 +85,18 @@ jobs:
           "${RUNNER_TEMP}/sbom-generator/bin/cyclonedx-py" environment "${RUNNER_TEMP}/sbom-development/bin/python" \
             --pyproject pyproject.toml --spec-version 1.7 --validate --output-reproducible \
             --output-file sbom/robot-knowledgebase-development.cdx.json
+          "${RUNNER_TEMP}/sbom-generator/bin/cyclonedx-py" environment "${RUNNER_TEMP}/sbom-generator/bin/python" \
+            --pyproject pyproject.toml --spec-version 1.7 --validate --output-reproducible \
+            --output-file sbom/robot-knowledgebase-generator.cdx.json
+          "${RUNNER_TEMP}/sbom-generator/bin/cyclonedx-py" environment "${RUNNER_TEMP}/sbom-build-tools/bin/python" \
+            --pyproject pyproject.toml --spec-version 1.7 --validate --output-reproducible \
+            --output-file sbom/robot-knowledgebase-build-tools.cdx.json
       - name: Archive observed environment inventories
         run: |
           uv pip freeze --python "${RUNNER_TEMP}/sbom-runtime/bin/python" > sbom/runtime-python-freeze.txt
           uv pip freeze --python "${RUNNER_TEMP}/sbom-development/bin/python" > sbom/development-python-freeze.txt
           uv pip freeze --python "${RUNNER_TEMP}/sbom-generator/bin/python" > sbom/generator-tool-freeze.txt
+          uv pip freeze --python "${RUNNER_TEMP}/sbom-build-tools/bin/python" > sbom/build-tool-freeze.txt
           sha256sum sbom/* > sbom/SHA256SUMS
       # actions/upload-artifact v4 — pinned to the commit currently resolved by the official v4 tag.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
