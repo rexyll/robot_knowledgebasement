@@ -68,4 +68,8 @@ uv 的 universal resolution 会为项目声明的 Python 版本范围及不同�
 
 ## 7. 相关工具链补充锁定
 
-CycloneDX generator 的独立环境已另行使用 `requirements-sbom-tools.in/.txt` 和 uv `--generate-hashes` / `uv pip sync --require-hashes` 锁定，run #566 通过。具体版本、包范围和 artifact 证据见 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)。因此本决策中的 generator 工具例外已通过独立锁文件处理；PEP 517 build isolation 的 setuptools/wheel 仍单独待锁。
+CycloneDX generator 的独立环境已另行使用 `requirements-sbom-tools.in/.txt` 和 uv `--generate-hashes` / `uv pip sync --require-hashes` 锁定，run #566 通过。具体版本、包范围和 artifact 证据见 [SBOM generator 工具链锁定记录](2026-11-04-sbom-generator-toolchain-lock.md)。因此本决策中的 generator 工具例外已通过独立锁文件处理；PEP 517 build isolation 已另行锁定：setuptools 84.2.1、wheel 0.48.0、packaging 26.3 均精确 pin 并记录 SHA-256，`require-build-hashes = true`，run #585 三版本 `uv build --require-build-hashes` 全部通过；详见 [PEP 517 构建依赖锁定记录](2026-11-04-pep517-build-dependency-lock.md)。
+
+## 8. PEP 517 build backend 锁定已完成
+
+此前作为独立缺口跟踪的 setuptools/wheel 已经解决。uv.lock 现已记录 build-constraint hashes，pyproject.toml 开启 `require-build-hashes = true`。CI run #585 在 Python 3.10/3.11/3.12 均通过 `uv build --require-build-hashes`。详见 [PEP 517 构建依赖锁定记录](2026-11-04-pep517-build-dependency-lock.md)。
