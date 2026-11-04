@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.21  
+> 版本：v6.22  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -549,3 +549,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.21 | 00-01 继续软件供应链漏洞审计：新增标准库 OSV 扫描脚本，对 uv.lock 全部包、manifest PEP 517 build constraints、SBOM generator 哈希锁和 build-tools 哈希锁按 PyPI PURL/version 查询；CI 增加独立漏洞审计 job，生成 JSON artifact 并对发现项启用门禁，API 错误/分页/响应不完整明确标记 scan_error，不允许误报零漏洞。新增 Python 漏洞扫描基线报告，更新依赖清单、链接台账 #648–#649、审计 README、00/21 章 TaskPlan 与资产清单。首次真实扫描结果仍待 CI 验证；人工可利用性分诊/VEX、许可证元数据复核和产品级 ROS/OS/容器/固件/PLC/SDK 扫描未完成。根主章节00、主节点00-01保持进行中。 | OSV 官方 querybatch/query API 文档；首次 GitHub Actions 结果待验证 |
+
+
+| 2026-11-04 | v6.22 | 00-01 首轮 Python 锁定依赖 OSV 扫描完成：run #41779173369 查询 45 个 package/version，返回 12 条 GHSA/PYSEC advisory 记录，对应 6 个 CVE，全部命中 SBOM generator 环境 pip 25.0.1；artifact #13297929020 已下载并检查。根据 OSV 修复版本及 PyPI 26.3 发布证明，将 requirements-sbom-tools.in/.txt 中 pip 升级至 26.3，并记录两份分发制品 SHA-256；更新 generator 锁定报告、SBOM 流水线、漏洞扫描报告、供应链基线、依赖清单、链接台账 #650、审计 README。升级后 OSV 复扫待 CI 确认；首轮结果尚未完成人工可利用性/VEX 分诊，许可证元数据复核与产品级非 Python 组件审计仍未完成。根主章节00、主节点00-01保持进行中。 | OSV artifact 下载/JSON 解析；PyPI pip 26.3 官方发布页与 SHA-256；复扫 CI 待确认 |
