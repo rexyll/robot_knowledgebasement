@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v6.15  
+> 版本：v6.16  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -531,3 +531,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-04 | v6.15 | 00-01 继续软件供应链自动化：CI run #515 成功，Python 3.10/3.11/3.12 测试矩阵全部通过；Python 3.12 runtime/dev 两套隔离环境生成并校验 CycloneDX 1.7，上传 artifact #13295617233。下载后确认 runtime BOM 1 component/2 dependency entries、development BOM 8 components/9 dependency entries，三份 freeze 清单归档，5 项 SHA256SUMS 全部通过。将 SBOM-003 限定于 Python runtime/dev CI 生成范围关闭；传递依赖 hash-lock、外部源码哈希、产品 ROS/PLC/固件/容器/SDK BOM、CVE/VEX 和许可证审查仍未完成。更新流水线报告、依赖清单、供应链基线、00/21 章计划和资产清单。根计划主章节仍为00、主节点仍为00-01，不提前完成整项验收。 | GitHub Actions run #515、CycloneDX Python 7.6.0；实际 CI 产物下载、JSON 解析和 SHA-256 校验 |
+
+
+| 2026-11-04 | v6.16 | 00-01 继续软件供应链完整性：为 CI 下载的 pollen-robotics/rustypot STS3215 源文件计算并登记 SHA-256（7,434 bytes，`4dbb829228d13492e7dcf80bfbd3d48642a9bbc58c8158e6bdcec1cc35811fa7`），在 Python 3.10/3.11/3.12 每个测试任务中增加 `sha256sum --check --strict` 强制校验；固定上游 commit 的仓库 LICENSE 记录 Apache-2.0 证据与签名验证状态，新增外部源码完整性审计报告、更新依赖清单/基线/审计 README/链接台账 #640–#641、00/21 章计划与资产清单。SBOM-004 完成来源完整性证据部分，但逐文件许可证适用性、NOTICE/贡献者和再分发审查仍未关闭。根主章节仍为00、主节点仍为00-01；Python 依赖 hash-lock、CVE/VEX、产品级 ROS/PLC/硬件 BOM 继续未完成。 | 固定 commit 的 raw source 与 LICENSE；GitHub commit verification；CI SHA-256 强校验配置 |
