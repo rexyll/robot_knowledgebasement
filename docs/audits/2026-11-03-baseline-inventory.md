@@ -2633,3 +2633,25 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 机器人校准/ISO 9283测试依赖外部激光跟踪仪或光学CMM、测量设备驱动和额外许可；需记录测量不确定度、测量布局、型号和环境。官方精度宣传不能直接当作产品保证。
 - 价格快照（2026-11-05）：官方页面列Professional 3995美元、Robot Calibration 17995美元、Educational 145美元/年等；仅作网页快照，实际采购需确认币种、地区税费、维护、企业/OEM、功能和合同主体。
 - 本轮仅进行官方公开文档静态审查，未安装软件、构建API/后处理器、连接控制器/测量系统、执行仿真/在线驱动/碰撞/节拍/安全测试；RoboDK资产保持静态审查未验收。
+
+## 117. Siemens Tecnomatix Process Simulate / Process Simulate X：工业机器人仿真、OLP与虚拟调试静态审查（2026-11-05，来源#1189–#1197）
+
+### 117.1 审查范围
+- 以 Siemens 官方 Process Simulate 产品页、X SKU / VBL 页面、2026-06 Tecnomatix 2606 发布摘要、Siemens Xcelerator Academy Standalone 虚拟调试课程路径，以及 Siemens Industry Online Support 的虚拟调试应用示例为证据。
+- 核验范围包括产品/部署形态、Essentials/Standard/Advanced 功能分层、VBL令牌许可、机器人专用OLP控制器包、PLC虚拟调试耦合、版本快照和采购验收边界；不把厂商营销页作为目标项目认证或实测证据。
+
+### 117.2 已核验事实与证据边界
+- Process Simulate 用于制造单元/整线的三维建模、机器人路径与工艺仿真、碰撞/节拍分析、OLP及虚拟调试；产品页说明可使用 TIA Portal + PLCSIM Advanced 或 OPC UA 连接 PLC 逻辑/控制程序，并可纳入实际机器人程序。来源#1189。
+- Process Simulate X 分 Essentials、Standard、Advanced。Essentials覆盖基础制造/装配与人体工效仿真、动态碰撞及布局验证；Standard加入完整机器人编程/OLP和虚拟调试；Advanced在Standard上增加点焊、钻孔/铆接、检测、弧焊、涂胶/密封、喷漆/喷涂等离散/连续制造工具。来源#1190–#1193。
+- Siemens 比较页及 VBL 页面把 OLP Controllers（按 controller）、PLC/external connection、Commissioning、Limitless Robotic Simulation 等列入附加能力；VBL使用共享NX X Manufacturing令牌池，25/50/100 token包，使用中占用、关闭归还、取令牌需在线、取得后可离线使用；带星号能力要求 Standard 或 Advanced。Point Cloud、Safety Robots Manager、NVIDIA Omniverse、AR DTA属于单列High-Value Add-ons。来源#1190、#1194。
+- Siemens 2026-06-29发布 Tecnomatix 2606 摘要，列出 Copilot、自动机器人路径、弧焊 Multi-pass/Skip Weld/Weaving、Material Handling Pattern Pick/Place、SCL Editor及Distance Sensor更新。该摘要非客户门户完整release notes。来源#1195。
+- Siemens Academy Standalone虚拟调试学习路径列出40小时基础建模/机器人路径、24小时事件驱动仿真CEE（OLP/虚拟调试前置）及24小时机器人专用控制器OLP配置课程。课程结构支持“先建模与路径—再事件仿真—再控制器OLP/VC”的学习依赖，不构成目标设备验证。来源#1196。
+- Siemens 2024应用示例（Process Simulate 2307、SIMIT 11.0 SP1、STEP 7 Professional V18）显示PLCSIM Advanced虚拟S7控制器、SIMIT驱动/阀行为模型、Process Simulate机械运动学模型三者耦合；PLC输出经SIMIT传递设定值，Process Simulate回传实际值，再由SIMIT送回PLC输入。该版本化应用示例声明其内容非客户专属方案且须自行验证，不能泛化为所有X版本或实际硬件配置。来源#1197。
+
+### 117.3 关键风险与未验证事项
+- 当前公开资料不足以确认所有机器人型号/控制器代际/固件的OLP Controller/RCS包、语言、指令、外部轴和授权；需按准确SKU向Siemens和机器人OEM取得版本化矩阵。
+- Standard/Advanced基础许可与VBL/High-Value Add-on的功能组合、按控制器计费方式、共享token并发和在线激活应纳入正式报价/合同；不能以“支持OLP/虚拟调试”概述认定全部扩展模块已购买。
+- PLCSIM Advanced虚拟PLC、SIMIT行为模型与运动学仿真不等于真实PLC/I/O/驱动/现场总线HIL；电气、时序、EMC、制动、故障恢复及安全回路仍需真实硬件与现场验证。
+- 模型碰撞、节拍和路径结果依赖CAD/机构/坐标/工具/夹具/线缆/工艺逻辑的保真度，不构成功能安全或人员防护结论；需独立应用风险评估和安全链验证。
+- 本轮未安装软件/客户门户版本，未取得完整release notes、受控兼容矩阵、报价与合同；未构建study、生成/编译控制器程序、连接虚拟/真实PLC或机器人、执行仿真/HIL/FAT/SAT/安全测试。因此资产保持静态审查未验收。
+
