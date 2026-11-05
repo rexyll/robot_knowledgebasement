@@ -1387,3 +1387,27 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 ### 56.3 结论与未关闭事项
 
 文章已完成全文主张边界审查和正文修订。仍未完成目标项目平台安装与版本冻结、ROS/插件/驱动互操作实测、机器人模型与传感器标定、真实数据系统辨识、物理/数值收敛验证、场景库覆盖评估、CI真实运行、PIL/HIL和故障注入、Sim2Real实机对照。资产继续保持 `unaccepted_claim_level_review_pending`；本轮不构成具体仿真模型精度验证、实机安全验证或产品验收。
+
+
+## 57. P1 构建与 CI 工具链：交叉编译、门禁与软件供应链审查（2026-11-05）
+
+### 57.1 审查范围与证据
+
+对 `knowledge/software/构建与CI工具链.md` 进行全文主张边界审查，覆盖CMake/colcon/ament、Python/Android/容器/嵌入式系统构建、交叉编译、ROS集成测试、CI平台安全、SBOM、漏洞与许可证、构建来源证明、制品签名、固件/OTA发布和项目实例证据。来源见链接台账#930–#943。本轮为文章静态审查及官方文档核对，未运行仓库工作流、编译目标固件、生成SBOM、签署制品或部署OTA。
+
+### 57.2 主要修订
+
+- **版本与职责边界：** 更新CMake版本快照：稳定版4.4.5、4.5.0-rc2为预发布候选，不应将RC当作生产稳定版；说明CMake与Ninja/Make、colcon、ament职责不同。Jazzy ament_cmake和Kilted/Lyrical launch_testing版本需按发行版匹配，不能将跨发行版版本号直接混用。来源#930–#932、#943。
+- **ROS工作区和CI：** 修正colcon命令与包依赖说明，补充rosdep、vcstool、rosdistro快照、系统包版本、symlink-install开发用途和并发资源约束。引用action-ros-ci所需工具和runner基础环境；明确launch_testing覆盖多进程启动/退出和输出行为，不等于目标板/实机测试。来源#932–#933。
+- **交叉编译：** 增加目标架构/ABI、OS/libc、sysroot、工具链、SDK/BSP、GPU/NPU运行时、ROS/RMW、链接脚本和分区等输入冻结要求；补充ROS交叉编译设计中的sysroot、容器、rosdep和CMAKE_TOOLCHAIN_FILE/colcon mixin流程。强调QEMU不能覆盖目标板外设、电气、实时、GPU/NPU、热和真实驱动。来源#934。
+- **CI安全：** 补充Action完整commit SHA固定、workflow dependency lockfile、最小权限、fork PR密钥隔离、OIDC短期凭据、自托管runner隔离、缓存污染防护、受保护环境和shell注入边界。GitHub官方明确建议锁定依赖和使用OIDC/attestation。来源#935、#937。
+- **SBOM：** 补充SPDX 3.0与CycloneDX 1.7/ECMA-424边界，要求覆盖直接/传递依赖、OS包、ROS包、容器、固件和适用厂商SDK；SBOM不是安全认证，需评估组件覆盖率、准确性和未识别项。来源#938–#940。
+- **Provenance与SLSA：** 说明SLSA provenance描述buildDefinition、输入依赖、builder和输出制品；GitHub Artifact Attestations关联workflow、commit、仓库和触发事件，可附SBOM，但官方明确attestation不是软件安全保证，必须由消费者验证。不能仅生成attestation就宣称高SLSA等级。来源#936、#941–#942。
+- **发布与OTA：** 补充制品hash、签名、设备端验签、安全启动/反回滚、设备型号匹配、A/B或恢复机制、断电/断网/包损坏/存储不足/降级和批次灰度测试。CI签名不能替代设备端验证。
+- **项目数字的证据边界：** 将旧稿中AMR 16包106用例、3轮×150秒PASS、43个Markdown/225链接全绿等描述标记为待查脚本、commit、CI原始日志和执行环境；无独立证据不能写成当前已验证的行业实践或测试结论。
+
+### 57.3 结论与未关闭事项
+
+文章已完成全文主张边界审查和正文修订。仍需检查仓库真实workflow与脚本、CI权限和runner隔离、依赖锁定和构建输入、目标架构交叉编译、SBOM实际覆盖、漏洞/许可证处理、签名与attestation验证、固件签名和OTA断电/回滚、目标板及现场测试。旧稿提及的项目测试数字尚无本轮独立运行记录，不能标记为已复核。
+
+资产继续保持 `unaccepted_claim_level_review_pending`；本轮不构成实际构建成功、目标硬件兼容、漏洞无风险、产品安全认证或量产交付验收结论。
