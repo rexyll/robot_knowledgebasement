@@ -2,7 +2,7 @@
 tags: [软件, ROS2, 导航, Nav2, 移动机器人]
 aliases: [Nav2, navigation2, ROS2导航框架, 导航框架]
 创建日期: 2026-11-01
-更新日期: 2026-11-03
+更新日期: 2026-11-05
 ---
 
 # Nav2 导航框架（ROS 2 Navigation）
@@ -173,13 +173,13 @@ Lifecycle Manager 对指定的 lifecycle nodes 执行受控 configure/activate/s
 nav2_bringup 提供可修改的示例启动系统，而非所有产品的唯一 launch 配置。官方 README 描述了可选 component composition；实际是否使用同进程组合、是否 respawn、是否 autostart、仿真时间和 namespace，应按目标资源、部署方式和 ROS 2 发行版设置。
 
 必须固定：
-- ROS 2 发行版（如 Humble/Jazzy/Rolling 中实际部署的版本）；
+- ROS 2 发行版（如 Humble/Jazzy/Kilted/Lyrical/Rolling 中实际部署的版本）；
 - Nav2 包版本/二进制构建或源码 commit；
 - RMW/DDS 实现、QoS、通信网络和多机 namespace；
 - robot_description、footprint、costmap 插件、TF frame 和传感器 topic；
 - planner/controller/BT plugin 参数、地图版本与定位方式。
 
-Rolling 文档用于了解开发版当前功能；它不能直接作为 Humble/Jazzy 部署配置，也不能用开发分支默认值代替已发布版本参数。具体迁移应查相应发行版的 migration guide 与 package release。
+Rolling 文档用于了解开发版当前功能；它不能直接作为 Humble/Jazzy/Kilted/Lyrical 部署配置，也不能用开发分支默认值代替已发布版本参数。具体迁移应查相应发行版的 migration guide 与 package release。
 
 ## 9. 调试与工程验证
 
@@ -246,3 +246,35 @@ Rolling 文档用于了解开发版当前功能；它不能直接作为 Humble/J
 8. 本地来源台账：[[链接台账]] #363–#378（访问日期：2026-11-03）
 
 **未关闭事项：** 未在目标机器人运行 Nav2 bringup、BT 或插件；未确认本项目最终 ROS 2 发行版、Nav2 包版本/commit、RMW、硬件驱动、地图/TF 配置和插件清单；未执行目标地图上的规划/控制/恢复/多机 namespace/故障注入测试。本文仅完成官方文档与上游接口的定向主张审查，不构成目标平台部署验收、实时性/安全性能验证或产品批准。
+
+
+## 13. Lyrical 发行版增量核验（2026-11-05）
+
+Nav2 已提供 Humble、Jazzy、Kilted、Lyrical 等发行版文档入口；选型时必须把 ROS 2 发行版与 Nav2 对应分支/二进制包绑定，而不是只写“ROS 2 + Nav2”。截至本次核验，ROS Index 的发行版包索引分别列出 Jazzy 的 navigation2 1.3.14 与 Lyrical 的 navigation2 1.5.3；这是仓库索引的快照，不代表用户目标系统已安装该版本，也不替代 apt 仓库、目标架构和依赖解析结果。
+
+### 13.1 Kilted → Lyrical 的迁移边界
+
+Nav2 官方迁移指南将 Kilted → Lyrical 的变化概括为新增 `nav2_ros_common` 包及 `LifecycleNode` 重构。迁移项目至少应逐项检查：
+
+- **构建依赖**：检查自定义包的 package.xml、CMakeLists.txt、ament 依赖导出与 include 路径；不能因本机已有传递依赖就省略直接依赖声明。
+- **Lifecycle 节点**：检查自定义 Nav2 server、插件宿主和派生节点对 LifecycleNode 类型、头文件、命名空间、初始化/状态转换及回调接口的使用；依据 Lyrical 分支 API 编译，不把旧发行版源码机械复制后视为兼容。
+- **插件与参数**：检查 pluginlib 导出、插件类名、参数声明/默认值、BT XML 节点注册、action/service/message 接口和启动文件；逐项对照 Lyrical API 文档与 migration guide。
+- **部署矩阵**：将 ROS 2 distro、Nav2 包版本、源码 commit、RMW、操作系统/架构、编译器和第三方依赖作为同一配置基线记录；Jazzy 与 Lyrical 不共用未经验证的二进制或工作区。
+- **回归验证**：在目标发行版重新执行干净构建、插件加载、Lifecycle configure/activate/deactivate/shutdown、BT XML 加载、规划/控制 action、Costmap 与传感器输入、仿真和故障恢复测试。
+
+官方文档页面可同时展示当前发行版插件/API，但插件列表和配置参数会随分支演进。引用 Rolling 文档时必须明确它是开发分支资料；对 Lyrical 项目应优先引用 Lyrical 文档/API与对应源码分支。
+
+### 13.2 Collision Monitor 的安全语义再确认
+
+Nav2 Collision Monitor 的上游说明明确指出，它在 CPU 软件层处理传感器输入并过滤速度命令，不具备硬实时安全认证。即使配置了 Stop/Slowdown/Approach 区域，也不能据此将其等同于安全激光扫描仪、安全控制器、认证停止功能或整机功能安全验证。产品若将其纳入风险降低措施，必须由整机风险评估确定安全功能是否另有独立、经验证的实现；软件监控可作为附加防护或运行监测，不能替代所需的安全额定链路。
+
+### 13.3 本轮来源与验证边界
+
+本轮核验来源：
+
+1. Nav2 官方 Lyrical 文档入口：https://docs.nav2.org/lyrical/
+2. Nav2 官方发行版迁移指南（Kilted → Lyrical）：https://docs.nav2.org/rolling/configuration_and_development/migration_guides/
+3. ROS Index navigation2 发行版包索引：https://index.ros.org/p/navigation2/
+4. Nav2 Collision Monitor 上游包说明：https://index.ros.org/p/nav2_collision_monitor/
+
+本轮为公开官方文档/包索引支持的发行版迁移与安全语义增量审查，不是对本文所有算法、参数和接口再次全文审查。未在目标工作区进行 Lyrical 构建、源码/API差异编译、插件加载、Lifecycle/BT/规划控制回归、目标硬件实时性测量或实机停止距离测试；未确认用户项目实际采用的发行版、Nav2包版本、RMW、平台架构和自定义插件。资产仍保持未验收状态。
