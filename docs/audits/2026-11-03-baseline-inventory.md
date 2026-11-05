@@ -1411,3 +1411,29 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 文章已完成全文主张边界审查和正文修订。仍需检查仓库真实workflow与脚本、CI权限和runner隔离、依赖锁定和构建输入、目标架构交叉编译、SBOM实际覆盖、漏洞/许可证处理、签名与attestation验证、固件签名和OTA断电/回滚、目标板及现场测试。旧稿提及的项目测试数字尚无本轮独立运行记录，不能标记为已复核。
 
 资产继续保持 `unaccepted_claim_level_review_pending`；本轮不构成实际构建成功、目标硬件兼容、漏洞无风险、产品安全认证或量产交付验收结论。
+
+
+## 58. P1 视觉软件栈：相机采集、标定、同步与推理部署审查（2026-11-05）
+
+### 58.1 审查范围与证据
+
+对 `knowledge/software/视觉软件栈.md` 完成全文主张边界审查，覆盖工业相机接口/GenICam/GenTL、V4L2/libcamera/GStreamer、OpenCV/PCL/Eigen与优化库、相机/IMU/LiDAR标定、PTP/硬触发/ROS时间戳、ONNX Runtime/TensorRT/OpenVINO、ROS 2图像消息和视觉系统验收。新增来源台账#944–#958。本轮为文章静态审查和官方文档核对，未安装相机SDK、运行模型基准或执行真实相机同步/标定测试。
+
+### 58.2 主要修订
+
+- **架构分层：** 将光学成像、传感器采集、传输/驱动、GenICam/GenTL、V4L2/libcamera/GStreamer、ROS消息、传统视觉、模型推理和应用输出分层，避免把相机接口、SDK、算法库、ONNX和推理运行时混为一谈。
+- **接口与驱动：** 补充USB3 Vision、GigE Vision、MIPI CSI-2、GenICam/GenTL、V4L2和libcamera适用边界；强调带宽、网卡/USB控制器共享、交换机、MTU、PoE、驱动、相机XML和GenTL Producer需按型号/固件核验。EMVA资料只用于接口标准族概览，非现行标准全文或符合性证明。来源#957、#956。
+- **OpenCV：** 更新OpenCV 5.0（2026-06）及4.x/5.x分支状态，补充C++17最低要求、C API移除、G-API/Classic ML迁移到contrib、calib3d模块拆分等迁移风险。更正许可笼统表述：主仓库和contrib LICENSE声明Apache-2.0，但第三方依赖/模型/数据仍需逐项审查。来源#944–#947。
+- **PCL：** 补充模块能力边界；指出官方文档标识1.15.1-dev属于开发文档，不应当作正式稳定版。ICP/NDT结果受初值、重叠、几何和噪声影响，不能将“收敛”视为全局正确位姿。来源#948–#949。
+- **标定：** 删除重投影误差<0.1px、双目1–2%@2m、LiDAR-相机2–5cm/1–2px等无通用条件数字。补充标定板平面度/尺寸、覆盖度、残差分布、鱼眼/滚动快门模型、手眼运动激励和独立验证。Kalibr官方说明相机-IMU时空标定依赖IMU噪声参数、低抖动时间戳、充分运动激励和曝光/运动模糊控制；需检查原始时间间隔。来源#955、#958。
+- **时间同步：** 更正“GigE Vision PTP亚毫秒同步”的绝对说法。PTP精度依型号、网卡硬件时间戳、交换机、Grandmaster、profile和网络配置；PTP时钟同步与硬件触发事件同步不同。ROS message_filters只按消息时间戳匹配，不修复错误时钟。Basler文档还显示PTP能力依设备支持位，启停PTP可能改变时间域。来源#956。
+- **推理运行时：** 明确ONNX是交换格式而非推理引擎；ORT Execution Provider可能为preview且模型算子未必全图下沉。TensorRT 11.4.1序列化engine不跨OS/平台通用，GPU架构与跨主版本兼容有明确约束；Jetson需匹配JetPack/平台SDK。OpenVINO 2026.4 CPU/GPU/NPU系统需求与驱动要求不同。来源#950–#953。
+- **端到端延迟：** 增加曝光、读出、传输、排队、预处理、推理、后处理和发布预算；GStreamer live source、时钟、缓冲和sink同步都会影响全局延迟。删除“YOLO 15–30fps@Orin”无模型/输入/精度/负载条件的通用性能值。来源#954。
+- **ROS 2集成：** 补充Image encoding/step/stride、CameraInfo与裁剪缩放、image_transport压缩代价、intra-process/loaned message支持条件、TF optical frame约定及时间戳/队列边界。
+- **工业应用验收：** 增加采集完整性、丢帧/重连、PTP偏差、标定复测、P99延迟、热/功耗、模型量化前后精度、ROS bag/TF和FAT/SAT证据矩阵。
+
+### 58.3 结论与未关闭事项
+
+文章已完成全文主张边界审查和正文修订。尚未完成具体相机/镜头/光源/采集卡/SoC选型实测、厂商SDK安装、OpenCV/PCL/Open3D/HALCON和推理运行时基准、模型目标设备量化精度测试、多相机PTP/硬触发偏差测量、ROS 2时间同步/长稳和现场FAT/SAT。
+
+资产继续保持 `unaccepted_claim_level_review_pending`；本轮不构成相机选型结论、标定精度保证、推理性能保证、产品安全认证或现场验收。
