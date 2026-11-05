@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.09  
+> 版本：v7.10  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -758,3 +758,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-05 | v7.08 | 00-01完成《仿真平台》P1全文主张边界审查并修订：更新Gazebo Jetty/Harmonic/Ionic支持周期与ROS配套、Isaac Sim 6.2/Isaac Lab 3.0 GA、MuJoCo 3.17、CoppeliaSim 4.10、Webots R2025b与Colosseum归档状态；更正Gazebo DART/Bullet/TPE能力边界，补充Isaac RTX硬件要求、传感器误差模型、仿真时间/实时因子、MIL/SIL/PIL/HIL/VIL及Sim2Real校准/随机化/实机验证。新增来源台账#917–#929、基线审计第56节、第00章进度和资产清单同步。未执行平台安装、仿真运行、CI、PIL/HIL或实机对照，资产继续未验收；下一项为《构建与CI工具链》。根主章节00、主节点00-01继续进行中。 | 基线审计第56节；第00章TaskPlan；链接台账#917–#929；资产清单 |
 
 | 2026-11-05 | v7.09 | 00-01完成《构建与CI工具链》P1全文主张边界审查并修订：更新CMake 4.4.5稳定版/4.5.0-rc2预发布边界、ROS发行版ament/launch_testing匹配；补充colcon/rosdep/vcstool、交叉编译sysroot/ABI/SDK、QEMU边界、GitHub Actions依赖锁定/最小权限/OIDC/runner隔离、SPDX 3.0/CycloneDX 1.7、SBOM、SLSA provenance/attestation验证、固件签名和OTA断电/回滚门禁。新增来源台账#930–#943、基线审计第57节、第00章进度和资产清单同步。旧稿项目测试数字仍待脚本/commit/CI原始日志核验；本轮未运行CI/交叉编译、生成SBOM、签名或实机OTA，资产继续未验收；下一项为《视觉软件栈》。根主章节00、主节点00-01继续进行中。 | 基线审计第57节；第00章TaskPlan；链接台账#930–#943；资产清单 |
+
+
+| 2026-11-05 | v7.10 | 00-01完成《ROS与ROS2》P1全文主张边界审查并修订：更新Lyrical LTS及官方平台Tier矩阵；纠正客户端库、Lifecycle、Service/Action、参数与QoS语义；区分Composition、intra-process与shared-memory；补充rmw_zenoh router发现机制，降级未复现的内部项目经验。基线审计第79节、00章TaskPlan与资产清单已同步。未执行目标平台构建、驱动兼容、RMW/QoS/实时性/性能/网络/安全或实机验证，资产保持未验收；下一项按P1队列继续检查ROS相关导航框架与实时嵌入式专题。 | 基线审计第79节；第00章TaskPlan；资产清单 |
