@@ -1847,3 +1847,30 @@ workflows README 目录入口和流程地图中的已知旧项目名引用已修
 
 本轮访问的公开官方资料包括：ROS 1 ros_comm归档/EOL公告、ros1_bridge README及映射文档、ROS 2 Jazzy LTS发布公告、ROS 2发行版支持计划、REP 105。相关URL已在专题正文列出；本轮未更新链接台账。历史上链接台账新增#999–#1001曾被平台安全检查阻止，本轮不重试或变体提交该台账写入。
 
+
+
+## 79. P1 ROS 与 ROS 2 基础专题：发行版平台矩阵、通信语义与部署主张全文审查（2026-11-05）
+
+### 79.1 审查范围与发现
+
+对 `knowledge/software/ROS与ROS2.md` 全文进行静态主张边界审查。原文已包含ROS 2发行版、QoS、RMW、组合节点、网络部署和工具实践，但部分表述容易被读者理解为普遍保证：将Lyrical最新LTS视为生态已完整支持；将Rust/Java等客户端与核心官方客户端库并列；将所有节点都视为具备Lifecycle管理；把Service描述成同步一次；将Action取消请求等同停止动作；把参数视为始终可动态修改；将QoS简化成Reliability两个组合；将shared memory与进程内通信混为一谈；将内部项目经验和工具建议表述为已经验证或绝对必需。
+
+### 79.2 主要修订
+
+- 按ROS官方发行版维护列表更新快照：Lyrical Luth于2026-05-22发布，LTS支持至2031-05；Kilted于2026-12 EOL，Humble至2027-05，Jazzy至2029-05。
+- 依据Lyrical官方平台矩阵补充Ubuntu Resolute 26.04、Ubuntu Noble 24.04的Tier差异、Tier 3源码构建要求、C++20最低要求和默认RMW；强调平台Tier约束中间件实际支持等级，发行版支持不代表BSP/驱动/第三方包支持。
+- 将核心客户端库限定为rclcpp/rclpy，其他语言客户端需核验维护主体与发行版支持；说明Lifecycle Node是可选节点模型，不是所有节点自动具备。
+- 修正Service请求/响应模型及同步/异步API边界；明确客户端超时不证明服务端未执行；Action取消请求不等于设备动作已经停止。
+- 参数增加只读描述符、类型/范围约束和节点回调拒绝修改的条件。
+- 完善QoS兼容性检查，覆盖Reliability、Durability、Deadline、Liveliness/Lease Duration；补充Transient Local两端协商、History/Depth/Lifespan及传输可靠性与业务完成之间的边界。
+- 区分Composition、intra-process communication和DDS/RMW shared-memory transport，说明进程组合会改变故障隔离域。
+- 修订“内部项目验证过的经验”、rosbag2刚需和ros2 doctor联调第一步等未经本轮复现的表述，降级为项目经验线索/可选工具。
+- 依据rmw_zenoh官方设计补充默认Zenoh router参与发现信息转发、UDP multicast scouting默认关闭的架构约束，并要求按发行版分支与目标部署验证。
+
+### 79.3 结论与未关闭事项
+
+本文已完成公开官方资料支持的全文静态主张边界审查；资产仍保持 `unaccepted_claim_level_review_pending`。未在目标机器人上安装/构建ROS发行版、验证驱动/BSP兼容、执行RMW互操作、QoS负向匹配、实时性/执行器时延测量、intra-process/shared-memory性能测试、Zenoh路由器故障恢复、多机网络、安全配置或实机测试。未审查内部项目源码与CI原始记录，不能确认旧稿“内部项目验证”历史陈述。本文不构成目标产品集成验收、实时性保证、安全认证或量产放行。
+
+### 79.4 来源登记状态
+
+本轮核验并在专题正文列出ROS 2官方发行版维护列表、Lyrical发布说明与支持平台矩阵、ROS 2 QoS文档、rmw_zenoh设计文档。相关URL未写入链接台账；本轮不将其计为台账登记完成。
