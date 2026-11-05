@@ -1364,3 +1364,26 @@ knowledge/software/ROS与ROS2.md 已完成上述 P1 架构主张的定向纠错�
 ### 55.3 结论与未关闭事项
 
 本轮完成文章全文主张边界审查及协议/许可证官方资料核对，并已修订文章正文。仍未完成目标云平台/Broker的准确版本与配额确认、产品部署拓扑和负载压测、真实设备端库/固件兼容、证书注入/轮换/吊销演练、租户隔离和ACL渗透测试、断网缓存容量与恢复时间测试、端到端命令状态机和OTA实测。容量、SLA、安全与法规符合性均不能由本轮静态审查推定。资产继续保持 `unaccepted_claim_level_review_pending`；本轮不构成生产系统安全验收或产品级可用性验证。
+
+
+## 56. P1 仿真平台：版本兼容、物理/传感器模型与Sim2Real边界审查（2026-11-05）
+
+### 56.1 范围与证据
+
+对 `knowledge/software/仿真平台.md` 进行全文主张边界复核，检查Gazebo/Isaac Sim/Isaac Lab/MuJoCo/CoppeliaSim/Webots/AirSim生态版本、ROS兼容关系、物理引擎、传感器仿真、仿真时间、SIL/HIL、Sim2Real和CI测试分层。核对官方发行/兼容/系统需求文档、组件说明和仓库归档状态，来源见链接台账#917–#929。本轮是公开资料与文章静态审查，没有安装平台、运行仿真、构建模型、跑训练或进行实机对照。
+
+### 56.2 主要修订
+
+- **版本状态更新：** Gazebo Jetty为当前LTS（至2031-05），Harmonic仍为LTS（至2029-05），Ionic计划2026-12 EOL；ROS/Gazebo组合按官方兼容表选择。当前官方新用户推荐Ubuntu 26.04 + ROS 2 Lyrical + Gazebo Jetty，无法迁移时上一LTS组合为Ubuntu 24.04 + Jazzy + Harmonic。来源#917–#918。
+- **Isaac版本和依赖：** Isaac Sim更新为6.2.0（2026-10）；Isaac Lab 3.0.0 GA与Sim 6.2的配套关系依NVIDIA交叉兼容矩阵。补充Isaac Sim 6.2系统需求、Ubuntu 22.04支持弃用、容器仅Linux、RTX/VRAM和驱动约束。禁止只凭相同版本数字推断ROS workspace、Newton、Isaac Lab、插件或训练策略兼容。来源#919–#920、#927–#928。
+- **其他平台版本/许可：** MuJoCo当前3.17.0（2026-10-22）；CoppeliaSim官方下载页列4.10.0 rev0，并明确Edu只限学校/大学教学研究、不可商业使用；Webots区分R2025b稳定版与nightly预发布。来源#921–#923。
+- **AirSim/Colosseum：** Colosseum fork仓库于2026-07-11归档，只读；该状态只针对Colosseum，不外推Microsoft AirSim原仓库归档。删除把两个项目合并为单一维护状态的模糊表述。来源#924。
+- **Gazebo物理引擎：** 更正平台引擎描述，Gazebo Sim通过插件集成物理引擎，DART为默认；Bullet、TPE等实现各有适用边界。TPE偏向大规模近似运动学/车队动态，不提供完整重力、力和约束动力学；不能将新Gazebo和Gazebo Classic的引擎列表混为一谈。来源#926、#929。
+- **传感器保真度：** 删除“LiDAR用GPU Ray十万点级实时”“IMU加高斯噪声即可”“深度相机RTX渲染即真实”等无普适证据断言。补充相机曝光/畸变/滚动快门、LiDAR扫描模式/回波/遮挡/运动畸变、IMU偏置/随机游走/温漂/时间同步等模型维度。Gazebo Sensors有多类传感器和噪声模型，但不等于精确复现具体型号。来源#925。
+- **Sim2Real：** 将质量±20%、摩擦±30%、延迟0–50ms从通用建议降为需项目论证的实验范围；要求实机参数辨识、校准集/留出集、随机化范围及相关性记录、分级实机迁移和仿真/实机差异报告。仿真无法自动消除reality gap。
+- **时间/接口/测试：** 补充sim time/wall clock/monotonic clock区别、real-time factor不等于准确度、ROS bridge接口与版本锁定、GPU/多线程非逐位确定性。定义MIL/SIL/PIL/HIL/VIL边界，只有真实控制器/IO接入实时仿真才可称HIL；增加PR/nightly/release/现场测试分层和可追溯成果物。
+- **数字孪生与验收：** 明确只有持续数据映射、校准和模型不确定性管理的模型才可作为数字孪生；仿真结果不能单独证明真实性能、安全等级、法规符合性或量产可交付性。
+
+### 56.3 结论与未关闭事项
+
+文章已完成全文主张边界审查和正文修订。仍未完成目标项目平台安装与版本冻结、ROS/插件/驱动互操作实测、机器人模型与传感器标定、真实数据系统辨识、物理/数值收敛验证、场景库覆盖评估、CI真实运行、PIL/HIL和故障注入、Sim2Real实机对照。资产继续保持 `unaccepted_claim_level_review_pending`；本轮不构成具体仿真模型精度验证、实机安全验证或产品验收。
