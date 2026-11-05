@@ -365,3 +365,5 @@
 
 
 | 2026-11-05 | 21-02/RoboDK工业机器人仿真与离线编程软件生态审查 | 新增RoboDK档案：区分仿真、API程序生成、Post Processor离线控制器代码生成与Robot Driver在线控制；核对Python/C#/C/C++/VB.NET/MATLAB API、100+后处理器/50+厂商控制器的官方概述、TCP/IP驱动及控制器通信选件前提；补充后处理器版本漂移、碰撞模型与现场安全边界、校准测量系统和额外许可、Network/USB/Standalone授权及定价快照。新增来源#1181–#1188、基线审计第116节和资产CSV同步。未安装软件、未构建API/自定义后处理器、未接入控制器/测量设备、未执行仿真/在线驱动/碰撞/节拍/安全验证；RoboDK保持静态审查未验收，21-02继续进行中。 | #1181–#1188 |
+
+| 2026-11-05 | 21-02/Siemens Tecnomatix Process Simulate / Process Simulate X 软件生态静态审查 | 新增 Siemens Tecnomatix / Process Simulate X 独立档案：核对 Essentials/Standard/Advanced SKU边界、VBL共享token池及按controller计的OLP Controllers、PLC外部连接等附加能力；梳理机器人专用OLP controller配置、CEE前置关系，以及PLCSIM Advanced + SIMIT + Process Simulate三层虚拟调试参考架构；补充Tecnomatix 2606（2026-06）功能快照和虚拟PLC/真实硬件HIL边界。来源台账#1189–#1197、基线审计第117节、主要厂商档案和资产CSV已同步。未安装软件、未下载客户门户完整release notes/受控兼容矩阵、未构建study/生成程序、未连接控制器/PLC或执行HIL/FAT/SAT/安全验证；资产保持静态审查未验收，21-02继续进行中。 | Siemens Process Simulate、X SKU/VBL、2606更新、Academy课程和Industry Online Support应用示例；基线审计§117 |
