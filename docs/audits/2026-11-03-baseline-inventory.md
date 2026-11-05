@@ -2676,3 +2676,21 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 2026.2已知PROFIsafe/CIP-Safety I/O配置风险必须对准确网络拓扑、控制器/RobotWare/RobotStudio build组合执行受控复现和回归。虚拟Stop/碰撞/扫掠体仿真不构成功能安全验证。
 - 本轮未安装/运行软件、未创建真实型号VC、未生成并在目标IRC5/OmniCore控制器编译RAPID、未迁移Add-in/PowerPac、未连接真实PLC/驱动或测试OPC UA/SIMIT、未执行任何HIL/FAT/SAT/安全或网络安全测试；资产保持静态审查未验收。
 
+
+## 119. FANUC ROBOGUIDE / Virtual Robot与ROS 2 Driver：离线编程、虚拟调试和外部运动接口静态审查（2026-11-05，来源#1207–#1219）
+
+### 119.1 审查范围与已核验事实
+- 核查ROBOGUIDE V10官方产品页/发布资料、V10 Revision E与FactoryTalk Logix Echo连接公告、历史操作手册B-83234EN/03，以及FANUC官方fanuc_driver README、v2.3.0系统要求、main功能概览、ROBOGUIDE指南、v2.4.0 Release、兼容问题、1 kHz与motion authority文档。
+- ROBOGUIDE V10为3D工作单元仿真/离线编程工具；官方资料列64位、多虚拟示教器、CAD/复杂工作单元和VR回放。Rev E新增Logix Echo握手、IPv4别名与虚拟PLC/机器人联合调试，双方许可需分别确认，不能视作真实硬件HIL。来源#1207–#1210。
+- 历史手册说明Virtual Robot软件结构与真实控制器相近，但实机文件传输范围有限，旧版有部分硬件/总线与控制器功能无法模拟；它不是V10现行受控规格。PDF文本可读，但截图服务只返回FANUC Portal包装页，未获得可读原页图像。来源#1211。
+- 官方ROS 2 Driver覆盖ros2_control、MoveIt 2、mock/physical hardware和外部控制通信；README主分支为Jazzy、Humble走humble分支。v2.3.0系统要求列Ubuntu 22.04/Humble、Ubuntu 24.04/Jazzy、R-30iB Plus/Mate Plus/Mini Plus与R-50iA系列，控制器要求J519+R912或S636及最低软件版本。来源#1212–#1215。
+- 最新Release为v2.4.0（2026-10-01），可见系统要求页仍为v2.3.0，版本文档存在错位；ROBOGUIDE指南列UDP/loopback、WSL2和CRX I/O映射要求。1 kHz文档限定R-50iA+S647等配置并警告jitter风险。来源#1215–#1218。
+- Issue #21记录控制器固件/ROBOGUIDE Revision的特定兼容异常及成功个案；motion authority说明是软件控制权切换，不是安全状态。来源#1217、#1219。
+
+### 119.2 风险与待验证
+- 需取得当前V10 build/Revision/SR与Virtual Robot/机器人库/控制器软件矩阵、目标SKU配对、选件密钥及模块许可；历史手册不能代替当前受控手册。
+- V10 Rev E + Logix Echo属于虚拟PLC/虚拟机器人集成；真实PLC、驱动、I/O、现场网络、制动/故障行为需另做硬件HIL/FAT/SAT。
+- v2.4.0最新tag与可见v2.3.0系统要求文档不一致；需固定tag/commit并取得与实际机型、控制器软件及选件对应的厂商确认。
+- J519/R912/S636、I/O映射、RMI、控制权及S647 1 kHz均有版本/硬件依赖；不可外推全部机型。
+- 防火墙关闭建议不可直接用于生产网络；应隔离试验网络并使用最小权限规则验证UDP、IP别名、WSL2网络和故障恢复。
+- 本轮未安装/构建/连接软件与设备、未运行机器人、未测1 kHz jitter/实时性、未做网络或功能安全验证、未执行FAT/SAT；FANUC条目保持静态审查未验收。
