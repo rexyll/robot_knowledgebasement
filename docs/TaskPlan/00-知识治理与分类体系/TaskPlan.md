@@ -364,3 +364,6 @@
 
 
 | 2026-11-05 | 00-01 | 对knowledge/ecosystem/主要厂商.md中AUBO遨博条目开展P1静态主张边界审查：补充AUBO系列与控制柜配对、CB-M手册版本/通信接口/安全I/O配置条件，区分ARCS/AuboStudio、JSON-RPC 2.0 RPC、RTDE与SCRIPT接口，记录SDK工具链/版本管理、虚拟机和认证范围缺口。新增来源台账#1164–#1171、基线审计第114节和第21章21-02执行记录。未下载构建SDK、未连接控制器/运行仿真、未执行ROS/总线/实机/安全验证，厂商资产保持未验收。 | AUBO官方开发者门户、控制器手册、SDK功能/环境/版本管理文档；基线审计§114 |
+
+
+| 2026-11-05 | 00-01 | 对 knowledge/ecosystem/主要厂商.md 开展研华Advantech Robotic Suite P1软件平台主张边界审查：核对2.1.0发布日期、NVIDIA/Qualcomm ROS 2 Jazzy适配SKU与JetPack/Ubuntu组合、Intel旧版支持矩阵、ASR-D501 Basic-only边界；区分Basic/Complete安装依赖并记录WISEAgent版本文字疑点；审查SUSI/Modbus/OPC UA ROS节点、Time Sync Viewer的Ubuntu22.04限制、2ms示例参数和公开示例凭据。新增来源#1172–#1180、基线审计第115节和第21章21-02记录。未在目标板安装/运行、未连接PLC/传感器、未测试网络/实时/安全/OTA；资产保持未验收。 | 研华官方Robotic Suite文档与发行说明；基线审计§115 |
