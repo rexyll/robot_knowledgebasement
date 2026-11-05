@@ -357,3 +357,5 @@
 | 2026-11-05 | 00-01 | 对 `knowledge/ecosystem/主要厂商.md` 中Yaskawa条目开展P1产品/软件生态主张审查：补充MOTOMAN产品族、GP20/HC10代表型号、YRC1000/YRC1000micro控制器边界、MotoPlus V2.52、MotoSim EG-VRC、MotoLogix及ROS接入证据；明确ROS 2兼容矩阵、受控手册、证书、版本配对和实机验证仍缺。新增来源台账#1123–#1133，基线审计第109节和资产清单已同步。厂商资产继续未验收，00-01与21-02保持进行中。 |
 
 | 2026-11-05 | 00-01 | 对 `knowledge/ecosystem/主要厂商.md` 开展ROKAE珞石P1厂商生态静态主张审查：补充工业/协作/具身智能产品矩阵、HSA/AR/Helios/iNex厂商披露、xCore SDK v3.0.1+与RCI实时控制模式边界，以及ROS 2 Humble/Ubuntu 22.04/x86_64、ros2_control/MoveIt 2/Gazebo支持矩阵和RViz-only双臂URDF限制。新增来源台账#1138–#1143、基线审计第111节、第21章21-02记录及资产清单同步。未构建SDK/ROS包、未运行Gazebo/实机或测量实时性/力控/安全功能；资产保持未验收。 | ROKAE官方产品新闻、开发者文档、ROS 2手册与下载中心；基线审计§111 |
+
+| 2026-11-05 | 00-01 | 对 `knowledge/ecosystem/主要厂商.md` 中埃斯顿ESTUN条目开展P1静态主张审查：区分ER/iER代际切换和持续服务声明，补充Juliet/iER.OS/NGC/ERI及RCS/Editor/API工具链；按ER API手册核验RCS2最低版本、APIServer、API Mode/远程模式与厂商激活授权；审查ESTUN-R-D/codroid_ros2的Humble/Ubuntu 22.04、Codroid专用机型范围、TCP/UDP CRI、ros2_control/MoveIt、mock与skip测试边界。来源台账#1144–#1153、基线审计第112节、第21章21-02记录和资产CSV已同步。未下载受控iER/ERI资料、未构建或运行工作空间、未实测实时性/停止响应/安全链；资产保持未验收，00-01与21-02继续进行中。 | 埃斯顿官方产品/软件/手册及ESTUN-R-D公开GitHub仓库；基线审计§112 |
