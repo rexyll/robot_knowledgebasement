@@ -367,3 +367,6 @@
 
 
 | 2026-11-05 | 00-01 | 对 knowledge/ecosystem/主要厂商.md 开展研华Advantech Robotic Suite P1软件平台主张边界审查：核对2.1.0发布日期、NVIDIA/Qualcomm ROS 2 Jazzy适配SKU与JetPack/Ubuntu组合、Intel旧版支持矩阵、ASR-D501 Basic-only边界；区分Basic/Complete安装依赖并记录WISEAgent版本文字疑点；审查SUSI/Modbus/OPC UA ROS节点、Time Sync Viewer的Ubuntu22.04限制、2ms示例参数和公开示例凭据。新增来源#1172–#1180、基线审计第115节和第21章21-02记录。未在目标板安装/运行、未连接PLC/传感器、未测试网络/实时/安全/OTA；资产保持未验收。 | 研华官方Robotic Suite文档与发行说明；基线审计§115 |
+
+
+| 2026-11-05 | 00-01 | 对 `knowledge/ecosystem/主要厂商.md` 开展RoboDK P1软件生态静态主张审查：区分仿真、API、Post Processor离线代码生成与Robot Driver在线通信；核对API语言/传输、控制器选件依赖、后处理器版本漂移、碰撞模型边界、外部测量系统和许可方式；新增来源台账#1181–#1188、基线审计第116节、第21章21-02记录及资产CSV同步。未安装/构建软件、未接入控制器或测量系统、未执行实机/实时/碰撞/安全验证，资产保持未验收。 | RoboDK官方文档、API、后处理器、Robot Driver、碰撞检测、系统要求、定价与许可FAQ；基线审计§116 |
