@@ -130,6 +130,23 @@ VDA 5050通过MQTT与JSON交换消息，MQTT 3.1.1是规范要求的最低兼容
 
 VDA 5050 v3.0.0对MQTT QoS的规定也有区别：大多数业务Topic采用QoS 0，`connection`采用QoS 1。QoS等级不等同端到端业务确认；任务接收、执行、取消和恢复仍需结合消息ID、订单版本、状态回报、超时和重连策略处理。规范指出通信安全需由Broker配置考虑，但不在该指南范围内；项目仍须独立设计TLS、身份认证、Topic ACL、证书/密钥生命周期和网络分区。
 
+### 4.1 v2.x 到 v3.0.0 的兼容性与迁移重点（2026-11-05复核）
+
+VDA官方页面当前推荐 **3.0.0（2026年3月）**；官方GitHub release将3.0.0标记为最新发布版本，发布说明强调本次不只是增加可选字段，而是对多个消息字段、状态机和动作语义进行了重构。不能把 v2.x 与 v3.0.0 当作只增加可选字段的兼容升级。
+
+迁移时至少核对以下变化（以VDA正式PDF为准）：
+
+- **自由导航与交通影响**：新增 zone 概念和 planned/intermediate path sharing；机器人可在指定区域规则下自行规划路径，并向车队控制共享计划路径。RMS必须明确 zone 几何/语义、授权与撤销、路径时效、地图版本、定位可信度和冲突处理。路径共享可以支持交通管理，不因此成为安全制动链。
+- **运行模式与动作状态**：运行模式、blocking type、action state均有重构；新增 STARTUP、INTERVENED 等模式以及 RETRIABLE 动作状态；动作状态数组拆分。RMS不能仅靠旧版枚举或“任务成功/失败”二值映射来处理新状态。
+- **字段和单位语义**：positionInitialized改为localized；电池状态结构调整为powerSupply，电量字段改为stateOfCharge；时间戳精度从百分之一秒调整为千分之一秒。适配层必须审查序列化、单位、精度、空值和旧字段映射，避免静默截断或把“已初始化”误解为“定位可信”。
+- **任务控制和错误语义**：暂停/恢复/取消动作要求、错误等级和错误描述结构均有调整；发布说明新增CRITICAL、URGENT错误级别，并将startPause、stopPause、cancelOrder列为移动机器人必须支持的动作。必须按规范状态转移矩阵处理重复、迟到、冲突和重连后的消息。
+- **订单与幂等**：首个新订单的orderUpdateId从0开始；相同orderUpdateId重发与相同ID但内容不同的情况有明确区分；已取消订单不得再次更新。实现应将“网络重发”与“业务新版本”区分开，避免重复执行动作或接受过期订单。
+- **版本隔离**：Topic层级包含接口主版本；部署清单应分别记录车队控制器、机器人、Broker、JSON Schema和正式PDF版本。不得仅凭双方都宣称“支持VDA 5050”就推断可互操作；v2/v3并行时应显式隔离Topic命名空间、ACL、转换网关和回滚路径。
+
+**迁移验收至少包含：** 正式PDF与JSON Schema版本/哈希锁定；每个字段与枚举的映射差异表；新旧消息的正向/负向Schema测试；订单更新/重复/取消/断线重连测试；暂停/恢复/介入/可重试动作状态机测试；zone/path sharing与地图/坐标版本测试；时间戳精度和时钟偏差测试；Broker认证、TLS、Topic ACL与异常断连测试。协议层测试通过不等于多厂商互操作、交通安全或现场验收通过。
+
+**版本治理边界：** VDA官方说明旧版本不再推荐或继续开发；GitHub仓库说明其主分支跟随最新发布文档，若仓库Markdown/JSON Schema与VDA发布PDF不一致，以VDA PDF为准。GitHub release notes可用于识别变更点，但不能替代正式规范条文。来源台账 #1098–#1100。
+
 ## 5. 任务分配与调度策略
 
 任务分配（谁执行哪个任务）、任务排序/车辆路径（按什么顺序访问任务点）、多智能体路径规划（如何避免路径冲突）和现场资源预约（何时占用窄道/电梯/工位）是不同层次的问题，不能混为一个算法。
@@ -224,6 +241,9 @@ Google OR-Tools提供Assignment、CP-SAT和Routing等不同建模工具；应先
 4. Google OR-Tools Assignment：https://developers.google.com/optimization/assignment（简单指派模型与求解工具；访问日期2026-11-05）。
 5. Google OR-Tools CP-SAT：https://developers.google.com/optimization/cp/cp_solver（约束建模与求解状态；访问日期2026-11-05）。
 6. Google OR-Tools Routing：https://developers.google.com/optimization/routing（车辆路径问题及其约束建模；访问日期2026-11-05）。
+7. VDA官方VDA 5050页面：https://www.vda.de/en/topics/automotive-industry/vda-5050（当前推荐3.0.0，旧版本不再推荐/继续开发；访问日期2026-11-05；链接台账#1098）。
+8. VDA 5050 v3.0.0正式PDF：https://www.vda.de/dam/jcr%3A09f03b91-13e2-4db3-bf30-4f221710071b/VDA5050-V3.0.0-2025-03.pdf（MQTT最低版本、QoS、Topic、消息和状态语义；以正式PDF为准；#1099）。
+9. VDA5050官方GitHub v3.0.0 release：https://github.com/VDA5050/VDA5050/releases/tag/3.0.0（发布变更清单和主版本语义；仅作变更索引，不能替代VDA正式PDF；#1100）。
 
 ## 13. 未关闭事项
 
