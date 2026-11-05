@@ -1799,3 +1799,24 @@ workflows README 目录入口和流程地图中的已知旧项目名引用已修
 ### 76.3 结论与未关闭事项
 
 该文档已完成全文静态主张边界修订，并新增来源台账#994–#998。资产清单可记录本轮已执行全文审查，但继续保持 unaccepted_claim_level_review_pending，不将文档审查等同于产品验收。未执行具体设备证书/密钥审计、Secure Boot或签名链验证、OTA Agent源码审查、目标Bootloader/Flash断电测试、网络/重放/冻结攻击测试、灰度发布、回滚演练、功能安全验证或现场维护验收；未审查适用地区的法规全文或具体产品认证文件。该项不构成设备身份安全评估、渗透测试、固件签名验证、OTA实现验收、功能安全确认或量产放行。
+
+
+## 77. P1 DDS / RTPS / RMW 专题：SROS2安全默认值、权限边界与威胁模型审查（2026-11-05）
+
+### 77.1 审查范围与发现
+
+对 `knowledge/software/advanced-topics/DDS专题.md` 的安全、域隔离与通信边界部分进行补充主张级审查。原文已区分DDS/RTPS/RMW/QoS和Zenoh，但安全部分仅概括ROS_DOMAIN_ID、DDS Security/SROS2与Zenoh TLS的不同，缺少默认安全状态、permissive/strict启动策略、进程/enclave边界和威胁模型。若不说明默认安全未启用、缺少安全材料时可能以permissive模式启动，部署者容易误把“启用了某个环境变量/放置了keystore文件”当作安全配置已生效。原文也没有充分说明DDS-Security不覆盖主机root、合法节点被攻陷、DoS、桥接绕行和未经过DDS安全路径的通信。
+
+### 77.2 主要修订
+
+- 细化DDS-Security身份认证、访问控制、加密/完整性插件及Identity CA、Permissions CA、Governance、Permissions和enclave材料的职责。
+- 补充ROS 2设计资料所述默认未启用安全、permissive/strict启动策略与显式启用要求；要求产品生产配置验证fail-closed行为，并按目标发行版/RMW复验环境变量语义。
+- 增加enclave与进程内middleware context的关联边界；多节点组合进程需审查是否共享安全上下文，不同信任级别按需拆分进程。
+- 依据ROS 2官方威胁模型增加凭据窃取、合法节点被攻陷、DoS/流量泛洪、主机root、桥接/网关绕行、恶意授权节点等风险及系统级控制。
+- 明确ROS_DOMAIN_ID仅用于DDS domain隔离，不提供身份认证、加密或topic授权；DDS-Security不自动保护Zenoh、bridge另一侧、MQTT、WebSocket、SSH、串口和诊断接口。
+- 增加安全配置验收清单：未授权participant/端点负向测试、错误/过期/吊销凭据、权限最小化、密钥生命周期、跨网关逐跳保护、DoS和安全开销基准。
+- 明确DDS QoS与DDS-Security均不构成功能安全或确定性实时保证，普通ROS通信不得成为急停/保护停止/STO的唯一执行链。
+
+### 77.3 结论与未关闭事项
+
+正文已完成安全主张边界补充，仍不代表DDS专题全文或目标产品通信栈验收。未执行本项目keystore生成、RMW/DDS安全启动、权限策略负向测试、密钥轮换、网络攻击/DoS、跨厂商互操作、性能基准或目标机器人安全验收。ROS 2官方设计资料可作为本轮技术参考，但链接台账新增#999–#1001的写入被平台安全检查阻止，未成功登记；不得将其记为已完成的来源台账更新。
