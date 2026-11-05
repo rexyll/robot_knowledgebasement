@@ -359,3 +359,6 @@
 
 
 | 2026-11-05 | 21-02/AUBO遨博ARCS、AuboStudio与SDK生态审查 | 新增AUBO厂商档案：核对AUBO-G/i/iS/iS(FT)/C/S、ES一体机系列及CB-G/CB-iS/CB-C/CB-S/CB-M等控制柜导航；按i系列产品页记录3–25 kg/0.625–1.65 m系列范围及CB-iS配套，避免跨型号外推。审查CB-M手册v1.0.2*（2026-09-22）、Modbus RTU/TCP/可选PROFINET、配置型安全I/O和Category 2 stop边界；梳理ARCS/AuboStudio、SDK的JSON-RPC 2.0/RTDE/SCRIPT、TCP 30002/HTTP-WebSocket 30003、SDK开发包结构、SemVer和环境要求。新增来源#1164–#1171、基线审计第114节及资产清单更新。未下载/构建SDK、未连接控制器/运行Aubo Sim、未验证ROS/PLC/总线/实机时序、未取得SKU级证书/兼容矩阵，也未执行安全/网络安全/供应商资格审查；21-02继续进行中。 | #1164–#1171 |
+
+
+| 2026-11-05 | 21-02/研华Advantech Robotic Suite软件平台与ROS 2适配审查 | 新增研华软件生态档案：核对Robotic Suite 2.1.0（2026-09-30）NVIDIA JetPack 7.2/Jazzy与Qualcomm Ubuntu 24.04/Jazzy的SKU级验证范围，区分Intel产品主要停留在1.7.0、ASR-D501仅Basic版；梳理Basic/Complete安装前置条件及WISEAgent版本说明疑点；审查SUSI Node、Modbus Master、OPC UA Client、Time Sync Viewer接口、时间同步和公开示例凭据边界。新增来源#1172–#1180、基线审计第115节及资产CSV同步。未安装/构建目标平台、未连接真实PLC/传感器、未测时序/安全/网络/升级回滚，Advantech保持静态审查未验收；21-02继续进行中。 | #1172–#1180 |
