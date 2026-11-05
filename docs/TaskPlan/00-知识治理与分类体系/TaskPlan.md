@@ -284,3 +284,5 @@
 | 2026-11-05 | 00-01 | 在既有定向复核基础上，对《特种机器人》完成全文主张边界审查：更新ATEX当前合并文本，补充IECEx证书状态/特殊条件/组件证书与整机认证边界；核对ASTM E2521-26现行术语版、NIST任务测试与任务方阈值责任、ISO/DIS 8373草案状态及ISO 10218-2排除范围。新增官方来源#905–#910；无具体产品证书和测试原始数据，文章继续未验收。详见基线审计第54节。 | ISO/ASTM/NIST/EUR-Lex/IECEx官方资料核验；全文审查 |
 
 | 2026-11-05 | 00-01 | 对 `knowledge/software/云平台与IoT通信.md` 完成P1全文主张边界审查并修订：按OASIS MQTT 5.0区分QoS协议交付与业务事务语义，补充AWS IoT Core QoS 0/1服务限制、MQTT 5会话/过期/流控、Retained/LWT边界；修正“DDS不出车”、2字节总开销、1–5Hz通用频率及Mosquitto单机万级/首选等绝对表述；补充端侧安全闭环、设备身份/ACL、App短时凭据、EMQX 5.9.0+ BSL 1.1、Mosquitto/Paho双许可及Paho 2.0 breaking change。新增链接台账#911–#916、基线审计第55节并同步资产清单。正文审查完成但未进行Broker部署/压测、弱网与断电恢复、证书/ACL渗透、端到端命令和OTA实测；资产继续保持未验收状态。 | OASIS/AWS/EMQX/Eclipse官方资料；全文主张边界审查；基线审计第55节 |
+
+| 2026-11-05 | 00-01 | 对 `knowledge/software/仿真平台.md` 完成P1全文主张边界审查并修订：更新Gazebo Jetty/Harmonic/Ionic支持周期与ROS配套、Isaac Sim 6.2/Isaac Lab 3.0 GA兼容、MuJoCo 3.17、CoppeliaSim 4.10、Webots R2025b及Colosseum归档状态；更正Gazebo DART/Bullet/TPE物理引擎边界；补充RTX硬件需求、传感器误差模型、sim time/实时因子、MIL/SIL/PIL/HIL/VIL和Sim2Real校准/域随机化/实机验证要求。新增官方来源台账#917–#929、基线审计第56节并同步资产清单。正文审查完成，但未执行平台安装、模型运行、CI、PIL/HIL、实机标定或Sim2Real验证；资产继续未验收。 | Gazebo/NVIDIA/MuJoCo/Coppelia/Webots官方文档；全文静态主张边界审查；基线审计第56节 |
