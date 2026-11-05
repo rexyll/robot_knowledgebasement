@@ -2582,3 +2582,17 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 需要取得MoDou IDE V2.2.1完整用户/API文档、虚拟控制器及Ebox版本、许可/云账号条款、离线授权/断网策略、多品牌型号矩阵；明确埃夫特/启智/ROBOX主体的支持与数据处理责任。
 - 需要取得Openmind OS发行版、目标硬件列表、ROS版本与桥接接口、实时性/升级/回滚/安全更新文档。工程验证应覆盖离线模型与实机坐标/负载/工具一致性、虚拟与实机轨迹/节拍偏差、附加轴与EtherCAT/PROFINET/Modbus I/O、在线调试权限、断网授权、急停/STO/安全门链路、多机调度和网络分区恢复。
 - 本轮仅完成官方目录、下载索引、版本页、集团主体页和新闻的静态审查；未下载受控手册/软件、未安装MoDou IDE、未连接控制柜、未运行ER_Factory/Openmind OS、未验证ROS 1/ROS 2兼容性、未执行现场总线/实机/安全/网络安全测试，也未完成SBOM、许可审查、生命周期或供应商资格审查。EFORT档案保持“静态资料审查、未验收”，21-02继续进行中。
+
+
+## 114. AUBO 遨博智能：ARCS / AuboStudio / SDK 与控制柜接口静态审查（2026-11-05）
+### 114.1 证据范围
+- 官方开发者门户产品导航列AUBO-G/i/iS/iS(FT)/C/S与AUBO-ES，以及CB-G/CB-iS/CB-C/CB-S/CB-M/CB-MINI-S/CB-MINI/CB-AGV控制柜；系列导航不等于全型号兼容。
+- AUBO-i系列页面标注产品规格PDF日期2026-06-12，称8型号、3–25 kg、0.625–1.65 m，配套CB-iS；系列认证类别未附证书编号和型号范围。
+- CB-M手册v1.0.2*（2026-09-22）列IP20、Ethernet、Modbus RTU/TCP、可选PROFINET、SDK/ROS支持声明；其安全I/O须在示教器配置后才具备安全I/O用途，Category 2 stop不得作为急停。
+- AUBO SDK官方文档区分JSON-RPC 2.0 RPC、RTDE状态/寄存器数据交换和SCRIPT接口；SDK包结构含include/lib/share。官方脚本接入页列TCP 30002、HTTP/WebSocket 30003及TCP消息终止符CRLF CRLF。
+- SDK运行环境页列Linux/Windows 64位、x86/ARM平台及工具链要求；版本管理页说明采用SemVer。官方资源总览列C++/Python开发包、API和应用笔记入口。
+### 114.2 关键边界与缺口
+- ARCS跨厂商平台、ROS支持、Aubo Sim虚拟机和产品页认证均为厂商文档/宣传范围；本轮未取得每个型号/柜体/固件/SDK的完整兼容矩阵、证书原件、SDK许可与再分发条款。
+- 未下载/构建SDK，未连接控制器、未运行Aubo Sim、未测RPC/RTDE/SCRIPT时序、丢包、断线恢复、权限/网络安全、ROS/MoveIt、PLC/PROFINET/Modbus互操作或实机性能。
+- 未进行整站风险评估、急停/保护停止/安全门/安全I/O/停止距离验证；普通I/O、SDK stop和仿真不替代安全链。
+- 结论：AUBO已完成代表性官方资料静态审查，保持未验收；后续须以具体SKU和软件栈版本执行构建、互操作、网络、安全和现场验证。
