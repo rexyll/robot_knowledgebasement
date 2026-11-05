@@ -339,3 +339,6 @@
 
 
 | 2026-11-05 | 00-01 | 对 `knowledge/software/Nav2导航框架.md` 开展 Lyrical 发行版迁移差异增量复核：依据 Nav2 官方 Kilted→Lyrical migration guide 补充 `nav2_ros_common` 与 `LifecycleNode` 重构影响，加入自定义节点/插件依赖、Lifecycle API、BT/参数/接口迁移及回归检查；依据 ROS Index 记录 Jazzy/Lyrical 包版本索引快照；再次明确 Collision Monitor 是 CPU 软件层监控，不具备硬实时安全认证。基线审计第80节。未在目标工作区执行 Lyrical 构建、插件加载、Lifecycle/BT/规划控制回归、目标硬件实时性或停止距离测试；资产仍未验收，下一项转向《实时系统与嵌入式》P1复核。 | Nav2 Lyrical官方文档、Kilted→Lyrical迁移指南、ROS Index发行版包索引、Collision Monitor上游README；基线审计第80节 |
+
+
+| 2026-11-05 | 00-01 | 对 `knowledge/safety/安全防护器件.md` 开展 P0 工业机器人应用级防护边界增量审查：依据 ISO 10218-2:2025 明确机器人本体 Part 1 与应用/工作单元 Part 2 的责任层级、工业环境定义和排除用途；补充标准未覆盖危险仍需另行评估；区分 OSHA 一般行业法规与 ANSI/A3 R15.06-2025 国家共识标准，并提示 OSHA 技术手册仍引用旧版标准的版本差异；增加任务/人员/工件/外围设备至检测—逻辑—停止链的防护证据清单。来源沿用链接台账#1014–#1017、#450；基线审计第99节，资产清单已同步更新。未购买/逐条审查标准全文，未进行具体应用风险评估、证书核验、保护区计算、停止时间/距离测试、故障注入或现场验收；资产保持未验收，00-01继续进行中。 |
