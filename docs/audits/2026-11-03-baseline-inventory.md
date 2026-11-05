@@ -2477,3 +2477,21 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 ### 109.5 未关闭事项与结论边界
 
 本轮完成官方公开资料静态主张审查和知识页修订。未取得全部机器人型号的受控数据表/用户手册、完整控制器—机器人兼容矩阵、MotoPlus API完整手册、MotoLogix当前全球发行矩阵、ROS/ROS 2驱动源码/支持政策、功能安全证书原件及具体选件配置；未构建MotoPlus应用、未运行MotoSim/MotoLogix、未接入PLC/现场总线、未验证控制器升级/回滚，也未进行机器人运动、载荷、节拍、精度、停止距离、PFL、HIL或现场FAT/SAT测试。厂商目录、软件门户和型号页只支持公开产品/功能声明，不构成供应商资格认证、产品安全认证、现场性能保证或采购结论。Yaskawa厂商资产继续保持 `unaccepted_claim_level_review_pending`，第21章21-02保持进行中。
+
+## 110. Yaskawa MotoROS2、YMConnect 与 Motoman NEXT 开发入口补充审查（2026-11-05）
+
+### 110.1 官方开发入口与接口分层
+
+- **Developer Portal：** 安川Motoman官方开发者门户（#1134）将开发入口分为Motoman NEXT、Smart Pendant、Communication & Control、ROS Drivers和Robot Programming。NEXT资料包括ACU服务、Java扩展示例；Smart Pendant资料包括YML界面、YPS预设和YIP应用打包；通信层列YMConnect与MotoPlus；机器人编程层列INFORM及VS Code辅助工具。门户是入口导航，不构成所有控制器代际/示教器型号均兼容的证明。
+- **MotoROS2：** 官方仓库README（#1135）标注0.2.1版本及Apache-2.0项目许可说明；代码仓库同时提示LICENSES目录含附加许可文件，复制/再分发应逐文件核对。当前发行页兼容表（#1136）列DX200、YRC1000、YRC1000micro分别搭配ROS 2 Humble/Jazzy，MotoROS2均为0.2.1。Foxy/Galactic出现在旧版0.2.0及更早发行记录，不应继续标作当前0.2.1支持。README另列最低控制器系统软件版本：DX200 DN2.44.00-00、YRC1000 YAS2.80.00-00、YRC1000micro YBS2.45.00-00。
+- **部署架构：** MotoROS2应用以MotoPlus形式运行于控制器，使用micro-ROS；主机PC仍需运行micro-ROS Agent，且当前要求FastDDS RMW。故“控制器原生ROS 2节点”是开发门户的简化描述，不能误读为无需PC代理或可任意替换DDS实现。
+- **已知限制：** 官方仓库列出CycloneDDS不兼容、部分ROS 2发行版不支持、轨迹长度/异步运动/部分目标等接口限制，以及与功能安全单元（FSU）和特定控制器选件的交互注意事项。ROS控制接口不能替代机器人安全控制器、硬接线安全链、风险评估或功能安全验证。
+- **YMConnect：** 官方仓库（#1137）将其定位为外部PC应用监控/控制Motoman机器人的通信库，标注Apache-2.0；支持DX100及更新控制器，但许多功能仅适用于YRC1000及更新控制器。官方开发者门户列Windows/Linux开发与运行环境。须按API函数、控制器代际和系统软件版本建立兼容矩阵，不能把“支持DX100+”理解为全部API功能在所有代际一致。
+
+### 110.2 与既有安川档案的修正
+
+将原“尚无可确认ROS 2发行版/官方驱动兼容矩阵”的概括更新为有版本边界的MotoROS2支持信息；保留ROS/ROS 2接入必须按控制器固件、MotoPlus选件、FastDDS、micro-ROS Agent、消息/动作接口及控制器功能安全配置逐项确认的限制。新增YMConnect和Motoman NEXT/Smart Pendant软件开发路径，并明确其与MotoROS2、MotoPlus、INFORM和MotoLogix的运行位置/用途不同。
+
+### 110.3 未关闭事项与结论边界
+
+本轮仅静态审查官方门户、仓库README、发行说明和YMConnect仓库。未下载或MD5校验MotoROS2二进制，未构建MotoROS2/YMConnect客户端，未确认具体机器人/控制器订货号及系统软件版本，未执行PC Agent网络发现、ROS 2 topic/service/action、MoveIt轨迹、PLC/现场总线、FSU交互、急停/保护停止、HIL或实机运动测试；也未完成全仓库许可证逐文件法律审查。0.2.1发行页的Humble/Jazzy兼容表优先于README中仍列旧发行版的通用描述，项目采用精确release和控制器配置锁定。安川资产继续保持静态主张审查状态，不构成采购、现场互操作或安全验收。
