@@ -1921,3 +1921,30 @@ workflows README 目录入口和流程地图中的已知旧项目名引用已修
 ### 81.4 来源与登记状态
 
 来源台账新增#1002–#1008：Linux Kernel PREEMPT_RT理论、实时内核配置、SCHED_DEADLINE、Linux man-pages、ROS 2官方实时编程教程、Zephyr调度和FreeRTOS调度资料。URL及适用边界已登记；Rolling文档和RTOS main分支仅作为当前上游快照，部署时须固定目标发行版/commit。
+
+
+## 82. P1 轨迹优化与运动控制：求解器失败状态、异步控制更新与时间参数化约束复核（2026-11-05）
+
+### 82.1 审查范围与发现
+
+对 `knowledge/algorithms/轨迹优化与运动控制.md` 进行P1增量主张边界复核，重点检查OSQP/acados选型说明、ros2_control控制更新循环、TOPP时间参数化及Nav2 Regulated Pure Pursuit前向碰撞投影。既有文章已覆盖路径/轨迹/命令区分、差速/阿克曼/全向/机械臂模型、Pure Pursuit/Stanley/LQR/PID/MPC及底层接口。本轮不重复计为整篇全文重新验收。
+
+主要缺口：OSQP虽已说明只求凸QP，但未给出inaccurate、infeasible、time limit、maximum iteration与non-convex等状态的控制处置边界；ros2_control虽说明Controller Manager update_rate和fallback，但未解释异步控制器可能以独立频率/线程运行，以及上一轮未完成时复用旧结果；TOPP章节未明确时间最优性严格受输入路径、边界条件和实际建模约束限定；RPP碰撞投影容易被误解为动态障碍预测或安全保护。
+
+### 82.2 主要补充
+
+- 增加OSQP求解状态分类、inaccurate容差语义、最大迭代/时间限制/不可行/非凸状态及控制器处置要求；建议记录求解耗时、残差、约束违反、解时间戳和fallback状态。
+- 依据ros2_control Jazzy异步控制文档，补充`is_async`、异步`update_rate`、FIFO线程优先级与CPU affinity；明确上一轮update未完成时复用前一结果并报告missed cycles，异步计算不等于deadline保证。
+- 补充TOPP/TOPP-RA的输入路径、边界条件、速度/加速度/动态约束和模型限定；增加jerk、力矩/功率、摩擦/接触、温度/电压和载荷等约束是否纳入必须逐项说明的要求。记录ROS Index toppra 0.6.10维护状态及Python支持移除提示为当前快照。
+- 细化Nav2 RPP碰撞投影依赖costmap、footprint、TF、传感器时效和投影范围；明确它不是动态障碍完整预测或安全额定保护。
+- 增加目标平台的求解器超时/不可行fallback、异步线程负载/数据新鲜度、轨迹约束与RPP动态障碍/停止距离测试清单，未执行测试继续明确标注。
+
+### 82.3 结论与未关闭事项
+
+本轮完成公开官方资料支持的增量静态主张审查，正文补充OSQP状态码、ros2_control Jazzy异步更新、ROS Index toppra生态快照、Nav2 RPP投影范围。资产清单继续保持`unaccepted_claim_level_review_pending`，不得据此宣称章节14完成或产品控制验收。
+
+未在目标机器人构建/运行OSQP或acados；未测量求解器最坏执行时间、残差、约束违反或fallback；未测试ros2_control同步/异步线程、missed cycles和数据时效；未执行TOPP轨迹约束验证、RPP动态障碍/传感器失效/停止距离测试；未取得实际机器人模型、驱动器限制、ROS发行版与控制器配置。该项不构成目标平台性能、实时性、功能安全、标准符合性或量产放行。
+
+### 82.4 来源与登记状态
+
+本轮来源台账新增#1009–#1013：OSQP求解器状态码、ros2_control Jazzy异步控制器、ros2_control Rolling Controller Manager、Nav2 Rolling Regulated Pure Pursuit及ROS Index toppra资料。官方文档中的发行版/rolling/main页面属于访问时快照，部署必须锁定目标发行版、包版本和commit。
