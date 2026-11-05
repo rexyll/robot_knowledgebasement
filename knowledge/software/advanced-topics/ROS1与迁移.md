@@ -230,3 +230,81 @@ ros1_bridge 上游 README 当前给出的兼容表包括：
 7. 本地来源台账：[[链接台账]] #408–#413（访问日期：2026-11-03）
 
 **未关闭事项：** 未获取本项目实际 ROS 1 workspace、包清单、Noetic/Focal 镜像、厂商驱动和自定义消息；未构建项目自定义 ros1_bridge；未逐 topic/service/action 做消息映射、时间、TF、QoS、网络断连和端到端时延验证；未形成迁移计划的包级工作量/风险基线。本文仅完成公开资料主张定向复核，不构成具体项目迁移完成、运行性能、安全或产品验收。
+
+
+## 11. ROS 1 / ROS 2 共存语义、网络与安全边界补充（2026-11-05）
+
+本节补充共存期容易被“消息能通过 bridge”掩盖的语义差异。它是架构与验收检查项，不代表 ros1_bridge 自动提供这些语义，也不代表某个目标系统已经通过验证。
+
+### 11.1 Topic、Service、Action 与 QoS 的契约边界
+
+- **Topic**：ROS 1 的 publisher/subscriber 连接与 ROS 2 的 QoS 兼容匹配不是同一套契约。ROS 1 的 queue size、TCPROS/UDPROS 传输选择和连接状态，不能机械换算成 ROS 2 的 Reliability、Durability、History/Depth、Deadline、Liveliness 或 Lifespan。桥接两侧应分别定义允许丢失、突发积压、过期样本和重连后的行为。
+- **可靠性不等于业务完成**：ROS 2 Reliable 只描述中间件传输层的交付语义，不证明下游已执行动作；ROS 1/ROS 2 任一侧出现断连、重启或桥接进程重建，都应通过业务确认、序列号/幂等键和状态对账识别重复或未完成操作。
+- **Service**：请求/响应映射成功不等于两侧超时、重试、服务发现和错误语义一致。调用方超时后，服务端可能已经执行；重试前必须定义幂等策略、请求标识和结果查询方式。
+- **Action**：ROS 1 actionlib 与 ROS 2 Action 的 goal、feedback、result、cancel 状态机及底层接口不是可假定透明等价的契约。需要跨版本长任务时，应设计显式适配器状态机，定义目标接受、拒绝、取消竞态、反馈丢失、终态确认和服务重启恢复；不得仅凭 topic/service 名称相似就认定兼容。
+- **消息接口版本**：字段同名同类型仍需检查单位、坐标系、时间基准、枚举/错误码、默认值、可选字段和状态机语义。接口变更必须绑定两侧消息包版本、生成的 bridge 类型集合与兼容测试结果。
+
+### 11.2 时间、时钟与 TF 的跨域一致性
+
+- 明确系统时间、ROS time、仿真时间和设备硬件时间各自的来源、同步方式、跳变行为与适用范围。桥接转发时间戳不等于完成时钟同步，也不自动修复两台主机时钟偏差。
+- 对每条带时间戳的数据定义时间戳产生点、时钟域、单位、是否允许零时间戳、乱序/延迟容忍、超时策略及记录方式；对 bag 回放和 use_sim_time 分别验证。
+- 按 REP 105 约定审查 map、odom、base_link 的语义和 TF 发布权：odom 连续但可漂移，map 可发生离散修正；同一条 TF 不应由 ROS 1 和 ROS 2 两侧同时发布。迁移时逐项检查 frame_id、child_frame_id、namespace/remap、静态 TF、缓存时长和传感器外参。
+- 多机器人共存时，不能仅靠 ROS_DOMAIN_ID 隔离 TF 命名；跨机器人转发数据时要显式区分机器人身份和 frame ID，避免同名 frame 被错误合并。地图切换、定位重置和机器人重启需定义 TF 权威与状态恢复过程。
+
+### 11.3 两套网络与发现机制
+
+ROS 1 与 ROS 2 在共存期仍是两套独立网络控制面：
+
+| 配置项 | ROS 1 侧 | ROS 2 侧 | 共存期检查 |
+|---|---|---|---|
+| 节点发现 | ROS Master/roscore 注册与节点地址 | RMW/DDS（或所选其他 RMW）的发现机制 | 分别检查可达性、发现范围和故障恢复 |
+| 环境配置 | ROS_MASTER_URI、ROS_IP/ROS_HOSTNAME 等 | ROS_DOMAIN_ID、RMW 实现及其网络配置 | 不能互相替代；逐主机记录实际环境 |
+| 网络路径 | Master 注册流量与节点间 TCPROS/UDPROS 数据路径 | DDS/RTPS 或所选 RMW 的单播/组播路径 | 防火墙需覆盖数据平面而不只是 Master 端口 |
+| 网络分区 | Master 可达性与节点地址可达性 | DDS domain、发现流量、组播/单播与网卡选择 | 跨 VLAN、NAT、VPN 和容器网络分别验证 |
+| 故障定位 | roscore、节点注册、节点间连接 | RMW、DDS participant、发现服务器/配置（如适用） | 不能把“能 ping 通”当作图发现和数据通路正常 |
+
+ROS_DOMAIN_ID 不是 ROS_MASTER_URI，也不是安全认证机制。bridge 进程同时依赖 ROS 1 Master/节点网络和 ROS 2 RMW 网络；它是跨网络边界的双栈组件，必须纳入网络分区、端口清单、路由、监控、重启和单点故障分析。组播不可用时的单播发现配置、NAT穿越及跨网段方案取决于具体 RMW/DDS实现，不能给出通用端口或固定拓扑。
+
+### 11.4 安全边界：桥接两侧分别保护
+
+- ROS 1 Noetic 已结束上游支持；ROS 1 网络本身不提供 ROS 2 DDS-Security 的同等身份认证、端点访问控制与加密机制。遗留侧应以网络分区、主机加固、访问面收敛、可信节点清单、补丁/私有维护策略和退役计划降低风险。
+- ROS 2 启用 SROS2/DDS-Security 不会自动保护 bridge 的 ROS 1 侧，也不会自动保护 bridge 之外的 MQTT、HTTP、串口、SSH、诊断或厂商协议链路。应逐跳定义认证、授权、机密性、完整性、审计和密钥生命周期。
+- bridge 本身是跨信任域的数据转换与转发点。按最小权限限制可桥接的 topic/service 类型与方向，避免无差别全量桥接；对命令类接口增加来源身份、授权、有效期、序列号/幂等键、速率限制和审计。
+- 对 bridge 主机失陷、凭据泄露、恶意 ROS 1 节点、ROS 2 未授权 participant、消息洪泛、畸形消息和桥接绕行分别建立威胁与检测策略。DDS-Security 不覆盖主机 root 或 bridge 进程自身被攻陷。
+- 急停、保护停止、STO、制动与安全传感器链必须有独立且经风险评估验证的实现；不得把 ROS 1/ROS 2 bridge、普通 DDS QoS 或应用层心跳当作唯一安全措施。
+
+### 11.5 共存期单一权威、故障恢复与回滚
+
+1. 为每个执行器、状态变量、TF 边、任务和配置项指定唯一写入权威；禁止 ROS 1 与 ROS 2 双主同时下发控制命令或发布同一 TF。
+2. 为跨域命令定义 command_id、来源、目标设备、有效期、幂等键、状态机、确认与结果查询；明确超时后“结果未知”而不是默认失败或成功。
+3. bridge 重启、网络分区、节点重启和时钟跳变时，先冻结有副作用的命令入口，重新发现双方状态并对账，再按策略恢复；不得把消息重放当作业务恢复。
+4. 明确 bridge 是关键路径还是过渡观测路径，定义进程监控、资源限制、日志、健康检查、告警、备用策略与退出条件。单个 bridge 进程可能成为跨域单点故障，冗余部署需额外处理重复转发和主备仲裁。
+5. 双写/双读只在明确数据权威、冲突解决、版本兼容和回滚条件后启用。迁移切换前记录配置、数据库/持久化格式、固件、消息包和接口版本；回滚不仅是重新启动 ROS 1 节点，还要确认数据格式与设备状态仍可兼容。
+6. 为每个迁移阶段设定准入/退出证据：构建与依赖锁定、接口契约测试、网络与安全负向测试、负载/时序测试、故障注入、现场验收和回滚演练。任何一项未完成都应保留为开放风险，不用“桥接成功”替代整机验收。
+
+### 11.6 发行版与版本快照
+
+- Noetic 于 2025-05-31 结束官方支持；ROS 1 相关上游仓库归档。对遗留系统应按实际 fork、源码 commit、系统包和第三方 SDK 建立可维护基线，不应把仍可下载/运行误写成仍受上游支持。
+- ROS 2 Jazzy 是 LTS，官方发行公告给出的支持期至 2029 年 5 月底；但选择目标版本仍需核对目标 OS、架构、RMW、驱动、厂商 SDK、Nav2/ros2_control 等包的支持矩阵。
+- ros1_bridge 的兼容表和 README 是上游当前快照，不是所有发行版组合的长期支持承诺。Ubuntu 24.04 + Jazzy 不支持 ROS 1 Noetic 同机组合；Ubuntu 22.04 的 ROS 1 侧属于部分/非官方支持路径。具体部署必须按 bridge commit、ROS发行版、Ubuntu版本和构建日志锁定。
+
+### 11.7 本专题补充验证清单
+
+- [ ] 逐 topic 建立 ROS 1/ROS 2 类型、字段语义、方向、QoS、队列、丢失/重复和时效契约。
+- [ ] 逐 service/action 建立超时、重试、幂等、取消竞态、反馈与终态恢复测试。
+- [ ] 验证两侧系统时钟/ROS time/use_sim_time、时间戳来源、TF 唯一发布权和 frame 重映射。
+- [ ] 验证 ROS_MASTER_URI 与 ROS_DOMAIN_ID/RMW 网络分别可达；覆盖跨网段、组播受限、NAT/容器、防火墙和断连重连。
+- [ ] 验证 bridge 允许的接口方向/类型、最小权限、ROS 1 侧隔离、ROS 2 安全策略和桥接主机失陷风险。
+- [ ] 验证 bridge 重启、主备切换、消息积压、节点重启、网络分区、时钟跳变和持久化兼容回滚。
+- [ ] 记录准确的 Noetic/ROS 2/Ubuntu/bridge/RMW/驱动版本及所有源码 commit、构建参数和测试工况。
+
+### 本节公开核验资料（本轮访问；尚未登记到仓库链接台账）
+
+1. ROS 1 Noetic EOL 与仓库归档：https://github.com/ros/ros_comm
+2. ros1_bridge README、兼容矩阵、动态桥接行为：https://github.com/ros2/ros1_bridge
+3. ros1_bridge 消息/服务映射规则：https://github.com/ros2/ros1_bridge/blob/master/doc/index.rst
+4. ROS 2 Jazzy LTS 支持期公告：https://www.openrobotics.org/blog/2024/5/ros-jazzy-jalisco-released
+5. ROS 2发行版支持计划：https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Release-Schedule.rst
+6. REP 105 移动平台坐标系语义：https://github.com/ros-infrastructure/rep/blob/master/rep-0105.rst
+
+**本轮边界：** 以上内容是基于公开官方资料的文档静态补充。未获取用户项目 ROS 1/ROS 2 工作区、网络拓扑、接口清单、证书/安全策略、目标设备和 bridge 构建日志；未运行 ros1_bridge、未进行QoS/时钟/TF/网络/安全负向测试、故障注入、性能测量或迁移回滚演练。不得据此宣称用户项目已完成迁移或通过安全、性能与产品验收。
