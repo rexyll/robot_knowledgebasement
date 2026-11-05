@@ -370,3 +370,5 @@
 
 
 | 2026-11-05 | 00-01 | 对 `knowledge/ecosystem/主要厂商.md` 开展RoboDK P1软件生态静态主张审查：区分仿真、API、Post Processor离线代码生成与Robot Driver在线通信；核对API语言/传输、控制器选件依赖、后处理器版本漂移、碰撞模型边界、外部测量系统和许可方式；新增来源台账#1181–#1188、基线审计第116节、第21章21-02记录及资产CSV同步。未安装/构建软件、未接入控制器或测量系统、未执行实机/实时/碰撞/安全验证，资产保持未验收。 | RoboDK官方文档、API、后处理器、Robot Driver、碰撞检测、系统要求、定价与许可FAQ；基线审计§116 |
+
+| 2026-11-05 | 00-01 | 对 knowledge/ecosystem/主要厂商.md 新增 Siemens Tecnomatix Process Simulate / Process Simulate X P1静态主张审查：区分Essentials/Standard/Advanced、VBL令牌池/按controller许可、机器人专用OLP controller、CEE与虚拟PLC三层调试架构；依据Siemens 2606官方更新摘要记录2026年功能快照，并明确PLCSIM Advanced/SIMIT/运动学模型不等于真实硬件HIL或功能安全验收。新增来源台账#1189–#1197、基线审计第117节、第21章21-02记录及资产CSV同步。未安装软件、未取得完整release notes/当前控制器兼容矩阵、未生成并在目标控制器编译程序、未连接PLC/驱动/机器人、未执行HIL/FAT/SAT或现场安全测试；资产保持静态审查未验收。 | Siemens官方产品/SKU/VBL页面、Tecnomatix 2606更新、Academy学习路径、Siemens Industry Online Support应用示例；基线审计§117 |
