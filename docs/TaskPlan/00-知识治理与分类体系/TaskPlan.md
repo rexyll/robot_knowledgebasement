@@ -345,3 +345,4 @@
 
 
 | 2026-11-05 | 00-01 | 对 `knowledge/getting-started/09-03-电子电气设计.md` 开展 P0 机器电气安全增量审查：依据 IEC 官方目录核验 IEC 60204-1:2016+AMD1:2021 CSV Edition 6.1 当前有效，并区分第七版在研草案；明确机器电气设备范围从电源连接点起、标准与移动机器人车辆安全/功能安全/电池充电要求的协同适用边界；补充PDS、EMC、过电流、SCCR、保护联结、STO/急停、控制回路及技术文件审查清单。来源台账#1088、基线审计第100节及资产清单已同步。未购买/逐条审查标准全文，未检查实际原理图/BOM/线束/充电系统，未开展SCCR、保护联结、绝缘耐压、EMC、温升或保护动作测试；资产保持未验收，00-01继续进行中。 |
+| 2026-11-05 | 00-01 | 对 `knowledge/getting-started/09-10-系统联调与测试.md` 增加 ROS 2 Jazzy 集成测试执行隔离与结果留证审查：区分 active/post-shutdown tests，补充独立 ROS domain ID、ReadyToTest/WaitForTopics、测试注册/发现及 `colcon test-result --all --verbose` 失败结果检查；来源台账#1089、基线审计第101节和资产清单已同步。未构建目标工作区、未运行 launch_testing/仿真/硬件测试或 FAT/SAT；资产保持未验收。 | ROS 2 Jazzy 官方集成测试与 CLI 文档；基线审计§101 |
