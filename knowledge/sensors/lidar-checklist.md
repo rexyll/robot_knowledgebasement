@@ -22,6 +22,7 @@ This is a project checklist, not a product validation report. Fill it with the e
 - [ ] Supply range, current, connector pinout, protective bonding, cable routing and EMC.
 - [ ] Vibration, shock, thermal conditions, cleaning method and environmental rating.
 - [ ] Optical classification and precautions from the exact product label/manual.
+- [ ] Do not treat laser class/eye-safety classification as proof of a safety-rated protective function. If the device is used in a safety function, verify the exact certified model, safety outputs, configured protective fields, response time, diagnostic behavior, certificate/firmware scope and system-level validation evidence.
 
 ## Software, timing and frames
 - [ ] OS, driver, firmware, SDK compatibility and license.
