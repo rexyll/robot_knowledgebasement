@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.32  
+> 版本：v7.33  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -810,3 +810,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-05 | v7.31 | 00-01/21-02继续P1软件生态厂商审查：新增Dassault Systèmes DELMIA Robotics（3DEXPERIENCE）独立档案，厘清角色化Robot Programmer/RVN/VCA与工业工艺角色、Robot Library Additional Contents和OLP Translator分离、多品牌Translator指令/上传下载范围差异、MCRS同步支持历史矩阵、RRS II/FANUC VRC、ControlBuild/OPC UA/HIL与R2026x GA/FD01/FD02更新。新增来源#1220–#1232、基线审计第120节、第00章/第21章TaskPlan及资产CSV同步。未安装DELMIA Native Apps/未下载目标模型库与Translator、未创建目标工作站/编译原生程序、未连接VRC/ControlBuild/PLC/SIMIT/OPC UA、未执行HIL/FAT/SAT/现场安全或性能验证；DELMIA资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§120；第00章/第21章TaskPlan；来源#1220–#1232；资产清单 |
 
 | 2026-11-05 | v7.32 | 00-01/21-02继续P1软件生态厂商审查：新增Visual Components 5.1.1制造仿真、机器人OLP、Digital Twin和虚拟调试独立档案；核对5.1.1最新下载与生命周期/系统要求5.0页面未同步、KUKA.Sim add-on未包含、5.1导航/PhysX/Python 3 Navigation API、FactoryLens/Omniverse、大规模AMR性能宣传边界、机器人模型/OLP后处理器/连接插件分层；审查FANUC PC DK/Robot Server/PC Interface和模拟I/O复位、ABB RobotWare Runtime/Mastership、OPC UA X.509/密码保存、S7/PLCSIM/SIMIT/WinMOD及离线许可。新增来源#1233–#1247、基线审计第121节、第00章/第21章TaskPlan和资产CSV同步。未安装/运行VC 5.1.1及FactoryLens、未构建校准工作站/下载真实机器人程序、未接入真实PLC/机器人/OPC UA、未执行性能/网络/实时/HIL/FAT/SAT/功能安全验证；Visual Components资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§121；第00章/第21章TaskPlan；来源#1233–#1247；资产清单 |
+
+| 2026-11-05 | v7.33 | 00-01/21-02继续P1软件生态厂商审查：新增KUKA.Sim 4.x / KUKA.OfficeLite与iiQWorks.Sim / iiQKA.OS2 VRC双路线独立档案，核对KSS 8.5/8.6/8.7 RCS边界、KRL/Config.dat/WorkVisual/SafeOperation/STOP 0/RoboTeam/变位机、传统Connectivity/Modeling/ArcWelding AddOn、OfficeLite Hyper-V和无法连接真实外围；补充iiQWorks.Sim Basic/Advanced/VRC/RCS/PLC AddOn矩阵、SU/N/F许可和AddOn一致性、Copilot联网/credits与KR C5至KR C5-2迁移工程服务。新增来源#1248–#1261、基线审计第122节、第00章/第21章TaskPlan和资产CSV同步。未下载/安装软件或虚拟控制器、未运行/迁移目标KRL项目、未连接真实PLC/机器人/现场总线、未执行HIL/FAT/SAT/安全测试；KUKA资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§122；第00章/第21章TaskPlan；来源#1248–#1261；资产清单 |
