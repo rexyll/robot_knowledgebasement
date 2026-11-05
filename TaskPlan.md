@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.30  
+> 版本：v7.31  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -806,3 +806,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-05 | v7.29 | 00-01/21-02继续P1软件生态厂商审查：新增ABB RobotStudio / RobotStudio Suite独立档案，核对Virtual Controller/RAPID离线编程、RobotWare配对、RobotStudio Cloud、OPC UA/SIMIT虚拟调试、SDK分层及2026新许可模型；记录RobotStudio 2026.2/.NET 10的Add-in/PowerPac兼容问题，以及PROFIsafe/CIP-Safety配置已知限制。新增来源#1198–#1206、基线审计第118节、第00章/第21章TaskPlan和资产CSV同步。未安装软件、未构建目标VC/SDK、未连接真实PLC/机器人、未执行HIL/FAT/SAT或安全验证；ABB RobotStudio资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§118；第00章/第21章TaskPlan；来源#1198–#1206；资产清单 |
 
 | 2026-11-05 | v7.30 | 00-01/21-02继续P1软件生态厂商审查：新增FANUC ROBOGUIDE V10 / Virtual Robot及官方ROS 2 Driver独立档案，核对V10 Revision E与FactoryTalk Logix Echo虚拟PLC连接、Virtual Robot文件/硬件功能边界、J519+R912/S636与控制器软件配对、fanuc_driver v2.4.0与v2.3.0系统要求文档漂移、ROBOGUIDE Revision兼容现象、UDP/CRX I/O和R-50iA+S647限定的1 kHz模式。新增来源#1207–#1219、基线审计第119节、第00章/第21章TaskPlan及资产CSV同步。未安装/运行ROBOGUIDE、未部署Logix Echo、未构建ROS 2或连接真实控制器/PLC、未执行HIL/FAT/SAT/网络实时/功能安全验证；FANUC资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§119；第00章/第21章TaskPlan；来源#1207–#1219；资产清单 |
+
+| 2026-11-05 | v7.31 | 00-01/21-02继续P1软件生态厂商审查：新增Dassault Systèmes DELMIA Robotics（3DEXPERIENCE）独立档案，厘清角色化Robot Programmer/RVN/VCA与工业工艺角色、Robot Library Additional Contents和OLP Translator分离、多品牌Translator指令/上传下载范围差异、MCRS同步支持历史矩阵、RRS II/FANUC VRC、ControlBuild/OPC UA/HIL与R2026x GA/FD01/FD02更新。新增来源#1220–#1232、基线审计第120节、第00章/第21章TaskPlan及资产CSV同步。未安装DELMIA Native Apps/未下载目标模型库与Translator、未创建目标工作站/编译原生程序、未连接VRC/ControlBuild/PLC/SIMIT/OPC UA、未执行HIL/FAT/SAT/现场安全或性能验证；DELMIA资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§120；第00章/第21章TaskPlan；来源#1220–#1232；资产清单 |
