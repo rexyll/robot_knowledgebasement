@@ -2694,3 +2694,22 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - J519/R912/S636、I/O映射、RMI、控制权及S647 1 kHz均有版本/硬件依赖；不可外推全部机型。
 - 防火墙关闭建议不可直接用于生产网络；应隔离试验网络并使用最小权限规则验证UDP、IP别名、WSL2网络和故障恢复。
 - 本轮未安装/构建/连接软件与设备、未运行机器人、未测1 kHz jitter/实时性、未做网络或功能安全验证、未执行FAT/SAT；FANUC条目保持静态审查未验收。
+
+
+## 120. Dassault Systèmes DELMIA Robotics：3DEXPERIENCE机器人OLP、Robot Library与虚拟调试静态审查（2026-11-05，来源#1220–#1232）
+
+### 120.1 审查范围与事实边界
+- 审查DELMIA Robotics官方产品页/角色目录，3DEXPERIENCE Robotics Virtual Commissioning Analyst、Robot Library Additional Contents、OLP Translators、多机器人同步矩阵、FANUC VRC连接、PLC/ControlBuild/OPC UA/HIL案例和2026版本增强。
+- DELMIA Robotics是3DEXPERIENCE中角色化制造工程能力，覆盖离线编程、工艺仿真、工作单元设计、虚拟调试。角色/行业包功能有差异，不应把平台品牌等同于所有模块均已许可。来源#1220、#1221。
+- Robot Library模型与OLP Translator是不同能力层：官方说明2,000+型号库需安装Additional Contents且不随Native Apps默认安装；Translator随Native App提供。2026模型库新增71个模型/6家厂商，不表示新增品牌的所有型号都有原生程序Translator。来源#1224–#1226。
+- 2025品牌扩展给出Cloos/Comau/Kassow/Omron/Siasun/Estun/AUBO等Translator，但有上传/下载方向、语言、指令和参数同步差异；例：AUBO/Estun/Siasun当时声明仅下载运动/位置/注释，Cloos弧焊参数不随程序自动上传/下载。QKM 2026 .ql Translator仅按具体指令覆盖核验。来源#1223、#1232。
+- 2025-07多机器人同步矩阵将仿真、基础设施、Translator语法、控制器执行分别列状态；其中KUKA/ Yaskawa存在同步下载/真实控制器支持缺口。该矩阵为历史快照，必须取得最新版本。来源#1227。
+- RVN通过RRS II或专有VRC连接机器人控制器模拟，VCA/RVN与ControlBuild构建工作站虚拟调试；FANUC VRC、OPC UA及2026 HIL演示提供了具体连接路径。真实PLC/硬件HIL与虚拟PLC/SIL必须分层。来源#1221、#1222、#1228、#1229。
+- R2026x GA的ControlBuild自动映射、R2026x FD01传感器X/Y/Z位置、FD02工具搜索增强分别有对应官方更新文章；这些版本/功能须和平台FD、Native Apps、角色和租户部署条件绑定。来源#1230、#1231。
+
+### 120.2 主要风险和待验证事项
+- 没有取得当前客户环境的角色SKU/许可合同、Robot Library内容包、Translator目录、目标机器人/控制器/固件精确矩阵、完整发行说明/兼容矩阵；公开角色页不替代合同/受控手册。
+- 模型库数量不等于原生程序Translator数量；Translator本身的品牌/代际/语言/指令/上传/下载/外部轴/I/O/工艺参数支持需要按文件版本实测。
+- 多机器人同步能力按品牌/控制器与Translator区分；历史矩阵显示不能将仿真同步等同生成真实控制器可执行程序。
+- VRC/RRS II/OPC UA/ControlBuild/SIMIT/虚拟PLC的接口和演示不能自动证明目标项目真实PLC、驱动、现场总线、远程I/O和安全PLC已经通过HIL或安全验证。
+- 本轮未安装软件、下载Library/Translator、编译程序、接入VRC/PLC/OPC UA/ControlBuild/SIMIT、进行HIL/FAT/SAT或实机性能/安全测试；DELMIA Robotics保持静态审查未验收。
