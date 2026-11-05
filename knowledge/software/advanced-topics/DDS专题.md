@@ -389,7 +389,7 @@ export CYCLONEDDS_URI=file://$PWD/cyclonedds.xml
 - 补充同进程组合节点的安全上下文共享风险、最小权限策略、密钥生命周期、负向授权测试、跨网关逐跳保护和安全开销基准。
 - 本次为公开资料和文档主张边界审查；未执行本项目 keystore 生成、RMW/DDS 安全启动、权限策略负向测试、密钥轮换、网络攻击、DoS、性能基准或目标机器人安全验收。
 
-新增来源台账 #999–#1001；全文技术验收仍未完成。
+本轮核对了 ROS 2 官方 DDS-Security 集成、Access Control Policies 与 Robotic Systems Threat Model 设计资料；来源台账新增记录未写入（平台安全检查阻止），不得将其记为已登记。全文技术验收仍未完成。
 
 ### 本轮核验来源
 
