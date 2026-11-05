@@ -1,89 +1,261 @@
 ---
-tags: [软件, 工具链, CI]
-aliases: [工具链, colcon, CMake, CI]
+tags: [软件, 构建系统, CI, CD, 交叉编译, 软件供应链, SBOM, 固件发布]
+aliases: [构建工具链, colcon, CMake, ROS CI, 交叉编译, 软件供应链安全]
 创建日期: 2026-11-01
-更新日期: 2026-11-01
+更新日期: 2026-11-05
 ---
 
 # 构建与 CI 工具链
 
-> 机器人软件的工程纪律：多语言多包构建 → 单元/集成测试 → 冒烟 → 打包发布。两个内部项目都建立了完整台账式 CI 流程（本页记录其模式作为行业参考实践）。
+> 机器人软件构建不是“能在开发机编译通过”就结束。可靠流程必须把源码、依赖、编译器/SDK、构建参数、目标架构、测试、镜像/固件、签名、制品和部署清单关联起来。CI 绿灯只证明已执行的作业在其环境和覆盖范围内通过；不等于目标硬件实机通过、功能安全验证完成或产品可以量产交付。
 
-## 构建系统链
+## 1. 构建与交付链路
 
-| 层 | 工具 | 说明 |
-|---|---|---|
-| C++ 底层 | **CMake**（≥3.16） | ament_cmake（ROS2 C++ 标准）、纯 CMake（如 [[项目-Bozlin视觉框架]]） |
-| ROS2 构建 | **colcon** | `colcon build --base-paths src --parallel-workers N`；`--symlink-install` 开发热替 |
-| Python 包 | setuptools/ament_python | setup.py/package.xml 双声明 |
-| Android | Gradle | [[项目-清洁机器人]] App 端 `build.gradle.kts` |
-| 依赖固化 | rosdep、vcstool、Docker 镜像 | `rosdep install --from-paths src` |
+推荐将软件交付链拆成可追溯阶段：
 
-## 包组织规范（多包工作区）
+1. **源代码与输入冻结**：记录仓库、commit、子模块、补丁、生成代码输入、依赖锁文件、编译器/SDK和构建容器digest。
+2. **静态质量门禁**：格式、lint、静态分析、许可证/版权、秘密扫描、依赖漏洞和接口兼容性检查。
+3. **构建**：原生/交叉编译，生成库、可执行文件、ROS包、容器、系统镜像或固件。
+4. **测试**：单元、组件、集成、接口契约、仿真冒烟、目标板启动与硬件在环；每项测试必须声明真实覆盖边界。
+5. **制品与元数据**：生成校验和、SBOM、构建日志、测试报告、构建来源证明（provenance）和版本清单。
+6. **签名与发布**：对最终可执行制品/固件/OTA包签名，验证签名链、密钥策略、版本/回滚规则。
+7. **部署与观测**：按设备型号、硬件修订、区域、批次和依赖版本灰度；保留部署回执、健康状态和回滚记录。
 
-```
-src/
-├── interfaces/        # 消息/服务/Action 定义包（独立小包,版本化）
-├── drivers/           # 传感器/底盘驱动
-├── algorithms/        # 算法库（纯库,不依赖运行时）
-├── capabilities/      # 业务能力包（见 [[项目-amr]] 插件架构）
-├── bringup/           # 启动配置、参数文件、launch
-└── 3rdparty/          # 第三方（固定版本）
-```
+建议以“同一源码commit和同一构建输入得到同一可验证制品”为目标；是否能做到逐字节可复现取决于时间戳、随机数、路径、链接器、工具链、压缩器和构建脚本等因素，不能只因使用Docker就宣称可复现。
 
-- 接口先行：`.msg/.srv/.idl` 变更必须独立提交 + 版本号 + SHA256 契约（[[项目-amr]] 的 CONTRACT_IDL.sha256 实践）→ [[ROS与ROS2]]
+## 2. 构建系统和工具
 
-## 测试金字塔（机器人版）
+| 层级 | 工具/机制 | 适用范围 | 工程注意事项 |
+|---|---|---|---|
+| 原生C/C++构建 | CMake + Ninja/Make | 通用C/C++库、驱动、算法和应用 | CMake配置版本、生成器、编译器、ABI、toolchain file和依赖发现都要锁定 |
+| ROS 2构建编排 | colcon + ament_cmake/ament_python | 多包ROS 2工作区 | colcon是编排工具，不替代底层CMake/编译器；包依赖声明和构建顺序必须正确 |
+| Python | pip/build、setuptools、pyproject.toml、ament_python | ROS节点、工具、测试脚本 | 锁定Python版本和依赖解析结果；不要依赖未固定的全局环境 |
+| Rust | Cargo | 驱动、服务、工具或安全边界清晰的组件 | Cargo.lock、target triple、rustc版本、features和native依赖需固定 |
+| Android | Gradle/Android Gradle Plugin | HMI、平板和移动端应用 | Gradle Wrapper、插件、JDK、SDK/NDK、依赖校验和签名配置均需固定 |
+| 容器 | Docker/BuildKit/OCI | 构建环境、部署服务、仿真和工具链封装 | 基础镜像digest、multi-stage、非root、最小权限和镜像扫描；容器不自动保证可复现 |
+| 嵌入式固件 | CMake/Make/Bazel/厂商IDE与SDK | MCU/SoC、Bootloader、RTOS/Linux BSP | 锁定交叉编译器、sysroot、SDK、链接脚本、烧录配置、分区布局和签名工具 |
+| 系统镜像 | Yocto/OpenEmbedded、Buildroot、Debian等 | Linux机器人控制器/边缘计算机 | Yocto layer、machine/distro配置、recipe、SRCREV、镜像manifest和许可证清单必须可追溯 |
+| 构建缓存 | ccache/sccache/远程缓存 | 加速重复构建 | 缓存键必须覆盖编译器、目标架构、flags、依赖和配置；缓存是性能优化，不是可信输入来源 |
 
-```
-        集成/系统测试: launch_testing 多节点 + rosbag2 回放回归
-      组件测试: 单节点注入假驱动(话题桩) + 行为断言
-    单元测试: gtest(ros2 接口 mock) / pytest(rclpy)
-  静态: clang-tidy/lint + 编译警告=错误
-```
+### 2.1 CMake
 
-- ROS2 单测：`ament_add_gtest`、`launch_testing`；Python：`launch_pytest`
-- 仿真冒烟：headless Gazebo/自研轻量仿真跑固定场景脚本（到位时间/碰撞次数断言）→ [[仿真平台]]
+- 使用明确的最低版本和策略策略；不要在文档中把某个最低版本写成所有项目的“当前最新版本”。截至本次核验，CMake稳定版为4.4.5，4.5.0-rc2属于预发布候选版。项目应选择经验证的稳定版本，而非自动追随最新版。
+- CMake 4.x升级可能暴露旧项目策略、第三方依赖和工具链兼容问题；升级前在目标编译器、操作系统和SDK矩阵上测试。
+- 对交叉编译明确设置`CMAKE_TOOLCHAIN_FILE`、`CMAKE_SYSROOT`、`CMAKE_SYSTEM_PROCESSOR`、编译器和查找根路径；避免错误链接宿主机库。
+- 以target为中心使用`target_include_directories`、`target_link_libraries`、`target_compile_features`，避免全局污染。
+- 对可复现性记录生成器、配置类型、编译选项、环境变量和依赖版本；不要把`CMAKE_BUILD_TYPE=Release`等同于完整发布配置。
 
-## 内部项目的 CI 模式（实际观察到的好实践）
+### 2.2 ROS 2 / colcon / ament
 
-| 项目 | CI 形态 |
-|---|---|
-| [[项目-amr]] | `scripts/ci_capability.sh`（构建+16 包 106 用例）+ `capability_smoke_stability.sh 3 150`（3 轮×150s 稳定性冒烟，输出 RESULT PASS）+ 文档链接检查（43 个 md/225 链接全绿） |
-| [[项目-清洁机器人]] | 三层测试网：**契约测试**（接口形状）→ **冒烟**（单机流程）→ **行为测试**（业务场景 FSM 断言）；`build_all.sh/package_all.sh/deploy_all.sh` 全链脚本 |
-| [[项目-Bozlin视觉框架]] | GTest 单元测试目录 + 白盒测试模块（white_box_testing/） |
+- colcon负责识别包、拓扑排序、调用各包构建任务和汇总测试结果；ament提供ROS包的构建/安装/导出机制。两者职责不同。
+- 典型工作区：
+  ```text
+  workspace/
+  ├── src/
+  │   ├── interfaces/
+  │   ├── drivers/
+  │   ├── algorithms/
+  │   ├── navigation/
+  │   ├── applications/
+  │   └── bringup/
+  ├── build/
+  ├── install/
+  └── log/
+  ```
+- 常见命令示例（按项目发行版和包结构调整）：
+  ```bash
+  rosdep update
+  rosdep install --from-paths src --ignore-src -r -y
+  colcon build --event-handlers console_direct+
+  colcon test
+  colcon test-result --verbose
+  ```
+- `--packages-select`、`--packages-up-to`用于控制增量构建范围；`--symlink-install`主要适用于开发工作流，不应未经验证就用于生产安装包。
+- `--parallel-workers`控制并发任务数量，不能简单等同于编译器内部并行度；需根据内存、链接器峰值和目标机器资源调优。
+- 使用`vcstool`的.repos文件固定多仓库源码revision；使用rosdep解析系统依赖时，记录rosdistro索引快照和操作系统包版本。仅固定Git仓库commit而不固定apt/pip依赖，仍无法完整复现构建。
+- `launch_testing`适合多进程launch集成测试，能够检查进程退出码、异常退出和输出；它本身不替代真实硬件测试。ROS Index在2026-10列出Kilted分支launch_testing 3.8.10、Lyrical分支3.9.9，需按目标ROS发行版使用相应版本，不要跨发行版直接复制数字。
 
-> 通用经验：**台账化**（TaskPlan/REPOS.md 单一事实源）+ **稳定性冒烟固定轮次**（发现内存泄漏/句柄泄漏）+ **文档链接 CI**（防架构文档腐烂）。
+### 2.3 多仓库、接口和依赖治理
 
-## 发布打包
+- 对多仓库工程使用manifest（例如vcstool .repos）固定每个仓库的URL、revision和必要补丁；禁止依赖浮动的main/master分支。
+- ROS msg/srv/action、IDL、Protobuf、CAN协议、串口协议和网络API应有版本策略、兼容性规则、生成器版本及契约测试。
+- 接口SHA256指纹只能检测接口文件内容变化，不能证明语义兼容；字段重命名、单位变化、枚举语义变化、时序和QoS变化需要兼容性测试与迁移说明。
+- 对第三方依赖记录名称、版本、来源URL、commit/tag、hash、许可证、补丁、维护状态和漏洞处理人。源码存在不代表许可允许嵌入、修改、分发或提供托管服务。
+- 不应把所有第三方代码都复制进`3rdparty/`：优先使用包管理器/系统依赖；必须vendor时，记录上游版本、补丁差异和更新流程。
 
-- ROS2：colcon 打包 → deb/tar；整机发布含固件+ROS2+配置 → 差分 OTA 包 → [[云端协同与OTA流程]]
-- 版本策略：语义化版本（SemVer）+ 契约版本表 + ReleaseNotes（[[项目-Bozlin视觉框架]] 的 ReleaseNotes.txt 模式）
-- 灰度：云端按机器人分组灰度推送 → [[云平台与IoT通信]]
+## 3. 交叉编译与目标硬件矩阵
 
-## 上游板块
-- [[ROS与ROS2]] —— colcon/ament 生态（软件）
-- [[09-06-操作系统选型与内核裁剪]] —— 镜像构建纳入 CI（软件）
+交叉编译必须以目标运行环境为准，而不是仅修改`-march`或`CMAKE_SYSTEM_PROCESSOR`。
 
-## 下游板块
-- [[09-10-系统联调与测试]] —— 三层测试网实操（流程）
-- [[云端协同与OTA流程]] —— CI 产物→灰度发布（流程）
-- [[项目-amr]]（ci_capability 六步门禁） · [[项目-清洁机器人]]（三层测试网） —— 台账实践源（项目）
+### 3.1 必须冻结的输入
 
-## 细节加深（V2）
-- **colcon 官方文档**（台账 #94）：`--packages-select`/`--packages-up-to`（增量构建）、`--event-handlers console_direct+`（实时日志）是日常三件套。
-- **launch_testing 是集成测试标准件**（台账 #46，v3.4.13）：`generate_test_description()` + ReadyToTest + 进程退出码断言——把"起得来、数据活着、死得干净"写成代码。
-- **契约 lint 思路**（源自 [[项目-amr]]）：消息/服务定义变更必须独立提交+SHA256 指纹+兼容表更新——CI 里跑 `git diff --exit-code interfaces/ || 校验契约版本`。
+- 目标CPU架构/ABI：例如x86_64、aarch64、armhf、RISC-V及浮点ABI；
+- 目标OS、发行版、glibc/musl版本、内核和libstdc++ ABI；
+- 交叉编译器及binutils版本、target triple、编译选项；
+- sysroot、头文件、库、pkg-config配置和CMake toolchain file；
+- SoC厂商SDK/BSP、GPU/NPU驱动、CUDA/TensorRT/OpenCL等加速运行时版本；
+- ROS发行版、RMW/DDS实现、消息生成器和第三方库版本；
+- Bootloader、固件分区布局、设备树、内核配置和启动参数。
 
-## 代码实例与开源项目
-| 项目 | 语言 | 许可证 | 说明 | 链接 |
-|---|---|---|---|---|
-| colcon 文档 | Python | Apache-2.0/BSD | 官方构建编排 | https://colcon.readthedocs.io |
-| launch_testing | Python | Apache-2.0 | ROS2 集成测试框架（v3.4.13） | https://docs.ros.org/en/jazzy/p/launch_testing/ |
-| rosbag2 | C++/Python | Apache-2.0 | 录包回归基础设施 | https://docs.ros.org/en/rolling/p/rosbag2/ |
+### 3.2 推荐流程
 
-> 链接验证：[[链接台账]] #46/#83/#94（快照 2026-11-01）。
+1. 从目标设备的正式镜像/SDK导出或构建sysroot，校验目标头文件和库版本。
+2. 在干净容器/隔离构建机中安装交叉工具链，固定镜像digest和工具链hash。
+3. 用CMake toolchain file或对应构建系统明确目标架构、sysroot和查找路径。
+4. 对每个第三方依赖确认目标架构构建产物，不允许静默回退到宿主机库。
+5. 执行链接检查、ELF架构/ABI检查、动态依赖检查和许可证扫描。
+6. 在QEMU等模拟器上做有限的启动/单元测试（仅覆盖其支持的CPU/系统行为）。
+7. 在真实目标板执行启动、驱动、外设、性能、热、功耗、内存、实时性和长稳测试。
 
-## 相关链接
-- 上位：[[软件地图]] · [[ROS与ROS2]] · [[仿真平台]]
-- 项目实例：[[项目-amr]] · [[项目-清洁机器人]] · [[项目-Bozlin视觉框架]]
+QEMU用户态或系统仿真可帮助早期发现架构/系统问题，但不模拟目标板所有外设、电气特性、实时中断、GPU/NPU、热设计和真实驱动。QEMU通过不能作为目标硬件验收结论。
+
+### 3.3 Yocto / Buildroot
+
+- Yocto通过layer、recipe、machine和distro配置描述嵌入式Linux构建；应固定Poky/OE层revision、SRCREV、下载源校验和、补丁和配置片段。
+- 生成并归档manifest、license manifest、镜像hash、SDK版本和构建日志。
+- Buildroot适合较小且配置相对固定的嵌入式Linux系统；应归档`.config`、外部树、工具链版本、源码hash和补丁。
+- Yocto和Buildroot并非简单“谁更好”：按产品生命周期、包生态、可维护性、供应商支持、更新机制、镜像尺寸、许可证管理和团队能力选择。
+- BSP升级需覆盖内核、设备树、启动链、驱动、根文件系统、OTA分区、恢复模式和安全更新；只通过应用层编译不等于BSP升级通过。
+
+## 4. CI流水线设计
+
+### 4.1 分层门禁
+
+| 阶段 | 触发 | 典型工作 | 失败处理 |
+|---|---|---|---|
+| PR快速门禁 | Pull Request | 格式/lint、静态检查、依赖解析、接口兼容、关键包构建、单元测试 | 阻止合并；输出可复现日志 |
+| 主干集成 | 合并到main | 全工作区构建、组件/集成测试、覆盖率、容器构建、SBOM | 阻止发布候选，保留制品 |
+| Nightly | 定时 | 多架构、全量回归、仿真批量测试、漏洞扫描、长时稳定性 | 建立缺陷并追踪趋势 |
+| Release candidate | 发布候选 | 冻结依赖、全矩阵构建、签名验证、安装/升级/回滚测试 | 不得发布 |
+| 硬件门禁 | 目标板/实验室 | 烧录、启动、外设、实时性、功耗、热、网络、故障注入 | 需硬件测试记录和签核 |
+| 现场/量产门禁 | FAT/SAT/生产批次 | 真实工况、生产烧录、设备身份注入、追溯、OTA灰度/回滚 | 按产品质量流程放行 |
+
+不要把PR测试、Nightly、硬件实验室和现场SAT混成一个“CI通过”。每种门禁要标注运行环境、硬件清单、软件版本、测试覆盖和证据保存位置。
+
+### 4.2 GitHub Actions等CI平台安全
+
+- 第三方Action优先固定到完整commit SHA，并核验SHA来自上游可信仓库；只固定可变tag（如`@v4`）不能锁定实际执行代码。若组织采用workflow dependency lockfile，按其验证机制维护锁文件。
+- 设置最小化`permissions`；默认只读，确有需要时按job授予写权限。
+- 对来自fork/外部贡献的PR避免暴露长期secret；不要在不可信PR上下文执行有写token/部署凭据的脚本。
+- 使用OIDC向云平台短时换取身份凭据，避免在CI变量中长期保存云访问密钥。
+- 自托管runner应隔离租户、清理工作目录和凭据，限制网络出口；不可信构建不应复用带生产权限的runner。
+- 缓存键不可由不可信PR任意污染生产构建；发布作业应在受保护环境中从可信commit重新构建或验证制品。
+- 对部署环境启用审批、分支保护、环境保护规则和审计日志。
+- Workflow中避免把用户输入直接拼接到shell命令；对artifact、缓存、PR标题和分支名按不可信数据处理。
+
+GitHub官方安全指南建议锁定Action依赖、使用Artifact Attestations建立构建来源证明，并通过OIDC与云平台安全认证。完整commit SHA固定是基础控制；签名和attestation需要消费者实际验证才能发挥作用。
+
+## 5. 软件供应链：SBOM、漏洞、签名与来源证明
+
+### 5.1 SBOM
+
+SBOM是特定制品/版本的组件清单，不是安全认证，也不保证依赖完整或没有漏洞。至少应包含：
+- 直接和传递依赖、组件版本、供应商/来源、包标识和许可证；
+- 依赖关系、文件/组件hash、构建工具及生成时间；
+- 操作系统包、ROS包、Python/C++依赖、容器层、固件组件和必要的闭源SDK；
+- SBOM生成工具/版本、扫描范围、未识别组件和完整性声明。
+
+常见格式：
+- **SPDX**：Linux Foundation维护的开放标准，覆盖组件、许可证、版权和供应链信息；SPDX 3.0扩展了对软件、AI、数据、构建信息和安全引用的表达能力。
+- **CycloneDX**：OWASP/Ecma标准，当前版本1.7（ECMA-424第二版，2025-12），可表达软件/硬件/服务/依赖关系、漏洞、加密资产、ML模型、声明和证据。
+
+不要只因生成了SBOM就宣称满足所有法规/客户要求。需要验证格式版本、必填字段、组件覆盖率、准确性、交付时点和客户要求；对MCU固件、厂商SDK和烧录工具也要纳入适当清单。
+
+### 5.2 漏洞与许可证治理
+
+- 按组件版本和适用平台关联CVE/GHSA/厂商公告，记录是否可达、是否启用受影响功能、修复版本、缓解措施和风险接受人。
+- 漏洞扫描结果不是可利用性结论；未发现漏洞不代表没有漏洞，需结合SBOM完整度、扫描数据库更新时间和产品配置解释。
+- 许可证检查应基于实际分发的组件版本、源码/二进制、链接方式、修改情况和交付方式。生成NOTICE、版权和源码提供义务清单；不能只扫描仓库主分支。
+- 固件供应链还要记录bootloader、ROM工具、编译器、链接器、签名工具、密钥注入工具、生产烧录工站软件和恢复镜像。
+
+### 5.3 构建来源证明与签名
+
+- Provenance描述制品由哪个构建平台、哪些输入和构建定义产生；记录源码commit、依赖digest、构建工作流、工具链和输出制品hash。
+- SLSA Build Track定义逐级增强的构建供应链保证；SLSA provenance是可验证构建来源声明，不等于代码安全审查或产品认证。
+- GitHub Artifact Attestations可将制品与仓库、workflow、commit、触发事件和构建身份关联，并可附SBOM；使用者必须执行验证并定义信任策略。
+- 对最终制品签名并在设备端验证签名和版本策略；签名只能证明制品由对应密钥/身份签署且完整性可验证，不能证明软件无漏洞或功能正确。
+- 设备端安全启动、固件签名、反回滚计数器、密钥轮换、设备身份和OTA验证属于系统设计，不可由CI签名步骤单独替代。
+
+## 6. 固件和机器人软件发布
+
+### 6.1 发布清单
+
+每个发布版本建议生成机器可读manifest，至少包含：
+- 产品型号、硬件修订、主板/SoC/MCU版本；
+- bootloader、BSP、kernel、RTOS、驱动、应用、ROS包和配置版本；
+- 固件/镜像/容器/OTA包的SHA-256或更强hash；
+- SBOM、许可证清单、provenance、签名和证书链引用；
+- 兼容的硬件/外设/传感器版本；
+- 升级前置条件、分区/存储需求、升级时长、失败恢复和回滚策略；
+- 测试报告、已知问题、风险接受、发布审批和批次追溯信息。
+
+### 6.2 OTA门禁
+
+1. 设备确认产品型号、硬件revision、当前版本和升级资格。
+2. 下载后先校验包hash和签名，再校验manifest与设备目标匹配。
+3. 使用A/B分区或可靠恢复机制，避免断电导致不可启动；若采用单分区更新，应有经验证的恢复路径。
+4. 对bootloader、分区表、密钥、MCU与Linux多组件升级定义兼容顺序和原子性边界。
+5. 启动后执行健康检查和关键外设自检；未达标则触发受控回滚。
+6. 分批灰度，设置暂停条件、故障率阈值、设备离线策略和人工停止开关。
+7. 保存下载、验签、安装、重启、自检、回滚和最终版本回执。
+
+升级测试至少覆盖断电、网络中断、存储空间不足、签名错误、包损坏、版本降级、硬件型号不匹配、升级中复位、旧版本恢复和批量并发。只在CI里对OTA包执行静态hash检查不能证明设备更新流程可靠。
+
+## 7. 测试与证据金字塔
+
+| 层级 | 例子 | 能说明什么 | 不能说明什么 |
+|---|---|---|---|
+| 静态检查 | clang-tidy、format、类型/许可证扫描 | 已配置规则下的静态问题 | 无运行时缺陷 |
+| 单元测试 | gtest、pytest、mock | 单函数/模块在给定输入下行为 | 真实驱动/硬件行为 |
+| 组件测试 | 节点、驱动桩、协议模拟器 | 组件接口和异常处理 | 真实外设电气时序 |
+| 集成测试 | launch_testing、多节点、rosbag回放 | 进程协作、消息流和集成逻辑 | 目标硬件实时性和环境可靠性 |
+| 仿真测试 | Gazebo/Isaac/MuJoCo场景 | 指定模型与场景下行为 | 未建模真实物理/传感器/安全风险 |
+| PIL/HIL | 目标CPU/控制器、真实I/O与实时仿真 | 编译器/硬件接口/实时链路的特定覆盖 | 全部真实工况与整机认证 |
+| 实机验证 | 目标机器人、真实传感器/载荷/现场 | 目标配置下实测结果 | 未覆盖工况或其他硬件变体 |
+
+每条测试记录至少应含测试ID、需求ID、软件commit、构建制品hash、工具链、目标硬件、配置、输入数据、测试程序版本、执行人/设备、时间、结果、日志和失败复现步骤。覆盖率是测试执行范围指标，不是质量或安全保证的直接度量。
+
+## 8. 质量指标与构建可复现性
+
+建议持续跟踪：
+- PR反馈时间、构建成功率、失败分类和重试率；
+- 测试覆盖率、flake rate、回归缺陷逃逸率；
+- 多架构构建通过率、目标板启动成功率；
+- 制品可复现率、依赖锁定率、SBOM组件识别率；
+- 高危漏洞修复时长、过期依赖数量、许可证未判定项；
+- 发布失败率、OTA升级成功率、回滚成功率和现场版本漂移率。
+
+可复现构建的基本要求：
+- 固定源码commit、依赖版本和下载hash；
+- 固定编译器、SDK、构建系统和容器digest；
+- 清理构建环境，控制locale/timezone、时间戳、路径和随机数；
+- 避免构建时从网络拉取未固定依赖；
+- 对产物做逐字节比较或定义可解释的规范化比较；
+- 将构建日志、manifest、SBOM和provenance一起归档。
+
+若无法做到逐字节复现，应明确不可复现字段及原因，并保留输入/输出hash、构建环境和来源证明，不能仅写“Docker构建即可复现”。
+
+## 9. 项目实例与证据边界
+
+本仓库旧稿提及AMR项目`scripts/ci_capability.sh`、`capability_smoke_stability.sh`、清洁机器人`build_all.sh/package_all.sh/deploy_all.sh`和Bozlin视觉框架GTest目录等实例。它们是待核验的项目观察，不自动构成行业通用最佳实践或当前仍有效的CI结果。
+
+引用“16包106用例”“3轮×150秒PASS”“43个Markdown/225链接全绿”等数字时，必须提供对应仓库commit、脚本内容、测试原始输出、执行环境和日期。若只有文档描述而无脚本/CI运行记录，应明确标注“历史文档声称，尚未复核”，不得写成已独立验证的事实。
+
+## 10. 验收检查清单
+
+- [ ] 目标硬件、OS、ABI、ROS发行版、编译器、SDK和依赖版本已冻结
+- [ ] 多仓库manifest、依赖锁文件、系统包快照和构建容器digest已归档
+- [ ] 原生构建、交叉编译和目标架构/ABI检查通过
+- [ ] 单元、集成、仿真、PIL/HIL和实机测试边界清楚且证据可追溯
+- [ ] SBOM覆盖应用、系统包、容器、固件和适用的厂商SDK
+- [ ] 漏洞、许可证、NOTICE和第三方修改义务已审查
+- [ ] 构建来源证明可验证，制品签名和设备端验签已测试
+- [ ] OTA断电/断网/回滚/防降级/型号匹配测试通过
+- [ ] 发布manifest、hash、测试报告、审批和生产批次可追溯
+- [ ] 量产烧录工站、密钥注入、设备身份和版本追踪流程经过现场验证
+
+## 11. 未关闭事项与验收状态
+
+本文完成的是工具链方法和供应链主张边界审查，不代表本仓库或某个机器人产品已经具备完整CI/CD。仍需对仓库真实工作流、脚本、runner权限、依赖锁定、交叉编译目标、SBOM覆盖、签名验证、OTA升级和目标硬件测试逐项取证。没有相应工作流文件、构建日志、制品hash、测试原始输出和目标板记录时，不得将旧文中的项目数字标记为已验证。
+
+本文章不构成产品安全认证、漏洞无风险声明或量产交付验收结论。
