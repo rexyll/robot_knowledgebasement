@@ -225,3 +225,176 @@ Q_d=\int_0^{\Delta t}\Phi(\Delta t-s)GQ_cG^T
 1. ETH Zürich ASL, [Kalibr IMU Noise Model](https://github.com/ethz-asl/kalibr/wiki/IMU-Noise-Model)：白噪声/偏置随机游走模型、单位、离散采样换算和 Allan 参数读取约定。
 2. Freescale/NXP, [AN5087 Allan Variance: Noise Analysis for Gyroscopes](https://www.nxp.com/assets/documents/data/en/application-notes/AN5087.pdf)：重叠 Allan 方差计算流程、聚类时间和陀螺白噪声/偏置不稳定性识别。
 3. Jay A. Farrell et al., [Inertial Measurement Unit Error Modeling Tutorial](https://doi.org/10.1109/MCS.2022.3209059), IEEE Control Systems Magazine, 42(6), 2022, pp.40–66：从 Allan 特征构建随机误差状态空间模型及离散等效模型。
+
+
+## 9. IMU 噪声离散化数值算例与模型选择
+
+本节用一组**纯示例参数**贯通连续噪声密度、离散采样、偏置状态和滤波器协方差。它们不是任何真实 IMU 的数据手册值、实测值或推荐默认值。计算采用 Kalibr 所述连续白噪声密度约定；实际项目必须先确认器件内部滤波、采样/平均方式及 PSD 单双边约定。
+
+### 9.1 示例输入与单位检查
+
+假设 IMU 输出频率为 200 Hz，即：
+
+\[
+\Delta t=1/200=0.005\;s
+\]
+
+示例连续噪声参数：
+
+| 参数 | 示例值 | 单位 |
+| --- | ---: | --- |
+| 陀螺白噪声密度 \(\sigma_g\) | \(2.0\times10^{-4}\) | rad/s/√Hz |
+| 加速度计白噪声密度 \(\sigma_a\) | \(2.0\times10^{-3}\) | m/s²/√Hz |
+| 陀螺偏置随机游走驱动 \(\sigma_{b_g}\) | \(2.0\times10^{-5}\) | rad/s²/√Hz |
+| 加速度计偏置随机游走驱动 \(\sigma_{b_a}\) | \(2.0\times10^{-4}\) | m/s³/√Hz |
+
+单位平方后分别构成连续白噪声谱强度 \(q_g=\sigma_g^2\)、\(q_a=\sigma_a^2\)、\(q_{b_g}=\sigma_{b_g}^2\)、\(q_{b_a}=\sigma_{b_a}^2\)。不要把这些连续谱强度与离散协方差矩阵的元素混写。
+
+### 9.2 从连续密度到离散测量样本
+
+在理想低通/抗混叠且样本代表相应带限平均值的假设下：
+
+\[
+\sigma_{g,d}=\frac{2.0\times10^{-4}}{\sqrt{0.005}}
+=2.8284\times10^{-3}\;rad/s
+\]
+
+\[
+\sigma_{a,d}=\frac{2.0\times10^{-3}}{\sqrt{0.005}}
+=2.8284\times10^{-2}\;m/s^2
+\]
+
+因此单轴离散角速度与加速度测量的白噪声方差为：
+
+\[
+R_g=\sigma_{g,d}^2=8.0\times10^{-6}\;(rad/s)^2
+\]
+\[
+R_a=\sigma_{a,d}^2=8.0\times10^{-4}\;(m/s^2)^2
+\]
+
+这里的 \(R_g,R_a\) 是**测量样本噪声方差**，不是 ESKF 状态传播矩阵中的完整 \(Q_d\)。若驱动器已经输出窗口平均、低通或抽取后的数据，应以真实数据通路的等效噪声带宽重新确定样本协方差，不能把原始传感器噪声密度无条件套用。
+
+### 9.3 偏置随机游走每步增量
+
+对 Wiener 偏置模型，单个采样间隔的偏置增量标准差为：
+
+\[
+\sigma_{\Delta b_g}=\sigma_{b_g}\sqrt{\Delta t}
+=1.4142\times10^{-6}\;rad/s
+\]
+\[
+\sigma_{\Delta b_a}=\sigma_{b_a}\sqrt{\Delta t}
+=1.4142\times10^{-5}\;m/s^2
+\]
+
+对应每步偏置增量方差分别为 \(2.0\times10^{-12}\;(rad/s)^2\) 与 \(2.0\times10^{-10}\;(m/s^2)^2\)。白噪声样本标准差按 \(1/\sqrt{\Delta t}\) 缩放，而偏置随机游走增量按 \(\sqrt{\Delta t}\) 缩放，不能交换使用。
+
+若将一个采样周期内的角速度/加速度白噪声积分，角度/速度增量标准差分别为：
+
+\[
+\sigma_{\Delta\theta}=\sigma_g\sqrt{\Delta t}
+=1.4142\times10^{-5}\;rad
+\]
+\[
+\sigma_{\Delta v}=\sigma_a\sqrt{\Delta t}
+=1.4142\times10^{-4}\;m/s
+\]
+
+### 9.4 含偏置随机游走的角度—陀螺偏置协方差
+
+用单轴简化误差状态 \(x=[\delta\theta,\delta b_g]^T\)，令：
+
+\[
+\dot{\delta\theta}=\delta b_g+n_g(t),\qquad
+\dot{\delta b_g}=\sigma_{b_g}w(t)
+\]
+
+其中 \(E[n_g(t)n_g(t')]=q_g\delta(t-t')\)，\(w\) 为单位谱强度白噪声，且两者独立。若本周期初始误差协方差已由先验 \(P_k\) 表示，则本周期过程噪声增量为：
+
+\[
+Q_d=
+\begin{bmatrix}
+q_g\Delta t+q_{b_g}\Delta t^3/3 & q_{b_g}\Delta t^2/2\\
+q_{b_g}\Delta t^2/2 & q_{b_g}\Delta t
+\end{bmatrix}
+\]
+
+代入上述示例值：
+
+\[
+Q_d\approx
+\begin{bmatrix}
+2.00000017\times10^{-10} & 5.0\times10^{-15}\\
+5.0\times10^{-15} & 2.0\times10^{-12}
+\end{bmatrix}
+\]
+
+矩阵行列顺序是 \([\delta\theta,\delta b_g]\)，元素单位依次为 rad²、rad²/s 和 (rad/s)²。实际 ESKF 还必须纳入姿态误差到速度/位置误差的耦合、重力项、加速度计偏置、姿态旋转、噪声坐标映射和完整交叉协方差；不能把本二维例子的矩阵直接作为 15 维滤波器的 \(Q_d\)。
+
+### 9.5 一阶 Gauss-Markov 偏置：何时替代随机游走
+
+如果偏置呈现有限相关时间、长期趋向稳定方差，可考虑一阶 Gauss-Markov（OU）模型：
+
+\[
+\dot b=-\frac{1}{\tau_b}b+\sigma_w w(t)
+\]
+
+其精确离散状态转移为：
+
+\[
+b_{k+1}=\phi b_k+\eta_k,\qquad
+\phi=e^{-\Delta t/\tau_b}
+\]
+
+\[
+Q_{bb}=\operatorname{Var}(\eta_k)
+=\frac{\sigma_w^2\tau_b}{2}
+\left(1-e^{-2\Delta t/\tau_b}\right)
+\]
+
+稳态偏置方差为 \(P_{b,\infty}=\sigma_w^2\tau_b/2\)。因此，随机游走驱动强度 \(\sigma_w\)、相关时间 \(\tau_b\) 和稳态偏置标准差是三个不同概念；只有指定其中两个，才能由模型关系确定第三个。
+
+对于上述角度—偏置二维状态，令 \(a=\Delta t/\tau_b\)，OU 偏置在一个周期内对角度积分及末端偏置的过程噪声协方差项为：
+
+\[
+Q_{\theta\theta,b}=\sigma_w^2\tau_b^2
+\left[\Delta t-2\tau_b(1-e^{-a})
++\frac{\tau_b}{2}(1-e^{-2a})\right]
+\]
+
+\[
+Q_{\theta b}=\frac{\sigma_w^2\tau_b^2}{2}(1-e^{-a})^2
+\]
+
+并将白角速度噪声项 \(q_g\Delta t\) 加到 \(Q_{\theta\theta}\)。这些是连续模型的精确积分结果；数值实现中当 \(a\) 很小时，应使用数值稳定的 \(expm1\) 或矩阵指数算法避免相消误差。
+
+仍用示例的 \(\sigma_w=2.0\times10^{-5}\) 和人为指定的 \(\tau_b=100s\)，得到 \(\phi\approx0.9999500013\)、稳态偏置标准差约 \(1.4142\times10^{-4}\;rad/s\)。这个相关时间只是演示参数，不能从随机游走驱动强度单独推断；应由 Allan 曲线、功率谱、运行数据和物理先验共同识别。若没有证据支持有限相关时间，不要为了让偏置有界而擅自把 Wiener 随机游走改成 Gauss-Markov。
+
+### 9.6 三种偏置模型的选择边界
+
+| 模型 | 连续模型 | 典型适用情形 | 必须验证的内容 |
+| --- | --- | --- | --- |
+| 常值偏置 | \(\dot b=0\) | 短时运行、偏置近似固定，偏置主要靠初始化估计 | 不同上电周期的 turn-on bias；温度/时间漂移是否可忽略 |
+| Wiener 随机游走 | \(\dot b=\sigma_w w\) | Allan 曲线支持的有限时间范围内，偏置随时间无界扩散近似 | 适用聚类时间范围、随机游走斜率、参数稳定性及长期模型失配 |
+| 一阶 Gauss-Markov | \(\dot b=-b/\tau_b+\sigma_w w\) | 有证据表明偏置存在有限相关时间和稳态方差 | \(\tau_b\)、稳态方差、温度/工况依赖、创新统计与模型残差 |
+
+还应区分 turn-on bias（每次启动可能变化的初始偏置）与 in-run bias（单次运行中随时间变化的偏置）。前者主要影响偏置状态初始均值/协方差，不能仅凭静止 Allan 曲线完整识别；后者需要选择合适的随机过程模型。实际 IMU 可能同时包含常值启动偏置、白噪声、闪烁噪声、随机游走、温度项和比例因子误差，单一模型只是工程近似。
+
+### 9.7 可复现计算与验证门禁
+
+- [ ] 把本节示例值复制到独立脚本，自动计算样本方差、偏置增量方差和二维 \(Q_d\)，并对单位进行断言。
+- [ ] 用大量独立 Monte Carlo 轨迹检验样本方差与理论值；报告随机种子、样本数、置信区间和误差，而不只展示单次输出。
+- [ ] 对随机游走和 OU 模型分别仿真，比较经验自相关、稳态方差（OU）及 Allan deviation 曲线与理论预期。
+- [ ] 检查 OU 精确离散化在 \(\Delta t/\tau_b\to0\) 时的极限，并与矩阵指数/Van Loan 结果交叉核对。
+- [ ] 用真实器件数据独立估计参数；静态拟合数据与动态验证数据分离，并覆盖温度、带宽、振动和实际安装条件。
+- [ ] 在完整 ESKF 中验证 \(Q_d\) 的半正定性、状态交叉协方差、创新统计和 NEES/NIS；明确这些统计检验的高斯/独立性等假设。
+
+**本节结论边界：** 数值均为人为选取的教学算例，公式按所声明的连续时间模型推导；本轮未运行仓库代码、未执行 Monte Carlo、未分析任何真实 IMU 数据，也未验证具体 ESKF 或目标机器人。示例不构成器件参数推荐或实机性能承诺。
+
+### 本节新增参考资料（访问日期：2026-11-05）
+
+1. ETH Zürich ASL, [Kalibr IMU Noise Model](https://github.com/ethz-asl/kalibr/wiki/IMU-Noise-Model)：连续白噪声与 Wiener 偏置模型、离散样本换算和 Kalibr 参数单位。
+2. Jay A. Farrell, Felipe O. Silva, Farzana Rahman, Jan Wendel, [IMU Error Modeling Tutorial: INS state estimation with real-time sensor calibration](https://escholarship.org/uc/item/1vf7j52p)：从 Allan 方差构建随机误差状态空间模型、区分 in-run bias、turn-on bias、随机游走和一阶 Gauss-Markov 模型，并计算离散等效系统。
+3. MathWorks, [Inertial Sensor Noise Analysis Using Allan Variance](https://www.mathworks.com/help/nav/ug/inertial-sensor-noise-analysis-using-allan-variance.html)：Allan 方差与 PSD 的关系及噪声过程参数识别示例；其具体模型/系数约定需与项目选用模型核对。
+4. MathWorks, [Introduction to Simulating IMU Measurements](https://www.mathworks.com/help/nav/ug/introduction-to-simulating-imu-measurements.html)：仿真接口中的 NoiseDensity、BiasInstability、RandomWalk 参数分类；API 字段名不能替代对物理单位和模型定义的核验。
