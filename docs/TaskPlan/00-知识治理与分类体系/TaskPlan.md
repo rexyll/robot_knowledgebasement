@@ -329,3 +329,5 @@
 
 
 | 2026-11-05 | 00-01 | 对 `knowledge/software/advanced-topics/DDS专题.md` 补充P1安全主张级审查：细化DDS-Security身份认证/访问控制/加密边界、ROS 2安全默认未启用与permissive/strict启动策略、enclave/进程安全上下文、ROS 2威胁模型、DoS/凭据泄露/桥接绕行和主机root等未覆盖风险；明确ROS_DOMAIN_ID不是安全控制，DDS-Security不覆盖非DDS链路或功能安全；增加安全配置负向测试、密钥生命周期和安全性能验收清单。正文已提交，基线审计第77节已记录。来源台账#999–#1001写入被平台安全检查阻止，未登记；未执行keystore/RMW安全启动、权限策略测试、密钥轮换、网络攻击、互操作、性能或实机验证，00-01继续进行中。 | ROS 2官方DDS-Security集成、Access Control Policies与Robotic Systems Threat Model设计资料；基线审计第77节 |
+
+| 2026-11-05 | 00-01 | 对 `knowledge/software/advanced-topics/ROS1与迁移.md` 完成第二轮共存边界补充审查：细化Topic/QoS、Service幂等与超时、Action状态机、时间域/REP 105 TF权威、ROS Master与ROS 2发现网络分离、bridge双栈安全边界、单一写入权威、故障恢复及回滚；依据ROS 1归档/EOL、ros1_bridge官方README/映射文档、ROS 2 Jazzy LTS公告、发行版支持计划和REP 105补充官方依据。基线审计第78节；资产清单更新为第二轮定向审查范围。相关URL已写入专题正文，但本轮未更新链接台账；不重试此前被平台安全检查阻止的#999–#1001台账写入。未运行用户项目bridge或执行接口/QoS/时钟/TF/网络/安全负向/故障注入/性能/回滚测试，资产仍未完成完整claim-level验收。 | ROS 1/ROS 2官方资料、ros1_bridge文档、REP 105；第二轮定向静态审查；基线审计第78节 |
