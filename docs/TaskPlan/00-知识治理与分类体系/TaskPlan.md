@@ -273,3 +273,5 @@
 | 2026-11-04 | 00-01 | PEP 517 build isolation 依赖哈希锁定已落地：requirements-build-tools.in/.txt 经 uv 0.13.7 生成，锁定 setuptools 84.2.1、wheel 0.48.0、transitive packaging 26.3，6 个 distribution SHA-256；pyproject.toml 配置 build-constraint-dependencies 与 require-build-hashes=true，uv.lock 已包含哈希约束。CI run #585 在 Python 3.10/3.11/3.12 均通过 `uv build --require-build-hashes`、lint、pytest；SBOM job 成功。Artifact #13298086142 下载后两份 CycloneDX 1.7 JSON 可解析，5 项 SHA256SUMS 全通过。SBOM-008 在当前项目 build-system 范围关闭；uv 功能为实验性，升级时需复验。CVE/VEX、许可证法律审查与产品级 BOM 未完成，00-01 继续进行中。 | uv build constraints 官方文档；GitHub Actions run #585、artifact 下载校验 |
 
 | 2026-11-05 | 00-01 | 对资产清单中此前仅刷新 Git 元数据的 8 份知识域 README 完成全文结构/导航边界抽查（执行器、机械、电源、安全、传感器、厂商资源、机器人分类、软件高级专题）。未发现需立即修正的通用工程阈值或安全保证；P0 README 均保留型号/工况/风险评估边界。该检查不等于链接目标解析或技术文章主张级审查；8 项资产仍保持未验收。详见基线审计第48节。 | README 全文抽查；资产清单同步 |
+
+| 2026-11-05 | 00-01 | 全文审查P0安全防护器件、功能安全体系两篇文章，覆盖安全器件/普通传感器边界、PL/PLr/SIL、急停/STO/能源隔离、停止距离简化模型及验证成果物。未发现需立即修正的明显通用安全保证；标准版本、逐型号证书和目标产品PLr/制动测试仍需独立核验。详见基线审计第49节；不等于合规或产品验证。 | P0安全技术文章全文审查 |
