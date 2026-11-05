@@ -2596,3 +2596,22 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 未下载/构建SDK，未连接控制器、未运行Aubo Sim、未测RPC/RTDE/SCRIPT时序、丢包、断线恢复、权限/网络安全、ROS/MoveIt、PLC/PROFINET/Modbus互操作或实机性能。
 - 未进行整站风险评估、急停/保护停止/安全门/安全I/O/停止距离验证；普通I/O、SDK stop和仿真不替代安全链。
 - 结论：AUBO已完成代表性官方资料静态审查，保持未验收；后续须以具体SKU和软件栈版本执行构建、互操作、网络、安全和现场验证。
+
+
+## 115. Advantech Robotic Suite：ROS 2发行版/硬件矩阵、工业通信插件与安全配置静态审查（2026-11-05，来源#1172–#1180）
+
+### 115.1 发行版和硬件适配证据
+- 官方2.1.0 Release Note日期为2026-09-30，列ROS 2 Jazzy在NVIDIA JetPack 7.2（AFE-A702/ASR-A702）和Qualcomm Ubuntu 24.04（AFE-A503/ASR-A503，镜像仅x09）上的验证；新增机械臂操作支持和平台SDK。
+- 支持矩阵列Jetson AGX Orin/Orin NX的AFE-R750/ASR-A701、Qualcomm IQ9075M AFE-A503/ASR-A503覆盖1.7.0至2.1.0；ASR-D501/QCS6490标注Basic only且版本仅至1.7.0；Intel SKU主要覆盖1.3.0–1.7.0，未列2.1.0。故2.1.0 Jazzy不可外推至所有Intel产品/所有Jetson/Qualcomm模块。
+- 版本沿革：1.7.0（2025-12-12）Intel Ubuntu 24.04/Jazzy；2.0.0（2026-03-31）NVIDIA JetPack 6.1/Humble；2.1.0（2026-09-30）NVIDIA JetPack 7.2和Qualcomm Ubuntu 24.04/Jazzy。
+
+### 115.2 安装和插件边界
+- 安装总览自2.0起区分Basic/Complete。Basic安装页列Ubuntu Desktop 20.04/22.04/24.04、SUSI、WISEAgent、8GB磁盘/内存、联网和英文环境，同时原文称WISEAgent v2.0.0或更高不支持；Complete页要求先装SUSI、10GB磁盘、联网和英文环境。此版本/依赖文字需厂商澄清。
+- SUSI Node将硬件数据经DDS发布到/adv/susicontrol，支持ROS service修改可写属性，文档称10秒更新，不能用作实时安全控制。
+- OPC UA Client Node将server数据发布到/adv/opcuaclient；公开教程未呈现证书信任、SecurityPolicy/Mode、认证和证书轮换等完整配置。Modbus Master Node将server数据发布到/adv/modbusmaster并示范action写操作，但未定义完整周期、超时、重试、质量位/故障语义。
+- Time Sync Viewer仅支持Ubuntu 22.04；2ms sync_range是教程示例参数，不是设备时间同步保证。教程示例root/P@ssw0rd登录凭据是否为实际出厂默认值未证实，部署必须核验镜像并更换/禁用。
+- Robotic Core明确代码教程不是完整ROS 2 package/应用工作流；开发环境栏目列ISAAC ROS、QIR ROS和Autoware容器化环境，需逐平台验证版本/依赖。
+
+### 115.3 未完成事项
+- 未安装镜像/容器，未在Intel/NVIDIA/Qualcomm/NXP平台构建或运行；未连接真实Modbus/OPC UA PLC、相机/LiDAR/IMU；未测试DDS QoS、周期/抖动、时间同步偏差、证书/权限、断线重连、容器权限、网络安全、升级回滚、长稳和功能安全。
+- 未取得完整EOL/PCN、漏洞响应SLA、SBOM/镜像签名、容器digest、SDK API稳定性和商业许可矩阵。Advantech资产保持静态审查未验收；后续需按具体板卡SKU、镜像build和ROS发行版执行安装/互操作/安全验证。
