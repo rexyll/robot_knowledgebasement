@@ -2756,3 +2756,23 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - WorkVisual/KUKA.Sim/OfficeLite至iiQWorks.Sim/iiQKA.OS2虽有统一平台方向和config.dat迁移入口，但未证实SRC/DAT、完整WorkVisual项目、外部轴、技术包、安全配置和PLC工程可自动转换；KR C5到KR C5-2升级官方本身包含专门程序/接口/现场总线迁移服务。来源#1258、#1261。
 - Virtual RCS/VRC/OfficeLite不能连接所有真实外设，PLC软件仿真不等于现场硬件HIL；安全区域/停止距离模拟不等于功能安全验证。
 - 本轮未安装、下载/校验软件、创建VRC/运行目标程序、迁移工程或连接PLC/驱动/现场总线，没有HIL/FAT/SAT、实时性/网络/功能安全验证；KUKA软件生态资产保持静态审查未验收。
+
+
+## 123. Yaskawa MOTOMAN / MOTOMAN NEXT：产品谱系、控制器和软件双平台生态增量审计（2026-11-05，来源#1262–#1293）
+
+### 123.1 本轮确认
+- 当前机器人产品目录列GP、HC、NEX、AR、PL、MPP、SG、MotoMini、MH/PH、GA/SP等产品族；代表型号的控制柜兼容映射各不相同：GP8允许YRC1000/YRC1000micro，GP25与AR/PL代表型号列YRC1000，SG400/650列YRC1000micro，NEX10/NEX20列YNX1000。不得以系列名推断全型号控制器。来源#1262–#1268、#1291。
+- NEX系列NEX7/10/20/35属于MOTOMAN NEXT平台；YNX1000引入RCU/ACU分层、Jetson Orin计算、Linux ACU SDK、C++/gRPC/Docker应用部署和RCS/PPLS/MVS/AIS/FCS服务，区别于YRC1000控制器生态。来源#1267–#1273。
+- YNX Robot Simulator当前下载快照3.3.0（2026-09-23），可在无真实机械臂情况下观察ACU应用运动，但不支持重力等物理运算；不等于完整物理数字孪生或实机安全/动态验证。来源#1274。
+- MotoSim EG-VRC官方区域下载页列2026版本（2026-10-09）和NX100/FS100/DX100/DX200/YRC1000/YRC1000micro虚拟控制器，支持双/三机器人场景；从2025 SP1起MotoLogix仿真需额外许可。授权按硬件dongle购买版本及之后四个主版本年限管理，区域/许可证需单独核实。来源#1275、#1276。
+- INFORM是控制器原生JBI程序语言；MotoPlus是ANSI C/VxWorks控制器端实时扩展；YMConnect是C++17/C#、Windows/Linux的外部PC接口，v1.1.10在GitHub Release页面标注Latest且使用Apache-2.0；Smart Pendant Extension SDK用于YRC1000/YRC1000micro的定制HMI；MotoROS2是控制器端micro-ROS节点+PC侧Agent。来源#1276、#1280–#1283。
+- MotoROS2 Releases页的当前版本0.2.1列DX200/YRC1000/YRC1000micro搭配ROS 2 Humble/Jazzy；0.2.0为最后支持Foxy/Galactic的版本，而主README通用依赖段仍保留较宽ROS发行版列表。0.2.1当前限制包括FastDDS only、Simple Connect不兼容、FollowJointTrajectory最多200点等；必须按Release表+二进制MD5而不是README概括文本确定部署。来源#1277–#1279。
+- Yaskawa MotoLogix配置区分YRC1000的大型PCI/紧凑PCIe板和YRC1000micro仅紧凑PCIe方案；示例包括POWERLINK、EtherNet/IP、PROFINET；EtherNet/IP Safe开启时传统Rockwell MSG显式消息不可用，需评估MLX Variable Transfer方案。来源#1286、#1288、#1293。
+- HC系列PFL功能、YRC安全选件和MotoROS2/ACU运动控制不构成整站功能安全证明；安全风险评估必须覆盖具体机器人、EOAT、工件、速度、人员和外围设备。来源#1264、#1277、#1279。
+
+### 123.2 需进一步核验
+- NEX/YNX1000各SKU、ACU服务、SDK和许可证的完整兼容矩阵、地区供货及生命周期未公开完整呈现。
+- YNX Simulator不支持物理重力；未验证动力学、接触、力控、传感器误差、节拍或与实机绝对精度一致性。
+- MotoROS2 0.2.1当前release页面与README通用支持文字存在发行版口径漂移；还需确认真实控制器FSU/选件组合和Simple Connect移除影响。
+- MotoSim EG-VRC 2026的Windows 11/虚拟机/远程桌面、许可服务器、控制器RCS及型号兼容矩阵尚未取得完整安装文件和受控版本说明。
+- 本轮未安装软件/SDK、未编译部署控制器/ACU/PC应用、未下载校验程序、未连接PLC/焊机/真实控制器或外围设备，未进行HIL/FAT/SAT、实时网络和功能安全验收；Yaskawa资产保持静态审查未验收。
