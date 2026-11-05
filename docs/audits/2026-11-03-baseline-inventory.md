@@ -2713,3 +2713,26 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 多机器人同步能力按品牌/控制器与Translator区分；历史矩阵显示不能将仿真同步等同生成真实控制器可执行程序。
 - VRC/RRS II/OPC UA/ControlBuild/SIMIT/虚拟PLC的接口和演示不能自动证明目标项目真实PLC、驱动、现场总线、远程I/O和安全PLC已经通过HIL或安全验证。
 - 本轮未安装软件、下载Library/Translator、编译程序、接入VRC/PLC/OPC UA/ControlBuild/SIMIT、进行HIL/FAT/SAT或实机性能/安全测试；DELMIA Robotics保持静态审查未验收。
+
+
+## 121. Visual Components 5.1.1：制造仿真、机器人OLP、控制器连接与虚拟调试静态审查（2026-11-05，来源#1233–#1247）
+
+### 121.1 审查事实与来源边界
+- 核验下载/版本/生命周期、产品/OLP后处理器覆盖、5.1 AMR/AGV导航/PhysX、5.1.1 FactoryLens、许可、硬件要求、Python API、FANUC/ABB控制器连接、PLC/SIMIT/WinMOD/OPC UA和虚拟调试课程。
+- Downloads页列Visual Components 5.1.1（2026-09-28）及Essentials/Professional/Premium、Digital Twin和OLP产品；KUKA.Sim add-on未包含。5.X使用License Server 3.0，4.10及以前使用2.1.2。Lifecycle页面仍列5.0为Active而未列5.1.1，System Requirements仍以5.0为主规格，形成需书面澄清的版本文档差异。来源#1233、#1234、#1244。
+- 5.1新增navigation behavior/Navigation Controller/Python 3 Navigation API，包含环境感知路径、自动导航mesh、人/AGV/AMR避障和多agent能力；更新PhysX，5.1.1修复项包含“PhysX results not deterministic in 5.1”。厂商于2026-06宣称可在单环境模拟数百台AMR/AGV及最高10x速度，但未给本审计可复现的硬件/模型/测试数据。来源#1235、#1236、#1245。
+- 5.1.1 FactoryLens基于NVIDIA Omniverse，支持高保真视口、视频/图像和USD导出；动态几何更新和point geometry未支持，首次安装需互联网。FactoryLens建议RTX 3070或更高。来源#1235、#1244。
+- OLP页面公开列22品牌/40+控制器与3,000+ eCatalog组件/1,900+机器人/60+品牌，但同页面也称18品牌可导出程序，Manufacturing Simulation页仅列7品牌post-processors；不同SKU和功能口径未清楚对齐，不能用总数推断每个SKU支持全部控制器。模型/OLP后处理器/在线连接插件必须分开审查。来源#1237、#1238。
+- PLC/机器人连接支持Beckhoff ADS、Siemens S7/PLCSIM Advanced、SIMIT、WinMOD、LS Electric、OPC UA、FANUC/ABB及其它品牌插件；Virtual Robot和真实PLC连接需要控制器选件/运行时/信号映射，非统一功能。来源#1238–#1241、#1247。
+- FANUC Premium 5.1连接需要PC DK/Robot Server以及控制器PC Interface选件；配对I/O会设为模拟模式且不会自动复位，Server到Simulation仅支持Cyclic，变量重叠可能丢值。ABB Premium 5.1连接要求Robot Communication Runtime/PC SDK/RobotStudio之一，Runtime版本需匹配RobotWare；手动写操作需FlexPendant Mastership，Joint值只读。来源#1239、#1240。
+- OPC UA 5.1支持X.509证书、安全Endpoint、用户名或证书认证，但保存凭据会明文/不安全地放在连接配置中；另有针对Server ContinuationPoint的browse兼容故障说明。来源#1241。
+- 授权包括Standalone、Floating Network、VC Accounts Early Access；Standalone正常每90天联网续期、生产air-gap license可无需续期，VC Accounts借用离线最长30天、Floating Network离线借用通常最多7天。来源#1243。
+- FactoryLens需求与普通5.1.1运行需求要分开；普通系统需求页当前仍标注VC 5.0，列出5.0虚拟机/远程桌面不支持，不能外推到5.1.1。来源#1244。
+
+### 121.2 风险与待验证事项
+- 版本5.1.1与生命周期/系统要求页面未同步，需厂商书面确认支持终止日期、Windows/GPU/VM/RDP、网络/离线部署支持。
+- 产品SKU与OLP/连接器权限矩阵未从公开页完全闭合；品牌、机器人数量、控制器数量和可导出的品牌数量口径不一致。需目标控制器/后处理器/程序语言/工艺选件矩阵和真实编译验证。
+- FANUC/ABB插件存在变量方向、模拟I/O复位、Mastership、PC DK/Robot Server/Runtime版本前置条件；连接成功不等于控制器动作/安全链验证。
+- OPC UA凭据保存项存在不安全存储提示；必须避免把含密码的layout交付包纳入共享/源代码，并完成证书/账户/权限/分区/断线测试。
+- 物理仿真5.1曾存在非确定性修复项、5.1.1 FactoryLens仍不支持动态几何更新；大规模AMR速度提升与数百台能力仅为厂商宣传，须以项目复现和负载测试为准。
+- 本轮未安装/构建/连接设备、未运行真实机器人/PLC、未校准工作站/导出实机程序、未测大规模仿真性能/时序确定性/网络安全、未执行HIL/FAT/SAT或功能安全验证；Visual Components资产保持静态审查未验收。
