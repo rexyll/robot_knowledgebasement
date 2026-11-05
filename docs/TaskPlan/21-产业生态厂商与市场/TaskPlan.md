@@ -362,3 +362,6 @@
 
 
 | 2026-11-05 | 21-02/研华Advantech Robotic Suite软件平台与ROS 2适配审查 | 新增研华软件生态档案：核对Robotic Suite 2.1.0（2026-09-30）NVIDIA JetPack 7.2/Jazzy与Qualcomm Ubuntu 24.04/Jazzy的SKU级验证范围，区分Intel产品主要停留在1.7.0、ASR-D501仅Basic版；梳理Basic/Complete安装前置条件及WISEAgent版本说明疑点；审查SUSI Node、Modbus Master、OPC UA Client、Time Sync Viewer接口、时间同步和公开示例凭据边界。新增来源#1172–#1180、基线审计第115节及资产CSV同步。未安装/构建目标平台、未连接真实PLC/传感器、未测时序/安全/网络/升级回滚，Advantech保持静态审查未验收；21-02继续进行中。 | #1172–#1180 |
+
+
+| 2026-11-05 | 21-02/RoboDK工业机器人仿真与离线编程软件生态审查 | 新增RoboDK档案：区分仿真、API程序生成、Post Processor离线控制器代码生成与Robot Driver在线控制；核对Python/C#/C/C++/VB.NET/MATLAB API、100+后处理器/50+厂商控制器的官方概述、TCP/IP驱动及控制器通信选件前提；补充后处理器版本漂移、碰撞模型与现场安全边界、校准测量系统和额外许可、Network/USB/Standalone授权及定价快照。新增来源#1181–#1188、基线审计第116节和资产CSV同步。未安装软件、未构建API/自定义后处理器、未接入控制器/测量设备、未执行仿真/在线驱动/碰撞/节拍/安全验证；RoboDK保持静态审查未验收，21-02继续进行中。 | #1181–#1188 |
