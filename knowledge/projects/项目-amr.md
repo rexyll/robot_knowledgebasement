@@ -1,91 +1,88 @@
 ---
-tags: [项目, AMR, ROS2]
+tags: [项目, AMR, ROS2, 历史档案待复核]
 aliases: [项目-amr, amr项目, GenRobo AMR]
 路径: 本地工作区路径未公开（公开仓库不记录绝对路径）
 创建日期: 2026-11-01
-更新日期: 2026-11-01
+更新日期: 2026-11-05
 ---
 
-# 项目：amr（GenRobo AMR 全栈系统）
+# 项目：amr（历史静态梳理档案，待源码复核）
 
-> **定位**：一套多机型 AMR（潜伏/牵引/叉举系列，models/ 下 d1/d2/ft2/ft4 等机型）的**整机全栈软件**：机端 ROS2 + 调度通信 + 云端 + 上位机，已完成"能力插件化"重构。
-> **路径**：`本地工作区路径未公开（公开仓库不记录绝对路径）`　**梳理基线**：项目内 `doc/ARCHITECTURE.md`（2026-10-30 基线，16 篇 arch 文档）
+> **重要证据声明：** 本页保留此前对本地工作区的静态梳理记录，但本知识库未附源仓库URL、固定分支/commit、完整源码快照、依赖锁文件、CI运行链接或测试原始报告。本轮无法独立复现下述包数量、接口数量、构建结果、测试结果和运行行为。以下信息均为“历史档案记载”，不是当前项目状态或独立验收结论。组织归属、与其他项目的团队关系及设计传承未经公开来源验证。
 
-## 1. 系统构成（三端 + 一套机型资产）
+## 1. 历史档案记载的系统构成
 
-| 端 | 技术 | 内容 |
+| 端 | 历史档案记载 | 复核要求 |
 |---|---|---|
-| **机端** | **ROS2 Jazzy** + rclcpp | `terminal2_ROS2/src` 下 94 个包（16 能力族 + 41 个 `gen_*` + 38 个 `aic_*` 旧副本） |
-| **云端** | Spring Boot 2.3.4 + Spring Cloud Hoxton + **Nacos + Dubbo** + MyBatis-Plus + RabbitMQ + Netty + JeroMQ；另有 Go backend | `cloud/`：AICCMS、api-server、backend、gen-cloud、gen-cloud-build、gen-cloud-scene、wms-boss（RCS/WMS 分离） |
-| **上位机** | Qt5.15（qmake）+ libzmq + protobuf；Web：React + umi | `app/`：robot_hmi、management、web_ui、customers、tools |
-| **机型资产** | ROS1 URDF/SRDF + 运动学 | `models/genmodel_{d1_1,d2_1,d2_3,ft2_1,ft4_0…}`（D=潜伏?，FT=叉举? 系列） |
+| 机端 | ROS 2 Jazzy + rclcpp；`terminal2_ROS2/src` 曾统计94个包，含 `gen_*` 与 `aic_*` | 提供源仓库commit、包统计脚本/输出、构建日志 |
+| 云端 | Spring Boot 2.3.4、Spring Cloud Hoxton、Nacos、Dubbo、MyBatis-Plus、RabbitMQ、Netty、JeroMQ；另有Go backend | 提供依赖锁定文件、服务清单和部署配置快照 |
+| 上位机 | Qt 5.15、libzmq、protobuf；Web侧React/umi | 提供构建配置、依赖版本和源码路径 |
+| 机型资产 | 档案列出多个ROS 1 URDF/SRDF模型目录 | 提供模型文件、机型BOM和版本历史；不得仅凭目录名推断机型用途 |
 
-## 2. 机端四层能力架构（本项目的架构灵魂）
+## 2. 历史档案描述的能力架构
 
-```
-契约层  gen_capability_msgs(gen_msgs)     IDL 契约 + CONTRACT_VERSIONING + SHA256 指纹
-核心层  gen_capability_core                能力注册/发现/会话管理/容错
-宿主层  gen_capability_host                对外固定端点(见下), 会话所有权
-插件层  gen_plugin_{navigation_nav2, navigation_legacy, docking_autodock2,
-        follow_basic, perception_basic, traffic_basic, traffic_zmq, example, template}
-适配器  gen_adapter_{nav2, autodock, traffic}(进程级桥接) + gen_map_transport(地图搬运)
-```
+此前档案将机端结构概括为：
 
-**能力端点（宿主对外固定接口）**：
-- 3 个 Action：`navigate_to` / `follow_target` / `dock_robot`
-- 6 个业务 Service + 2 个管理 Service + 3 类 Topic
+- 契约层：`gen_capability_msgs` / `gen_msgs`，涉及IDL、契约版本和SHA256指纹。
+- 核心层：`gen_capability_core`，涉及能力注册、发现、会话和容错。
+- 宿主层：`gen_capability_host`，涉及固定端点和会话所有权。
+- 插件层：`gen_plugin_*`，档案列出导航、对接、跟随、感知、交管等插件。
+- 适配器：`gen_adapter_*` 与地图传输组件。
 
-**设计语义**：插件可**热切换**（如 nav2 实现与 legacy 实现并存）、可**故障注入测试**（capability_fault_injection.md）、有明确**降级路径**（fault → 降级 → 恢复）。
+档案还记录了 `navigate_to`、`follow_target`、`dock_robot` 等Action及若干Service/Topic。以上名称与数量须以固定commit中的IDL、节点注册表和运行时图谱复核；“支持热切换”“故障注入”“降级恢复”等行为须提供实现路径和测试证据，不能由插件目录存在直接推出。
 
-## 3. 既有业务包全景（gen_* 41 个，按域分组）
+## 3. 历史档案列出的业务包
 
-| 域 | 包 | 知识库对应 |
-|---|---|---|
-| 导航 | gen_nav_core、gen_path_plan、gen_obs_avoid_strategy、gen_obstacle_detect、gen_mr_nav、gen_multi_floor_navigation、gen_multi_map_navigation、gen_map_server、gen_field_detector | [[导航流程]] · [[路径规划算法]] |
-| 定位 | gen_robot_pose_ekf、gen_kalman_filters、gen_ar_tag | [[多传感器融合定位]] · [[卡尔曼滤波]] |
-| 感知 | gen_leg_tracker(+detector)、gen_people_tracking、gen_wing_detector、gen_laser_feature_line_extraction | [[视觉感知算法]]（行人腿检测=LIO 融合鲁棒方案） |
-| 对接 | gen_auto_dock、gen_dock_param、gen_follow_base、gen_uwb_follower、aic_auto_dock | [[充电桩与自动充电]] |
-| 任务/交管 | gen_task_center、gen_traffic_management(+utils)、gen_dispatch_bridge | [[多机调度流程]] |
-| 驱动 | gen_serial、gen_sick_s300（**SICK S300 LiDAR**）、gen_driver_core、gen_robot_interface、gen_robot_communication | [[激光雷达]] · [[实时系统与嵌入式]] |
-| GUI | gen_gui(+base/wt210)、gen_mr_gui | HMI |
-| 记录 | gen_rosbag_record | 数据闭环 → [[构建与CI工具链]] |
-| 仿真 | genrobo_simulations | [[仿真平台]] |
+此前档案按导航、定位、感知、对接、任务/交管、驱动、GUI、记录和仿真等域整理了 `gen_*` 与 `aic_*` 包名。包名仅作为待核验索引，不代表这些包当前仍存在、可构建、被部署或处于维护状态。
 
-> 品牌迁移两轮完成：`ws→gen`、`aic_→gen_`（aic_* 副本仍在 src 下可被全量构建选中——已知 P1 技术债，见项目 doc/24-gaps）。
+尤其是档案中关于旧副本可能被全量构建选中的P1技术债，必须用当前构建入口、CMake/package发现结果和CI日志确认后才能关闭。
 
-## 4. 跨端通信（与云端）
+## 4. 历史档案列出的跨端通信
 
-- **机端↔调度**：**ZeroMQ + protobuf3** 统一总线（不是 ROS2 DDS 跨机！），交管双通道（basic 插件 / zmq 插件，端口 10002）
-- **云端内部**：Nacos 注册配置（8848）+ Dubbo RPC + RabbitMQ（5672）+ MySQL（3306）+ Redis（6379）
-- 体现行业趋势：**弱网/跨机场景不用 DDS**，用 ZMQ/HTTP → [[ROS与ROS2]] · [[云平台与IoT通信]]
+此前档案记载机端与调度使用 ZeroMQ + protobuf，车内使用ROS 2 DDS，云端包含Nacos、Dubbo、RabbitMQ、MySQL和Redis等组件。具体协议、端口、服务边界和拓扑应以配置文件、IDL、抓包或部署文档复核。
 
-## 5. 质量门禁（可复用的工程实践）
+不得把单个项目的协议选择外推为“弱网/跨机场景不用DDS”的行业规则。协议选择需按网络拓扑、发现机制、实时性、可靠性、安全、运维和兼容性评估。
 
-```
-scripts/ci_capability.sh 六步: 构建 → 测试(92 例) → plugins.xml 校验
-  → 契约 lint → 版本冻结 → 文档链接检查(43 md/225 链接全绿)
-test/capability_smoke_stability.sh 3 150 → 3 轮×150s 稳定冒烟, RESULT PASS 3/3
-构建入口: scripts/package_terminal.sh
-台账: TaskPlan.md(39 节点重构台账, 38 完成) — 单一事实源模式
-```
-→ 模式分析见 [[构建与CI工具链]]
+## 5. 历史档案中的质量门禁数字（未复核）
 
-## 6. 文档资产（doc/ 16 篇 + 6 篇能力文档）
+原档案记载 `scripts/ci_capability.sh` 包含构建、92例测试、插件清单校验、契约lint、版本冻结和文档链接检查；另记载稳定性冒烟为3轮×150秒、PASS 3/3，以及TaskPlan 39节点中38完成。
 
-`arch/00-overview`（入口）→ `01-terminal-ros2`（机端五层）→ `02-dispatch-cloud`（ZMQ/云）→ `10/11-flows`（主流程+能力子流程：热切换/导航/对接/跟随/交管/感知/建图切图）→ `12-flows-ops`（故障注入/契约变更/CI）→ `20-modules`（依赖图/交互矩阵/数据所有权）→ `21-interfaces`（端点总表）→ `24-gaps`（P0/P1/P2 技术债 14 条）→ `90-facts`（事实基线）。
+这些数字没有附CI run URL、commit SHA、测试报告、失败/跳过明细和运行环境，本轮不能将其标为已验证。复核时至少需要：
+1. 固定commit与工作区依赖/容器环境；
+2. CI运行链接及原始日志；
+3. 测试用例清单、通过/失败/跳过统计；
+4. 稳定性测试脚本、输入工况、资源监控和原始结果；
+5. 对“完成”节点逐项检查交付物，而不是仅依赖TaskPlan状态。
 
-## 7. 知识库映射（本项目 ↔ 通用知识）
+## 6. 文档资产索引（待仓库快照确认）
 
-| 项目实现 | 通用知识页 |
+此前档案列出 `doc/arch/` 下架构、流程、模块、接口、缺口和事实基线文档，以及能力插件说明文档。文件数量、路径和内容均待固定commit复核。建议保留“文档索引—对应实现路径—测试证据—最后核验commit”四列映射。
+
+## 7. 通用知识映射（学习导航，不构成实现证明）
+
+| 项目档案主题 | 可关联的通用知识 |
 |---|---|
-| 能力插件四层架构 | [[AMR整体架构]]（SOA 化趋势实例） |
-| navigate_to/dock_robot | [[导航流程]] · [[充电桩与自动充电]] |
-| gen_traffic_management | [[多机协同与调度算法]] |
-| gen_sick_s300 | [[激光雷达]]（安全扫描仪双重身份 → [[安全防护器件]]） |
-| gen_kalman_filters/gen_robot_pose_ekf | [[卡尔曼滤波]] |
-| ZMQ+protobuf 总线 | [[云平台与IoT通信]] |
-| TaskPlan 台账 | [[构建与CI工具链]] |
+| 能力契约、核心、宿主、插件 | [[AMR整体架构]] |
+| 导航/对接Action | [[导航流程]] · [[充电桩与自动充电]] |
+| 交管和调度 | [[多机协同与调度算法]] |
+| SICK S300相关驱动记录 | [[激光雷达]] · [[安全防护器件]] |
+| EKF相关包名 | [[卡尔曼滤波]] |
+| ZMQ/protobuf相关记录 | [[云平台与IoT通信]] |
+| CI与TaskPlan记录 | [[构建与CI工具链]] |
 
-## 相关链接
-- 同族项目：[[项目-清洁机器人]]（同公司、同 ROS2 Jazzy 基线） · [[项目-Bozlin视觉框架]] · [[三项目关系总览]]
-- 架构母版：[[AMR整体架构]] · [[调度系统RMS]] · [[云端协同与OTA流程]]
+映射仅帮助读者定位通用知识，不表示项目实现符合对应知识页中的全部推荐做法，也不构成性能、安全或合规证明。
+
+## 8. 待补证据与解除条件
+
+- [ ] 提供可访问的项目仓库或授权源码快照，并记录固定分支、commit SHA、子模块和采集日期。
+- [ ] 复核包数、插件清单、IDL端点、依赖图和构建入口；保存可重复统计脚本。
+- [ ] 复核ROS 2发行版、RMW/DDS配置、跨端协议和端口，附配置文件路径及版本。
+- [ ] 复核CI、92例测试、稳定性冒烟、文档链接检查和39节点TaskPlan状态，附原始运行记录。
+- [ ] 对热切换、故障注入、降级恢复、跨端断连恢复等行为提供对应代码路径和自动化测试。
+- [ ] 对硬件型号、传感器、安全扫描仪、机型模型及现场运行声明提供准确SKU、手册、BOM和实测证据。
+
+## 9. 结论与限制
+
+本页目前只能作为历史项目档案和复核清单使用。不能据此确认当前代码状态、当前包/接口数量、测试通过情况、生产部署状态、性能表现、功能安全或量产适用性；也不能确认与清洁机器人或Bozlin项目的组织关系、代码继承或直接设计传承。
+
+本页不是源码审计报告、产品验收报告、安全认证、供应商证明或量产放行结论。
