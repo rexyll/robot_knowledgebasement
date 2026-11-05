@@ -1874,3 +1874,25 @@ workflows README 目录入口和流程地图中的已知旧项目名引用已修
 ### 79.4 来源登记状态
 
 本轮核验并在专题正文列出ROS 2官方发行版维护列表、Lyrical发布说明与支持平台矩阵、ROS 2 QoS文档、rmw_zenoh设计文档。相关URL未写入链接台账；本轮不将其计为台账登记完成。
+
+
+## 80. P1 Nav2：Lyrical 发行版迁移与碰撞监控安全语义增量复核（2026-11-05）
+
+### 80.1 审查范围
+
+此前第38节已记录 Nav2 架构、插件、BT、Costmap、Lifecycle 和许可证的定向审查。本节不重复计算为新一轮全文审查，而是根据 ROS 2 Lyrical 已发布后的上游资料，对发行版迁移差异及 Collision Monitor 安全语义作增量复核。
+
+### 80.2 主要发现与修订
+
+- Nav2 官方发行版文档已提供 Lyrical 入口；ROS Index 当前索引快照列出 Jazzy navigation2 1.3.14、Lyrical navigation2 1.5.3。将旧文中发行版示例扩展为 Humble/Jazzy/Kilted/Lyrical/Rolling，并明确包版本必须与 ROS 发行版、目标架构和依赖基线一起锁定。
+- Nav2 官方迁移指南将 Kilted → Lyrical 的主要变化标注为新增 `nav2_ros_common` 包和 `LifecycleNode` 重构。文章补充自定义 server/插件宿主的直接构建依赖、Lifecycle 类型/API、pluginlib导出、BT注册、参数与接口迁移检查点。
+- Collision Monitor 上游README明确其运行于CPU软件层、过滤 `cmd_vel`，并不提供硬实时安全认证。文章再次强调其不能替代安全额定扫描仪、安全控制器、认证停止功能或整机风险评估/验证。
+- 增加 Lyrical 干净构建、插件加载、Lifecycle状态转换、BT XML、规划/控制接口、Costmap输入和故障恢复回归清单；未将建议测试写成已执行测试。
+
+### 80.3 结论与未关闭事项
+
+本轮完成 Nav2 Lyrical 发行版迁移差异和 Collision Monitor 安全语义的公开资料增量审查；不等于再次全文审查，也不改变资产的 `unaccepted_claim_level_review_pending` 状态。未在目标工作区进行 Lyrical 构建、源码/API差异编译、插件加载、Lifecycle/BT/规划控制回归、目标硬件实时性测量或实机停止距离测试；未确认用户项目实际发行版、Nav2包版本、RMW、平台架构及自定义插件。不得据此宣称项目迁移完成、导航性能合格、功能安全通过或产品放行。
+
+### 80.4 来源与登记状态
+
+本轮访问并在专题正文列出：Nav2 Lyrical文档入口、Nav2 Kilted→Lyrical迁移指南、ROS Index navigation2发行版包索引、nav2_collision_monitor上游README。URL已在专题正文列出；本轮未更新链接台账，不计为台账登记完成。
