@@ -326,3 +326,6 @@
 
 
 | 2026-11-05 | 00-01 | 对 knowledge/architecture/workflows/云端协同与OTA流程.md 完成全文静态主张边界审查：重构设备身份/命令授权/制品manifest/签名与启动链边界；依据NIST SP 800-193、IETF RFC 9019/9124、TUF与Uptane补充固件韧性、回滚/冻结攻击和多组件兼容要求；拆分下载、验证、安装、启动、业务健康与安全功能证据；删除无依据灰度比例、电量、自检时长、回滚阈值和保留期；补充机器人现场升级准入、异常恢复及分层验证清单；修复旧BZ项目档案链接。新增来源台账#994–#998、基线审计第76节并同步资产清单。未执行目标设备密钥/启动链/OTA源码审计、断电恢复、攻击测试、灰度发布、回滚演练或现场安全验收，00-01继续进行中。 | NIST SP 800-193、IETF RFC 9019/9124、TUF、Uptane官方资料；全文静态审查；基线审计第76节 |
+
+
+| 2026-11-05 | 00-01 | 对 `knowledge/software/advanced-topics/DDS专题.md` 补充P1安全主张级审查：细化DDS-Security身份认证/访问控制/加密边界、ROS 2安全默认未启用与permissive/strict启动策略、enclave/进程安全上下文、ROS 2威胁模型、DoS/凭据泄露/桥接绕行和主机root等未覆盖风险；明确ROS_DOMAIN_ID不是安全控制，DDS-Security不覆盖非DDS链路或功能安全；增加安全配置负向测试、密钥生命周期和安全性能验收清单。正文已提交，基线审计第77节已记录。来源台账#999–#1001写入被平台安全检查阻止，未登记；未执行keystore/RMW安全启动、权限策略测试、密钥轮换、网络攻击、互操作、性能或实机验证，00-01继续进行中。 | ROS 2官方DDS-Security集成、Access Control Policies与Robotic Systems Threat Model设计资料；基线审计第77节 |
