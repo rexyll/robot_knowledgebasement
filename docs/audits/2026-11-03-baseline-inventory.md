@@ -2736,3 +2736,23 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - OPC UA凭据保存项存在不安全存储提示；必须避免把含密码的layout交付包纳入共享/源代码，并完成证书/账户/权限/分区/断线测试。
 - 物理仿真5.1曾存在非确定性修复项、5.1.1 FactoryLens仍不支持动态几何更新；大规模AMR速度提升与数百台能力仅为厂商宣传，须以项目复现和负载测试为准。
 - 本轮未安装/构建/连接设备、未运行真实机器人/PLC、未校准工作站/导出实机程序、未测大规模仿真性能/时序确定性/网络安全、未执行HIL/FAT/SAT或功能安全验证；Visual Components资产保持静态审查未验收。
+
+
+## 122. KUKA.Sim / OfficeLite与iiQWorks.Sim / iiQKA.OS2：传统KSS与新一代虚拟控制器生态静态审查（2026-11-05，来源#1248–#1261）
+
+### 122.1 已核验事实
+- KUKA官方将KUKA.Sim 4.x/KSS/OfficeLite与iiQWorks.Sim/iiQKA.OS2分为传统和新一代控制器工程路线；iiQWorks.Sim整合WorkVisual、OfficeLite和KUKA.Sim的工程能力，但没有证据表明全部旧项目/插件/技术包自动迁移。来源#1250、#1258。
+- KUKA.Sim 4.x官方矩阵列出KUKA.RCS支持KSS 8.5/8.6/8.7，KRL SRC/DAT、$Config.dat TOOL/BASE、WorkVisual项目导出、I/O/安全配置、RoboTeam、KP3/KP5以及Connectivity/Modeling/ArcWelding AddOns；按许可/版本区分。来源#1248。
+- OfficeLite为KSS虚拟控制器，原生SmartHMI/KRL、编译/解释与数字输入模拟，但不能连接真实硬件外围；官方页面列Windows 10/11、Hyper-V、WorkVisual 6+与最低硬件要求。来源#1249。
+- iiQWorks.Sim Basic免费，Advanced及相应Add-ons提供建模、RCS OLP、VRC、外围设备/PLC连接及Path/Point/Surface工艺能力；不是一个Basic license就包含全部虚拟调试和原生控制器能力。来源#1251。
+- iiQKA.OS2是Linux基础新一代OS/VRC；官方列现场总线和I/O映射，安全配置与多机器人能力需按OS版本、硬件和选件核验。来源#1250。
+- 许可方面，KUKA.Sim 4.x FAQ称按年网络floating，无perpetual；iiQWorks.Sim FAQ列SU/N/F许可及Basic/Advanced/AddOn配对约束、下单后不可转换。来源#1252、#1253。
+- Copilot仅用于iiQWorks.Sim、要求my.KUKA/联网/credential-based SU license；2026额度/数据保护需另审。来源#1257。
+- 具体iiQKA.mxAutomation 6.1需求页列KR C5-2/KR C5 micro-2、OS2 9.3+和iiQWorks.Sim 1.3+，说明技术包与工程工具之间存在SKU级版本依赖。来源#1260。
+
+### 122.2 风险与待验证
+- my.KUKA公开下载索引显示4.10.1.335等KUKA.Sim 4.x下载入口，但客户门户需登录，未确认该build是否最新/仍受维护或可在目标地区下载。来源#1254。
+- 旧产品名KUKA.Sim AddOn在当前Marketplace商品页中出现新的iiQWorks.Sim安装/登录工作流，需逐商品号确认是旧KSS工具还是OS2平台Add-on，不能仅以名称下单。来源#1255、#1256、#1259。
+- WorkVisual/KUKA.Sim/OfficeLite至iiQWorks.Sim/iiQKA.OS2虽有统一平台方向和config.dat迁移入口，但未证实SRC/DAT、完整WorkVisual项目、外部轴、技术包、安全配置和PLC工程可自动转换；KR C5到KR C5-2升级官方本身包含专门程序/接口/现场总线迁移服务。来源#1258、#1261。
+- Virtual RCS/VRC/OfficeLite不能连接所有真实外设，PLC软件仿真不等于现场硬件HIL；安全区域/停止距离模拟不等于功能安全验证。
+- 本轮未安装、下载/校验软件、创建VRC/运行目标程序、迁移工程或连接PLC/驱动/现场总线，没有HIL/FAT/SAT、实时性/网络/功能安全验证；KUKA软件生态资产保持静态审查未验收。
