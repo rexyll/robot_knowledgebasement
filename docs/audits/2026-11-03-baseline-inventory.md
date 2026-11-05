@@ -2655,3 +2655,24 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 模型碰撞、节拍和路径结果依赖CAD/机构/坐标/工具/夹具/线缆/工艺逻辑的保真度，不构成功能安全或人员防护结论；需独立应用风险评估和安全链验证。
 - 本轮未安装软件/客户门户版本，未取得完整release notes、受控兼容矩阵、报价与合同；未构建study、生成/编译控制器程序、连接虚拟/真实PLC或机器人、执行仿真/HIL/FAT/SAT/安全测试。因此资产保持静态审查未验收。
 
+## 118. ABB RobotStudio / RobotStudio Suite：虚拟控制器、RAPID离线编程、PLC虚拟调试与扩展生态静态审查（2026-11-05，来源#1198–#1206）
+
+### 118.1 审查范围
+- 依据ABB RobotStudio Suite/Cloud产品页、RobotStudio 2026.2 Release Notes、ABB中国官方桌面下载页、新许可模型说明、RobotStudio 2025.4操作手册及ABB SDK/下载门户。
+- 核验产品边界、Virtual Controller/RobotWare关系、RAPID离线编程、OPC UA/SIMIT Smart Component、.NET 10/Add-in/PowerPac兼容性、许可和离线工作边界，以及2026.2版本明确列出的安全配置问题。
+
+### 118.2 已核验事实与证据边界
+- RobotStudio Desktop是ABB机器人配置/编程/仿真工程工具：在线模式连接真实控制器，离线模式连接PC上的Virtual Controller；支持三维工作站、RAPID程序、路径规划、碰撞分析及虚拟调试。RobotStudio Cloud为网页端程序访问/修改/协作服务，与桌面版配合，不应等同替代桌面版Virtual Controller。来源#1198、#1199、#1204。
+- 2026.2构建号26.2.11700.0，构建日期2026-05-27；Windows 11及更高版本；2026.1起采用.NET 10。旧.NET Framework Add-in未迁移时不能加载，2026.2仅支持PowerPac 2026.1或更高版本加载，且发行说明指出部分PowerPac当时尚未更新。ABB中国页又将2025.5列为不支持Cloud、可供PowerPac或老Add-in场景选择的版本，存在明确的版本/插件迁移分支，需要按插件逐个核验，不可笼统理解为2026.2与旧插件全面兼容或全面不兼容。来源#1200、#1201。
+- 2026系列新许可为Robotics One用户登录的企业云浮动许可池；公开许可资料列1/2/3/5/10用户与3–60个月期限，并支持借用后离线工作。Node-locked继续提供离线激活和使用；云AI Assistant/版本控制等功能离线时不可用。来源#1202、#1203。
+- RobotStudio官方SDK/下载门户分别定义RobotStudio SDK（Add-in/Smart Component）、PC SDK（PC应用连控制器）、FlexPendant SDK（示教器应用）、RobotWare Add-In SDK（控制器侧附加组件打包许可）；Robot Web Services 2.0基于HTTP/REST/OpenAPI并适用于RobotWare 7，RobotWare 6.x IRC5/OmniCore可使用IoT Gateway OPC UA Server能力。来源#1206。
+- RobotStudio 2025.4操作手册列出OpcUaClient组件的服务器地址、加密/信任证书、自动连接、阻塞模式和认证配置，以及SIMIT Shared Memory组件；虚拟调试属于仿真域之间的逻辑/信号耦合，不能直接证明真实PLC/I/O/驱动/网络硬件HIL。来源#1205。
+- 2026.2 Release Notes列出PROFIsafe Controller/CIP-Safety Scanner配置更改可能不生效，且取决于网络设备数量等条件，可能导致控制器连接丢失或FlexPendant重启；手册要求程序变更上线前必须验证/测试并确保有保护停止装置。来源#1200、#1204。
+
+### 118.3 关键风险与未验证事项
+- RobotWare兼容性不能只按“5.07及以后”判断；Release Notes指出IRC5/OmniCore最新支持版本需在安装版Help/About核对，并列出RW5.05/5.06不支持、RW5.08基础版不支持等细项。
+- .NET 10是明显的扩展兼容断点：必须盘点Add-in二进制目标框架、PowerPac版本、SDK及第三方插件，确认维护方迁移计划；不能在量产工程师桌面上直接升级后再发现核心PowerPac不可用。
+- 许可从节点锁定/本地网络向企业云浮动池迁移，需要把账号、用户档位、许可期限、云端分配、离线借用、到期/归还、云服务禁用影响和工厂网络策略列入商务与IT验收；云浮动许可不等于可在完全断网环境直接首次登录。
+- 2026.2已知PROFIsafe/CIP-Safety I/O配置风险必须对准确网络拓扑、控制器/RobotWare/RobotStudio build组合执行受控复现和回归。虚拟Stop/碰撞/扫掠体仿真不构成功能安全验证。
+- 本轮未安装/运行软件、未创建真实型号VC、未生成并在目标IRC5/OmniCore控制器编译RAPID、未迁移Add-in/PowerPac、未连接真实PLC/驱动或测试OPC UA/SIMIT、未执行任何HIL/FAT/SAT/安全或网络安全测试；资产保持静态审查未验收。
+
