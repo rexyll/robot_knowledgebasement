@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.28  
+> 版本：v7.29  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -802,3 +802,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-05 | v7.27 | 00-01/21-02继续P1软件生态厂商审查：新增RoboDK工业机器人仿真/离线编程档案，区分API通用程序、Post Processor控制器代码生成与Robot Driver在线通信；核验多语言API、控制器通信选件、后处理器版本漂移、碰撞模型限制、校准测量设备和许可边界。新增来源#1181–#1188、基线审计第116节、第00章/第21章TaskPlan及资产CSV同步。未安装/构建RoboDK、未接入控制器/测量系统、未执行仿真/在线驱动/碰撞/节拍/安全验证；RoboDK资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§116；第00章/第21章TaskPlan；来源#1181–#1188；资产清单 |
 
 | 2026-11-05 | v7.28 | 00-01/21-02继续P1软件生态厂商审查：新增Siemens Tecnomatix Process Simulate / Process Simulate X档案，区分Essentials/Standard/Advanced、VBL共享token与按controller计的OLP控制器许可，梳理机器人专用OLP controller、CEE前置关系及PLCSIM Advanced/SIMIT/Process Simulate虚拟调试边界；补充Tecnomatix 2606功能快照和真实PLC/驱动HIL缺口。新增来源#1189–#1197、基线审计第117节、第00章/第21章TaskPlan及资产CSV同步。未安装软件、未连接目标控制器/PLC、未执行程序编译、HIL/FAT/SAT或现场安全测试；Siemens资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§117；第00章/第21章TaskPlan；来源#1189–#1197；资产清单 |
+
+| 2026-11-05 | v7.29 | 00-01/21-02继续P1软件生态厂商审查：新增ABB RobotStudio / RobotStudio Suite独立档案，核对Virtual Controller/RAPID离线编程、RobotWare配对、RobotStudio Cloud、OPC UA/SIMIT虚拟调试、SDK分层及2026新许可模型；记录RobotStudio 2026.2/.NET 10的Add-in/PowerPac兼容问题，以及PROFIsafe/CIP-Safety配置已知限制。新增来源#1198–#1206、基线审计第118节、第00章/第21章TaskPlan和资产CSV同步。未安装软件、未构建目标VC/SDK、未连接真实PLC/机器人、未执行HIL/FAT/SAT或安全验证；ABB RobotStudio资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§118；第00章/第21章TaskPlan；来源#1198–#1206；资产清单 |
