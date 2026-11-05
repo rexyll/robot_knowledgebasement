@@ -224,13 +224,78 @@ Zenoh 并不是“只要弱网就一定优于 DDS”。选择前应定义网络�
 
 ## 7. 安全、域隔离与通信边界
 
-- ROS_DOMAIN_ID 用于划分 DDS domain 并限制普通发现范围，但不是加密、身份认证或完整访问控制机制。
-- DDS Security / SROS2 可以为支持的 DDS 实现配置身份认证、访问控制与加密；其证书、权限文件、治理文件、密钥分发、轮换、撤销和启动失败策略需单独管理。
-- 不应假定默认 ROS 2 图已启用加密或身份认证；需要按目标 RMW、DDS Security 插件和版本验证。
-- Zenoh 的 TLS/身份验证与 DDS Security 是不同配置栈，不能混用一套证书配置结论。
-- 跨网段 bridge/router 可能扩大可见 topic/service 范围；必须设计网络分区、最小权限与日志审计，避免将内部控制 topic 暴露到不可信网络。
+ROS 2/DDS 的安全能力必须按信任边界、参与者身份、权限策略和实际部署模式配置。不能把 ROS_DOMAIN_ID、VLAN、VPN、DDS-Security 或 SROS2 中任何单项能力当作完整的机器人网络安全方案。
 
-网络隔离、DDS domain 与安全访问控制是不同层次。对机器人控制命令、急停、保护停止和安全扫描仪状态，不应仅依赖“同一个 ROS_DOMAIN_ID”或普通 RMW 网络隔离。
+### 7.1 DDS-Security 与 SROS2 的能力边界
+
+ROS 2 的 DDS-Security 集成（通常通过 SROS2 工具链和 RCL 配置暴露）基于 DDS-Security 插件模型。ROS 2 设计资料说明其集成使用以下核心能力：
+
+| 能力 | 机制/材料 | 主要保护目标 | 仍需处理的问题 |
+|---|---|---|---|
+| 身份认证 | 每个 DDS participant/security context 的证书和私钥；证书链由受信任 Identity CA 验证 | 确认参与者身份，降低未授权参与者冒充风险 | CA保护、签发/轮换/吊销、设备离线、私钥泄露和主机入侵 |
+| 访问控制 | Governance 文件定义域级安全策略；Permissions 文件约束身份可执行的 DDS 操作 | 限制 participant 对 domain、topic 等资源的读写权限 | 策略最小化、节点/进程边界、namespace/remap、service/action展开后的实际端点 |
+| 加密与完整性 | DDS Cryptographic 插件处理加密、签名/哈希等；设计资料描述内建 AES-GCM 类机制 | 保护受策略覆盖的 DDS 通信机密性和消息真实性/完整性 | 算法/实现配置、密钥管理、性能开销、未经过该 DDS 安全路径的接口 |
+
+ROS 2 设计文档指出，DDS-Security 规范还定义 Logging 与 Data Tagging 插件，但 ROS 2 集成资料所述实现使用身份认证、访问控制和加密三类核心插件；不能据此宣称 ROS 2 自动提供完整安全审计日志或数据标签能力。审计日志、主机审计、命令业务记录和安全事件响应仍需另行设计。
+
+### 7.2 安全默认值与 fail-closed 启动
+
+ROS 2 的 DDS-Security 集成资料明确指出：安全功能默认未启用；在启用安全后，如果参与者缺少可用的 enclave 安全文件，RCL 的 permissive 策略可尝试以未启用安全的方式启动；strict 策略则应拒绝启动。相关配置入口包括：
+
+- `ROS_SECURITY_ENABLE`：显式启用 ROS 2 security 功能；
+- `ROS_SECURITY_KEYSTORE`：指定安全 keystore 根目录；
+- `ROS_SECURITY_STRATEGY=Enforce`：要求严格执行安全配置，安全材料缺失时不应静默降级；
+- enclave：为参与者提供身份、权限和治理材料的安全上下文路径。
+
+以上是 ROS 2 设计资料中描述的环境变量和策略语义；具体目标发行版、RCL/RMW、DDS 实现及启动封装必须以该版本官方文档和实测为准。产品启动脚本应显式设置安全开关与策略，启动后验证安全状态；不能仅凭 keystore 文件存在或 launch 命令未报错，就认定加密/授权已生效。
+
+### 7.3 Enclave、进程隔离与最小权限
+
+- ROS 2 安全资料将 security context 与进程内的 middleware context 关联。若多个节点被组合进同一进程，它们可能共享同一安全上下文和凭据边界；需要不同身份或不同权限的组件应评估拆分进程/enclave，而不是只按 node 名称设计权限。
+- 每个参与者应只获得完成职责所需的 topic/service/action 权限；特别审查运动命令、轨迹、驱动使能、参数服务、诊断、地图、传感器和远程管理接口。
+- 访问策略应覆盖实际 ROS 图端点。namespace、remapping、composition、参数服务和 action 所展开的隐藏 topic/service 端点，均需在目标发行版生成的策略中核验。
+- Identity CA 与 Permissions CA 可分离；私钥不应随源码仓库、容器镜像或通用部署包明文分发。需要定义密钥注入、权限文件签名、轮换、吊销、备份和设备报废流程。
+- 节点权限文件不能代替操作系统进程隔离。对不同信任级别的节点，还需评估用户/组、容器或 sandbox、文件系统权限、Linux capabilities、调试接口和主机 root 权限。
+- 对不支持 DDS-Security 的 RMW、Zenoh RMW 或 bridge 路径，应按各自安全机制单独配置和测试；DDS-Security 权限文件不会自动保护 Zenoh router、bridge 的另一侧或其他网络协议。
+
+### 7.4 威胁模型：安全机制不能覆盖的风险
+
+ROS 2 官方威胁模型列出未授权发布/订阅、消息篡改、窃听、参与者枚举、凭据窃取、节点被攻陷、通信泛洪和远程链路攻击等风险。SROS2/DDS-Security 可以降低部分未授权访问、窃听和篡改风险，但不是所有攻击的完整缓解措施。
+
+| 威胁/失效 | DDS-Security/SROS2 的作用 | 仍需的系统级控制 |
+|---|---|---|
+| 未授权节点发布控制消息或订阅敏感数据 | 身份认证与 Permissions 策略可限制参与者权限 | 负向授权测试、网络分区、主机加固、控制命令语义校验 |
+| 链路窃听/消息篡改 | 对策略覆盖的 DDS 流量提供加密与真实性/完整性保护 | 其他协议/串口/桥接路径单独保护；密钥安全存储 |
+| 合法凭据被窃取或合法节点被攻陷 | 认证本身无法判断已获授权节点是否恶意 | 进程隔离、密钥保护/撤销、运行时监控、最小权限和恢复预案 |
+| DoS、组播风暴、允许节点滥发 | 访问控制可限制未授权参与者，但不能消除网络/CPU/队列耗尽 | 网络限流、资源配额、速率限制、异常检测、故障隔离和安全降级 |
+| 主机 root/容器逃逸 | DDS-Security 不构成主机可信执行环境 | Secure Boot、OS加固、权限分离、补丁与主机完整性保护 |
+| 通过 ROS bridge、Zenoh、WebSocket、MQTT 或诊断接口绕行 | 仅覆盖被配置并实际经过 DDS-Security 的通信边界 | 逐跳认证授权、网关白名单、网络分区、审计和端到端命令校验 |
+| 恶意或错误的已授权节点发送语义合法但危险的命令 | 传输层认证/加密不判断业务意图或物理安全 | 独立安全控制、命令限幅/状态机、授权审批和现场风险控制 |
+
+ROS_DOMAIN_ID 用于区分 DDS domain 和常规发现范围，不提供身份认证、加密、topic 授权或抗攻击能力。VLAN、子网、防火墙和 VPN 是网络分区/链路保护手段，也不能替代 participant 身份与应用级权限。反过来，DDS-Security 也不能替代网络分区、DoS 防护和主机安全。
+
+### 7.5 机器人安全职责边界
+
+- DDS QoS 的 RELIABLE、Deadline、Liveliness 或 Security 的认证/加密都不等于确定性实时保证，也不构成功能安全认证。
+- 安全停止、急停、保护停止、STO、制动器控制和安全扫描仪保护链，不应只依赖普通 ROS topic、DDS domain 或 SROS2 权限策略。
+- DDS-Security 加密、签名和访问控制会引入 CPU、内存、握手/发现和数据路径开销；必须在目标硬件、负载和网络下测量，不得沿用未启用安全时的时延/吞吐结果。
+- 网络中断、证书过期、权限文件缺失或认证失败时，设备应按产品风险分析进入预定义的通信降级/安全状态；不能为了“保持通信”而自动关闭安全或退回 permissive 模式。
+- 控制命令还应在应用层验证目标设备、命令 ID、时效、状态前置条件、限幅、幂等和审计；DDS participant 身份不等于操作者授权或业务事务完成。
+
+### 7.6 安全配置验收清单
+
+目标产品至少应保留以下验证证据：
+
+1. 安全关闭/开启状态核对；未设置密钥、无效证书、错误 CA、权限文件缺失时的启动行为；确认生产配置 fail-closed。
+2. 未授权 participant 加入、未授权 topic 发布/订阅、service/action 请求、参数访问和 remapping 后访问的负向测试。
+3. 有效身份、过期/吊销身份、错误签名、权限策略版本变化和密钥轮换/恢复测试。
+4. 不同 enclave/进程之间的隔离测试；验证同进程组件是否共享权限边界。
+5. bridge/router、Zenoh、MQTT、WebSocket、SSH、串口和诊断接口的逐跳安全审查，确认无绕行路径。
+6. 组播/流量泛洪、合法节点滥发、CPU/内存/队列耗尽和网络分区测试。
+7. 启用安全前后的 CPU、内存、发现时间、端到端延迟、吞吐、丢样和恢复时间对比。
+8. 证书/权限文件分发、存储、备份、撤销、轮换和事件响应演练；日志中不得泄露私钥或敏感载荷。
+
+这些检查是产品验证计划，不表示本知识库已经执行上述测试。
 
 ## 8. 性能基准与互操作性验收
 
@@ -300,7 +365,7 @@ export CYCLONEDDS_URI=file://$PWD/cyclonedds.xml
 
 **下游功能**：[[Nav2导航框架]] · [[多机协同与调度算法]] · [[构建与CI工具链]] · [[系统故障诊断与闭环处理]]
 
-## 12. 本轮定向复核与未关闭事项（2026-11-03）
+## 12. 定向复核记录与未关闭事项（2026-11-03、2026-11-05）
 
 本轮纠正：
 
@@ -313,6 +378,18 @@ export CYCLONEDDS_URI=file://$PWD/cyclonedds.xml
 - 区分 Fast DDS SHM transport、DDS Data Sharing Delivery 和 rclcpp intra-process communication；指出 rmw_fastrtps 当前 README 中 Data Sharing 默认 OFF。
 - 删除固定 rmem_max=8388608 作为通用配置，改为依据 socket drops、队列、RTPS 抓包与端到端延迟测量调优。
 - 分开记录 Fast DDS、Cyclone DDS、RMW wrapper、rmw_zenoh 和 Zenoh 核心许可；不把上层 RMW 包许可证外推到全部依赖。
+
+
+### 2026-11-05 安全边界补充复核
+
+- 依据 ROS 2 DDS-Security 集成资料，补充身份认证、访问控制、加密插件的职责与限制；区分 Identity CA、Permissions CA、enclave 与实际进程安全上下文。
+- 明确 ROS 2 安全默认未启用，以及 permissive/strict（Enforce）启动策略差异；要求生产部署显式启用安全并验证缺少安全材料时 fail-closed，不能静默退回明文通信。
+- 依据 ROS 2 官方威胁模型补充凭据窃取、节点被攻陷、DoS/流量泛洪、主机 root、桥接绕行和恶意授权节点等风险；指出 DDS-Security 不自动解决这些问题。
+- 明确 ROS_DOMAIN_ID 仅划分 DDS domain，不提供身份认证/加密/访问控制；DDS-Security 不保护未经过其安全路径的 Zenoh、bridge、MQTT、WebSocket、串口或诊断接口。
+- 补充同进程组合节点的安全上下文共享风险、最小权限策略、密钥生命周期、负向授权测试、跨网关逐跳保护和安全开销基准。
+- 本次为公开资料和文档主张边界审查；未执行本项目 keystore 生成、RMW/DDS 安全启动、权限策略负向测试、密钥轮换、网络攻击、DoS、性能基准或目标机器人安全验收。
+
+新增来源台账 #999–#1001；全文技术验收仍未完成。
 
 ### 本轮核验来源
 
