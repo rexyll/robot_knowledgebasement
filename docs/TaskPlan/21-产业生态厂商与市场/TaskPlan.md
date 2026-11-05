@@ -40,7 +40,7 @@
 - **严格禁止：** 不得无限枚举厂商；不得以广告排名或未验证榜单作为选型结论。
 - **依赖：** 先完成本章资产盘点；其余依赖按根计划第 6 章执行。
 - **交付物与验收：** 厂商档案有选择标准、来源和最后核验日期。
-- **状态：** 进行中（已完成代表性硬件供应商入口及主要机器人本体厂商的 P1 定向审查，覆盖工业/协作、仓储 AMR/ACR、清洁和人形机器人，并区分官方产品目录、厂商自报量产、客户到场/案例与独立部署证据；本轮新增无人叉车/工业 AMR 产品线审查：VisionNav VNR/VNSL/VNP/VNE/VNST/VNQ/VNK、海康机器人 FMR/LMR/CMR/HMR/CTU 与 RCS-2000/iWMS-1000、仙工智能 AMB/SJV 底盘与顶升车型及 SRC/M4 平台、ForwardX Apex 叉车系列、Quicktron M/C/F/A 与软件平台，来源台账 #696–#707；仍需逐型号取得受控手册、SDK/固件、生命周期/PCN、地区供货和供应商书面资料，并补审医疗/服务机器人及软件厂商；未完成供应商资格审查或采购选型）
+- **状态：** 进行中（已完成代表性硬件供应商入口及主要机器人本体厂商的 P1 定向审查，覆盖工业/协作、仓储 AMR/ACR、清洁和人形机器人，并区分官方产品目录、厂商自报量产、客户到场/案例与独立部署证据；本轮新增无人叉车/工业 AMR 产品线审查：VisionNav VNR/VNSL/VNP/VNE/VNST/VNQ/VNK、海康机器人 FMR/LMR/CMR/HMR/CTU 与 RCS-2000/iWMS-1000、仙工智能 AMB/SJV 底盘与顶升车型及 SRC/M4 平台、ForwardX Apex 叉车系列、Quicktron M/C/F/A 与软件平台，来源台账 #696–#707；仍需逐型号取得受控手册、SDK/固件、生命周期/PCN、地区供货和供应商书面资料，并补审医疗/服务机器人及软件厂商；2026-11-05追加RoboDK、Siemens Tecnomatix、ABB RobotStudio、FANUC ROBOGUIDE与Dassault DELMIA Robotics软件生态独立静态审查，具体节点与功能/版本缺口见执行记录；未完成供应商资格审查或采购选型）
 
 ### 21-03｜开源项目、论文与标准生态
 
@@ -371,3 +371,5 @@
 | 2026-11-05 | 21-02/ABB RobotStudio与RobotStudio Suite软件生态静态审查 | 对ABB既有本体/交易厂商条目补充独立软件档案：审查RobotStudio Desktop/Cloud、Virtual Controller、RobotWare版本与RAPID离线编程；核对OPC UA/SIMIT Smart Components、RobotStudio SDK/PC SDK/FlexPendant SDK/RobotWare Add-In SDK及Robot Web Services；新增2026.2 build/.NET 10与PowerPac/Add-in兼容风险、RobotWare逐版本限制、企业云浮动/Node-locked离线许可边界，并记录PROFIsafe/CIP-Safety配置已知问题。来源台账#1198–#1206、基线审计第118节、厂商档案和资产CSV已同步。未安装RobotStudio、未下载/校验RobotWare和PowerPac、未迁移插件/构建SDK、未创建目标控制器VC或真实控制器运行RAPID、未连接真实PLC/驱动或执行HIL/FAT/SAT/功能安全验证；资产保持静态审查未验收，21-02继续进行中。 | ABB RobotStudio Suite/Cloud、2026.2 Release Notes、许可资料、RobotStudio 2025.4手册及SDK下载门户；基线审计§118 |
 
 | 2026-11-05 | 21-02/FANUC ROBOGUIDE、Virtual Robot与ROS 2 Driver软件生态审查 | 对FANUC本体档案新增独立软件专题：审查ROBOGUIDE V10/Virtual Robot、应用模块与历史手册边界；核对V10 Revision E内建FactoryTalk Logix Echo连接、虚拟PLC/机器人握手和双方许可；梳理fanuc_driver的ros2_control/MoveIt 2/mock/physical hardware/RMI、J519+R912或S636选件、控制器软件最低版本和Humble/Jazzy平台。记录v2.4.0（2026-10-01）最新release与v2.3.0系统要求文档漂移、ROBOGUIDE Revision兼容案例、UDP/CRX I/O限制，以及R-50iA+S647限定的1 kHz模式。来源#1207–#1219、基线审计§119、主要厂商§119和资产CSV已同步。未安装ROBOGUIDE/Logix Echo、未构建目标Virtual Robot/ROS 2、未连接真实控制器/PLC、未测试网络/实时/现场总线/安全链或执行HIL/FAT/SAT；21-02继续进行中。 | FANUC官方ROBOGUIDE、Logix Echo与fanuc_driver文档/Release/Issue；基线审计§119 |
+
+| 2026-11-05 | 21-02/Dassault Systèmes DELMIA Robotics 3DEXPERIENCE软件生态审查 | 新增DELMIA Robotics独立档案：分析3DEXPERIENCE角色化Robot Programmer/RVN/VCA与工业工艺角色；区分Robot Library模型Additional Contents和OLP Translator，记录模型库非默认安装、2026新增71个模型/6家制造商、2025多品牌Translator的语言/指令/上传下载不对称；核对2025-07 MCRS同步矩阵的FANUC/ABB/KUKA/Yaskawa差异及历史性，梳理RRS II/FANUC VRC、ControlBuild、OPC UA、HIL示例和R2026x GA/FD01/FD02更新。新增来源#1220–#1232、基线审计§120、主要厂商§120和资产CSV已同步。未下载Library/Translator、未安装DELMIA或建立工作站、未构建/下载目标机器人程序、未连接RRS II/VRC/PLC/ControlBuild/SIMIT/OPC UA、未执行HIL/FAT/SAT/实机/安全验收；21-02继续进行中。 | Dassault官方产品页/3DSwym Robotics知识社区/更新文章；基线审计§120 |
