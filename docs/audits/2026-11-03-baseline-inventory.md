@@ -1896,3 +1896,28 @@ workflows README 目录入口和流程地图中的已知旧项目名引用已修
 ### 80.4 来源与登记状态
 
 本轮访问并在专题正文列出：Nav2 Lyrical文档入口、Nav2 Kilted→Lyrical迁移指南、ROS Index navigation2发行版包索引、nav2_collision_monitor上游README。URL已在专题正文列出；本轮未更新链接台账，不计为台账登记完成。
+
+
+## 81. P1 实时系统与嵌入式：PREEMPT_RT调度机制、SCHED_DEADLINE与ROS 2实时边界增量审查（2026-11-05）
+
+### 81.1 审查范围
+
+此前第 11 节已对实时基础、PREEMPT_RT、Ubuntu实时内核、CPU隔离、RTOS、主控/MCU、总线、watchdog与测量工具进行定向复核。本轮聚焦 Linux 实时调度策略与主线状态、内核配置的硬件相关影响、ROS 2官方实时教程的构建边界及 FreeRTOS/Zephyr 调度语义，不将其重复计算为整篇重新全文审查。
+
+### 81.2 主要发现与修订
+
+- 补充 Linux 6.12 起 PREEMPT_RT 实时抢占能力可在主线内核启用的状态；同时说明外部 RT patchset 仍服务于尚未并入主线的架构/驱动/开发工作，不能仅凭内核版本或发行版包名称推断目标BSP已支持。
+- 细化 PREEMPT_RT 的可抢占锁、优先级继承、线程化中断及仍存在的低层不可抢占路径；强调 IRQ thread 的优先级与应用实时线程需要联合规划。
+- 区分 SCHED_FIFO、SCHED_RR 与 SCHED_DEADLINE：后者使用 EDF/CBS及runtime/deadline/period预算，任务预算并非自动测得WCET；只有在满足准入控制、带宽和任务模型假设时才可形成相应调度保证。
+- 补充 Linux 实时内核配置指南中的平台依赖：CPU频率/C-state、NO_HZ、EFI runtime、GPU资源竞争、tracing及debug配置均可能改变最坏延迟；明确不存在适用于所有平台的一键调优。
+- 核对 ROS 2 Rolling 实时教程：教程明确面向Linux演示，并列出特定静态DDS API/Connext构建约束；教程中的内存锁定和延迟统计不能外推为所有发行版、RMW、Executor和硬件链路均具备硬实时保证。
+- 补充 FreeRTOS 单核默认固定优先级抢占/同优先级轮转与AMP/SMP差异；补充 Zephyr协作式线程可能长期占用CPU、EDF仅在启用后用于相同静态优先级线程比较的语义。
+- 增加目标平台验收条件：内核配置/BSP/设备树/固件/驱动基线、IRQ和CPU资源、WCET与deadline分析、SCHED_DEADLINE准入、ROS回调链、总线和机械端到端测量。
+
+### 81.3 结论与未关闭事项
+
+本轮完成实时调度与内核/ROS 2/RTOS官方资料支持的增量主张审查，正文来源台账新增#1002–#1008。资产继续保持 `unaccepted_claim_level_review_pending`。未在目标机器人平台确认 `CONFIG_PREEMPT_RT`、运行内核/BSP/设备树/固件/驱动组合；未执行 cyclictest/rtla/ftrace、WCET分析、CPU/IRQ隔离、SCHED_DEADLINE准入分析、总线饱和、温升/电源扰动、ROS 2回调链、HIL或实机时序测试；未获得项目实际MCU、RTOS版本/配置、驱动器手册和主控—MCU协议。不得据此宣称目标机器人满足硬实时、控制周期或功能安全要求。
+
+### 81.4 来源与登记状态
+
+来源台账新增#1002–#1008：Linux Kernel PREEMPT_RT理论、实时内核配置、SCHED_DEADLINE、Linux man-pages、ROS 2官方实时编程教程、Zephyr调度和FreeRTOS调度资料。URL及适用边界已登记；Rolling文档和RTOS main分支仅作为当前上游快照，部署时须固定目标发行版/commit。
