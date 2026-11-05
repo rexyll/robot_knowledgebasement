@@ -2335,3 +2335,21 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 
 本轮仅完成公开官方文档/索引审查及知识页静态修订。未构建任何 ROS 2/RMF 工作区，未运行 Fleet Adapter、Traffic Schedule、Negotiation 或任务派发；未连接真实厂商 API、机器人、门/电梯/充电设施和现场地图；未执行多车并发、消息乱序/重复、断网恢复、死锁恢复、性能或安全测试。资产继续保持 `unaccepted_claim_level_review_pending`，不构成互操作认证、性能保证或产品验收。
 
+## 103. P1 Beremiz PLC IDE/runtime 版本、许可证与网络安全边界审查（2026-11-05）
+
+### 103.1 审查范围与证据
+
+对 `knowledge/ecosystem/开源项目与工具链.md` 第9.3节的 Beremiz 条目开展增量主张审查。依据 Beremiz 官方 Releases（#1094）、官方组件下载/许可证说明（#1095）、运行时/工具链架构文档（#1096）及 Beremiz 组织的 MatIEC 仓库元数据（#1097）；知识页已将快照更新至2026-11-05，并补充运行时分层与产品准入清单。
+
+### 103.2 主要审查结论
+
+- 官方 Releases 当前列出的最新版本为 v1.6.1（2026-10-31），release 页面同时固定 Beremiz、MatIEC、CanFestival、Modbus、open62541 等配套 revision。工程锁定必须记录完整组件 revision，而非只记录 IDE tag。
+- Beremiz 的 PLCopen TC6-XML 编辑器、MatIEC 编译器和运行时是不同层：MatIEC 将 ST/IL/SFC 程序编译为 ANSI-C；runtime 加载生成物并执行周期 IEC scan。官方区分 Python runtime 与原生 C/C++ runtime，二者共享 eRPC 接口但平台依赖和许可不同。
+- 官方下载页区分 IDE/CLI GPLv2-or-later、Python runtime LGPLv2.1-or-later、C++ runtime GPLv3-or-later；MatIEC 仓库元数据列 GPL-3.0。必须按实际发行组件、固定 revision 和第三方库逐项审查，不能用单一许可证覆盖整个产品。
+- 官方运行时文档说明 eRPC 是 IDE/CLI 主要 RPC 通道，可选经 Stunnel/TLS-PSK 包装；WAMP、Web HMI、服务发现是不同端点。支持可选 TLS-PSK 不代表所有端点默认加密/认证。产品部署应逐端点核验监听、身份认证、密钥生命周期、网络分区、远程下载/热更新授权和审计。
+- 官方文档将 Zephyr RTOS 支持定位于 NDA/双重许可条件下的私有分支；公开 C runtime 不等于公开可获得 Zephyr BSP/端口，也不构成无条件商业授权。
+- Beremiz 是通用 PLC IDE/runtime；IEC 61131-3 支持、周期扫描或 Xenomai 后端都不能证明其为经认证的安全 PLC。急停、保护门、STO、安全速度/位置等功能仍需独立的适用安全控制系统和证据链。
+
+### 103.3 未关闭事项与结论边界
+
+本轮仅完成公开官方资料审查及知识页静态修订。未下载/构建 v1.6.1 完整源码包，未复核所有第三方依赖的 SPDX/NOTICE 与再分发义务，未在目标 MCU/RTOS 上构建 Python/C++ runtime，未验证周期抖动/WCET、I/O 映射、看门狗、掉电恢复、远程下载/热更新、网络端点或漏洞响应，也未执行安全功能认证/故障注入。资产继续保持 `unaccepted_claim_level_review_pending`，不构成产品软件准入、许可证法律意见、实时性证明或功能安全认证。
