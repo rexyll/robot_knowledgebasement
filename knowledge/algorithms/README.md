@@ -37,3 +37,12 @@ aliases: [算法目录, 机器人算法索引, Algorithms]
 - 安全相关边界：[[功能安全体系]]
 
 > **阅读建议：** 先读任务定义和上下游接口，再进入具体算法；不要只依据论文排名、默认参数或单一 benchmark 选择算法。部署版本、传感器/机器人模型和测试环境必须与目标项目对齐。
+
+
+## 5. 外部参考实现与审查记录
+
+- [MotionControlAlgorithms 上游仓库](https://github.com/rexyll/MotionControlAlgorithms)：只读参考实现入口；本项目已完成初步静态纳入审查。当前不导入源码，合并事项登记在根计划 TODO-EXT-001，须等待上游最后验证完成并经用户另行讨论。
+- [上游静态审查报告](../../docs/audits/MotionControlAlgorithms-main-review-2026-11-06.md)
+- [上游技术内容—目标知识资产差距矩阵](../../docs/audits/MotionControlAlgorithms-knowledge-gap-matrix-2026-11-06.md)
+
+> 上游仓库的算法实现和测试结果不等于本项目已验证能力；任何算法采用都必须独立核对模型、接口、依赖、版本、许可证及验证等级。
