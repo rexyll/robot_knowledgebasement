@@ -2878,4 +2878,4 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 直接扭矩控制与扭矩状态读取有不同PolyScope最低版本；旧effort可能是电流；URSim不模拟真实effort。力/扭矩传感器为相对式，接触前需zero；真实机器人需提取工厂标定数据，否则ROS侧TCP位姿可能出现厘米级误差。来源#1425–#1427。
 - PolyScope X SDK 0.22支持Program/Application Node和Docker container contributions；External Control URCapX 1.2.0为Latest，兼容表要求按PolyScope版本匹配，PSX 10.15与1.2.x列为支持组合。来源#1430–#1432。
 - UR官方安全FAQ（2026-05-06）声明安全功能PLd Cat.3，并将ISO 10218-1:2025认证目标列为2027-01计划；不可将计划误写成已获证。整机应用风险评估由集成方负责，机器人本体为部分完成机械；协作机器人并不意味着整站免风险评估。来源#1435–#1436。
-- 未安装软件/URCapX/SDK，未构建ROS 2工作区，未运行mock/URSim/Gazebo，未连接真实机器人/PLC/安全回路，未采集校准数据或执行实时/轨迹/力控/停止距离/HIL/FAT/SAT/安全验证；仅为静态资料审查。专项报告：docs/audits/2026-11-06-universal-robots-software-ros2-ecosystem-review.md。
+- 未安装软件/URCapX/SDK，未构建ROS 2工作区，未运行mock/URSim/Gazebo，未连接真实机器人/PLC/安全回路，未采集校准数据或执行实时/轨迹/力控/停止距离/HIL/FAT/SAT/安全验证；仅为静态资料审查。另记录URScript ROS API方法可能引入至少2ms延迟、影响运动blend的文档警示，需在目标PolyScope版本复测。来源#1437。专项报告：docs/audits/2026-11-06-universal-robots-software-ros2-ecosystem-review.md。
