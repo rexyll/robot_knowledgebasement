@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.63  
+> 版本：v7.64  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -869,6 +869,9 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-06 | v7.63 | 对Universal Robots §129作增量主张级复核：新增PolyScope X URScript ROS API句柄资源生命周期和至少2ms调用延迟/运动blend影响警示；补充UR Safety FAQ中CB3于2022年EOL、CB5.6为PolyScope X要求控制箱、e-Series/UR Series PLd Cat.3声明及ISO 10218-1:2025计划认证时间2027-01的边界。新增来源#1437并更新专项报告、厂商档案、兼容矩阵、基线审计和第00/21章记录。未在目标PolyScope版本实测延迟、未取得证书原件，未执行软件构建/真实机器人/HIL/FAT/SAT或安全验证；根00-01与21-02继续进行中，20-07未验收，TODO-EXT-001仍未授权。 | 《主要厂商》§129；UR专项审计；来源#1436–#1437；第00/21章TaskPlan |
+
+
+| 2026-11-06 | v7.64 | 00-01/21-02继续P1厂商软件生态审查：新增Doosan Robotics《主要厂商》§130，核验DART-Suite/Platform 3/SDK/Store/Developer LAB、DRL/DRFL、doosan-robot2 Humble/Jazzy分支及Ubuntu 22.04/24.04、DRCF v2/v3；静态审查dsr_hardware2 SystemInterface、1ms RT UDP/12347、rt_host、接口TODO/位置命令门控、servol_rt异步返回/fTargetTime限制、模拟器边界；核对A/E/A-S/M/H/P传感器差异、P系列PLd Cat.3/SIL2安全页面适用范围、Humble/Jazzy许可证声明和API文档/DRFL release版本差异。新增来源#1438–#1453、专项审计报告、兼容矩阵和第00/21章记录。未安装DART/DRFL、未构建ROS工作区、未连接真实机器人/PLC/安全回路，未执行1kHz/WCET/轨迹/力控/停止距离/HIL/FAT/SAT；根00-01与21-02继续进行中，20-07未验收；TODO-EXT-001仍未授权。 | 《主要厂商》§130；《知识生态兼容矩阵》Doosan行；Doosan专项审计；来源#1438–#1453；第00/21章TaskPlan |
 
 ## 9. 跨项目待办与外部依赖（只追加）
 
