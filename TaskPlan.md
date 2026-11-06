@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.71  
+> 版本：v7.72  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -885,6 +885,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-06 | v7.70 | 00-01/21-02对Stäubli ICube VAL3 RobotState跨语言帧编码开展静态核查：initRobotStateMsg将payload设为124、总帧132字节；encodeHeader在header最后2字节重复写入nMsgSequenceNumber，按协议该字段应为nPayloadSize；encodeRobotStateMsg调用该函数。当前C++ RobotState parser没有验证payload_size，现有单测只覆盖C++自身序列化往返，没有VAL3黄金帧互操作样本。新增来源#1501–#1504，更新Stäubli专项报告§9.3.3、厂商§128.7、兼容矩阵、基线审计、审计索引和00/21章TaskPlan。静态代码缺陷候选尚未通过VAL3编译/实机抓包验证；00-01与21-02继续进行中，20-07未验收，TODO-EXT-001未授权。 | ICube固定main VAL3 header/init/state encoder、C++ parser/test源码；Stäubli专项审查§9.3.3；来源#1501–#1504、#1486 |
 
 | 2026-11-06 | v7.71 | 00-01/21-02补齐Stäubli VAL3 RobotState Header payload_size静态缺陷的反向协议定义证据：decodeHeader.pgx按sequence之后的2字节解码nPayloadSize，MessageHeader.dtx将该字段定义在8字节Header中，与encodeHeader.pgx重复写nMsgSequenceNumber形成闭环；进一步确认payload应为124且总帧132字节。新增来源#1505–#1506，更新专项报告、厂商§128.7、兼容矩阵、基线审计及00/21章记录。未运行VAL3编译/真实CS9抓包/跨语言互操作测试；缺陷仍为高优先级静态发现候选，00-01/21-02继续中，20-07未验收，TODO-EXT-001未授权。 | ICube固定main VAL3 header encoder/decoder/type/init/caller与C++ parser/test源码；专项审查§9.3.3；来源#1501–#1506 |
+| 2026-11-06 | v7.72 | 00-01/21-02补做Stäubli C++→VAL3命令帧payload_size校验时序审查：C++ RobotCommandMessage固定payload=47、总长55；VAL3 initRobotCommandMsg同设47，但decodeRobotCommandMsg在decodeHeader前用对象中保留的旧nPayloadSize检查长度，decodeHeader读取当前头字段后可清除该预检查错误；命令字段解析后未验证当前payload_size是否仍为47。实际UDP长度不等于55由readDataOnce拒绝，因此静态结论限定为Header声明校验缺口，不认定为短包越界。新增来源#1507–#1510，更新Stäubli专项报告§9.3.4、厂商§128.7、兼容矩阵、基线审计、审计索引及第00/21章执行记录。未运行VAL3/畸形包注入或实机互操作测试；00-01/21-02继续进行中，20-07未验收，TODO-EXT-001未授权合并。 | ICube固定commit VAL3命令解码/初始化/读取、C++命令序列化源码；来源#1505、#1507–#1510 |
 
 ## 9. 跨项目待办与外部依赖（只追加）
 
