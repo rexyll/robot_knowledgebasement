@@ -29,7 +29,7 @@
 ## 审计状态
 
 - 00-01 全库资产盘点：进行中。
-- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 255 个 Blob、207 份 Markdown、142 份 knowledge Markdown、62 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
+- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 256 个 Blob、208 份 Markdown、142 份 knowledge Markdown、63 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
 - 标题/结构检查：原 112 份知识文件保留历史标题、章节结构和开篇检查记录；当前 142 份资产的统一结构扫描覆盖率尚未重新计算。后续新增文件存在专题审查/结构检查记录，但尚未统一汇总为当前覆盖率。
 - 全文结构扫描：96/120 是旧快照统计，不能作为当前 142 份资产的覆盖率；本轮只做 Git Tree/Blob 元数据对账，当前统一结构扫描需重新执行。结构扫描不等于专业审稿或 claim-level 验收。
 - README 最近一次扫描：既有目录 README 的正文结构检查记录保留；本轮只刷新清单涉及文件的 Git 元数据，不重新判定 README 正文质量。
