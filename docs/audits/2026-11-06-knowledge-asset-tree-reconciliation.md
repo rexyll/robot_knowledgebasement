@@ -9,13 +9,13 @@
 
 | 指标 | 当前数量 |
 |---|---:|
-| Git Tree Blob（全部文件对象） | 253 |
-| Markdown 文件 | 205 |
+| Git Tree Blob（全部文件对象） | 254 |
+| Markdown 文件 | 206 |
 | `knowledge/` 下 Markdown | 142 |
-| `docs/` 下 Markdown | 60 |
+| `docs/` 下 Markdown | 61 |
 | `docs/TaskPlan/` 下章节 TaskPlan | 26 |
 
-本次以 Git Tree 为文件存在性和 Blob 元数据的唯一对账依据；目录名/旧 TaskPlan 统计不作为当前文件数证据。
+本次最终快照包含本报告自身：以 Git Tree 为文件存在性和 Blob 元数据的唯一对账依据；目录名/旧 TaskPlan 统计不作为当前文件数证据。
 
 ## 2. 旧资产清单差异
 
