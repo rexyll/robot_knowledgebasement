@@ -447,3 +447,6 @@
 
 
 | 2026-11-06 | 00-01 | 对《主要厂商》新增Techman Robot §131开展P1软件生态静态审查：区分传统TM与S系列ROS2驱动、固定tmr_ros2/tm2_ros2 Humble/Jazzy分支commit和包版本；核验TMflow/Listen Node控制架构、MoveIt/Gazebo模型与CoG更新、EIH Camera gRPC客户端、S系列安全/网络安全声明及许可证元数据差异。新增来源#1454–#1467、专项报告、兼容矩阵和第21章记录。未安装商业软件/未构建ROS工作区/未运行仿真/未连接真实机器人、相机、PLC或安全回路，未执行实时/轨迹/视觉/HIL/FAT/SAT/安全验证；资产仅静态审查未验收，00-01继续进行中。 | Techman官方产品/ROS/合规/下载页面与GitHub仓库；基线审计§131；来源#1454–#1467 |
+
+
+| 2026-11-06 | 00-01 | 对既有FANUC软件生态档案§119开展增量主张级复核：核对FANUC Open Platform 1ms/3kg–2300kg宣传与ROS 2 Driver具体控制器、J519/R912/S636选件、URDF模型矩阵；固定main/jazzy与humble分支commit；静态审查Stream Motion UDP序号回退路径及open Issue #67、现有测试缺少乱序/重复/回绕回归用例的可见证据；补充MoveIt动态加速度/jerk约束、position-only命令接口和Lyrical未来API迁移风险。新增来源#1468–#1480、专项审计和兼容矩阵快照。未构建/运行测试、未执行UDP注入、未连接实机或PLC、未测1ms/jitter/轨迹/故障恢复，未进行HIL/FAT/SAT/安全验证；仅静态审查，00-01继续进行中。 | FANUC官方Open Platform、官方GitHub源码/Issues/Release与驱动文档；专项审计§119；来源#1468–#1480 |
