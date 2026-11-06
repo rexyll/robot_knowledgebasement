@@ -2816,3 +2816,28 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - ROS 2仓库最后push为2025-03-14；RC9支持仍标注under construction。未构建Humble工作区或逐文件核验混合MIT/Apache-2.0/BSD许可，需进一步确认当前维护和许可清单。
 - 未连接真实机器人/控制器、PLC、现场总线或安全回路；未测实时周期/抖动/WCET、轨迹误差、节拍、重复定位、断线恢复、故障注入、HIL/FAT/SAT或安全性能。
 - 因此仅为官方资料/公开仓库静态审查，不代表工程验收或供应商资格完成。
+
+
+## 126. Epson Robotics RC+ 8.0、RC800/RTMC与官方ROS 2生态静态审查（2026-11-06，来源#1389–#1401）
+
+### 126.1 核验事实
+- Epson官方手册目录区分RC800-A、RC800L、RC700-E/D、RC700、RC90等控制器，以及多个SCARA/六轴机器人系列；明确提示地区销售差异与停产资料获取限制。RC+ 8.0的SPEL+参考按RC800与RC700/RC90/T/VT系列区分，不能按软件品牌推断全控制器兼容。来源#1389、#1391。
+- RC+ 8.0为集成开发/仿真环境；RC+ API、PLC Function Block、Remote Control、Vision Guide、Part Feeding、Force Guide、OPC UA、Fieldbus I/O和SRCI属于不同选件/扩展。激活指南说明许可证密钥、在线和离线认证路径。Epson欧洲归档中同时出现8.1.1.1/8.1.2.0/8.1.4.0不同类型手册和“RC+ 8 Ver 2.0.0.0”包，不能据文件名推断统一当前版本。来源#1390–#1394。
+- Force Guide 8.0列力控制/力触发/力监控/力运动限制/力引导等功能，但官方手册明确其功能不是用于确保安全的安全功能。来源#1392。
+- Epson官方RTMC Client Library将外部路径/轨迹规划与控制器运动执行分离；Epson不提供路径/轨迹规划。RTMC要求RC800控制器、单独启用Real-time Motion Control选件、RC+ 8.0控制器设置、Windows USB配置端和Linux Ethernet客户端。来源#1397–#1398。
+- RTMC 1.1.0与官方ROS 2包1.1.0对大部分列示型号要求RC800固件8.1.2.0+；带星号型号可用1.0.0+及8.1.1.0+。官方型号表仅列GX4/GX8/RS4/RS6/C8/C12/CX4/CX7中的具体SKU；不能外推到RC800L、RC700、RC90或全系列。推荐Ubuntu 22.04/Humble、Intel Core i7+、16GB RAM；RTMC客户端依赖Fast DDS 2.14.4/OpenSSL。来源#1396、#1398。
+- RTMC Exec_RTMC以rad/mm接收外部运动值，内部缓冲后由控制器按运动周期消费；缓冲满时API等待，必须测量阻塞/欠载。执行条件包含AUTO、RBCheck完成、RTMC启用、Safeguard关闭、EStop关闭、无控制器错误。RTMC模式会因错误、急停、防护触发或通信断开自动关闭；Reset复位错误/急停状态并关闭标准输出，不能当作安全回路。来源#1398。
+- 官方epson-robot-ros2默认main HEAD为7ead19a7189e052ab7fb49fdc6922f484f893cdd（2026-01-08），package 1.1.0，CHANGELOG记录2025-12-26发布；README仅明确Ubuntu22.04/Humble、RC800+RTMC选件和指定型号。仓库提供ros2_control硬件接口、定制JointTrajectoryController、MoveIt 2/URDF/RViz/demo；MoveIt 2与ros2_control不是Epson包本身。来源#1395–#1396。
+- 静态代码审查显示硬件Lifecycle激活路径包含Reset、MotorOn、PowerHigh和RTMC Enable；README异常恢复示例明确警告重新激活可能自动使机器人恢复运动。必须设计外部安全状态确认、人工授权和可审计重启状态机。来源#1396。
+- 代码时基/配置存在待核验差异：目标型号配置controller_manager update_rate=1000Hz，定制轨迹控制器固定2ms推进轨迹时间；README buffer_size默认5，launch默认10；README日志参数log_lovel与launch的log_level不一致。以上记录为时基/文档差异，未实测前不判定为功能缺陷。来源#1396。
+- launch默认security=false；安全通信需控制器与Linux客户端共同配置CA/客户端证书、governance/permissions并显式启用。Fast DDS编译时SECURITY开启不等于部署时已开启认证/加密。来源#1396、#1398。
+- Epson另有AX Portal generic_msgs仓库（README兼容AX Portal 2.6.3）和AX6 URDF/RViz描述仓库；后者可用joint_state_publisher显示模型，不是完整真实机器人驱动。不得与RC800/RTMC驱动混为一谈。来源#1400–#1401。
+- Epson Safety Function Manual Rev.14按机械臂、控制器、RC+版本和Safety Board固件列出适用矩阵；RC800-A手册列STO、急停、SS1、Safeguard、Enable Switch Stop、SLP、SLS、安全输出等功能，部分为选件。必须按具体SKU、固件、证书和接线核验。来源#1389、#1399。
+
+### 126.2 风险与未完成
+- 未下载/安装RC+ 8.0，未确认目标地区软件包、许可、虚拟机/离线/灾备认证政策及8.x归档版本命名；未核验完整RC800-A/RC800L/RC700控制器与机器人SKU矩阵。
+- 未构建RTMC Client Library或Epson ROS 2工作区；未验证Fast DDS/OpenSSL依赖、目标CPU/内核、MoveIt/ros2_control依赖和Apache-2.0/NOTICE/第三方依赖SBOM。
+- 未测controller_manager 1kHz与轨迹2ms时基契约、Exec_RTMC阻塞时间、buffer欠载/过载、周期抖动/WCET、网络延迟、轨迹跟踪误差、节拍或断线恢复。
+- 未验证Reset/MotorOn/PowerHigh/RTMC Enable的权限/互锁、急停/防护门异常恢复、人工授权和防止自动重启策略。
+- 未连接真实机器人/控制器/PLC/现场总线/安全回路；未核验Safety Board固件/证书或执行停止时间、故障注入、HIL/FAT/SAT/整机风险评估。
+- 因此仅完成官方资料/公开仓库静态审查，不代表工程验收、实时性保证或安全认证完成。
