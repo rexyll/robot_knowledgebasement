@@ -2859,3 +2859,12 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 未验证Lifecycle复位/重新激活后的运动状态、残余命令和人工授权；未执行安全功能证书核验、风险评估、故障注入、HIL/FAT/SAT。
 - 未完成KRNX专有许可法律审查、商业软件SKU/地区授权和全型号控制器/机器人兼容矩阵。
 - 因此本节仅为官方资料与官方仓库静态审查，不代表工程验收或供应商资格完成。专项报告：docs/audits/2026-11-06-kawasaki-robotics-ecosystem-review.md。
+
+
+## 128. Stäubli Robotics 软件与 ROS 生态静态审查（2026-11-06）
+
+- Stäubli官方CS9页面列出CS9 SE/LP/MP/HP及TS2/TX2型号映射、EtherCAT/EtherNet-IP/PROFINET/Sercos/POWERLINK/Modbus等协议角色，并列出Safe speed/stop/tool/zone等模块化安全功能可能性；选件、目标SKU证书、固件和整机安全范围仍待核。来源#1413。
+- VAL 3为控制器侧编程环境；uniVAL plc采用PLC功能块client—机器人server现场总线架构；uniVAL drive面向外部多轴控制器并列出EtherCAT/POWERLINK/PROFINET/Sercos和Sercos/CiA 402 drive profile。Cat.3/PL d目前仅为厂商页面声明，需证书和具体集成条件。来源#1414–#1416。
+- ICube ROS 2驱动README声明Jazzy/Ubuntu 24.04、CS9、position-only；项目明确为prototype，2025-11 POC后曾因资金中断暂停开发，未找到正式Release或恢复证据。velocity接口尚未实现，effort由电流估算，mock不发送UDP且不反映真实动力学。来源#1417–#1419。
+- ROS-Industrial VAL3驱动属于ROS 1 simple_message/FollowJointTrajectory路线；ROS Index显示Indigo、0.1.0、CATKIN、UNRELEASED、2018-04-06最后更新，不构成现代ROS 2发行版支持证据。来源#1420–#1421。
+- 未安装商业软件、未构建ROS 2工作区、未运行mock/SRS仿真、未连接真实CS9/机器人/PLC/安全回路，未测实时/WCET/轨迹/节拍或执行HIL/FAT/SAT/安全验证；本节仅为静态资料审查，不代表工程验收。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md。
