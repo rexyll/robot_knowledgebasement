@@ -38,7 +38,7 @@ Mitsubishi于2026-02发布MELFA API for Linux，推荐Ubuntu 22.04 LTS，支持C
 
 ### 2.5 MELFA ROS2 Monitor
 
-官方仓库同样默认humble分支。Monitor使用UDP/rtmon API读取CR800/CR860控制器遥测，官方列R/D 286 Hz、Q 141 Hz，覆盖关节、伺服、I/O、温度、电流、TCP位姿和力/力矩数据。它是监控/遥测通道，不是运动命令驱动。
+官方仓库同样默认humble分支。Monitor使用UDP/rtmon API读取CR800/CR860控制器遥测，官方列R/D 286 Hz、Q 141 Hz，覆盖关节、伺服、I/O、温度、电流、TCP位姿和力/力矩数据。它以监控/遥测为主，同时包含GPIO控制器；不是关节实时运动命令驱动，GPIO写入也不能视作安全功能。
 
 ### 2.6 网络与安全边界
 
