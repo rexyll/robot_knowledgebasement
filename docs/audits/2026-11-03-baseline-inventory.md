@@ -2879,7 +2879,7 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 可见测试覆盖mock/UDP loopback连接、协议序列化、丢包计数、staleness、Lifecycle和位置写入；所查launch测试目录只有.gitkeep。本轮未运行测试、未构建工作区、未安装SRS/VAL Blocks、未连接真实CS9/机器人/PLC/安全回路，未执行实时测量、网络故障注入、HIL/FAT/SAT或安全验证；Stäubli档案仍为静态审查未验收。来源#1487、#1491。
 - 补充HardwareInterface边界核对：URDF关节数仅检查非0、未限制≤6；协议命令数组固定6元素，NaN检查循环按num_joints_索引，>6轴配置存在越界访问静态风险；std::isnan也不拒绝Inf。当前接口/Lifecycle测试仅使用6轴fixture，未见DoF/finite边界回归用例；未执行运行时复现。来源#1494–#1495。
 - 新增序号流审查：MAX_FRAME_SEQUENCE_NUMBER=65535，subscriber的回绕丢包公式在65535→0正常回绕时多报1包；任何下降序号都被当成回绕并接受，重复序号仍可能沿read_robot_state成功返回，且每个重复数据报会刷新reception_timestamp。当前测试只覆盖普通递增丢包，不覆盖回绕/乱序/重复帧。未运行网络注入。来源#1496–#1500。
-- 新增跨语言协议编码静态缺陷：VAL3 initRobotStateMsg声明RobotState payload=124、总帧132字节，但encodeHeader最后2字节重复写入sequence number，未编码nPayloadSize；encodeRobotStateMsg调用该头部编码函数。C++状态解析器未校验payload_size，现有测试仅C++自身序列化往返，未发现VAL3黄金帧互操作用例。尚未实机抓包或运行VAL3。来源#1501–#1504、#1486。
+- 新增跨语言协议编码静态缺陷：VAL3 initRobotStateMsg声明RobotState payload=124、总帧132字节，但encodeHeader最后2字节重复写入sequence number，未编码nPayloadSize；encodeRobotStateMsg调用该头部编码函数。C++状态解析器未校验payload_size，现有测试仅C++自身序列化往返，未发现VAL3黄金帧互操作用例。尚未实机抓包或运行VAL3。来源#1501–#1506、#1486。
 
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
