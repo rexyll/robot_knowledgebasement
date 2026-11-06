@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.59  
+> 版本：v7.60  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -857,6 +857,9 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-06 | v7.58 | 00-01/21-02对DENSO WAVE档案作版本快照增量核验：依据官方版本更新页新增来源#1388，记录2026-10-30 RC8A/COBOTTA控制器2.24.0、WINCAPS III 3.74.0、VRC 2.24.0、RC Vision 1.4.14，以及2026-09-11 RC9/CRC9控制器1.15.0、WINCAPS III 3.73.0、VRC9 1.15.0；明确版本公告不等于目标地区下载、安装或验证。同步《主要厂商》§125.9、DENSO专项审计、来源台账和第21章执行记录。根00-01与21-02继续进行中；DENSO档案保持静态审查未验收；TODO-EXT-001仍未授权。 | 《主要厂商》§125.9；DENSO专项审计；来源#1388；第21章TaskPlan |
 
 | 2026-11-06 | v7.59 | 00-01/21-02继续P1厂商软件生态审查：新增Epson Robotics《主要厂商》§126，核验RC+ 8.0/SPEL+、RC800-A/RC800L/RC700控制器与选件、RTMC Client Library及官方ROS 2 Humble驱动；固定ROS 2/RTMC仓库HEAD与1.1.0版本，记录RC800+RTMC选件和指定GX4/GX8/RS4/RS6/C8/C12/CX4/CX7型号边界；审查Lifecycle激活Reset/MotorOn/PowerHigh/RTMC Enable与自动重启警告，登记1kHz controller_manager与2ms轨迹时基、buffer_size 5/10默认值和log_lovel/log_level文档差异；分离AX6/AX Portal消息/模型仓库，补充Safety Function Manual Rev.14型号/固件矩阵、Force Guide非安全功能和Fast DDS安全通信前置条件。新增来源#1389–#1401、Epson专项报告、基线审计§126、兼容矩阵行和第21章执行记录。未下载/安装RC+、未构建RTMC/ROS 2工作区、未连接真实机器人/控制器/PLC/安全回路、未执行周期/抖动/WCET/HIL/FAT/SAT或安全验证；根00-01与21-02继续进行中，20-07未验收；TODO-EXT-001仍未授权。 | 《主要厂商》§126；《知识生态兼容矩阵》Epson ROS 2行；Epson专项审计；来源#1389–#1401；第21章TaskPlan |
+
+
+| 2026-11-06 | v7.60 | 00-01/21-02继续P1厂商软件生态审查：新增Kawasaki Robotics《主要厂商》§127，核验Block-Step/AS Language/KRNX、K-ROSET/neoROSET、F系列控制器A/B安全单元及官方KHI ROS 2 Jazzy驱动；固定main HEAD 32a34658cd80343bfe7b7fb82cabce3bfd2b4381（2026-04-17），核对Ubuntu24.04实时内核、F01/F02/F60/F61控制器软件门槛、9个机器人SKU、500Hz manager/2ms RTC/4项缓冲配置、effort状态置0及Lifecycle恢复路径；明确KRNX专有许可仅允许与仓库全部组件组合使用，并区分控制器安全等级与整机安全。新增来源#1402–#1412、Kawasaki专项报告、基线审计§127和兼容矩阵Jazzy行。未安装软件/构建工作区/连接真实机器人控制器PLC安全回路，未执行实时、HIL/FAT/SAT或安全验证；根00-01与21-02继续进行中，20-07未验收；TODO-EXT-001仍未授权。 | 《主要厂商》§127；《知识生态兼容矩阵》Kawasaki Jazzy行；Kawasaki专项报告；来源#1402–#1412；第21章TaskPlan |
 
 ## 9. 跨项目待办与外部依赖（只追加）
 
