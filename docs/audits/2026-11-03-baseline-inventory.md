@@ -2877,6 +2877,7 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 新增Stäubli Robotics Suite（SRS）和VAL Blocks官方软件边界：SRS为Windows端工程/仿真软件，功能受Demo/Development/Maintenance/Optimize授权分层；VAL Blocks要求CS9软件≥8.20、有效许可证和SP2+，实时轨迹变化官方建议采用VAL3。ICube VAL3部署README另要求VAL3 8.x.x+及若干addons，demo许可有2小时限制。来源#1481–#1482、#1492。
 - ICube源码静态审查新增风险：非阻塞UDP would_block丢包但发送函数返回true；接收sender校验TODO；状态包header/payload/version校验不完整；诊断ready硬编码true且CS9类型验证被注释；VAL3旧命令staleness/硬停/IO处理留有TODO；位置模式有控制器侧关节范围检查但主机侧限位/finite验证不足；velocity控制未实现；effort为粗略电流估算。均为源码审查发现，未通过故障注入复现。来源#1488–#1490。
 - 可见测试覆盖mock/UDP loopback连接、协议序列化、丢包计数、staleness、Lifecycle和位置写入；所查launch测试目录只有.gitkeep。本轮未运行测试、未构建工作区、未安装SRS/VAL Blocks、未连接真实CS9/机器人/PLC/安全回路，未执行实时测量、网络故障注入、HIL/FAT/SAT或安全验证；Stäubli档案仍为静态审查未验收。来源#1487、#1491。
+- 补充HardwareInterface边界核对：URDF关节数仅检查非0、未限制≤6；协议命令数组固定6元素，NaN检查循环按num_joints_索引，>6轴配置存在越界访问静态风险；std::isnan也不拒绝Inf。当前接口/Lifecycle测试仅使用6轴fixture，未见DoF/finite边界回归用例；未执行运行时复现。来源#1494–#1495。
 
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
