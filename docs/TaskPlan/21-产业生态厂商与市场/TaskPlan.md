@@ -384,3 +384,6 @@
 
 
 | 2026-11-06 | 21-02/DENSO WAVE软件与ROS 2生态 | 新增《主要厂商》§125：核验WINCAPS III Full Function/Light/Trial差异、VRC/VRC9与ORiN2依赖、ORiN2 Provider和控制器版本边界；审查官方ROS 2 humble仓库，固定HEAD 2805694999b0375861e632426b5abc484d9a9936（2025-03-14），明确RC8/RC8A/COBOTTA支持、RC9仍under construction、标准URDF/MoveIt配置仅COBOTTA/VS-060、b-CAP/ORiN2/slaveMode差异；标记ROS Tools不受支持、COBOTTA旧Linux驱动仅Melodic/Ubuntu18.04/OSS Type、与RT合作支持已于2025-03结束；补充RC8A/RC9安全和现场总线SKU边界、停产备件维护期限。新增来源#1374–#1387、基线审计§125和专项报告。未安装软件/SDK、未构建ROS工作区、未连接控制器/PLC/安全回路、未执行实时/故障注入/HIL/FAT/SAT或安全验证；厂商档案保持静态审查未验收，21-02继续进行中。 | DENSO WAVE官方软件/控制器/支持页面；DENSORobot官方GitHub；基线审计§125；来源#1374–#1387 |
+
+
+| 2026-11-06 | 21-02/DENSO WAVE软件版本快照增量核验 | 补充DENSO WAVE官方版本更新页#1388：记录2026-10-30 RC8A/COBOTTA控制器2.24.0、WINCAPS III 3.74.0、VRC 2.24.0、RC Vision 1.4.14，以及2026-09-11 RC9/CRC9控制器1.15.0、WINCAPS III 3.73.0、VRC9 1.15.0；明确版本公告不等于目标地区可下载或已安装验证。更新《主要厂商》§125.9、来源台账与DENSO专项审计。21-02继续进行中。 | #1388 |
