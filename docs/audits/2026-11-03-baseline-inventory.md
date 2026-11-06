@@ -2878,6 +2878,7 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - ICube源码静态审查新增风险：非阻塞UDP would_block丢包但发送函数返回true；接收sender校验TODO；状态包header/payload/version校验不完整；诊断ready硬编码true且CS9类型验证被注释；VAL3旧命令staleness/硬停/IO处理留有TODO；位置模式有控制器侧关节范围检查但主机侧限位/finite验证不足；velocity控制未实现；effort为粗略电流估算。均为源码审查发现，未通过故障注入复现。来源#1488–#1490。
 - 可见测试覆盖mock/UDP loopback连接、协议序列化、丢包计数、staleness、Lifecycle和位置写入；所查launch测试目录只有.gitkeep。本轮未运行测试、未构建工作区、未安装SRS/VAL Blocks、未连接真实CS9/机器人/PLC/安全回路，未执行实时测量、网络故障注入、HIL/FAT/SAT或安全验证；Stäubli档案仍为静态审查未验收。来源#1487、#1491。
 - 补充HardwareInterface边界核对：URDF关节数仅检查非0、未限制≤6；协议命令数组固定6元素，NaN检查循环按num_joints_索引，>6轴配置存在越界访问静态风险；std::isnan也不拒绝Inf。当前接口/Lifecycle测试仅使用6轴fixture，未见DoF/finite边界回归用例；未执行运行时复现。来源#1494–#1495。
+- 新增序号流审查：MAX_FRAME_SEQUENCE_NUMBER=65535，subscriber的回绕丢包公式在65535→0正常回绕时多报1包；任何下降序号都被当成回绕并接受，重复序号仍可能沿read_robot_state成功返回，且每个重复数据报会刷新reception_timestamp。当前测试只覆盖普通递增丢包，不覆盖回绕/乱序/重复帧。未运行网络注入。来源#1496–#1500。
 
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
