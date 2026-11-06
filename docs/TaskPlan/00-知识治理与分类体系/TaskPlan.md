@@ -409,3 +409,6 @@
 
 
 | 2026-11-06 | 00-01 | 按第14章 WBC 知识差距继续增补《全身控制与接触动力学》§14–§15，细化 QP 矩阵组装、层级优先级、摩擦锥近似、接触力分配、CoP/执行器约束、不可行诊断与数值回归用例；来源台账#1335–#1339。已对 TSID、OCS2、Pinocchio 约束 API 与官方四足 MPC 配置示例开展静态资料核对。未构建或运行依赖库/优化器，未执行仿真、SIL/HIL/WCET或实机试验；00-01继续进行中。 |
+
+
+| 2026-11-06 | 00-01 | 按当前 main Git Tree 对账知识资产清单：确认仓库共 253 个 Blob、205 份 Markdown、142 份 knowledge Markdown、60 份 docs Markdown、26 份章节 TaskPlan；发现旧 CSV 有 17 份 knowledge 文件漏登、24 条已有记录 SHA/大小过期及 1 条空白记录。已补录新增文件、刷新全部旧记录 Blob SHA/字节数，清单扩展元数据对账字段；报告见 `docs/audits/2026-11-06-knowledge-asset-tree-reconciliation.md`。本轮仅为 Git 元数据对账，未重新全文扫描或逐句 claim-level 审查，00-01保持进行中。 |
