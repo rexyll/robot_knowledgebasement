@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.70  
+> 版本：v7.71  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -378,7 +378,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；最新Stäubli档案已覆盖CS9/VAL3/uniVAL、SRS/VAL Blocks、ICube ROS 2 Release/CI及C++/VAL3通信、诊断、DoF/数值输入、序号流和VAL3 RobotState跨语言Header payload_size编码风险；其余厂商型号/生命周期仍待完整核验，Stäubli工程风险仍需构建/故障注入/实机/HIL/FAT/SAT验证 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；最新Stäubli档案已覆盖CS9/VAL3/uniVAL、SRS/VAL Blocks、ICube ROS 2 Release/CI及C++/VAL3通信、诊断、DoF/数值输入、序号流和VAL3 RobotState跨语言Header payload_size编码风险；已补充decodeHeader/MessageHeader反向语义证据；其余厂商型号/生命周期仍待完整核验，Stäubli工程风险仍需构建/故障注入/实机/HIL/FAT/SAT验证 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -883,6 +883,8 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-06 | v7.69 | 00-01/21-02对Stäubli ICube ROS 2状态序号流开展增量静态审查：确认uint16_t序号上限65535，C++ subscriber的wrap lost-count公式在65535→0无丢包时多报1；任意较小序号被当作回绕接受并使last_read_sequence_number_回退；重复帧虽new_message=false，read_message仍返回true，RobotDriver不检查new_message且每个已解析数据报刷新reception_timestamp，可能削弱staleness状态新鲜度判断。核对VAL3序号生成/延迟计算与现有测试仅覆盖普通递增丢包。新增来源#1496–#1500，更新Stäubli专项报告§9.3.2、厂商§128.7、兼容矩阵、基线审计和第00/21章记录。未进行UDP乱序/重复/回绕注入、未运行测试/连接真实CS9，所有结论为静态发现；00-01和21-02继续进行中，20-07未验收，TODO-EXT-001仍未授权。 | ICube固定main subscriber/protocol/RobotDriver/VAL3/测试源码；Stäubli专项审查§9.3.2；来源#1496–#1500 |
 
 | 2026-11-06 | v7.70 | 00-01/21-02对Stäubli ICube VAL3 RobotState跨语言帧编码开展静态核查：initRobotStateMsg将payload设为124、总帧132字节；encodeHeader在header最后2字节重复写入nMsgSequenceNumber，按协议该字段应为nPayloadSize；encodeRobotStateMsg调用该函数。当前C++ RobotState parser没有验证payload_size，现有单测只覆盖C++自身序列化往返，没有VAL3黄金帧互操作样本。新增来源#1501–#1504，更新Stäubli专项报告§9.3.3、厂商§128.7、兼容矩阵、基线审计、审计索引和00/21章TaskPlan。静态代码缺陷候选尚未通过VAL3编译/实机抓包验证；00-01与21-02继续进行中，20-07未验收，TODO-EXT-001未授权。 | ICube固定main VAL3 header/init/state encoder、C++ parser/test源码；Stäubli专项审查§9.3.3；来源#1501–#1504、#1486 |
+
+| 2026-11-06 | v7.71 | 00-01/21-02补齐Stäubli VAL3 RobotState Header payload_size静态缺陷的反向协议定义证据：decodeHeader.pgx按sequence之后的2字节解码nPayloadSize，MessageHeader.dtx将该字段定义在8字节Header中，与encodeHeader.pgx重复写nMsgSequenceNumber形成闭环；进一步确认payload应为124且总帧132字节。新增来源#1505–#1506，更新专项报告、厂商§128.7、兼容矩阵、基线审计及00/21章记录。未运行VAL3编译/真实CS9抓包/跨语言互操作测试；缺陷仍为高优先级静态发现候选，00-01/21-02继续中，20-07未验收，TODO-EXT-001未授权。 | ICube固定main VAL3 header encoder/decoder/type/init/caller与C++ parser/test源码；专项审查§9.3.3；来源#1501–#1506 |
 
 ## 9. 跨项目待办与外部依赖（只追加）
 
