@@ -2884,3 +2884,15 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 ### 129.1 Universal Robots增量主张核验（2026-11-06）
 - PolyScope X ROS 2 URScript文档警示publisher/subscriber句柄生命周期及至少2ms方法调用延迟，运动段间调用可能影响blend；应解耦通信线程并在目标PSX版本实测。来源#1437。
 - UR Safety FAQ称CB3于2022年EOL且不在ISO 10218-1:2025认证路径，CB5.6为PolyScope X要求控制箱；e-Series/UR Series现行PLd Cat.3声明和2025版认证计划（2027-01）必须区分。来源#1436。
+
+
+## 130. Doosan Robotics（斗山机器人）DART/DRFL/ROS 2生态静态审查（2026-11-06）
+
+- Doosan官方ROS 2仓库有Humble/Jazzy分支；Humble最新默认分支提交d276f9f（2026-11-02），最近release提交20261029；Jazzy分支存在。Humble面向Ubuntu22.04/ROS2 Humble，Jazzy面向Ubuntu24.04/ROS2 Jazzy。来源#1438–#1441、#1453。
+- ROS栈分为dsr_bringup2、dsr_common2、dsr_controller2、dsr_description2、dsr_hardware2、dsr_msgs2、MoveIt配置、Gazebo、MuJoCo与tests；Jazzy迁移从ControllerInterface转SystemInterface，支持生命周期/动态DoF，DRCF>=3.0需rt_host，RT配置/启动仅真实机器人模式有效。来源#1440–#1441。
+- DRFL RT为独立UDP接口，最高1kHz；同一控制器同时只允许一个RT UDP客户端，且模拟器不支持RT。servol_rt异步返回，1仅表示数据报发送成功；fTargetTime不是发送周期，DRCF v3.4+最小值0.025s，且不与Operation Speed联动。来源#1444–#1446。
+- 静态源码审查发现ros2_control硬件接口导出position/velocity/effort，但effort路径有TODO、velocity路径也有TODO/位置命令门控；接口可见不等于独立控制模式完整实现。真实模式使用1ms RT UDP和12347端口，按update_rate过滤异常dt。来源#1441。
+- Doosan系列传感器架构不同：A/E电流估算、A-S末端FTS、M/H/P关节JTS；力/柔顺控制功能受系列限制。P系列安全手册列PL d Cat.3/SIL2监控功能，不可外推到其他系列。来源#1447–#1449。
+- DART-Suite包括IDE/SDK/Store/Platform等；部分Platform 3通信模块需从Store另行安装，Developer LAB App Builder用于合作伙伴应用模块开发。来源#1450–#1452。
+- Humble与Jazzy分支的根LICENSE/package.xml许可声明不一致；API-DRFL main release GL013305/v1.33.5，而公开API文档为GL013304/v1.33.4；DRFL README说明仓库内静态库是示例版本，最新库从RobotLab下载。来源#1438、#1442–#1443。
+- 未安装DART/DRFL、未构建ROS工作区、未运行emulator/Gazebo/MuJoCo、未连接真实机器人/PLC/安全设备，未执行RT周期/WCET/轨迹/力控/停止距离/HIL/FAT/SAT；仅为公开资料/代码静态审查。专项报告：docs/audits/2026-11-06-doosan-robotics-software-ros2-ecosystem-review.md。
