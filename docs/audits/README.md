@@ -5,6 +5,9 @@
 本目录记录 Robot Knowledge Basement 的仓库资产、内容质量、来源和公开发布审查。
 
 ## 当前记录
+
+- [2026-11-06 安全防护器件安全激光扫描仪配置主张定向复核](2026-11-06-safety-scanner-configuration-claim-review.md)：依据 OMRON OS32C 与 SICK microScan3 Core I/O 官方规格/操作说明，复核配置依赖、响应时间、OSSD边界及 ISO 3691-4 版次状态；未进行设备或整机验证，整篇资产仍待 claim-level 验收。
+
 - [2026-11-06 功能安全体系 ISO 13849-1 / IEC 62061 范围主张定向复核](2026-11-06-functional-safety-ISO13849-IEC62061-scope-review.md)：核对两项机械功能安全标准的公开范围、运行模式、版次与排除边界；未审读标准全文或验证具体产品，整篇资产仍待 claim-level 验收。
 - [2026-11-06 电机与驱动器 IEC 61800-5-2 范围主张定向复核](2026-11-06-motor-drive-IEC61800-5-2-scope-claim-review.md)：P0 专项审查，仅覆盖《电机与驱动器》§8 的公开标准范围、应用集成排除项和低需求模式边界；整篇资产仍待完整 claim-level 审查。
 - [2026-11-04 Python SBOM 许可证元数据候选审计](2026-11-04-python-license-metadata-audit.md)：四环境 45 条 CycloneDX license metadata 候选；10 条记录均已取得版本级 tag/commit 或 PyPI provenance/release 许可证证据；法律复核仍未完成；SBOM artifact SHA256SUMS 路径修复已由 CI 下载验证。
