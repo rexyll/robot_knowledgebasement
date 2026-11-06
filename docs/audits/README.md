@@ -5,6 +5,7 @@
 本目录记录 Robot Knowledge Basement 的仓库资产、内容质量、来源和公开发布审查。
 
 ## 当前记录
+- [2026-11-06 电机与驱动器 IEC 61800-5-2 范围主张定向复核](2026-11-06-motor-drive-IEC61800-5-2-scope-claim-review.md)：P0 专项审查，仅覆盖《电机与驱动器》§8 的公开标准范围、应用集成排除项和低需求模式边界；整篇资产仍待完整 claim-level 审查。
 - [2026-11-06 电机与驱动器 IEC 61800-5-2 范围主张定向复核](2026-11-06-motor-drive-IEC61800-5-2-scope-claim-review.md)：复核当前 IEC Edition 2.1 元数据、PDS(SR) 产品范围、应用风险分析边界、低需求模式及 IEC 61800-5-1 分工；只覆盖文章 §8，不代表整篇或具体驱动器安全验证。
 - [2026-11-04 Python SBOM 许可证元数据候选审计](2026-11-04-python-license-metadata-audit.md)：四环境 45 条 CycloneDX license metadata 候选；10 条记录均已取得版本级 tag/commit 或 PyPI provenance/release 许可证证据；法律复核仍未完成；SBOM artifact SHA256SUMS 路径修复已由 CI 下载验证。
 - [许可证元数据人工复核队列 CSV](2026-11-04-python-license-metadata-review-queue.csv)：7 条 classifier/free-text 组件记录及 3 条 packaging OR expression 记录。
@@ -25,7 +26,7 @@
 ## 审计状态
 
 - 00-01 全库资产盘点：进行中。
-- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 254 个 Blob、206 份 Markdown、142 份 knowledge Markdown、61 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
+- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 255 个 Blob、207 份 Markdown、142 份 knowledge Markdown、62 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
 - 标题/结构检查：原 112 份知识文件保留历史标题、章节结构和开篇检查记录；当前 142 份资产的统一结构扫描覆盖率尚未重新计算。后续新增文件存在专题审查/结构检查记录，但尚未统一汇总为当前覆盖率。
 - 全文结构扫描：96/120 是旧快照统计，不能作为当前 142 份资产的覆盖率；本轮只做 Git Tree/Blob 元数据对账，当前统一结构扫描需重新执行。结构扫描不等于专业审稿或 claim-level 验收。
 - README 最近一次扫描：既有目录 README 的正文结构检查记录保留；本轮只刷新清单涉及文件的 Git 元数据，不重新判定 README 正文质量。
