@@ -2882,6 +2882,8 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 新增跨语言协议编码静态缺陷：VAL3 initRobotStateMsg声明RobotState payload=124、总帧132字节，但encodeHeader最后2字节重复写入sequence number，未编码nPayloadSize；encodeRobotStateMsg调用该头部编码函数。C++状态解析器未校验payload_size，现有测试仅C++自身序列化往返，未发现VAL3黄金帧互操作用例。尚未实机抓包或运行VAL3。来源#1501–#1506、#1486。
 - 新增VAL3命令帧Header校验时序缺陷：initRobotCommandMsg设payload=47/总长55；decodeRobotCommandMsg先用内存中旧Header检查长度，随后decodeHeader读取当前头并可能清除旧错误标志，之后没有校验当前nPayloadSize是否为47。实际长度55但payload_size声明错误的命令数据报可能仍被解析；readDataOnce会另行拒绝实际短/长UDP包。本轮未运行VAL3或注入报文。来源#1505、#1507–#1510。
 
+- 新增ICube C++诊断消息解析器Header顺序问题：DiagnosticDataMessage::deserialize先用对象构造默认Header（type=DIAGNOSTIC_DATA、payload=66）校验，随后读取当前数据报Header却未复核payload_size；subscriber每个数据报创建新消息实例，正常接收路径使用的是默认值而非上一包Header。74字节以上、但payload_size声明错误的诊断包仍缺少当前字段一致性校验；短包有最小长度保护。read_diagnostic_data调用后另检查type/staleness，connect仍未接通诊断readiness。合法诊断消息round-trip测试未覆盖畸形Header；未确认真实CS9诊断发送链路或运行测试。来源#1511–#1515。
+
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
 - 驱动仓库UniversalRobots/Universal_Robots_ROS2_Driver固定main HEAD e55b899066caffbceda80662d63b61c80f56719a（2026-11-06 08:30 UTC），新增g-series launch支持；ur_robot_driver package.xml为7.2.0/BSD-3-Clause，main晚于7.2.0 release commit。README列Humble/Jazzy/Kilted/Lyrical/Rolling分支和EOL分支，Linux为驱动要求。来源#1422。
