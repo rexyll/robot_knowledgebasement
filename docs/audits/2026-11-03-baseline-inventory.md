@@ -2797,3 +2797,21 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 未审查具体安全控制器、驱动器、传感器、接线、固件/参数、证书、软件生命周期和风险评估记录。
 - 未执行故障注入、诊断覆盖/共因失效验证、响应时间/停止距离测试、HIL、实机测试或第三方合规评估。
 - 因此仅完成公开范围/版次的 P0 定向复核；《功能安全体系》整篇 claim-level 验收仍未完成。
+
+
+## 125. DENSO WAVE工业机器人软件与ROS 2生态静态审查（2026-11-06，来源#1374–#1387）
+
+### 125.1 核验事实
+- WINCAPS III提供PAC/PacScript编程、PC仿真、3D干涉/轨迹/节拍检查、控制器数据备份和在线调试；Full Function/Light/Trial许可差异明显，Light不含仿真/调试/3D CAD导入，监控采样为1秒。RC9项目要求Windows 10/11 64-bit。来源#1374–#1375。
+- VRC/VRC9为RC8A/RC9控制器虚拟环境，VRC要求ORiN2 SDK；DENSORobot ROS 2 README列WINCAPS仿真机器人需要WINCAPS III、ORiN2 SDK、VRC kernel和WINCAPS III产品版许可。虚拟控制器不能替代PLC、真实外围和安全链。来源#1376、#1379。
+- ORiN2官方Provider表覆盖DENSO RC5/RC7/RC8/COBOTTA/VRC/RC9及多个第三方设备Provider；控制器版本FAQ列RC8 V1.2.4+、RC7 V2.330+、RC5 V1.998+。ORiN2命令接口是控制器内部生成轨迹的高层目标点接口，不代表实时外部轨迹流。来源#1377、#1378、#1380。
+- DENSORobot/denso_robot_ros2默认humble分支HEAD为2805694999b0375861e632426b5abc484d9a9936（2025-03-14）。README当前支持RC8/RC8A/COBOTTA非OSS类型，RC9 under construction；标准URDF/MoveIt配置仅COBOTTA和VS-060。b-CAP、ORiN2、slaveMode控制模式与slave许可前置条件不同。来源#1379–#1380。
+- 官方ROS Tools 2.0.1页面明确标注“不受支持”；COBOTTA Linux驱动1.2.1对应Melodic/Ubuntu18.04且仅COBOTTA OSS Type；DENSO与RT合作支持于2025-03结束。来源#1381–#1383。
+- RC8A Safety Motion为选项；RC9/CRC9页面列安全功能但仍需按完整SKU、证书、外部传感器和风险评估核验。现场总线需要板卡/接口SKU级确认。来源#1384–#1385。
+- DENSO停产页面按型号列维护结束日期，备件/维修原则上持续至停产后10年；软件下载入口部分资料需注册。来源#1386–#1387。
+
+### 125.2 风险与未完成
+- 未获取目标地区商业软件安装包、完整受控手册、许可证SKU/并发/虚拟机/离线许可规则；未核验WINCAPS/VRC/ORiN2在目标控制器固件下的联合兼容矩阵。
+- ROS 2仓库最后push为2025-03-14；RC9支持仍标注under construction。未构建Humble工作区或逐文件核验混合MIT/Apache-2.0/BSD许可，需进一步确认当前维护和许可清单。
+- 未连接真实机器人/控制器、PLC、现场总线或安全回路；未测实时周期/抖动/WCET、轨迹误差、节拍、重复定位、断线恢复、故障注入、HIL/FAT/SAT或安全性能。
+- 因此仅为官方资料/公开仓库静态审查，不代表工程验收或供应商资格完成。
