@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-06 Doosan Robotics DART/DRFL/ROS 2生态静态审查](2026-11-06-doosan-robotics-software-ros2-ecosystem-review.md)：区分Humble/Jazzy、DRCF v2/v3、ros2_control与DRFL 1kHz RT UDP；记录DART-Suite、系列传感器差异、P系列安全声明和许可版本差异，未构建或连接实机。
+
 - [2026-11-06 Universal Robots PolyScope/URCap/ROS 2生态静态审查](2026-11-06-universal-robots-software-ros2-ecosystem-review.md)：区分PolyScope X内置ROS 2、外部ur_robot_driver、ur_client_library和URCapX；记录g-series主分支支持、PSX 10.7/Humble与10.15/Jazzy、运动控制器和安全责任边界；未构建或连接实机。
 
 - [2026-11-06 Stäubli Robotics CS9/VAL 3/uniVAL/ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：区分CS9/VAL 3、uniVAL plc/drive、ICube ROS 2 Jazzy prototype与ROS-Industrial ROS 1历史驱动；记录position-only、mock/effort边界及开发暂停状态，未构建或连接实机。
