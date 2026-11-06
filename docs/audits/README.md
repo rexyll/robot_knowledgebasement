@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-06 Stäubli Robotics CS9/VAL 3/uniVAL/ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：区分CS9/VAL 3、uniVAL plc/drive、ICube ROS 2 Jazzy prototype与ROS-Industrial ROS 1历史驱动；记录position-only、mock/effort边界及开发暂停状态，未构建或连接实机。
+
 - [2026-11-06 Epson Robotics RC+ 8.0/RTMC/ROS 2生态审查](2026-11-06-epson-robotics-ecosystem-review.md)：核对RC+ 8.0/SPEL+、RC800 RTMC、官方ROS 2 Humble驱动、AX6/AX Portal独立栈、Lifecycle自动重启风险、1 kHz/2 ms时基与buffer默认值差异，以及安全功能型号/固件矩阵；仅静态审查，未构建或连接实机。
 
 - [DENSO WAVE软件生态审计](2026-11-06-denso-wave-robotics-ecosystem-review.md)：WINCAPS、VRC、ORiN2、ROS 2及控制器支持边界的静态审查。
