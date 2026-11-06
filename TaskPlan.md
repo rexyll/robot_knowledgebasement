@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.34  
+> 版本：v7.35  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -814,3 +814,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-05 | v7.33 | 00-01/21-02继续P1软件生态厂商审查：新增KUKA.Sim 4.x / KUKA.OfficeLite与iiQWorks.Sim / iiQKA.OS2 VRC双路线独立档案，核对KSS 8.5/8.6/8.7 RCS边界、KRL/Config.dat/WorkVisual/SafeOperation/STOP 0/RoboTeam/变位机、传统Connectivity/Modeling/ArcWelding AddOn、OfficeLite Hyper-V和无法连接真实外围；补充iiQWorks.Sim Basic/Advanced/VRC/RCS/PLC AddOn矩阵、SU/N/F许可和AddOn一致性、Copilot联网/credits与KR C5至KR C5-2迁移工程服务。新增来源#1248–#1261、基线审计第122节、第00章/第21章TaskPlan和资产CSV同步。未下载/安装软件或虚拟控制器、未运行/迁移目标KRL项目、未连接真实PLC/机器人/现场总线、未执行HIL/FAT/SAT/安全测试；KUKA资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§122；第00章/第21章TaskPlan；来源#1248–#1261；资产清单 |
 
 | 2026-11-05 | v7.34 | 00-01/21-02继续P1厂商生态审查：完成Yaskawa MOTOMAN传统DX200/YRC1000/YRC1000micro与MOTOMAN NEXT/YNX1000+ACU双平台增量静态审查；更新GP/HC/NEX/AR/PL/SG/MPP等产品族、型号级控制器映射、MotoSim EG-VRC 2026、INFORM/MotoPlus/YMConnect 1.1.10/MotoROS2 0.2.1/Smart Pendant SDK/MotoLogix，以及ACU RCS/PPLS/MVS/AIS/FCS、Linux/C++/gRPC/Docker和YNX Simulator 3.3.0物理能力边界。新增来源#1262–#1293、基线审计第123节、第00章/第21章TaskPlan和资产CSV同步。未下载/安装SDK或仿真器、未部署目标控制器/ACU软件、未连接PLC/外围设备、未执行HIL/FAT/SAT、实机性能/实时/功能安全验证；Yaskawa资产保持静态审查未验收，根主章节00、主任务00-01和第21章21-02继续进行中。 | 基线审计§123；第00章/第21章TaskPlan；来源#1262–#1293；资产清单 |
+
+
+| 2026-11-06 | v7.35 | 00-01 对 rexyll/MotionControlAlgorithms main 开展运动控制算法仓库纳入审查：静态抽查 README/CMake/架构/TaskPlan/CI、PID/MPC、硬件 HAL、CiA 402 与 EtherCAT；确认算法、模型、轨迹、底盘、机械臂、Legged/UAV、多机器人和现场总线内容具有较高知识价值，映射至第12/14/19/11/09/10章。发现上游根目录 LICENSE 与 LICENSE.md 均不存在，当前无法确认源码再分发授权；按 G-08 暂停复制/合并源码，仅允许链接与独立知识化。新增审查报告 docs/audits/MotionControlAlgorithms-main-review-2026-11-06.md、来源台账#1294–#1306、第14章补充审查记录。未对上游全量源码逐行审计、未本地构建/复跑CI、未做目标机器人实时/WCET/HIL/安全验证；不改变14-01至14-06验收状态，根主章节00、主任务00-01保持进行中。 | 上游 main README/CMake/TaskPlan/ARCHITECTURE/P12/P14/CI及代表性头文件；审查报告；来源#1294–#1306 |
