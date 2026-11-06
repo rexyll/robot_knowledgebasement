@@ -2841,3 +2841,21 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 未验证Reset/MotorOn/PowerHigh/RTMC Enable的权限/互锁、急停/防护门异常恢复、人工授权和防止自动重启策略。
 - 未连接真实机器人/控制器/PLC/现场总线/安全回路；未核验Safety Board固件/证书或执行停止时间、故障注入、HIL/FAT/SAT/整机风险评估。
 - 因此仅完成官方资料/公开仓库静态审查，不代表工程验收、实时性保证或安全认证完成。
+
+
+## 127. Kawasaki Robotics软件与ROS 2生态静态审查（2026-11-06，来源#1402–#1412）
+
+### 127.1 核验事实
+- Kawasaki官方区分Block-Step、AS Language和KRNX：前两者是控制器编程方式，KRNX是供外部生成运动程序使用的高级控制API。K-ROSET/K-ROSET Lite用于离线编程/仿真；neoROSET官方声明虚拟控制器轨迹/节拍仿真、多机器人/外部轴与干涉检查；KRTerm、KCONG、K-SPARC分别承担控制器监控/备份、自动示教和码垛等不同职责。来源#1402–#1404、#1408。
+- F系列控制器A/B型安全平台有明确差异：A型适配Cubic-S，B型适配CoreCubic-S；F60手册亦明确二者不兼容。F系列控制器安全电路和可选空间/速度监控的制造商等级声明必须按控制器/安全单元SKU分别核验，不代表整机安全等级。来源#1405–#1407。
+- 官方Kawasaki-Robotics/khi_ros2默认main HEAD为32a34658cd80343bfe7b7fb82cabce3bfd2b4381（2026-04-17，增加Jazzy支持），没有GitHub Release对象；khi_hardware package.xml版本1.0.0。README支持ROS 2 Jazzy、Ubuntu 24.04实时内核，要求实时权限；控制器软件版本和机器人型号均有明确列表，不得外推到全产品线。来源#1409–#1411。
+- F系列配置为500 Hz controller_manager，硬件接口据此换算2 ms RTC周期；KRNX命令缓冲容量4，源码明确提到控制器与ROS周期差导致缓冲积累并采用静止时跳过命令策略。关节effort状态被显式置0，不能视为实测力矩/电流；F/T与实际电流是独立可选遥测路径。来源#1411。
+- Lifecycle激活包含Reset、MotorOn、Hold检查、RTC补偿清除、Home初始化、监控速度设为100%和RTC程序启动；deactivate包含等待1秒、Hold、Kill程序和MotorOff。README提醒RTC模式与REPEAT模式状态相同，Troubleshooting提供重新激活恢复步骤，生产恢复需外部安全状态确认和人工授权。来源#1410–#1411。
+- 仓库LICENSE将KRNX头文件和二进制列为专有许可，允许范围限定为与仓库其余全部组件组合使用；其他组件为Apache-2.0。不得单独抽取/分发KRNX。来源#1412。
+
+### 127.2 风险与未完成
+- 未下载/安装K-ROSET、neoROSET或KRNX开发环境；未在Ubuntu 24.04实时内核构建ROS 2 Jazzy工作区；未连接真实机器人/控制器、PLC、现场总线或安全回路。
+- 未实测500 Hz周期、2 ms RTC、FIFO调度、抖动、WCET、网络延迟、命令缓冲、轨迹精度、节拍、effort/力传感器语义或断线恢复。
+- 未验证Lifecycle复位/重新激活后的运动状态、残余命令和人工授权；未执行安全功能证书核验、风险评估、故障注入、HIL/FAT/SAT。
+- 未完成KRNX专有许可法律审查、商业软件SKU/地区授权和全型号控制器/机器人兼容矩阵。
+- 因此本节仅为官方资料与官方仓库静态审查，不代表工程验收或供应商资格完成。专项报告：docs/audits/2026-11-06-kawasaki-robotics-ecosystem-review.md。
