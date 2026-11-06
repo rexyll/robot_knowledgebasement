@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.62  
+> 版本：v7.63  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -866,6 +866,9 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-06 | v7.62 | 00-01/21-02继续P1厂商软件生态审查：新增Universal Robots《主要厂商》§129，核验CB3/e-Series/UR Series/g-series及PolyScope 3/5/10代际；固定UniversalRobots ROS 2 Driver main HEAD e55b899（2026-11-06，新增g-series启动支持）和ur_robot_driver package.xml 7.2.0，审查Humble/Jazzy/Kilted/Lyrical/Rolling分支；区分PolyScope X内置ROS 2（10.7/Humble、10.15/Jazzy）、外部ros2_control driver、C++ Client Library及URCapX；审查Teach Pendant/Headless、Local/Remote、scaled/passthrough/motion primitives/streaming、force/torque、校准、URSim/mock、URCapX 1.2.0和SDK 0.22；记录PLd Cat.3厂商声明与ISO 10218-1:2025未来认证计划，明确整机风险评估责任。新增来源#1422–#1436、专项审计报告、兼容矩阵和第21章记录。未安装/构建软件、未连接真实机器人/PLC/安全回路，未执行实时/轨迹/力控/停止距离/HIL/FAT/SAT或安全验证；根00-01与21-02继续进行中，20-07未验收；TODO-EXT-001仍未授权。 | 《主要厂商》§129；《知识生态兼容矩阵》UR行；UR专项审计；来源#1422–#1436；第21章TaskPlan |
+
+
+| 2026-11-06 | v7.63 | 对Universal Robots §129作增量主张级复核：新增PolyScope X URScript ROS API句柄资源生命周期和至少2ms调用延迟/运动blend影响警示；补充UR Safety FAQ中CB3于2022年EOL、CB5.6为PolyScope X要求控制箱、e-Series/UR Series PLd Cat.3声明及ISO 10218-1:2025计划认证时间2027-01的边界。新增来源#1437并更新专项报告、厂商档案、兼容矩阵、基线审计和第00/21章记录。未在目标PolyScope版本实测延迟、未取得证书原件，未执行软件构建/真实机器人/HIL/FAT/SAT或安全验证；根00-01与21-02继续进行中，20-07未验收，TODO-EXT-001仍未授权。 | 《主要厂商》§129；UR专项审计；来源#1436–#1437；第00/21章TaskPlan |
 
 ## 9. 跨项目待办与外部依赖（只追加）
 
