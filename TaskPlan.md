@@ -817,6 +817,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-06 | v7.35 | 00-01 对 rexyll/MotionControlAlgorithms main 开展运动控制算法仓库纳入审查：静态抽查 README/CMake/架构/TaskPlan/CI、PID/MPC、硬件 HAL、CiA 402 与 EtherCAT；确认算法、模型、轨迹、底盘、机械臂、Legged/UAV、多机器人和现场总线内容具有较高知识价值，映射至第12/14/19/11/09/10章。发现上游根目录 LICENSE 与 LICENSE.md 均不存在，当前无法确认源码再分发授权；按 G-08 暂停复制/合并源码，仅允许链接与独立知识化。新增审查报告 docs/audits/MotionControlAlgorithms-main-review-2026-11-06.md、来源台账#1294–#1306、第14章补充审查记录。未对上游全量源码逐行审计、未本地构建/复跑CI、未做目标机器人实时/WCET/HIL/安全验证；不改变14-01至14-06验收状态，根主章节00、主任务00-01保持进行中。 | 上游 main README/CMake/TaskPlan/ARCHITECTURE/P12/P14/CI及代表性头文件；审查报告；来源#1294–#1306 |
+| 2026-11-06 | v7.36 | 将 MotionControlAlgorithms 源码合并明确登记为 TODO-EXT-001 延期待办：等待上游最后验证完成，再由用户与助手讨论；上游验证完成不自动授权合并。当前仅推进独立知识整理与差距分析。新增技术内容—目标资产差距矩阵；根任务00-01继续进行中。 | TODO-EXT-001；MotionControlAlgorithms 审查报告与差距矩阵 |
 
 
 ## 9. 跨项目待办与外部依赖（只追加）
@@ -830,4 +831,3 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 - **责任/决策：** 是否合并由用户与助手在届时讨论；未满足启动条件前保持待办，不自动执行。
 - **关联记录：** `docs/audits/MotionControlAlgorithms-main-review-2026-11-06.md`；`docs/audits/MotionControlAlgorithms-knowledge-gap-matrix-2026-11-06.md`。
 
-| 2026-11-06 | v7.36 | 将 MotionControlAlgorithms 源码合并明确登记为 TODO-EXT-001 延期待办：等待上游最后验证完成，再由用户与助手讨论；上游验证完成不自动授权合并。当前仅推进独立知识整理与差距分析。新增技术内容—目标资产差距矩阵；根任务00-01继续进行中。 | TODO-EXT-001；MotionControlAlgorithms 审查报告与差距矩阵 |
