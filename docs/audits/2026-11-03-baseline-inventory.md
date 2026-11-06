@@ -2868,3 +2868,14 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - ICube ROS 2驱动README声明Jazzy/Ubuntu 24.04、CS9、position-only；项目明确为prototype，2025-11 POC后曾因资金中断暂停开发，未找到正式Release或恢复证据。velocity接口尚未实现，effort由电流估算，mock不发送UDP且不反映真实动力学。来源#1417–#1419。
 - ROS-Industrial VAL3驱动属于ROS 1 simple_message/FollowJointTrajectory路线；ROS Index显示Indigo、0.1.0、CATKIN、UNRELEASED、2018-04-06最后更新，不构成现代ROS 2发行版支持证据。来源#1420–#1421。
 - 未安装商业软件、未构建ROS 2工作区、未运行mock/SRS仿真、未连接真实CS9/机器人/PLC/安全回路，未测实时/WCET/轨迹/节拍或执行HIL/FAT/SAT/安全验证；本节仅为静态资料审查，不代表工程验收。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md。
+
+
+## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
+
+- 驱动仓库UniversalRobots/Universal_Robots_ROS2_Driver固定main HEAD e55b899066caffbceda80662d63b61c80f56719a（2026-11-06 08:30 UTC），新增g-series launch支持；ur_robot_driver package.xml为7.2.0/BSD-3-Clause，main晚于7.2.0 release commit。README列Humble/Jazzy/Kilted/Lyrical/Rolling分支和EOL分支，Linux为驱动要求。来源#1422。
+- ROS 2集成需区分PolyScope X内置ROS 2（10.7/Humble；10.15/Jazzy/Fast DDS）、外部ros2_control驱动及独立C++ ur_client_library；urinterfaces按PolyScope版本tag发布，ROS发行版升级可能breaking。来源#1428–#1429、#1433–#1434。
+- 外部驱动区分Teach Pendant/Headless与Local/Remote control；默认script_sender_port 50002；scaled trajectory、passthrough、motion primitives和streaming控制具有不同插补/速度缩放/实时责任；streaming命令由应用负责安全和可达性。来源#1423–#1424。
+- 直接扭矩控制与扭矩状态读取有不同PolyScope最低版本；旧effort可能是电流；URSim不模拟真实effort。力/扭矩传感器为相对式，接触前需zero；真实机器人需提取工厂标定数据，否则ROS侧TCP位姿可能出现厘米级误差。来源#1425–#1427。
+- PolyScope X SDK 0.22支持Program/Application Node和Docker container contributions；External Control URCapX 1.2.0为Latest，兼容表要求按PolyScope版本匹配，PSX 10.15与1.2.x列为支持组合。来源#1430–#1432。
+- UR官方安全FAQ（2026-05-06）声明安全功能PLd Cat.3，并将ISO 10218-1:2025认证目标列为2027-01计划；不可将计划误写成已获证。整机应用风险评估由集成方负责，机器人本体为部分完成机械；协作机器人并不意味着整站免风险评估。来源#1435–#1436。
+- 未安装软件/URCapX/SDK，未构建ROS 2工作区，未运行mock/URSim/Gazebo，未连接真实机器人/PLC/安全回路，未采集校准数据或执行实时/轨迹/力控/停止距离/HIL/FAT/SAT/安全验证；仅为静态资料审查。专项报告：docs/audits/2026-11-06-universal-robots-software-ros2-ecosystem-review.md。
