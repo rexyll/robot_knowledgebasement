@@ -6,7 +6,7 @@
 
 ## 当前记录
 
-- [2026-11-06 电池与电源 IEC 62619 / IEC 63056 / UN 38.3 版次定向复核](2026-11-06-battery-IEC62619-UN383-review.md)：更新 UNECE Rev.8 Amendment 1（2025）运输手册入口，区分工业电池与固定式储能系统标准范围；未审读标准全文或验证具体电池/整机，整篇资产仍待 claim-level 验收。\n- [2026-11-06 安全防护器件安全激光扫描仪配置主张定向复核](2026-11-06-safety-scanner-configuration-claim-review.md)：依据 OMRON OS32C 与 SICK microScan3 Core I/O 官方规格/操作说明，复核配置依赖、响应时间、OSSD边界及 ISO 3691-4 版次状态；未进行设备或整机验证，整篇资产仍待 claim-level 验收。
+- [2026-11-06 安全防护器件急停功能与安全继电器配置主张定向复核](2026-11-06-emergency-stop-safety-relay-review.md)：核对 ISO 13850 生命周期、急停复位/启动边界，以及 Siemens 3SK1、OMRON G9SE、Pilz PNOZ X3 的配置/反馈/响应时间资料；未进行设备或整机验证，整篇资产仍待 claim-level 验收。\n- [2026-11-06 电池与电源 IEC 62619 / IEC 63056 / UN 38.3 版次定向复核](2026-11-06-battery-IEC62619-UN383-review.md)：更新 UNECE Rev.8 Amendment 1（2025）运输手册入口，区分工业电池与固定式储能系统标准范围；未审读标准全文或验证具体电池/整机，整篇资产仍待 claim-level 验收。\n- [2026-11-06 安全防护器件安全激光扫描仪配置主张定向复核](2026-11-06-safety-scanner-configuration-claim-review.md)：依据 OMRON OS32C 与 SICK microScan3 Core I/O 官方规格/操作说明，复核配置依赖、响应时间、OSSD边界及 ISO 3691-4 版次状态；未进行设备或整机验证，整篇资产仍待 claim-level 验收。
 
 - [2026-11-06 功能安全体系 ISO 13849-1 / IEC 62061 范围主张定向复核](2026-11-06-functional-safety-ISO13849-IEC62061-scope-review.md)：核对两项机械功能安全标准的公开范围、运行模式、版次与排除边界；未审读标准全文或验证具体产品，整篇资产仍待 claim-level 验收。
 - [2026-11-06 电机与驱动器 IEC 61800-5-2 范围主张定向复核](2026-11-06-motor-drive-IEC61800-5-2-scope-claim-review.md)：P0 专项审查，仅覆盖《电机与驱动器》§8 的公开标准范围、应用集成排除项和低需求模式边界；整篇资产仍待完整 claim-level 审查。
@@ -29,7 +29,7 @@
 ## 审计状态
 
 - 00-01 全库资产盘点：进行中。
-- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 257 个 Blob、209 份 Markdown、142 份 knowledge Markdown、64 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
+- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 258 个 Blob、210 份 Markdown、142 份 knowledge Markdown、65 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
 - 标题/结构检查：原 112 份知识文件保留历史标题、章节结构和开篇检查记录；当前 142 份资产的统一结构扫描覆盖率尚未重新计算。后续新增文件存在专题审查/结构检查记录，但尚未统一汇总为当前覆盖率。
 - 全文结构扫描：96/120 是旧快照统计，不能作为当前 142 份资产的覆盖率；本轮只做 Git Tree/Blob 元数据对账，当前统一结构扫描需重新执行。结构扫描不等于专业审稿或 claim-level 验收。
 - README 最近一次扫描：既有目录 README 的正文结构检查记录保留；本轮只刷新清单涉及文件的 Git 元数据，不重新判定 README 正文质量。
