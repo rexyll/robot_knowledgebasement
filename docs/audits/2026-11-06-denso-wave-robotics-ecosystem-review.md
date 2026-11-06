@@ -39,3 +39,7 @@ RC8A Safety Motion为可选规格；RC9/CRC9页面列急停、保护停止、监
 仍需获取目标地区商业软件安装包、受控手册、许可证SKU/并发/虚拟机/离线规则；建立机器人型号+控制器+固件+WINCAPS/VRC/ORiN2版本矩阵；构建ROS 2工作区并核验依赖/许可；测试b-CAP/ORiN2/slaveMode权限、停止/复位、超时、断线恢复、周期、抖动、轨迹误差和节拍；核对安全证书、现场总线板卡和备件生命周期。
 
 未下载/安装WINCAPS III、VRC/VRC9、ORiN2 SDK；未构建ROS 2工作区；未连接真实机器人/控制器、PLC、现场总线或安全回路；未执行SIL/HIL/WCET、实时/故障注入/FAT/SAT或功能安全验证。因此仅为官方资料与公开仓库静态审查，工程验收未完成。
+
+## 8. 官方软件版本快照
+
+DENSO WAVE版本更新页截至2026-11-06列出2026-10-30的RC8A/COBOTTA控制器Ver.2.24.0、WINCAPS III Ver.3.74.0、VRC Ver.2.24.0、RC Vision Ver.1.4.14、COBOTTA Software Package Ver.1.2.34和COBOTTA World Ver.1.10.7；另列2026-09-11的RC9/CRC9控制器Ver.1.15.0、WINCAPS III Ver.3.73.0、VRC9 Ver.1.15.0。此为官方版本公告快照，不代表目标地区下载入口同步，也不代表已下载、安装或验证。来源#1388。
