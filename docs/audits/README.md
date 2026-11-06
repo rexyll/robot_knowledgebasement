@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-06 Epson Robotics RC+ 8.0/RTMC/ROS 2生态审查](2026-11-06-epson-robotics-ecosystem-review.md)：核对RC+ 8.0/SPEL+、RC800 RTMC、官方ROS 2 Humble驱动、AX6/AX Portal独立栈、Lifecycle自动重启风险、1 kHz/2 ms时基与buffer默认值差异，以及安全功能型号/固件矩阵；仅静态审查，未构建或连接实机。
+
 - [DENSO WAVE软件生态审计](2026-11-06-denso-wave-robotics-ecosystem-review.md)：WINCAPS、VRC、ORiN2、ROS 2及控制器支持边界的静态审查。
 
 - [2026-11-06 Mitsubishi Electric MELFA软件与ROS 2生态审查](2026-11-06-mitsubishi-melfa-ecosystem-review.md)：核对RT ToolBox3/RT VisualBox、MELFA API for Linux、官方ROS 2 Driver/Monitor、CR800网络与安全选件；仅完成官方资料静态审查，未安装软件或实机验证。
