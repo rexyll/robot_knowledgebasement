@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [DENSO WAVE软件生态审计](2026-11-06-denso-wave-robotics-ecosystem-review.md)：WINCAPS、VRC、ORiN2、ROS 2及控制器支持边界的静态审查。
+
 - [2026-11-06 Mitsubishi Electric MELFA软件与ROS 2生态审查](2026-11-06-mitsubishi-melfa-ecosystem-review.md)：核对RT ToolBox3/RT VisualBox、MELFA API for Linux、官方ROS 2 Driver/Monitor、CR800网络与安全选件；仅完成官方资料静态审查，未安装软件或实机验证。
 - [2026-11-06 安全防护器件安全门联锁与防护锁定主张定向复核](2026-11-06-safety-guard-interlock-review.md)：依据 ISO 14119:2024 及 Pilz、Schmersal、EUCHNER 具体产品资料，核对联锁/锁定边界、编码、防篡改、失电和逃生风险；未执行门体/锁定/现场验证，整篇资产仍待 claim-level 验收。
 - [2026-11-06 安全防护器件急停功能与安全继电器配置主张定向复核](2026-11-06-emergency-stop-safety-relay-review.md)：核对 ISO 13850 生命周期、急停复位/启动边界，以及 Siemens 3SK1、OMRON G9SE、Pilz PNOZ X3 的配置/反馈/响应时间资料；未进行设备或整机验证，整篇资产仍待 claim-level 验收。
