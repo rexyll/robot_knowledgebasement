@@ -14,7 +14,7 @@
 
 - [2026-11-06 Universal Robots PolyScope/URCap/ROS 2生态静态审查](2026-11-06-universal-robots-software-ros2-ecosystem-review.md)：区分PolyScope X内置ROS 2、外部ur_robot_driver、ur_client_library和URCapX；记录g-series主分支支持、PSX 10.7/Humble与10.15/Jazzy、运动控制器和安全责任边界；未构建或连接实机。
 
-- [2026-11-06 Stäubli Robotics CS9/VAL 3/uniVAL/ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：更正ICube驱动0.1.3/0.1.4 Release记录，补充0.1.4后commit/CI快照、SRS/VAL Blocks授权与兼容边界、UDP发送丢包返回语义、sender/协议/诊断准入、6轴/Inf输入边界、16位序号回绕/乱序/重复帧及VAL3 staleness/硬停TODO；仅公开资料/源码静态检查，未安装、构建、运行、接入实机或执行网络故障注入/HIL/FAT/SAT。
+- [2026-11-06 Stäubli Robotics CS9/VAL 3/uniVAL/ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：更正ICube驱动Release记录并补充CI/SRS/VAL Blocks；审查UDP发送/来源校验、诊断/协议头、6轴/Inf输入、16位序号回绕/乱序/重复帧，以及VAL3 RobotState头部payload_size被sequence覆盖的高优先级静态缺陷候选；附跨语言黄金帧测试要求，未运行、接入实机或执行HIL/FAT/SAT。
 
 - [2026-11-06 Epson Robotics RC+ 8.0/RTMC/ROS 2生态审查](2026-11-06-epson-robotics-ecosystem-review.md)：核对RC+ 8.0/SPEL+、RC800 RTMC、官方ROS 2 Humble驱动、AX6/AX Portal独立栈、Lifecycle自动重启风险、1 kHz/2 ms时基与buffer默认值差异，以及安全功能型号/固件矩阵；仅静态审查，未构建或连接实机。
 
