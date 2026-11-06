@@ -2696,6 +2696,15 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 本轮未安装/构建/连接软件与设备、未运行机器人、未测1 kHz jitter/实时性、未做网络或功能安全验证、未执行FAT/SAT；FANUC条目保持静态审查未验收。
 
 
+## 119. FANUC ROS 2 Driver / Stream Motion 1 ms与数据包可靠性增量审计（2026-11-06）
+
+- FANUC Open Platform官方页面称ROS 2 Driver支持1 ms通信，并将机器人范围描述为CRX、3 kg小型机至2,300 kg大型机；但未在该页面提供逐SKU/控制柜/固件/选件/驱动tag/接口矩阵。官方Driver系统要求仅列R-30iB Plus/Mate Plus/Mini Plus及R-50iA/Mate，要求J519+R912或S636，控制器最低软件版本按系列区分；J568/J570不替代所需选件。来源#1468、#1473。
+- 官方supported URDF models列CRX、LR Mate、R-1000、M-10/M-20/M-710/M-800/M-810/R-2000、P-350 Paint与CR系列具体型号；Driver Overview把1 kHz限定于R-50iA+S647等配置。Issue #60记录R-30iB Mini Plus工程配置通信周期8ms，FANUC维护者说明控制器自动平滑不意味着MoveIt规划已满足动态加速度/jerk限制。来源#1472、#1474、#1477。
+- 当前fanuc_driver main/jazzy HEAD为da5db3f611cdc9dffe687e056c4e79bea584bf5c（2026-10-01，v2.4.0）；humble HEAD为8f9f22e50f02042ded000440e305c7f6c820d5a2。main stream.cpp序号不匹配时直接采用收到状态包的sequence，未区分向前跳号和旧/重复包；官方Issue #67报告旧UDP状态包导致序列计数器回退、状态反馈停滞和ros2_control停用。Issue仍open，报告者尚未抓包确定网络根因，FANUC维护者建议检查网络带宽和多路径。当前可见测试源码未发现乱序/重复/回绕明确回归用例。来源#1469–#1471、#1476、#1479–#1480。
+- 当前ROS 2 hardware interface只导出position command，velocity仅为state interface；Open Platform提及位置/速度/扭矩控制不能推断当前ros2_control插件有velocity/effort命令接口。Issue #64的旧式Handle/export接口是未来Rolling/Lyrical兼容监视项，维护者称Jazzy仍保留；Issue #63为v2.2.0控制权切换故障线索，不能外推到v2.4.0。来源#1475、#1478。
+- 专项报告：docs/audits/2026-11-06-fanuc-ros2-stream-motion-reliability-review.md。未构建驱动、未运行测试/网络注入、未连接ROBOGUIDE或实机、未测1ms/jitter/轨迹/故障恢复、未执行HIL/FAT/SAT/安全验证。FANUC档案仍仅静态审查，工程验收未完成。
+
+
 ## 120. Dassault Systèmes DELMIA Robotics：3DEXPERIENCE机器人OLP、Robot Library与虚拟调试静态审查（2026-11-05，来源#1220–#1232）
 
 ### 120.1 审查范围与事实边界
