@@ -33,7 +33,7 @@ README列出的控制器软件最低版本为：
 
 明确列出的机器人型号为RS007L-B001、RS013N-A001、RS015X-A001、RS025N-A001、RS080N-A001、BX300L-B001、BXP135X-A001、BXP210L-A001及WD003H-F502（duAro2）。没有列出的机器人型号、E系列控制器或其他软件版本不得推定兼容。来源#1410。
 
-仓库包含khi_description、khi_gz、khi_hardware、khi_moveit和khi_msgs等包，覆盖URDF/Xacro、Gazebo Sim仿真、ros2_control SystemInterface、MoveIt配置及Kawasaki专用消息/服务。Gazebo仿真路径与真实控制器路径分开；mock/loopback或Gazebo运行成功不能证明真实控制器、现场总线和安全链工作正常。
+仓库包含khi_description、khi_gz、khi_hardware、khi_moveit和khi_msgs等包，覆盖URDF/Xacro、Gazebo Sim仿真、ros2_control SystemInterface、MoveIt配置及Kawasaki专用消息/服务。README明确要求不要修改khi_ros2包的源码；若需定制，应先向Kawasaki确认支持路径/许可，而不是直接分叉后仍宣称属于厂商支持版本。Gazebo仿真路径与真实控制器路径分开；mock/loopback或Gazebo运行成功不能证明真实控制器、现场总线和安全链工作正常。
 
 ## 4. 控制周期、缓冲与状态反馈
 
