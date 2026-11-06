@@ -458,3 +458,5 @@
 | 2026-11-06 | 00-01 | 对Stäubli ICube ROS 2序号流补做静态审查：MAX_FRAME_SEQUENCE_NUMBER为65535，但subscriber的回绕丢包公式在65535→0无丢包时仍多报1；任意下降序号被当成回绕并接受，可能回退序号基准；重复帧标记new_message=false但read_message仍返回true，RobotDriver读取路径不拒绝且接收时间戳刷新。核对VAL3序号生成/延迟计算和现有测试未覆盖回绕、乱序、重复帧。新增来源#1496–#1500并同步专项报告§9.3.2、厂商§128.7、兼容矩阵和基线审计。未进行网络注入或运行测试；00-01继续进行中。 | ICube固定main subscriber/protocol/RobotDriver/测试源码及VAL3序号程序；Stäubli专项报告；来源#1496–#1500 |
 
 | 2026-11-06 | 00-01 | 新增跨语言协议编码核验：initRobotStateMsg声明RobotState payload=124并分配132字节帧；encodeHeader在序号字段后再次写sequence而非payload_size，encodeRobotStateMsg调用该函数，C++ RobotState解析器没有校验此字段；C++自序列化往返测试不能覆盖VAL3→C++互操作。新增来源#1501–#1504，更新专项报告§9.3.3、厂商§128.7、兼容矩阵及基线审计。将其标为高优先级静态缺陷候选，尚未在真实CS9抓包或VAL3编译复核；00-01继续进行中。 | ICube固定main VAL3 encoder/init/call-site/C++ serialization test源码；Stäubli专项报告；来源#1501–#1504及#1486 |
+
+| 2026-11-06 | 00-01 | 补齐VAL3 Header语义的双向源码证据：decodeHeader.pgx将序号之后的2字节解码到nPayloadSize，MessageHeader.dtx定义该字段和8字节Header；与encodeHeader重复写sequence的代码形成闭环证据。新增来源#1505–#1506，专项报告§9.3.3及厂商/矩阵/基线审计引用同步扩展。仍未运行VAL3编译、真实CS9抓包或跨语言fixture测试；00-01继续进行中。 | ICube固定main decodeHeader/MessageHeader类型源码；来源#1505–#1506 |
