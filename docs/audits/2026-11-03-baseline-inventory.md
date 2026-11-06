@@ -2879,3 +2879,8 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - PolyScope X SDK 0.22支持Program/Application Node和Docker container contributions；External Control URCapX 1.2.0为Latest，兼容表要求按PolyScope版本匹配，PSX 10.15与1.2.x列为支持组合。来源#1430–#1432。
 - UR官方安全FAQ（2026-05-06）声明安全功能PLd Cat.3，并将ISO 10218-1:2025认证目标列为2027-01计划；不可将计划误写成已获证。整机应用风险评估由集成方负责，机器人本体为部分完成机械；协作机器人并不意味着整站免风险评估。来源#1435–#1436。
 - 未安装软件/URCapX/SDK，未构建ROS 2工作区，未运行mock/URSim/Gazebo，未连接真实机器人/PLC/安全回路，未采集校准数据或执行实时/轨迹/力控/停止距离/HIL/FAT/SAT/安全验证；仅为静态资料审查。另记录URScript ROS API方法可能引入至少2ms延迟、影响运动blend的文档警示，需在目标PolyScope版本复测。来源#1437。专项报告：docs/audits/2026-11-06-universal-robots-software-ros2-ecosystem-review.md。
+
+
+### 129.1 Universal Robots增量主张核验（2026-11-06）
+- PolyScope X ROS 2 URScript文档警示publisher/subscriber句柄生命周期及至少2ms方法调用延迟，运动段间调用可能影响blend；应解耦通信线程并在目标PSX版本实测。来源#1437。
+- UR Safety FAQ称CB3于2022年EOL且不在ISO 10218-1:2025认证路径，CB5.6为PolyScope X要求控制箱；e-Series/UR Series现行PLd Cat.3声明和2025版认证计划（2027-01）必须区分。来源#1436。
