@@ -2896,3 +2896,14 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - DART-Suite包括IDE/SDK/Store/Platform等；部分Platform 3通信模块需从Store另行安装，Developer LAB App Builder用于合作伙伴应用模块开发。来源#1450–#1452。
 - Humble与Jazzy分支的根LICENSE/package.xml许可声明不一致；API-DRFL main release GL013305/v1.33.5，而公开API文档为GL013304/v1.33.4；DRFL README说明仓库内静态库是示例版本，最新库从RobotLab下载。来源#1438、#1442–#1443。
 - 未安装DART/DRFL、未构建ROS工作区、未运行emulator/Gazebo/MuJoCo、未连接真实机器人/PLC/安全设备，未执行RT周期/WCET/轨迹/力控/停止距离/HIL/FAT/SAT；仅为公开资料/代码静态审查。专项报告：docs/audits/2026-11-06-doosan-robotics-software-ros2-ecosystem-review.md。
+
+
+## 131. Techman Robot（达明机器人）TMflow / ROS 2 / EIH Camera生态审计（2026-11-06）
+
+- Techman产品代际需区分传统TM Robot与TM AI Cobot S系列；官方 tmr_ros2 明确不支持新S系列，S系列走 tm2_ros2。tm2_ros2 Humble/Jazzy分支HEAD分别为9c087f6（2026-06-17）和6fb95cc（2026-10-22），tm_driver package版本分别2.3.1/2.4.0；传统tmr_ros2 Humble HEAD c40bfc0（2026-06-17），tm_driver 1.3.0。来源#1454–#1459。
+- ROS架构依赖TMflow Ethernet Slave获取状态，并要求Flow项目运行Listen Node接收脚本/运动/I/O命令；接口包含feedback/joint/tool topics、send_script/set_event/set_io/set_positions服务和FollowJointTrajectory action。普通ROS Stop/action cancel不是安全额定停止通道。来源#1455。
+- TM2 ROS Humble Gazebo包版本1.0.5，目标为S系列Gazebo Fortress；独立TM_Cobots_ROS2_Description仓库要求Jazzy+，提供S系列及传统系列Standard/Standard-X/FT/FT-X URDF/Xacro/mesh和MoveIt/Gazebo资源。最新commit 377e2aac（2026-10-27）修正TM6S LINK3 CoG，表明模型参数仍可能更新。来源#1455、#1460–#1461。
+- TM ROS官方汇总页与GitHub README在Jazzy支持声明上存在差异；EIH gRPC client仅声明ROS2 Humble、TMflow>=2.20，不能推断Jazzy支持。来源#1454–#1456、#1464。
+- EIH Camera Client发布image_raw/compressed/camera_info，package 0.1.0/BSD-3-Clause；仓库API许可证元数据NOASSERTION。tm2_ros2仓库API同样为Other/NOASSERTION，而LICENSE正文包含BSD-3-Clause主体及ROS2/MoveIt第三方许可文本。需逐文件、依赖、模型和商业软件EULA核验。来源#1455、#1460、#1464。
+- Techman 2026-10-05合规页面对S系列声明TMflow2.24+与ISO10218-1:2011、TRSS5.3的ISO13849-1:2023 TÜV NORD认证（35项PLd Cat.3及1项PLb Cat.B），并称ISO10218-1:2025目标为2026年底；截至本审计日尚属未来计划。IEC62443-4-1 ML2及S系列HW5.04+/TMflow3+的IEC62443-4-2 SL2也仅按页面范围记录，未取得证书原件。来源#1465。
+- 未下载TMflow/TMvision/TMcraft/受控Safety Manual，未构建ROS工作区、未运行Gazebo/TMflow虚拟机器人，未连接真实机器人/EIH/PLC/安全回路，未执行实时/轨迹/视觉/故障注入/HIL/FAT/SAT/安全验证。Techman仅为官方资料和代码静态审查，工程验收未完成。专项报告：docs/audits/2026-11-06-techman-robot-software-ros2-ecosystem-review.md。
