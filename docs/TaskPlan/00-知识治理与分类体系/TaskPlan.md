@@ -444,3 +444,6 @@
 | 2026-11-06 | 00-01 | 对UR审计追加主张级版本差异核验：补充PolyScope X URScript ROS API句柄资源生命周期与至少2ms调用延迟/运动blend影响警示；补充CB3 EOL、CB5.6与PolyScope X、PLd Cat.3现行声明及ISO 10218-1:2025计划认证时间边界。新增来源#1437，更新厂商档案、兼容矩阵和基线审计；未对目标版本测量延迟或取得安全证书原件，仍仅静态审查。00-01继续进行中。 | UR官方PolyScope X ROS 2限制文档与Safety FAQ；来源#1436–#1437 |
 
 | 2026-11-06 | 00-01 | 对《主要厂商》新增Doosan Robotics §130开展P1主张与代码静态审查：核对DART-Suite/DRL/DRFL、ROS 2 Humble/Jazzy、DRCF v2/v3、dsr_hardware2 SystemInterface、RT UDP 1ms/12347/rt_host、velocity/effort接口TODO、异步servol_rt语义、模拟器边界、A/E/A-S/M/H/P传感器差异及P系列PLd Cat.3/SIL2安全页面适用范围；发现Humble/Jazzy许可证声明和API文档/DRFL release版本差异。新增来源#1438–#1453、专项报告、兼容矩阵和第21章记录。未安装DART/DRFL、未构建ROS工作区、未连接真实机器人/PLC/安全回路、未执行实时/力控/停止距离/HIL/FAT/SAT，资产仅静态审查未验收，00-01继续进行中。 | Doosan官方ROS 2/API/DRFL/DART/安全文档及GitHub仓库；基线审计§130；来源#1438–#1453 |
+
+
+| 2026-11-06 | 00-01 | 对《主要厂商》新增Techman Robot §131开展P1软件生态静态审查：区分传统TM与S系列ROS2驱动、固定tmr_ros2/tm2_ros2 Humble/Jazzy分支commit和包版本；核验TMflow/Listen Node控制架构、MoveIt/Gazebo模型与CoG更新、EIH Camera gRPC客户端、S系列安全/网络安全声明及许可证元数据差异。新增来源#1454–#1467、专项报告、兼容矩阵和第21章记录。未安装商业软件/未构建ROS工作区/未运行仿真/未连接真实机器人、相机、PLC或安全回路，未执行实时/轨迹/视觉/HIL/FAT/SAT/安全验证；资产仅静态审查未验收，00-01继续进行中。 | Techman官方产品/ROS/合规/下载页面与GitHub仓库；基线审计§131；来源#1454–#1467 |
