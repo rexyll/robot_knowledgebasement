@@ -2872,12 +2872,11 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 
 ## 128. Stäubli Robotics 软件与 ROS 生态静态审查（2026-11-06）
 
-- Stäubli官方CS9页面列出CS9 SE/LP/MP/HP及TS2/TX2型号映射、EtherCAT/EtherNet-IP/PROFINET/Sercos/POWERLINK/Modbus等协议角色，并列出Safe speed/stop/tool/zone等模块化安全功能可能性；选件、目标SKU证书、固件和整机安全范围仍待核。来源#1413。
-- VAL 3为控制器侧编程环境；uniVAL plc采用PLC功能块client—机器人server现场总线架构；uniVAL drive面向外部多轴控制器并列出EtherCAT/POWERLINK/PROFINET/Sercos和Sercos/CiA 402 drive profile。Cat.3/PL d目前仅为厂商页面声明，需证书和具体集成条件。来源#1414–#1416。
-- ICube ROS 2驱动README声明Jazzy/Ubuntu 24.04、CS9、position-only；项目明确为prototype，2025-11 POC后曾因资金中断暂停开发，未找到正式Release或恢复证据。velocity接口尚未实现，effort由电流估算，mock不发送UDP且不反映真实动力学。来源#1417–#1419。
-- ROS-Industrial VAL3驱动属于ROS 1 simple_message/FollowJointTrajectory路线；ROS Index显示Indigo、0.1.0、CATKIN、UNRELEASED、2018-04-06最后更新，不构成现代ROS 2发行版支持证据。来源#1420–#1421。
-- 未安装商业软件、未构建ROS 2工作区、未运行mock/SRS仿真、未连接真实CS9/机器人/PLC/安全回路，未测实时/WCET/轨迹/节拍或执行HIL/FAT/SAT/安全验证；本节仅为静态资料审查，不代表工程验收。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md。
-
+- Stäubli官方CS9页面列出CS9 SE/LP/MP/HP与TS2/TX2型号映射、现场总线和模块化安全功能范围；VAL3是控制器侧编程环境；uniVAL plc为PLC功能块client—机器人server路线，uniVAL drive为外部多轴控制器/drive-profile路线，Cat.3/PL d仍需取得版本/型号适用证书与集成条件。来源#1413–#1416。
+- ICube ROS 2 Jazzy/Ubuntu 24.04/CS9驱动GitHub实际有0.1.3 prerelease及0.1.4非预发布Release（2026-06-09）；0.1.4后到2026-07-03 main HEAD只发现两次CI依赖更新、未见驱动功能提交。README仍称prototype并记录资金中断后的开发暂停；2026-11-01 Jazzy CI build_and_test成功不等于开发恢复或实机验收。来源#1417–#1419、#1483–#1487。
+- 新增Stäubli Robotics Suite（SRS）和VAL Blocks官方软件边界：SRS为Windows端工程/仿真软件，功能受Demo/Development/Maintenance/Optimize授权分层；VAL Blocks要求CS9软件≥8.20、有效许可证和SP2+，实时轨迹变化官方建议采用VAL3。ICube VAL3部署README另要求VAL3 8.x.x+及若干addons，demo许可有2小时限制。来源#1481–#1482、#1492。
+- ICube源码静态审查新增风险：非阻塞UDP would_block丢包但发送函数返回true；接收sender校验TODO；状态包header/payload/version校验不完整；诊断ready硬编码true且CS9类型验证被注释；VAL3旧命令staleness/硬停/IO处理留有TODO；位置模式有控制器侧关节范围检查但主机侧限位/finite验证不足；velocity控制未实现；effort为粗略电流估算。均为源码审查发现，未通过故障注入复现。来源#1488–#1490。
+- 可见测试覆盖mock/UDP loopback连接、协议序列化、丢包计数、staleness、Lifecycle和位置写入；所查launch测试目录只有.gitkeep。本轮未运行测试、未构建工作区、未安装SRS/VAL Blocks、未连接真实CS9/机器人/PLC/安全回路，未执行实时测量、网络故障注入、HIL/FAT/SAT或安全验证；Stäubli档案仍为静态审查未验收。来源#1487、#1491。
 
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
