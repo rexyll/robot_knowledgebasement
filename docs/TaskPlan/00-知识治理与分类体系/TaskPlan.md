@@ -416,3 +416,5 @@
 | 2026-11-06 | 00-01 | 完成审计报告提交后的最终快照复核：当前 main Git Tree 为254个Blob、206份Markdown、142份knowledge Markdown、61份docs Markdown和26份章节TaskPlan；将 `docs/audits/2026-11-06-knowledge-asset-tree-reconciliation.md` 也纳入资产清单，随后在根计划、审计索引和本章记录均提交后再次刷新清单中全部路径的Blob SHA/字节数。最终清单元数据回读作为本轮验收条件；本轮仍未重新全文扫描/逐句claim-level审查，00-01保持进行中。 |
 
 | 2026-11-06 | 00-01（关联 P0 电机/驱动器） | 对 `knowledge/actuators/电机与驱动器.md` §8 开展 IEC 61800-5-2 范围主张定向复核：使用 IEC 官方页面核对 Edition 2.1/2026-10-30/Valid 和修订摘要，使用 ANSI/UL 可见基础版范围预览核对 PDS(SR) 产品/应用集成边界及排除项；补充 IEC 61800-5-1 电气/热/能量安全分工，修正低需求模式绝对化表述，新增来源台账#1340–#1341及专项报告。未取得2026合并版全文，未核验具体驱动器证书/型号，未做应用风险评估、接线/参数审查、故障注入、停止时间/距离、HIL或实机验证；仅§8完成定向复核，整篇资产仍未通过claim-level验收。 |
+
+| 2026-11-06 | 00-01 | P0 IEC 61800-5-2 范围定向复核报告提交后，刷新当前 main 统计：255个Blob、207份Markdown、142份knowledge Markdown、62份docs Markdown和26份章节TaskPlan；专项报告已加入审计索引和资产清单。此后须再刷新资产清单涉及文件的SHA/大小；正文审计仍只覆盖《电机与驱动器》§8，整篇claim-level验收未完成。 |
