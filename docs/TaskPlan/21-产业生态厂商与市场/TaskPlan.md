@@ -387,3 +387,6 @@
 
 
 | 2026-11-06 | 21-02/DENSO WAVE软件版本快照增量核验 | 补充DENSO WAVE官方版本更新页#1388：记录2026-10-30 RC8A/COBOTTA控制器2.24.0、WINCAPS III 3.74.0、VRC 2.24.0、RC Vision 1.4.14，以及2026-09-11 RC9/CRC9控制器1.15.0、WINCAPS III 3.73.0、VRC9 1.15.0；明确版本公告不等于目标地区可下载或已安装验证。更新《主要厂商》§125.9、来源台账与DENSO专项审计。21-02继续进行中。 | #1388 |
+
+
+| 2026-11-06 | 21-02/Epson Robotics软件与ROS 2生态 | 新增《主要厂商》§126和专项审计报告：审查RC+ 8.0/SPEL+、RC800-A/RC800L/RC700产品线与软件选件、RTMC Client Library、官方ROS 2 Humble驱动及AX6/AX Portal独立仓库；固定官方ROS 2/RTMC仓库HEAD与package 1.1.0版本，核对RC800 RTMC选件、Ubuntu22.04/Humble、型号级兼容矩阵；静态审查Lifecycle激活包含Reset/MotorOn/PowerHigh/RTMC Enable和README自动重启警告；记录controller_manager 1kHz与轨迹固定2ms时基、buffer_size文档5与launch默认10、log_lovel/log_level命名差异；补充Fast DDS/OpenSSL安全通信、Safety Function Manual Rev.14型号/固件矩阵、Force Guide非安全功能及AX6/AX Portal与工业驱动分界。新增来源#1389–#1401，更新ROS兼容矩阵、基线审计§126和审计索引。未安装RC+、未构建RTMC/ROS 2工作区、未连接真实控制器/机器人/PLC/安全回路，未执行周期/抖动/WCET/HIL/FAT/SAT或安全验证；Epson档案仅静态审查，21-02继续进行中。 | Epson官方手册/支持页面；Epson-Robots官方GitHub；基线审计§126；来源#1389–#1401 |
