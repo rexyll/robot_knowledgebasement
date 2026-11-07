@@ -454,3 +454,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli CS9独立安全链、停止类别与断电边界 | 审查CS9控制器说明书D.280.940.01-F：区分应用stop()/stopMove、MCP/USI安全停止、控制器逻辑/安全故障和主电源故障对应的SS2/SS1/SS0/制动器停止；确认默认安全程序200.x下USI双通道输入、安全重启确认、RSI9接口及外部24V安全供电的断电边界；外部24V丢失可能导致运动中机械臂下落。新增专项审计§9.3.24、来源#1613–#1616及SC-01–SC-10验收矩阵。未取得目标CS9安全配置/接线图/机器人型号安全手册，未进行任何安全故障注入或HIL；21-02继续进行中，Stäubli未验收。 | 来源#1613–#1616；Stäubli专项审计§9.3.24 |
+
+
+| 2026-11-07 | 21-02/Stäubli ROS/VAL3安全状态语义与HOLD运动授权审查 | 固定上游commit静态追踪updateState、RobotState消息编码/解码及HardwareInterface状态导出/模式切换/write：确认安全状态1/2/3/4含Safety Restart、SS1、SS2、WMS Restart；bEStopped把所有非零状态折叠，bWaitAck只覆盖状态1；bMotionPossible未纳入HOLD状态（status条件被注释）；ROS位置模式切换只对operation_mode_status非0告警，write不逐周期复核完整安全状态。新增审计§9.3.25、来源#1617–#1620和SI-01–SI-08矩阵。未执行VAL3编译、ROS构建/单测、CS9仿真/HIL或实机安全故障注入；21-02继续进行中，Stäubli未验收。 | 来源#1617–#1620；Stäubli专项审计§9.3.25 |
