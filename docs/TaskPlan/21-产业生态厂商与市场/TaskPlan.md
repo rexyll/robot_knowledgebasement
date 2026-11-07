@@ -460,3 +460,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli VAL3错误标志生命周期与位置命令门控审查 | 固定上游commit追踪controlTask、updateState、位置/速度控制函数和RobotState编码：确认位置控制每次调用会检查bMotionPossible，false时停止位置控制并返回错误；但controlTask将非预期运动hard-stop、急停告警、runtime error处理留为TODO；bInError来自局部l_bError，状态先发送后处理本周期命令错误，错误分支清标志并重置Socket，存在诊断可观测性和故障锁存缺口；位置目标接近性检查、staleness/lost packet、恢复延迟仍为TODO。新增审计§9.3.26、来源#1621–#1624、ER-01–ER-08。未执行VAL3编译/仿真、ROS构建/单测、CS9/HIL/实机测试，21-02继续进行中。 | 来源#1621–#1624；Stäubli专项审计§9.3.26 |
+
+
+| 2026-11-07 | 21-02/Stäubli VAL3故障可观测性与现有测试覆盖边界 | 对照固定上游commit的controlTask、updateJointPositionControl及C++ RobotDriver/socket/serialization测试：确认ReadRobotStateTest只验证mock状态反馈100ms staleness，RTSocketSubscriberTest覆盖缓存重复读取与普通跳号但不覆盖网络重放/乱序/回绕；同实现round-trip不能替代跨语言golden fixture；C++测试未执行VAL3错误标志、命令staleness、movejSync状态机或CS9停止。新增专项报告§9.3.27、来源#1625–#1628、OBS-01–OBS-08。未运行测试、VAL3编译/SRS仿真、CS9 HIL/实机或安全验证；21-02继续进行中。 | 来源#1625–#1628；Stäubli专项审计§9.3.27；《主要厂商》§128.10 |
