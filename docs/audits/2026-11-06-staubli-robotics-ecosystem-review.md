@@ -1602,3 +1602,77 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 
 - [Jazzy JointTrajectoryController用户文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html)：Action接口、path/goal容差与topic fire-and-forget区别。
 - [Jazzy JointTrajectoryController参数文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html)：`goal_time`、`stopped_velocity_tolerance`及`interpolate_from_desired_state`语义。
+
+
+---
+
+## 9.3.35 轨迹取消、抢占、停止与受控减速语义（2026-11-07）
+
+### A. 审查基线
+
+- 上游固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对ROS 2 Jazzy JointTrajectoryController取消/抢占语义、当前`controllers.yaml`与MoveIt Action映射，并沿HardwareInterface::write、VAL3 `controlTask`、`updateJointPositionControl`、`stopJointPositionControl`追踪命令路径。
+- 来源#1665–#1673。静态源码、配置和官方文档审查；未运行ROS构建/Action测试、VAL3编译/SRS仿真、CS9 HIL或实机停止测试。
+
+### B. JTC Action取消：取消目标不等于停止模式
+
+1. Jazzy JTC文档明确：默认取消/抢占时立即保持当前关节位置；启用`constraints.decelerate_on_cancel`后，才会读取关节速度状态、按每轴`max_deceleration_on_cancel`生成减速至零速度的轨迹，再保持停止位置。
+2. 当前`staubli_bringup/config/controllers.yaml`只设置`stopped_velocity_tolerance`和`goal_time`，没有设置`decelerate_on_cancel`，也没有任何每轴`max_deceleration_on_cancel`。按Jazzy参数默认值，受控减速功能关闭；不能将当前Action cancel描述为受控减速。
+3. 默认取消路径在JTC中将当前状态位置写入hold-position轨迹，并把当前Action标记为canceled。它是控制器位置命令保持策略，不是VAL3 STOP命令，不是`stopMove()`，也不是CS9安全停止。
+4. 该JTC取消回调不直接调用Staubli HardwareInterface生命周期接口或`RobotDriver::send_stop_all_command()`。HardwareInterface仍依据本地`current_control_mode_`生成命令；若仍处于JOINT_POSITION，则发送位置参考，而不是CommandType::STOP。
+5. 因此取消动作对机械臂的实际减速/停止响应取决于当前速度、JTC hold轨迹更新、HardwareInterface周期、UDP送达和VAL3运动控制行为。仅凭Action状态变为CANCELED，不能断言机器人已经静止或在规定距离内停止。
+
+### C. Action抢占、新轨迹替换与旧轨迹语义
+
+1. Jazzy JTC只允许一个Action goal处于活动状态。新的Action goal到达时，旧活动goal会被abort并通知客户端，新轨迹按JTC定义的trajectory replacement规则替换当前轨迹；这不是“先执行CS9 STOP、确认静止、再启动新轨迹”。
+2. 当前配置`interpolate_from_desired_state=true`，新轨迹插值起点可能取上一条期望/命令状态，而不是HardwareInterface当前反馈位置。若上一轨迹存在跟踪误差，抢占后的轨迹衔接可能延续期望状态偏差；必须测量desired/actual/error和真实轨迹。
+3. JTC文档另指出，向`joint_trajectory` topic发送空轨迹会覆盖当前Action目标，但不会abort该Action。MoveIt配置映射到`follow_joint_trajectory` Action，因此正常MoveIt路径应使用Action；其他直接topic客户端仍可能制造Action状态与实际执行轨迹不一致。
+4. 未发现上游驱动为每个轨迹建立独立ID、VAL3回显该ID或对被抢占轨迹提供控制器侧取消确认。旧Action被abort只证明ROS Action生命周期结束，不构成VAL3运动队列已清空的证据。
+
+### D. VAL3停止链路、命令缓存与重新启动
+
+1. VAL3 `controlTask.pgx`仅在收到STOP/ERROR命令模式（或错误路径）时，才按上一模式调用`stopJointPositionControl`，随后执行`stopMove()`和`resetMotion()`。JTC Action cancel本身不会把HardwareInterface的控制模式切换为STOP，因此不能据此认定会进入这条VAL3停止链。
+2. `stopJointPositionControl.pgx`在`$movejSyncState()!=-1`时调用`$movejSyncEnd()`，随后立即设置`x_bError=false`返回；没有等待运动停止、检查最终速度或确认`isSettled()`。其返回成功仅代表该程序路径没有报告错误，不是静止确认。
+3. `controlTask.pgx`在未收到新命令但缓存命令仍有效时，将“上一命令staleness检查”留作TODO，随后仍依据缓存命令类型继续执行位置控制更新。由此，通信中断/停止刷新不能被视为可靠的命令撤销；旧位置目标可能继续被重复提交/刷新。该风险不同于JTC Action正常取消时的hold-position命令路径。
+4. STOP/ERROR分支中的`stopMove()`和`resetMotion()`是普通VAL3程序控制调用；本次静态检查没有证明其具有经配置的减速曲线、停止距离上限、独立安全等级或完成确认。它们不能替代安全PLC、SS1/SS2、STO或经验证的急停功能。
+5. `updateJointPositionControl.pgx`在首次进入位置控制时调用`resetMotion()`，随后在`movejSyncState==-1`时调用`$movejSyncBegin()`。没有发现针对普通Action取消/抢占的操作员重新授权握手、停止完成ACK或新轨迹显式arming状态。VAL3的`bMotionPossible`软件门控与CS9安全状态仍需按目标控制器配置验证，不能推断其等同于完整重新授权。
+6. 当VAL3报告仍在运动时，`controlTask`对STOP→运动模式转换有一个`bInMotion`检查并拒绝立即启动；但该检查使用前一轮发布/采样状态，不是静止确认协议，也没有独立的停止超时锁存和操作者ACK流程。
+
+### E. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| CXL-01 | 低速/高速轨迹中取消Action | 分别记录cancel响应、JTC desired/actual、关节速度、停止时间/距离；Action canceled不得提前等同静止 | 未实现/未执行 |
+| CXL-02 | 默认`decelerate_on_cancel=false` | 证实默认hold-position行为及其瞬态冲击、峰值误差和机械负载 | 未执行 |
+| CXL-03 | 启用受控减速并配置逐轴减速度 | 验证速度反馈有效、减速度单位/限值、轨迹容量、同步停止时间和停止距离 | 未实现/未执行 |
+| CXL-04 | cancel与UDP丢包/延迟/阻塞 | 丢包时不会持续重发旧目标；状态超时触发确定的停止/故障路径 | 未实现/未执行 |
+| CXL-05 | Action新目标抢占旧目标 | 旧goal收到正确ABORTED结果，新轨迹替换起点与实际状态连续，无未授权跳变 | 未执行 |
+| CXL-06 | 通过topic空轨迹覆盖活动Action | Action状态、实际轨迹与MoveIt状态不会出现静默不一致，或明确禁止该入口 | 未执行 |
+| CXL-07 | cancel后立即提交新Action | 规定是否允许直接重启；如需静止/重新授权，必须有可验证的门控与超时 | 未实现/未执行 |
+| CXL-08 | `movejSyncEnd()`执行中/异常/超时 | 验证调用结果、真实停止响应、错误传播和静止确认，不以函数返回代替停止 | 未执行 |
+| CXL-09 | VAL3 STOP模式切换 | 验证stopMove/resetMotion真实响应、停止曲线、控制器状态和故障锁存 | 未执行 |
+| CXL-10 | UDP断开但VAL3缓存命令有效 | 命令watchdog在有界时间内识别旧命令，禁止重复刷新旧目标并进入定义的故障态 | 未实现/未执行 |
+| CXL-11 | 取消/抢占期间E-stop、HOLD、SS1/SS2 | 安全停止由独立安全链执行；ROS取消/抢占不得覆盖或复位安全状态 | 未执行 |
+| CXL-12 | 取消后重新连接、Lifecycle deactivate/activate | 旧目标/旧epoch不复活；必须满足规定的安全状态、静止确认和授权条件 | 未执行 |
+
+### F. 结论与优先建议
+
+当前栈存在三个不同层次，不能混用：**JTC Action取消**默认将期望命令切换为当前位置保持；**VAL3 STOP模式**才调用`$movejSyncEnd()`、`stopMove()`和`resetMotion()`；**CS9安全停止**由独立安全链承担。当前MoveIt Action取消不会自动切换到VAL3 STOP，JTC配置未启用受控减速，VAL3缓存命令staleness仍为TODO，且停止函数不等待静止确认。
+
+优先建议：为JTC明确选择经验证的取消策略（受控减速或hold-position），不能只启用参数而不验证速度反馈和每轴减速度；在驱动层定义明确的STOP/取消命令语义、命令epoch和超时watchdog；为VAL3停止流程增加有界等待、状态回执、静止判定和故障锁存；为Action cancel/preempt/MoveIt cancel/控制器重启定义一致的状态机与重新授权规则；禁止或显式监管绕过Action的topic轨迹入口。所有减速/停止距离和安全功能必须由目标CS9配置、风险评估及SIL/HIL/实机测试证据支持。
+
+应用层取消、hold和停止监督不是安全功能；急停、SS1/SS2、STO、制动器和安全PLC仍须由经认证的独立安全链承担。未执行ROS构建/测试、Action取消/抢占测试、UDP故障注入、VAL3编译/SRS仿真、CS9 HIL或实机停止测试；未修改ICube上游代码。
+
+### 本节来源记录（#1665–#1673）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1665 | [Jazzy JointTrajectoryController用户文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html) | Action cancel/preemption、topic空轨迹覆盖及Action状态语义 |
+| #1666 | [Jazzy Decelerate on cancel](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/decelerate_on_cancel.html) | 默认hold与受控减速的条件、速度反馈和逐轴减速度要求 |
+| #1667 | [Jazzy JTC参数文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html) | decelerate_on_cancel/max_deceleration_on_cancel默认值 |
+| #1668 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | 当前JTC取消/减速参数未配置 |
+| #1669 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write仍按本地控制模式发位置或STOP命令 |
+| #1670 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | STOP模式调用链、缓存命令staleness TODO及错误路径 |
+| #1671 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync启动、刷新与状态处理 |
+| #1672 | [stopJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx) | movejSyncEnd后无等待/静止确认 |
+| #1673 | [moveit_controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml) | MoveIt使用FollowJointTrajectory Action而非topic映射 |
