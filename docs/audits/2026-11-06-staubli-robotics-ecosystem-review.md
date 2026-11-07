@@ -1875,3 +1875,111 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1691 | [JointStateBroadcaster publisher source](`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_state_broadcaster/src/joint_state_broadcaster.cpp`) | joint_states使用SystemDefaultsQoS |
 | #1692 | [ROS 2 Jazzy QoS compatibility docs](`https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html`) | VOLATILE publisher与TRANSIENT_LOCAL subscriber不兼容规则 |
 
+
+
+## 9.3.38 MoveIt Servo、JTC与直接关节命令的互斥仲裁（2026-11-07）
+
+### A. 审查范围与版本边界
+
+- ICube Stäubli驱动固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- 检查Servo launch/config、MoveIt控制器映射、ros2_control控制器配置、URDF ros2_control关节接口、HardwareInterface命令模式切换、MoveIt Servo暂停/超时实现及资源claim规则。
+- 本节为静态源码与配置审查；未运行Servo、JTC与硬件接口集成，也未执行模式切换、碰撞/急停、真实机器人动态响应测试。
+
+### B. 当前Servo命令链路并未闭合
+
+1. `staubli_moveit.launch.py`提供`launch_servo`参数，默认false；参数为true时会额外启动`moveit_servo/servo_node`。Servo与move_group是并列启动的Node，没有先完成控制器切换再启动Servo的依赖/仲裁逻辑。
+2. `staubli_servo.yaml`配置`command_out_type: std_msgs/Float64MultiArray`、`publish_joint_positions: true`，输出topic为`/forward_position_controller/commands`。
+3. 当前`staubli_bringup/config/controllers.yaml`只注册`joint_state_broadcaster`和`joint_trajectory_controller`，没有注册`forward_position_controller`；bringup launch的`controllers_to_load`也只有JTC。因此在仓库提供的默认控制栈中，没有已配置的订阅者消费Servo输出topic。Servo node可以启动并发布，但不能据此认为Servo控制链路能驱动Stäubli。
+4. `staubli_moveit_config/package.xml`未声明`moveit_servo`为exec_depend，虽然launch文件可选启动该包的`servo_node`。从源码安装/二进制部署时，是否恰好由其他依赖带入不能代替显式运行时依赖声明。
+5. MoveIt配置仍使用`MoveItSimpleControllerManager`，只配置`joint_trajectory_controller/follow_joint_trajectory`。Servo的ForwardCommandController并未纳入该控制器管理器；MoveItSimpleControllerManager也不负责ros2_control controller switching。
+6. 因此当前状态应标注为“Servo可选启动入口存在，但输出控制器缺失且没有模式仲裁集成”，而不是“Servo已与JTC互斥切换”。
+
+### C. 位置命令接口资源互斥：框架保护存在，但仅限正确配置的控制器
+
+1. Stäubli URDF ros2_control宏为每个关节导出position、velocity命令接口；物理硬件还导出acceleration接口用于限幅支持，但HardwareInterface明确不接受acceleration作为控制模式。Servo当前发布位置命令，若使用ForwardCommandController，其应claim六个`joint_i/position`接口。
+2. JTC的`controllers.yaml`同样声明六轴`command_interfaces: [position]`。若另行注册一个六轴ForwardCommandController并令其claim相同接口，两个控制器会争用完全相同的六个位置命令资源。
+3. ros2_control ResourceManager规定一个command interface只能被单个实例claim；ControllerManager激活控制器时会检查资源是否已被其他控制器占用。因此正常配置下，JTC与ForwardCommandController不能同时active并持有相同`joint_i/position`接口。这是框架层资源互斥，不是Servo节点或MoveIt自身的互斥逻辑。
+4. 资源claim只约束ros2_control控制器实例，不约束任意ROS topic发布者。若多个节点同时向同一个`/forward_position_controller/commands`发布Float64MultiArray，controller仍可能接收多个来源的交错命令；topic没有命令所有者、租约、会话ID或发布者授权机制。
+5. 资源互斥也不保证切换过程已物理停止。controller_manager完成deactivate/activate不等于VAL3确认停止、关节速度归零或机器人到达稳定状态。
+
+### D. HardwareInterface切换语义与剩余缺口
+
+1. HardwareInterface导出position与velocity命令接口，但`prepare_command_mode_switch()`仅依据`start_interfaces`解析模式；`stop_interfaces`未参与验证，代码仍保留对outgoing_mode的注释/TODO。
+2. `resolve_mode()`遇到第一个匹配的position/velocity/effort/acceleration关键字即返回，因此混合接口集合的结果依赖遍历顺序。当前Servo和JTC若都正确配置为position，模式解析结果相同，不会区分“轨迹控制来源”与“Servo来源”。
+3. `perform_command_mode_switch()`忽略传入的start/stop列表，消费prepare阶段缓存的pending_mode；在切换到position模式时，把当前反馈位置复制到位置命令缓存，再将速度/加速度缓存清零，最后设置current_control_mode_。
+4. 该初始化有助于避免切换瞬间复用未初始化的旧目标，但代码没有等待`state_msg_.in_motion == false`、关节速度稳定或VAL3运动状态确认；也没有命令来源标识、模式租约、旧模式命令epoch或重新授权。
+5. 因此即使controller_manager成功完成接口claim切换，也不能仅凭其成功返回就认定物理机器人已停止或新模式安全就绪。切换的实际动态行为必须在仿真/HIL及风险受控的实机环境验证。
+6. 前序§9.3.31已记录STOP模式切换只改变本地控制模式，实际STOP依赖后续write周期；本节进一步指出Servo↔JTC同属position命令模式，HardwareInterface不会从命令模式枚举中识别两种上层控制来源。
+
+### E. Servo暂停、超时和节点退出并非统一停止机制
+
+1. MoveIt Servo的`~/pause_servo`服务在pause时只设置`servo_paused_=true`并关闭Servo collision checking；servo loop随后跳过命令处理、重置smoothing并sleep。该pause回调没有调用controller_manager切换，也没有显式发布STOP或等待机器人静止。
+2. unpause时，Servo重新读取当前RobotState、重置smoothing和command rolling window，再重新启用collision checking；没有与JTC active状态、硬件STOP确认或控制权重新授权握手。
+3. Servo输入命令超时后，Servo会调用`smoothHalt()`并在仍需减速时继续产生平滑停止目标；当停止过程完成后不再持续产生新命令。该行为属于Servo算法输出，不是CS9安全停止，也不能替代controller/hardware的停止确认。
+4. Servo析构函数设置stop_servo并join线程，没有显式向控制器发送STOP或执行控制器切换。若Servo进程退出时ForwardCommandController仍active，控制器侧最后一次接收的命令是否保持/如何被覆盖，需要在目标controller实现和运行时测试；静态源码不能把进程退出等同于机械臂停止。
+5. 当前Servo config的`incoming_command_timeout=0.1s`、`num_outgoing_halt_msgs_to_publish=4`不构成安全功能证明。尤其pause service并不等同于触发timeout smoothHalt流程。
+
+### F. 若改用JointTrajectory输出，必须防止Action旁路
+
+1. MoveIt Servo支持`trajectory_msgs/JointTrajectory`输出；当前Stäubli配置选择的是Float64MultiArray，所以现阶段Servo不会直接向JTC topic发布轨迹。
+2. 若未来把Servo输出改为JTC的`/joint_trajectory_controller/joint_trajectory` topic，则Servo直接topic输入与MoveIt的FollowJointTrajectory Action会汇入同一个JTC。JTC文档明确存在Action与topic两种命令入口；topic命令可能替换正在执行的Action轨迹，而Action客户端未必因此得到对应的取消/终态通知。
+3. 因此不得把“改成JointTrajectory消息”视为自动解决Servo/JTC仲裁。必须有显式命令仲裁器，保证同一时刻只有一个已授权命令源，并把Servo接管/释放与Action取消/终态、控制器状态和物理停止确认关联起来。
+
+### G. 风险分级
+
+- **P1：Servo输出控制器缺失。** YAML输出指向forward_position_controller，但controllers.yaml和launch未定义/加载该控制器；当前可选Servo路径命令链不完整。
+- **P1：Servo运行依赖缺失。** package.xml未显式声明moveit_servo exec_depend，部署依赖不完整。
+- **P1：没有跨Servo/JTC统一仲裁。** 两者配置由不同节点/机制管理；SimpleControllerManager只管理JTC Action控制器，不会自动为Servo切换ForwardCommandController。
+- **P1：暂停/退出语义不足。** Servo pause与析构不执行STOP/静止确认；控制器仍active时的最后命令行为需要动态验收。
+- **P1：多发布者命令竞争。** 即便控制器已正确激活，直接Float64MultiArray topic没有来源授权和互斥锁；多个发布者可能交错更新目标。
+- **P1：接口切换未做物理停止确认。** HardwareInterface切换只重置缓存并更新本地mode，没有确认运动停止/稳定/重新授权。
+- **P0安全边界：** Servo碰撞检查、singularity处理、timeout smoothHalt、ros2_control资源claim均非安全额定保护，不能替代CS9安全链、STO/SS1/SS2、安全PLC、急停和制动器。
+
+### H. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| SERVO-01 | launch_servo:=true | Servo输出topic存在且有预期controller订阅；控制链完整 | 静态发现目标controller缺失 |
+| SERVO-02 | package安装/依赖解析 | moveit_servo作为显式运行时依赖安装 | 静态发现exec_depend缺失 |
+| SERVO-03 | JTC与ForwardCommandController同时激活 | 对同一position接口只能有一个claim成功，另一方明确失败 | 框架规则已确认；未运行 |
+| SERVO-04 | JTC→Servo切换 | Action旧目标终结、JTC释放接口、机器人停止/稳定后才激活Servo并授权新命令 | 未执行 |
+| SERVO-05 | Servo→JTC切换 | Servo命令源撤销、Servo平滑停止/停止确认、接口切换后新Action从当前状态开始 | 未执行 |
+| SERVO-06 | pause_servo在运动中触发 | 验证暂停是否主动产生减速/停止；若不是，系统明确禁止将pause当急停 | 静态发现pause无STOP |
+| SERVO-07 | Servo节点SIGINT/崩溃 | Servo退出后无旧目标持续驱动；控制器/硬件进入明确安全状态 | 未执行 |
+| SERVO-08 | Servo输入超时 | smoothHalt输出与实际机器人停止状态一致，超时/反馈丢失时锁存故障 | 未执行 |
+| SERVO-09 | 多发布者向commands topic发布 | 未授权发布者被拒绝或由单一mux仲裁；无交错目标 | 静态发现无来源仲裁 |
+| SERVO-10 | JTC Action执行期间Servo topic注入 | 不得旁路Action控制权或造成Action结果与物理命令不一致 | 当前Servo输出非JTC topic；未执行 |
+| SERVO-11 | position→position控制器切换 | 检查stop_interfaces/start_interfaces、pending_mode和位置缓存初始化；无跳变 | 静态发现缺少物理确认 |
+| SERVO-12 | Servo/JTC切换期间UDP断链/硬件ERROR | 统一故障锁存；不得自动切回或恢复旧目标 | 未执行 |
+| SERVO-13 | 重新连接后恢复Servo | 反馈新鲜、旧命令epoch失效、控制器状态确认、重新授权后才能输出 | 未执行 |
+| SERVO-14 | 真实机器人低速接管测试 | 受控速度/区域下测量切换延迟、速度峰值、停止距离、位置跳变并由安全负责人验收 | 未执行 |
+
+### I. 整改建议
+
+1. 明确产品控制模式：`TRAJECTORY`、`SERVO`、`STOP/FAULT`，由唯一MotionModeArbiter持有运动控制权；禁止应用直接自行激活controller或绕过仲裁器向底层命令topic写入。
+2. 为Servo增加真正的ForwardCommandController配置（六轴、position接口、正确controller plugin和topic remap），并加入bringup的load-only/inactive流程；Servo默认不启动，只有在JTC完成取消/停稳/释放接口后才允许激活。
+3. 补充`moveit_servo`运行时依赖，增加launch验证：launch_servo=true时检查Servo node、输出topic、订阅controller、hardware interfaces和controller lifecycle全部匹配。
+4. 设计原子切换流程：停止接收新输入→撤销当前命令源→按策略平滑减速→等待状态反馈新鲜且速度/运动标志满足稳定条件→取消/终结旧Action→deactivate旧controller并确认接口释放→activate新controller并确认claim→从当前反馈位置初始化→要求新session/新授权→开放新命令源。任何步骤失败均进入锁存STOP/FAULT，不自动恢复运动。
+5. 将Servo pause定义为“暂停输入/伺服更新”的软件功能，不宣传为停止或急停；增加独立stop service/统一停止协调器，并明确其仍不是安全额定急停。
+6. 对直接命令topic引入唯一命令mux/授权门控，包含source ID、session epoch、sequence、有效期和模式租约；拒绝过期/旧session/非owner命令。ROS topic本身不提供发布者身份认证，需在应用层设计访问控制或隔离命名空间/进程。
+7. 若选择Servo JointTrajectory输出，必须验证JTC topic与Action并发覆盖行为；优先保留Action作为MoveIt规划执行通道，并通过统一仲裁器切换，不允许未授权topic覆盖正在执行的Action。
+8. HardwareInterface模式切换应校验start/stop接口集合一致性、混合模式、当前状态和目标模式；但最终停止距离、停止时间及安全功能仍由独立安全系统验证。
+
+### J. 本节来源记录（#1693–#1704）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1693 | [ICube staubli_moveit.launch.py @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/launch/staubli_moveit.launch.py`) | Servo可选启动、与move_group并列 |
+| #1694 | [ICube staubli_servo.yaml @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/staubli_servo.yaml`) | Float64MultiArray位置输出、forward_position_controller topic、timeout/smoothing参数 |
+| #1695 | [ICube controllers.yaml @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml`) | 只注册JTC与joint_state_broadcaster |
+| #1696 | [ICube moveit_controllers.yaml @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml`) | SimpleControllerManager只映射JTC Action |
+| #1697 | [ICube staubli_r2c_joints.xacro @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro`) | position/velocity/acceleration接口导出 |
+| #1698 | [ICube HardwareInterface @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp`) | prepare/perform mode switch、缓存初始化、忽略stop_interfaces |
+| #1699 | [ICube staubli_moveit_config/package.xml @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/package.xml`) | moveit_servo运行时依赖未显式声明 |
+| #1700 | [MoveIt Servo servo_node.cpp @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp`) | command topic publisher、pause服务、timeout smoothHalt、loop与析构行为 |
+| #1701 | [MoveIt Servo servo.cpp @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo.cpp`) | Servo算法/碰撞监控与平滑处理 |
+| #1702 | [ros2_control Jazzy ResourceManager API](`https://control.ros.org/jazzy/doc/api/classhardware__interface_1_1ResourceManager.html`) | command interface单实例claim规则 |
+| #1703 | [ros2_control Jazzy ControllerInterface API](`https://control.ros.org/jazzy/doc/api/classcontroller__interface_1_1ControllerInterfaceBase.html`) | ControllerManager按接口配置claim硬件命令接口 |
+| #1704 | [MoveIt Ros2ControlManager README](`https://github.com/moveit/moveit2/blob/main/moveit_plugins/moveit_ros_control_interface/README.md`) | MoveIt ROS2ControlManager基于资源冲突执行controller switching；与当前SimpleControllerManager配置对比 |
+
