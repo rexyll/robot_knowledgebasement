@@ -2202,3 +2202,86 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1718 | [MoveIt Servo servo_node.cpp @ 6ed6372] (`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp`) | publisher使用SystemDefaultsQoS |
 | #1719 | [ros2_controllers ForwardControllersBase @ c8d2693] (`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller/src/forward_controllers_base.cpp`) | ~/commands订阅使用SystemDefaultsQoS，ACTIVE检查和缓存生命周期 |
 | #1720 | [ROS 2 QoS compatibility documentation] (`https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html`) | system default由RMW解析；QoS request/offered兼容性与不兼容时不通信 |
+
+
+## 9.3.42 Servo命令DDS QoS、队列积压、消息丢失与命令新鲜度（2026-11-07）
+
+### A. 审查范围与固定版本
+
+- Stäubli ICube驱动与配置固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- ros2_controllers固定源码快照：`c8d26930ff87bc819db1452af1d45da5bfa3d50d`（`forward_command_controller`包版本6.10.1）。
+- ROS 2 Jazzy RMW/RCLCPP与ros2_control/realtime_tools文档用于核对SystemDefaultsQoS展开、QoS兼容性/事件和实时线程缓存语义。
+- 本节为固定源码/官方API文档静态审查；未在目标RMW、DDS vendor、网络条件和机器人工作区中运行ROS graph/QoS测试。
+
+### B. SystemDefaultsQoS并未锁定队列深度或可靠性
+
+1. MoveIt Servo的Float64MultiArray publisher与ForwardControllersBase的`~/commands` subscription均使用`rclcpp::SystemDefaultsQoS()`；两处没有显式传入KEEP_LAST depth、Reliable/BestEffort、Deadline、Lifespan或Liveliness配置，也没有传入QoS事件回调选项。
+2. ROS 2 Jazzy的`rmw_qos_profile_system_default`将history、depth、reliability、durability和liveliness设为SYSTEM_DEFAULT；deadline、lifespan及liveliness lease duration为DEFAULT。实际history/depth和其他策略由底层RMW确定，不能仅从该C++调用推导出具体值。
+3. 必须区分`rmw_qos_profile_default`和`rmw_qos_profile_system_default`：前者源码静态定义为KEEP_LAST(10)、RELIABLE、VOLATILE；后者各相关策略保留SYSTEM_DEFAULT/DEFAULT。Servo/ForwardController调用的是后者，不能套用前者的depth=10或Reliable结论。
+4. 即使两端都写SystemDefaultsQoS，静态配置仍不能代替目标部署下对publisher/subscription endpoint实际QoS的采集。RMW、DDS XML、环境变量、容器镜像和发行版补丁均应作为部署基线的一部分记录。
+
+### C. History/depth、250Hz与积压语义
+
+1. Stäubli Servo YAML的`publish_period: 0.004`对应250Hz目标发布频率；bringup的controller_manager `update_rate: 250`也配置为250Hz。它们只是两个独立周期设定，并不保证严格相位同步、实际无抖动或每条消息都被对应的一次controller update消费。
+2. ROS 2 KEEP_LAST(depth=N)只限制该endpoint历史样本缓存的数量；若目标RMW最终采用KEEP_LAST(10)，以250Hz名义间隔估算，10个样本对应约40ms的输入时间跨度，但这不是端到端最大延迟保证，也不能直接推定具体DDS writer/reader/executor总缓存。
+3. Reliable用于提高样本传输可靠性，可能通过重传弥补丢包；它不等于时效性保证。网络恢复、接收端调度延迟或队列积压时，应用仍需拒绝超过控制时效预算的命令。BestEffort允许丢样本，可能更适合只消费最新设定值的连续流，但必须证明丢样后watchdog会在预算内触发。
+4. KeepLast(1)可限制保留的历史样本数量并偏向最新样本，但不能替代接收后的命令年龄检查：在数据已进入订阅回调/应用缓存之后，DDS history策略不再自动撤销该命令。
+
+### D. ForwardCommandController中间缓存是单槽位，不是命令FIFO
+
+1. ForwardCommandController subscriber回调对每个有限值Float64MultiArray调用`rt_command_.set(cmd)`。头文件声明`rt_command_`为`RealtimeThreadSafeBox<CmdType>`，另有`joint_commands_`保存最后一次成功读取的引用值。
+2. `RealtimeThreadSafeBox`是单对象Box，set覆盖当前值；update每周期调用try_get读取当前值，而非按序消费每一条topic消息。因此多个订阅回调在两次controller update之间到达时，中间值可能被后续值覆盖。这是“最新值”型接口特征，不是无损采集队列。
+3. realtime_tools Jazzy文档将RealtimeThreadSafeBox描述为best-effort访问；若需要保留实时线程处理前到达的多个中间样本，建议使用LockFreeQueue并按topic速率和controller update速率配置容量。
+4. 另一个边界是try_get锁获取失败：ForwardControllersBase只有在try_get返回value时才更新`joint_commands_`；如果本周期未能取得Box值，代码继续使用旧`joint_commands_`并照常写入command interfaces。因此即使callback已收到新命令，实时读取竞争也可能使本周期继续写旧值。该情形需通过压力/锁竞争测试量化，不能当作常态必现故障。
+5. 即使Box成功读取最新值，若其值来自DDS队列中的迟到样本，Box无法识别消息产生时间；Float64MultiArray自身没有Header、发送时间、序号或session epoch，现有控制器也不做年龄检查。
+
+### E. Deadline、Lifespan与Liveliness能力边界
+
+1. 当前两端SystemDefaultsQoS均未显式配置Deadline。Deadline描述预期发布周期；发布端/订阅端的missed-deadline事件需要应用注册并处理相应回调。静态源码未见Servo publisher或ForwardController subscription注册QoS事件回调，不能把DDS deadline视为已启用的停止逻辑。
+2. 当前两端未显式配置有限Lifespan。Lifespan表示样本从发布到接收允许的最大时长；过期样本由middleware丢弃，且不会送达订阅回调。它可约束传输/排队阶段的样本年龄，但一旦命令已经通过回调写入Box或controller缓存，Lifespan不会回溯清理应用缓存。
+3. 当前未显式设置Liveliness/lease duration，也未注册Liveliness changed/lost事件处理。Liveliness用于判断publisher是否仍被middleware认为存活，不证明消息数值有效、更新周期符合预期或机器人正在正确响应。一个进程/节点仍存活但业务循环已卡住的情形，不能仅靠进程存活证明有新命令。
+4. QoS兼容性采用request/offered规则；不兼容的Reliability、Durability、Deadline、Liveliness等组合会阻止endpoint建立通信。即使topic名称和类型完全一致，也必须检查实际endpoint QoS以及matched publisher/subscription状态。
+5. QoS deadline miss、lifespan丢样、liveliness丢失和controller命令超时是不同事件。前三项属于middleware通信QoS层；最后一项必须由接收端应用/控制器基于命令年龄或最近接收时间独立实现。
+
+### F. 风险分级
+
+- **P1：传输可靠性与命令时效性未分离。** Reliable不能保证按控制周期及时到达；BestEffort可能丢帧。当前没有端到端命令年龄/序号校验。
+- **P1：QoS配置全为SystemDefaults。** history/depth、reliability、durability和liveliness由RMW解析；未锁定部署QoS基线。
+- **P1：没有显式Deadline/Lifespan和QoS事件处理。** middleware不能提供可验证的周期违约监视或传输年龄上限；即便补上也不能替代应用缓存watchdog。
+- **P1：单槽位Box不保存每个中间样本。** 高于controller update吞吐的消息可能覆盖中间值；try_get失败时继续使用上次缓存值。
+- **P1：Float64MultiArray不携带消息产生时间或序号。** 接收端无法区分最新命令、迟到旧命令和发送方重启后序号回退。
+
+### G. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| SERVO-37 | 目标RMW/DDS QoS盘点 | 归档Servo publisher与controller subscription实际history/depth/reliability/durability/deadline/lifespan/liveliness/lease | 仅源码可确认SystemDefaultsQoS；未采集 |
+| SERVO-38 | 队列深度对照 | 在depth 1/候选depth及250Hz速率下测量积压、丢帧、旧样本年龄；明确只消费最新值还是保留中间样本 | 未执行 |
+| SERVO-39 | Reliable断网/恢复 | 注入延迟、丢包、短时断连与恢复；不允许超过时效预算的旧样本驱动接口 | 未执行 |
+| SERVO-40 | BestEffort丢帧 | 注入样本丢失，验证接收端命令年龄watchdog在预算内触发且不静默沿用旧目标 | 未执行 |
+| SERVO-41 | Deadline事件 | 设定与周期预算一致的deadline，验证offered/requested missed事件可观测并触发降级策略 | 当前未配置/未注册回调 |
+| SERVO-42 | Lifespan过期样本 | 设置有限lifespan，发布端到订阅端延迟超过阈值时确认样本不进入回调；同时验证已缓存旧命令仍由应用watchdog处理 | 当前未配置；未执行 |
+| SERVO-43 | Liveliness丢失 | publisher进程退出/业务线程冻结，验证liveliness事件与应用命令watchdog各自触发时限 | 当前未配置/未注册回调 |
+| SERVO-44 | Box最新值/中间样本行为 | 两个update周期之间注入多条带序号命令，记录覆盖、消费值及最大年龄；明确接口只承诺最新值 | 静态识别单槽位；未执行 |
+| SERVO-45 | Box try_get竞争 | 注入锁竞争/高负载，确认try_get失败时旧值重写的次数、持续时间和安全降级动作 | 静态分支可追溯；未执行 |
+| SERVO-46 | 端到端时效与重启隔离 | 通过带时间戳/序号/源ID/epoch的命令契约识别迟到、乱序、重复和publisher重启；超龄命令被拒绝 | 当前消息不含这些字段；未实施 |
+
+### H. 整改建议
+
+1. 为部署配置明确QoS合同，不再把SystemDefaultsQoS视为产品参数。候选基线可从KEEP_LAST(1)开始评估；Reliable或BestEffort应依据丢包/延迟/恢复实验和安全风险预算选择，不以“可靠”一词代替新鲜度证明。
+2. 根据250Hz周期和端到端控制时效预算，显式评估Deadline、Lifespan和Liveliness lease。Deadline/Liveliness必须注册事件回调并形成状态机；Lifespan应约束DDS传输阶段，不应代替controller侧watchdog。
+3. 在ForwardCommandController或专用命令适配层增加接收时刻（单调时钟）、最大命令年龄、source ID、session epoch和sequence检查；超龄、重复、回退、未授权源或epoch不符时拒绝命令并进入明确故障状态。
+4. 将`Float64MultiArray`替换为带Header/时间戳和显式关节名/序号/来源身份的受控命令消息，或在其上游部署协议适配层。时钟同步若不具备可验证性，应将本地接收超时与DDS Lifespan组合使用，并明确其不能单独检测传输前已积压的远端旧值。
+5. 若系统确实只需要最新设定值，单槽位覆盖可以作为明确的接口设计，但需增加sequence/age观测与过载测试；若需要每个采样点连续保留，则应使用有界队列并定义溢出策略，不能同时假定无丢样与严格实时。
+6. 所有断流、DDS重连、QoS不匹配、队列积压和Box争用试验先在fake hardware/SIL中开展；真实机器人验收须在风险评估、限速限区和独立安全停止系统可用的前提下进行。
+
+### I. 本节来源记录（#1721–#1725）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1721 | [ROS 2 Jazzy rmw qos_profiles.h] (`https://github.com/ros2/rmw/blob/jazzy/rmw/include/rmw/qos_profiles.h`) | system_default与default profile字段差异；SystemDefaults各策略保留SYSTEM_DEFAULT/DEFAULT |
+| #1722 | [ROS 2 Jazzy QoS settings文档] (`https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html`) | reliability/history/depth、Deadline、Lifespan、Liveliness、compatibility与QoS事件语义 |
+| #1723 | [ros2_control Jazzy realtime_tools文档] (`https://control.ros.org/jazzy/doc/realtime_tools/doc/index.html`) | RealtimeThreadSafeBox best-effort单值交换与LockFreeQueue保留中间样本的选型指引 |
+| #1724 | [ros2_control Jazzy RealtimeThreadSafeBox API源码] (`https://control.ros.org/jazzy/doc/api/realtime__thread__safe__box_8hpp_source.html`) | try_get best effort与set覆盖Box当前值的实现；try_get锁不可得时返回空 |
+| #1725 | [ros2_controllers ForwardControllersBase header/source @ c8d2693] (`https://github.com/ros-controls/ros2_controllers/tree/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller`) | rt_command_为RealtimeThreadSafeBox；callback set、update try_get及旧joint_commands_保留路径 |
