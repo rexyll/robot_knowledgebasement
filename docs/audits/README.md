@@ -63,3 +63,5 @@
 清单中的未审文件不代表质量不合格，只表示尚无验收证据。抽样不能替代逐篇审查；文件存在、标题完整、链接数量或文章长度均不能单独作为完成证明。审计完成状态以根目录 TaskPlan 的 00-01 任务验收为准。
 
 - [Stäubli Robotics软件与ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：持续追踪CS9/VAL3/ICube ROS 2驱动；当前专项增量至§9.3.17，覆盖协议序列化、UDP收发错误与线程生命周期、共享发送缓冲区并发、RobotDriver同步契约、ros2_control生命周期、VAL3命令新鲜度/故障恢复锁存，以及ROS 2—VAL3端到端命令门控、STOP确认与故障矩阵、VAL3停止包装与错误恢复锁存及ROS 2生命周期停止契约；RobotState默认100 ms新鲜度检查、重复帧刷新接收时间戳的活性缺口、ROS 2 Jazzy read/write ERROR生命周期与控制器停用、on_error忽略STOP结果及资源保留问题。当前均为公开资料/源码静态审查，未完成目标硬件验收。
+
+- [2026-11-06 Stäubli Robotics软件与ROS生态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：续增§9.3.27，核对VAL3状态先发后处理错误的可观测性，以及ReadRobotStateTest/RTSocketSubscriberTest/round-trip测试的真实覆盖边界；新增OBS-01–OBS-08测试规格。未运行测试、VAL3编译、SRS仿真或CS9 HIL/实机验证。
