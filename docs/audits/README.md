@@ -69,3 +69,6 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube/MoveIt/ros2_controllers源码快照静态审查已推进至§9.3.39；本轮新增Servo输入Header stamp超时与ForwardCommandController下游命令缓存/周期重复写入语义（SERVO-15–SERVO-24），指出Servo smoothHalt完成后下游仍可能保持最后位置目标、ForwardCommandController无命令年龄watchdog，pause不触发smoothHalt。此前§9.3.38记录Servo输出controller缺失与JTC资源claim仲裁边界。未执行ROS构建/集成、断流/时间跳变/多发布者注入、VAL3/SRS、CS9 HIL或实机安全验证。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube/MoveIt/ros2_controllers源码静态审查已推进至§9.3.40；本轮补充Servo输入超时与ForwardCommandController命令缓存（§9.3.39，SERVO-15–SERVO-24），以及Float64MultiArray无关节名、Servo active joint order与ForwardController joints参数必须逐项一致的六轴映射契约（§9.3.40，SERVO-25–SERVO-29）。默认Stäubli静态配置预期joint_1至joint_6一致，但ForwardCommandController未注册，实际集成映射未验证。未执行xacro展开、ROS集成、fake hardware、VAL3/SRS、CS9 HIL或实机安全验证。
