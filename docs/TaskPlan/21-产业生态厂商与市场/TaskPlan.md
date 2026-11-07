@@ -433,3 +433,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli ROS 2—VAL3端到端命令门控、STOP确认与故障矩阵 | 对照HardwareInterface模式切换/write、RobotDriver发送/状态读取、VAL3状态先发后收、readData/sioGet、位置控制与安全状态映射。确认ROS write不逐周期检查motion_possible/estop_pressed/wait_for_ack；普通STOP发送没有命令级ACK或停止完成确认；状态序号不能视为本轮命令执行确认；stopMove/resetMotion原生语义及sioGet队列行为需受控手册/CS9实测。新增专项审计§9.3.15、来源#1562–#1567，更新厂商档案、兼容矩阵、基线和索引。未运行构建/测试/网络注入/VAL3仿真/CS9实机，21-02继续进行中，Stäubli未验收。 | 来源#1562–#1567；Stäubli专项审计§9.3.15 |
+
+
+| 2026-11-07 | 21-02/Stäubli停止包装程序、错误清理与生命周期回调 | 审查stopJointPositionControl/movejSyncEnd、controlTask错误处理和HardwareInterface on_activate/on_cleanup/on_shutdown/on_error。发现停止包装无停止后状态验证且无条件x_bError=false；错误处理自动清除l_bError并重置socket，缺故障锁存；cleanup直接断连，shutdown不等待STOP确认，error忽略STOP结果。新增专项审计§9.3.16、来源#1568–#1570。静态审查，未做VAL3仿真/CS9实机，21-02继续进行中。 | 来源#1568–#1570；专项审计§9.3.16 |
