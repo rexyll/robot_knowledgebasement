@@ -910,3 +910,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 - **责任/决策：** 是否合并由用户与助手在届时讨论；未满足启动条件前保持待办，不自动执行。
 - **关联记录：** `docs/audits/MotionControlAlgorithms-main-review-2026-11-06.md`；`docs/audits/MotionControlAlgorithms-knowledge-gap-matrix-2026-11-06.md`。
 
+
+| 2026-11-07 | v7.79 | 00-01/21-02对Stäubli ICube UDP接收路径做增量静态审查：固定1024字节接收缓冲区；异步接收error非零时handle_data_received仅记录日志仍调用subscriber回调，消息解析器按最小帧长处理，socket测试仅覆盖128字节正常数据。新增专项审计§9.3.11与来源#1541–#1545；将超长UDP数据报截断前缀被误解析限定为待目标OS/Boost复现的风险候选。未运行测试、网络注入、构建或CS9实机验证；00-01/21-02继续进行中，Stäubli未验收；TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.11；来源#1541–#1545；第00/21章TaskPlan |
