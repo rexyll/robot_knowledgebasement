@@ -2951,3 +2951,10 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - EIH Camera Client发布image_raw/compressed/camera_info，package 0.1.0/BSD-3-Clause；仓库API许可证元数据NOASSERTION。tm2_ros2仓库API同样为Other/NOASSERTION，而LICENSE正文包含BSD-3-Clause主体及ROS2/MoveIt第三方许可文本。需逐文件、依赖、模型和商业软件EULA核验。来源#1455、#1460、#1464。
 - Techman 2026-10-05合规页面对S系列声明TMflow2.24+与ISO10218-1:2011、TRSS5.3的ISO13849-1:2023 TÜV NORD认证（35项PLd Cat.3及1项PLb Cat.B），并称ISO10218-1:2025目标为2026年底；截至本审计日尚属未来计划。IEC62443-4-1 ML2及S系列HW5.04+/TMflow3+的IEC62443-4-2 SL2也仅按页面范围记录，未取得证书原件。来源#1465。
 - 未下载TMflow/TMvision/TMcraft/受控Safety Manual，未构建ROS工作区、未运行Gazebo/TMflow虚拟机器人，未连接真实机器人/EIH/PLC/安全回路，未执行实时/轨迹/视觉/故障注入/HIL/FAT/SAT/安全验证。Techman仅为官方资料和代码静态审查，工程验收未完成。专项报告：docs/audits/2026-11-06-techman-robot-software-ros2-ecosystem-review.md。
+
+
+## 128.12 Stäubli ICube ROS 2驱动并发与生命周期增量（2026-11-07）
+
+- RealTimeSocketInterface复用成员data_out_，send_message未见并发保护；UDP send与disconnect访问同一socket对象，只有连接标志为atomic。若多线程并发发送或发送与断开，存在数据竞争/对象生命周期风险候选。RobotDriver没有对象级同步契约，接口指针、状态快照和消息序号均需按调用线程约束核验。来源#1550–#1552、#1554。
+- ros2_control插件没有覆写on_deactivate；on_cleanup直接disconnect，on_shutdown条件性尝试STOP，on_error忽略STOP发送结果。deactivate停止后续硬件读写不能证明机器人端已收到STOP；必须验证VAL3命令超时/失联策略，补齐生命周期停止和ACK/状态确认。来源#1553。
+- 静态审查未运行TSan/ASan、构建、测试、生命周期实验、网络故障注入或CS9实机验证；并发风险未被动态复现，Stäubli仍未验收。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md §9.3.13。
