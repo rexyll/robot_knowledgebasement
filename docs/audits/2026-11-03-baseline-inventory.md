@@ -2901,6 +2901,15 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 未安装软件/URCapX/SDK，未构建ROS 2工作区，未运行mock/URSim/Gazebo，未连接真实机器人/PLC/安全回路，未采集校准数据或执行实时/轨迹/力控/停止距离/HIL/FAT/SAT/安全验证；仅为静态资料审查。另记录URScript ROS API方法可能引入至少2ms延迟、影响运动blend的文档警示，需在目标PolyScope版本复测。来源#1437。专项报告：docs/audits/2026-11-06-universal-robots-software-ros2-ecosystem-review.md。
 
 
+
+### 128.9 Stäubli ICube协议Header通用校验增量（2026-11-07）
+
+- 固定ICube上游commit中，FrameHeader::deserialize仅检查magic，FrameHeader::serialize不校验Header字段；protocol_version=1没有在通用层强制。RobotCommand/DiagnosticData仅在消息层校验type/payload_size，仍未校验version；RobotState缺少相应字段校验。来源#1535、#1538、#1540。
+- 三类消息解析器按最小buffer长度读取固定字段，不强制实际输入长度精确等于帧长；调用方传入实际datagram长度时，尾随字节不被解析器拒绝。需要在接收层区分buffer capacity和实际接收字节数。来源#1538。
+- 测试fixture将buffer.resize(1024)用于round-trip，另有10字节RobotState小buffer负向断言；未发现Header字段负向矩阵、独立逐字节golden fixture或尾随字节策略测试。1024是测试buffer容量，不是网络datagram长度。来源#1539。
+- 结论仅为源码与测试文件静态审查；未运行测试/构建/VAL3/CS9。详见Stäubli专项报告§9.3.9–§9.3.10。
+
+
 ### 129.1 Universal Robots增量主张核验（2026-11-06）
 - PolyScope X ROS 2 URScript文档警示publisher/subscriber句柄生命周期及至少2ms方法调用延迟，运动段间调用可能影响blend；应解耦通信线程并在目标PSX版本实测。来源#1437。
 - UR Safety FAQ称CB3于2022年EOL且不在ISO 10218-1:2025认证路径，CB5.6为PolyScope X要求控制箱；e-Series/UR Series现行PLd Cat.3声明和2025版认证计划（2027-01）必须区分。来源#1436。
