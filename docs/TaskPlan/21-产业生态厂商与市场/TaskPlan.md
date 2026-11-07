@@ -509,3 +509,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli硬件接口故障、Controller错误传播与停止行为 | 固定ICube Stäubli driver bd658e2、ros2_control Jazzy ControllerManager/ResourceManager源码与Jazzy错误处理文档。确认硬件read/write ERROR会调用on_error并停用关联控制器；controller update ERROR停用相应controller chain并尝试STRICT fallback；ICube read检测状态超龄并返回ERROR，write通信/状态/NaN/发送失败返回ERROR，on_error在socket仍ready时尝试发送STOP但忽略发送结果，UDP本地send成功不等于CS9接收或机械停止。新增专项审计§9.3.44、来源#1731–#1736、SERVO-58–SERVO-69。未执行故障注入、ROS集成、SIL/HIL、CS9/VAL3或实机停止时间测量；21-02继续进行中，Stäubli未验收。 | 来源#1731–#1736；Stäubli专项审计§9.3.44；《主要厂商》§128.27 |
+
+
+| 2026-11-07 | 21-02/Stäubli驱动重连握手、VAL3会话复位与旧命令隔离 | 固定ICube driver bd658e2审查RobotDriver UDP connect/disconnect、UDP send、subscriber、VAL3 start/controlTask/sequence reset及mock测试。确认UDP connect只设置本地socket endpoint，不构成CS9/VAL3握手；RobotDriver仅验证首个有效状态帧和协议版本，诊断通道就绪标志被硬编码为true且diagnostic读取TODO；is_connected不检查状态新鲜度。没有自动重连状态机。VAL3序号为uint16并在启动/错误时归零，无boot/session epoch；错误复位清buffer但冷却/授权门控为TODO。UDP send遇would_block虽丢包却返回true。已有测试只覆盖mock同一会话内staleness恢复，不覆盖CS9/VAL3重启、客户端重连和旧命令隔离。新增§9.3.45、来源#1737–#1742、SERVO-70–SERVO-80。未执行新测试、SIL/HIL或CS9实机；21-02继续进行中，Stäubli未验收。 | 来源#1737–#1742；Stäubli专项审计§9.3.45；《主要厂商》§128.28 |
