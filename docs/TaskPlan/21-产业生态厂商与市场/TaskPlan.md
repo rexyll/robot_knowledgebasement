@@ -463,3 +463,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli VAL3故障可观测性与现有测试覆盖边界 | 对照固定上游commit的controlTask、updateJointPositionControl及C++ RobotDriver/socket/serialization测试：确认ReadRobotStateTest只验证mock状态反馈100ms staleness，RTSocketSubscriberTest覆盖缓存重复读取与普通跳号但不覆盖网络重放/乱序/回绕；同实现round-trip不能替代跨语言golden fixture；C++测试未执行VAL3错误标志、命令staleness、movejSync状态机或CS9停止。新增专项报告§9.3.27、来源#1625–#1628、OBS-01–OBS-08。未运行测试、VAL3编译/SRS仿真、CS9 HIL/实机或安全验证；21-02继续进行中。 | 来源#1625–#1628；Stäubli专项审计§9.3.27；《主要厂商》§128.10 |
+
+
+| 2026-11-07 | 21-02/Stäubli RobotDriver连接握手与双通道就绪 | 审查固定上游commit的connect()握手循环、诊断ready硬编码、subscriber is_ready语义、固件版本日志与ConnectionTest：诊断通道业务数据未真正握手；控制状态有效后仍持续500ms轮询至timeout附近；mock双通道发送不证明诊断消费。新增专项审计§9.3.28、来源#1629–#1631、CONN-01–CONN-07及分层连接状态机建议。未运行构建/测试、网络注入、VAL3编译/SRS仿真或CS9 HIL/实机验证；21-02继续进行中。 | 来源#1629–#1631；Stäubli专项审计§9.3.28；《主要厂商》§128.11 |
