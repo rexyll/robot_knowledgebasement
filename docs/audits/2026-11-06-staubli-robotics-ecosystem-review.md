@@ -2946,3 +2946,80 @@ Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`clearBuffer(sio)`说�
 | #1774 | [ICube C++ UDP socket implementation @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | send_to返回值忽略、would_block丢包仍返回true |
 | #1775 | [Stäubli VAL3 Programming Manual D.280.935.01-G (2021)](https://fr.scribd.com/document/655664199/Doc-VAL3) | sioSet部分写入/内部缓冲区满时返回实际数量，Socket不关闭，需重写剩余数据 |
 
+
+
+## 9.3.52 控制Socket双向通信时序、控制周期与接收窗口耦合（2026-11-07）
+
+本节固定审查上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。关注VAL3单任务双向通信时序、ROS 2侧异步接收/同步发送、控制周期配置和序号延迟计量。以下为源码静态结论，不是CS9实时性能测量。
+
+### A. VAL3端：一个任务串行完成发送、接收和命令执行
+
+`controlTask.pgx`每轮主循环的实际顺序为：
+
+1. 检查任务超限标志并更新overrun计数。
+2. 读取机器人状态、递增状态序号并编码RobotState。
+3. 通过同一个`siSocketControl`调用`sendData/sioSet`发送状态帧。
+4. 紧接着通过同一个Socket调用`readData`接收命令。
+5. 计算序号延迟、检查命令模式和状态，再执行位置/停止等控制动作。
+6. 调用`delay(0)`后进入下一轮。
+
+这意味着VAL3侧不是两个独立任务分别收发，而是一个控制任务顺序处理双向UDP。状态帧在本轮命令执行之前生成，因此遥测状态天然反映本轮命令应用前的状态；ROS侧观测到的状态和发出的命令之间存在至少一个任务阶段的流水关系。该顺序本身不等于故障，但协议和上层应用必须按此理解数据新鲜度。
+
+### B. 接收窗口：非阻塞读取，但每轮最多尝试两次
+
+- `resetControlSocket.pgx`将SIO timeout设置为-1。结合§9.3.49引用的VAL3手册语义，这使`sioGet`读取已有输入而不等待未来数据。
+- `readData.pgx`每轮最多调用`readDataOnce`两次。收到一帧后，如果第二次没有新数据就退出；若连续收到两帧，则第二次读取会覆盖同一个输入数组，最终上层只解码最后一次读到的完整帧。
+- 因而当前逻辑不是无限排空接收队列，也不是严格“每周期只处理一帧”：它最多执行两次SIO读取，并倾向保留两次尝试中最后一帧。若队列积压超过两帧，旧帧可能留待后续周期；具体SIO UDP缓冲区与datagram边界仍受§9.3.49的未决项约束。
+- 当本轮状态发送失败时，代码置`l_bError`，但不会立即跳过接收步骤；仍调用`readData`。随后错误状态会使命令模式进入ERROR/STOP处理，并执行stop/reset。也就是说“发送失败后仍尝试读取”是源码事实，但并不表示本轮新命令仍可正常驱动运动。
+- 未收到新命令时，旧命令有效性检查中的staleness分支仍为TODO；虽然序号延迟阈值会在控制激活后触发错误，但缺少基于时间戳的独立命令期限/看门狗。该缺口与§9.3.45–§9.3.46一致。
+
+### C. ROS 2端：异步状态接收与控制更新线程同步发送
+
+- `RealTimeSocketSubscriber`在独立接收线程中启动Boost.Asio异步UDP接收；每个数据报到达后先反序列化、打接收时间戳，再写入`RealtimeThreadSafeBox`。随后重新挂起下一次接收。
+- 该缓冲结构提供最新消息快照，而不是面向应用的无界消息队列；高于读取速度的状态包可能被后续快照覆盖。读取端用序号差统计丢包，并按接收时间戳检查状态是否过期。
+- `StaubliHardwareInterface::read()`在ros2_control更新线程中读取最新状态；`write()`在同一控制更新周期中构造并发送命令。命令发送经`RealTimeSocketInterface::send_message()`同步调用序列化与Socket send；底层Boost.Asio使用`MSG_DONTWAIT`，因此系统调用不等待内核发送缓冲区腾空，但函数本身仍在调用线程内执行，序列化、日志及调用开销仍占用控制更新预算。
+- 接收线程优先级和CPU affinity仍标注TODO。由此可知接收回调与ControllerManager线程之间存在调度竞争可能性，但静态代码不能证明发生了实际优先级反转或丢帧。
+
+### D. 控制周期配置与VAL3循环的时间基准不一致
+
+- bringup的`controllers.yaml`设置`controller_manager.update_rate: 250`，即ROS 2侧目标更新周期4 ms；硬件接口将实际`period`写入命令帧的`controller_period`字段。
+- VAL3侧主循环结尾是`delay(0)`，本仓库没有在该控制任务中看到显式4 ms周期定时器/绝对时间调度。任务overrun只检查`bIsOverrun`并累计`nOverruns`，没有看到本循环的周期执行时间统计或硬性周期补偿。
+- VAL3以状态序号减命令序号计算`nSequenceDelay`。controlTask注释将运动中延迟阈值5解释为约20 ms、静止时阈值25解释为约100 ms，隐含每个序号周期约4 ms的假设；但VAL3代码本身未证明循环稳定运行在250 Hz。若实际循环周期不是4 ms，序号差阈值对应的真实时间将发生偏移。
+- 因此存在明确的时间基准/配置耦合风险：ROS 2侧明确配置250 Hz，而VAL3侧没有对应的固定周期声明。不能据此断言VAL3一定超周期或已发生实时性故障；需要在目标控制器测量每轮执行时间、抖动、overrun和双向报文时间戳后才能判定。
+
+### E. 整改建议
+
+1. 将VAL3控制任务改为显式、可配置且有界的周期调度，采用单调时间基准测量每轮开始/结束、发送/接收/命令应用时间；周期超限应有计数、阈值和明确故障策略，不能只依赖`delay(0)`和序号差。
+2. 将命令时效性从“循环序号差”扩展为带会话标识/发送时间或明确deadline的协议字段，并在VAL3端实现独立staleness watchdog；序号差保留用于丢包/流水诊断，不代替真实时间。
+3. 明确每轮最多处理多少命令、积压时保留最新还是按序处理，以及旧命令如何丢弃。对位置命令需定义“最新目标覆盖”策略；对边沿触发/离散IO命令需定义不能被覆盖的可靠传输语义。
+4. ROS 2端为发送路径定义最大执行时间预算；将序列化、系统调用、日志和接收回调分别做延迟分布统计。对接收线程设置经系统验证的实时调度策略/CPU亲和性，而不是直接假定线程天然具备实时优先级。
+5. 通过统一抓包时钟或硬件时间戳测量状态发出、ROS接收、命令发出、VAL3接收、命令应用和下一状态发出的端到端时序；对网络延迟、丢包、乱序、突发积压和CPU负载分别测量P50/P95/P99/P99.9及最大值。
+
+### F. 新增验证项（均未执行）
+
+| ID | 验证场景 | 通过条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-137 | VAL3单周期完整双向时序 | 状态采样、发送、命令接收、执行顺序及各阶段耗时可追溯 | VAL3时间戳/抓包 | 未执行 |
+| SERVO-138 | 状态发送失败后仍接收命令 | 证实接收调用发生，但本轮命令不越过错误STOP门控 | 故障注入/任务日志 | 未执行 |
+| SERVO-139 | readData连续0/1/2/3帧积压 | 明确两次读取上限、最终保留帧和后续周期残留行为 | SRS/CS9抓包 | 未执行 |
+| SERVO-140 | VAL3命令长期缺失 | 以真实时间期限触发确定性安全状态，不依赖未校准循环计数 | 时间注入/运动记录 | 未执行 |
+| SERVO-141 | VAL3 delay(0)循环周期与抖动 | 测得周期分布、最大周期、overrun率及负载相关性 | CS9周期测量 | 未执行 |
+| SERVO-142 | ROS 2 250 Hz read/write周期 | 在目标CPU负载下验证read/write耗时及周期抖动预算 | ros2_tracing/系统跟踪 | 未执行 |
+| SERVO-143 | 异步接收线程调度延迟 | 记录接收线程优先级、CPU亲和性、唤醒延迟及回调耗时 | OS调度跟踪 | 未执行 |
+| SERVO-144 | ROS状态快照覆盖与序号丢失 | 高速突发输入下最新消息、丢包统计和staleness判定符合定义 | 网络注入/单测 | 未执行 |
+| SERVO-145 | VAL3与ROS 2时基偏差 | 同步时间戳后能区分网络延迟、排队延迟和任务调度延迟 | 双端抓包/时钟同步 | 未执行 |
+| SERVO-146 | 双向拥塞与CPU压力联合测试 | P99.9/最大延迟在预算内，超限触发确定性故障而非旧命令持续执行 | 压力测试/SRS/HIL | 未执行 |
+| SERVO-147 | 命令队列积压后的策略 | 明确位置目标覆盖、离散IO不丢失/去重及旧会话帧隔离 | 协议测试/抓包 | 未执行 |
+
+### G. 本节来源记录（#1776–#1783）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1776 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 状态先发送、再读取命令、处理控制与delay(0)循环顺序 |
+| #1777 | [ICube VAL3 resetControlSocket @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx) | SIO timeout=-1配置 |
+| #1778 | [ICube RealTimeSocketInterface @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp) | ROS线程内同步序列化与send调用 |
+| #1779 | [ICube RealTimeSocketSubscriber @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 独立异步接收线程、时间戳、最新消息快照与序号丢包统计 |
+| #1780 | [ICube UDP socket implementation @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | async_receive_from、回调后重挂接收、MSG_DONTWAIT发送 |
+| #1781 | [ICube ros2_control controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | ControllerManager update_rate=250 Hz |
+| #1782 | [ICube StaubliHardwareInterface @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read/write在控制更新线程内执行，命令帧携带实际period |
+| #1783 | [ICube VAL3 computeSequenceDelay @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | 以状态/命令序号差估算循环延迟 |
