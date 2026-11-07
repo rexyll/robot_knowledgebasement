@@ -77,4 +77,7 @@
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube/MoveIt/ros2_controllers源码静态审查已推进至§9.3.41；本轮新增Servo与ForwardCommandController topic/type/namespace/QoS/lifecycle契约（SERVO-30–SERVO-36），确认默认根namespace下绝对topic与controller私有topic预期一致但多机器人namespace可能分叉，两端SystemDefaultsQoS需目标RMW实测，ForwardController未注册且inactive期间拒收命令。未执行ROS graph/QoS/namespace/remapping/实时链路或生命周期测试。
 
 
-- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube/MoveIt/ros2_controllers/ROS 2 Jazzy QoS与realtime_tools静态审查推进至§9.3.42；新增DDS QoS队列、Reliable/BestEffort新鲜度、Deadline/Lifespan/Liveliness能力边界、ForwardController RealtimeThreadSafeBox单槽位覆盖和try_get失败旧值保留风险（SERVO-37–SERVO-46）。未运行目标RMW/DDS、网络故障注入、QoS事件、实时锁竞争、HIL或实机验证。
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube/MoveIt/ros2_controllers/ROS 2 Jazzy QoS/realtime_tools/SROS2静态审查推进至§9.3.43；新增DDS QoS队列、Reliable/BestEffort新鲜度、Deadline/Lifespan/Liveliness能力边界、ForwardController RealtimeThreadSafeBox单槽位覆盖和try_get失败旧值保留风险（SERVO-37–SERVO-46）。未运行目标RMW/DDS、网络故障注入、QoS事件、实时锁竞争、HIL或实机验证。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.43；新增Servo输入/输出多发布者竞争、ForwardController无publisher身份校验、SROS2默认关闭/Enforce/独立enclave/topic-service ACL能力边界及业务控制租约不足（SERVO-47–SERVO-57）。未部署keystore/ACL，未执行双publisher、越权、remapping绕过、密钥生命周期或HIL/实机验证。
