@@ -98,3 +98,5 @@
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.49；新增VAL3 SIO UDP接收语义与错误返回问题：sioGet按输入缓冲区/数组读取，timeout=-1时0为空缓冲区、-1为读取错误；readDataOnce未处理-1，readData可能静默上报无新数据。SIO手册未保证UDP datagram边界语义，需目标CS9/SRS注入验证（SERVO-109–SERVO-118）。未执行仿真、HIL或实机验证。
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.50；新增VAL3 clearBuffer的Socket生命周期语义：Ethernet socket上的clearBuffer会停用/关闭socket，inactive时返回-1，后续读写尝试激活。start与controlTask启动路径连续调用clearBuffer且忽略返回值，stop也关闭socket；任务退出时序与重启首帧行为待SRS/CS9验证（SERVO-119–SERVO-125）。未执行HIL或实机验证。
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.51；新增VAL3 sioSet短写/超时处理、手册要求剩余数据续写与当前实现差异、controlTask发送失败STOP/reset路径，以及C++ Boost.Asio send_to忽略字节数、would_block丢包仍返回true的跨端不对称（SERVO-126–SERVO-136）。未执行SRS/CS9网络注入、VAL3编译、HIL或实机验证。
