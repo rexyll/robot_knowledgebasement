@@ -2657,3 +2657,72 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1748 | [ICube position/velocity stop functions @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control) | 位置模式movejSyncEnd与速度模式resetMotion停止路径 |
 | #1749 | [ICube readData/readDataOnce @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm) | UDP数据读取次数、固定缓冲长度与短包错误处理 |
 | #1750 | [ICube VAL3 RobotCommand/MessageHeader types @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types) | 命令字段、6轴数据、uint16序号和协议头结构 |
+
+## 9.3.47 Stäubli VAL3状态遥测来源、有效性标志与物理语义边界（2026-11-07）
+
+### A. 审查范围与固定版本
+
+固定ICube `staubli_driver_ros2` commit `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节交叉检查VAL3 `updateState.pgx`、`RobotState.dtx`、`encodeRobotStateMsg.pgx`，以及ROS侧 `RobotStateMessage` 数据模型和反序列化实现。重点区分直接读取、命令派生近似值、电机电流估算值、软件推导状态和未实现的可选传感器字段。此处为静态源码审查，不代表目标CS9/机器人已验证。
+
+### B. 遥测字段的实际来源
+
+| ROS/协议字段 | VAL3实现 | 可支持的解释 | 不可直接推导 |
+|---|---|---|---|
+| joint_positions | `herej()` | VAL3返回的当前关节位置值 | 独立外部测量精度、时间戳新鲜度或安全位置反馈 |
+| joint_velocities | `$getJntSpeedCmd()` | 控制器提供的关节速度命令/近似值 | 独立实测关节速度、碰撞速度或安全速度 |
+| joint_torques / effort | `getJointForce()` | 基于电机电流计算的关节力/力矩数量级估算 | 外部接触力、精密力控反馈、碰撞阈值或安全力矩 |
+| brakes_released | `isPowered()`赋值 | 软件以驱动上电状态代理制动器状态 | 制动器线圈/机械释放机构的独立反馈或制动器健康状态 |
+| in_motion | `!isSettled()` | VAL3运动/settled判据 | 由独立速度传感器证明的物理静止或安全静止 |
+| motion_possible | `isPowered() && !bEStopped` | 软件层的简化运动许可条件 | 完整的CS9安全许可、远程模式、HOLD状态或外部防护条件确认 |
+| F/T、数字输入、模拟输入 | `updateState`明确未实现并将valid标志置false | 当前实现不提供有效数据 | 不能因固定帧中存在对应字节区就认为传感器/IO已接入 |
+
+`updateState.pgx`将`bValidPosition`、`bValidVelocity`、`bValidTorque`置true；速度来自`$getJntSpeedCmd`，力矩来自`getJointForce`。源码注释明确说明`getJointForce`结果只提供力的数量级，包含重力、摩擦、黏性、惯性、噪声和电流传感器/电机常数误差，并明确写明不承诺精度。因而valid只代表该软件字段由当前实现填充，不代表计量学意义上的精度、可追溯校准或适用于安全功能。
+
+### C. 状态推导和模式门控风险
+
+1. `bBrakeReleased = isPowered()`是状态代理，不是制动器独立反馈。驱动上电与制动器机械释放/保持能力不是同一物理量；在未取得目标机器人制动器反馈接线、CS9接口和VAL3变量语义前，不能把该字段作为制动器状态证明。
+2. `bInMotion = !isSettled()`使用VAL3 settled判据。其可用于普通控制状态监视，但不能单独用来证明停止时间、制动保持或安全静止；尤其应与上一节的STOP/重新授权缺少独立静止握手问题合并看待。
+3. `bMotionPossible`当前只由驱动上电和`bEStopped`计算。代码保留了一个被注释的更严格表达式，其中额外要求`nRobotStatus == 0`；而`workingMode`注释说明自动模式状态2表示Hold。当前表达式没有显式把Hold/运行模式状态作为该字段的门控条件。由于`nRobotStatus`含义依赖工作模式，必须按每个CS9工作模式验证枚举映射，不能仅凭注释推断所有模式下的行为。
+4. 位置控制函数还会执行自己的motion_possible和其他检查；本节没有证明仅凭`bMotionPossible`为true就能绕过CS9/VAL3自身的所有限制。风险在于ROS上层看到的简化标志可能比真实控制器状态更宽松，需验证并修正字段契约。
+
+### D. 固定帧布局与valid标志
+
+- VAL3初始化RobotState payload为124字节；加8字节header后固定132字节。ROS `RobotStateMessage`按固定布局读取位置、速度、力矩、F/T、数字输入和模拟输入字段。
+- `encodeRobotStateMsg.pgx`每帧都会写入固定字段区；可选F/T/IO字段的valid标志由RobotState结构产生，但当前`updateState`把F/T、数字输入和模拟输入valid标志置false，并把F/T数组清零。相应序列化代码中的F/T后3项、数字输入位图和模拟输入值仍为TODO/注释状态。当前实现不会提供这些字段的有效测量；协议固定长度不能作为功能已实现的证据。
+- C++ `RobotStateMessage::deserialize`会按固定布局把各字段解码到数组，同时另行解析valid flags。调用方必须同时检查`has_joint_positions/velocities/torques/ft_sensor/digital_inputs/analog_inputs`，不能只看数组内容；无效字段的零值或残留值不得被当作有效测量。
+- `has_joint_torques=true`目前对应的是VAL3估算值，不应因字段名或ROS的`effort`接口而误认为高精度力矩传感器读数。ROS状态接口的单位/语义说明必须保留“估算”限定。
+
+### E. 结论与整改建议
+
+1. 将状态接口元数据拆分为`source_kind`（直接读取/命令派生/模型估算/软件推导/未实现）、`valid`、`freshness`、`accuracy`和`safety_qualified`，避免单一valid布尔承担多种含义。
+2. 将joint velocity明确标为command-derived estimate；若控制应用需要实际速度，必须确认控制器是否提供实际速度测量源，或通过经过验证的编码器反馈获取，不能静默复用命令速度。
+3. 将joint torque/effort明确标为current-derived rough estimate，并记录厂商不承诺精度；禁止将其直接用于精密力控、碰撞检测或安全保护，除非另有传感器、标定、误差模型和独立验证。
+4. 将brakes_released改名为或补充说明为`drive_powered_proxy`，除非能取得独立制动器状态反馈；将`in_motion`标注为VAL3 settled-derived状态，禁止作为安全静止确认。
+5. 对`motion_possible`建立按Manual/Test/Automatic Local/Automatic Remote及Move/Connection Move/Hold/安全重启状态的真值表；Hold、非远程、未确认安全重启等状态必须有明确预期，不允许用简化布尔字段替代CS9安全链。
+6. 对固定帧valid flags增加跨语言黄金向量与负向测试：valid=false时消费者不得使用数据；valid=true时字段来源、单位、精度和更新时间必须明确。F/T与IO字段在真正实现并验证前继续声明unsupported。
+
+### F. 新增验证矩阵（SERVO-91–SERVO-100，均待执行）
+
+| ID | 场景 | 预期验收条件 | 必须留存证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-91 | 对照VAL3 joint velocity源与独立测量 | 明确区分命令速度和实际速度；偏差/延迟有测量报告 | 同步采样、控制器记录、时间基准 | 未执行 |
+| SERVO-92 | 对照getJointForce与外部校准力矩传感器 | 只报告估算误差与适用工况，不宣称未支持精度 | 传感器校准证书、负载/姿态/速度、误差统计 | 未执行 |
+| SERVO-93 | 驱动上电但制动器状态异常/反馈断开 | 软件不得把isPowered代理值描述为制动器已机械释放 | CS9状态、制动器独立反馈/接线、故障记录 | 未执行 |
+| SERVO-94 | settled状态与外部速度测量对照 | in_motion仅作为VAL3状态；静止判定需新鲜、稳定且独立的验收条件 | VAL3状态、编码器/测量设备、时间序列 | 未执行 |
+| SERVO-95 | Automatic Hold状态下检查motion_possible | Hold状态不得被上层误判为可执行运动；明确VAL3最终拒绝/接受行为 | workingMode/nRobotStatus、bMotionPossible、命令结果 | 未执行 |
+| SERVO-96 | Manual/Test/Automatic Local/Remote逐模式枚举扫描 | nRobotMode/nRobotStatus映射有完整真值表，未知状态fail closed | CS9模式记录、状态帧、映射表 | 未执行 |
+| SERVO-97 | Safety Restart/WMS Restart过渡与motion_possible | 安全状态未确认前不授予普通运动许可；与独立安全功能分开验收 | esStatus、wait_ack、控制输出和安全回路记录 | 未执行 |
+| SERVO-98 | valid flag为false时消费状态数组 | ROS上层不得把无效F/T、IO或其他字段零值当作有效读数 | golden frame、订阅端日志、负向单测 | 未执行 |
+| SERVO-99 | valid flag为true时检查字段来源/单位/更新时间 | 每个有效字段具备来源、单位、更新时间和精度限定 | 接口文档、测试数据、元数据 | 未执行 |
+| SERVO-100 | 固定132B状态帧跨语言一致性 | VAL3编码与C++解码逐字段一致；valid flags与数据语义一致 | VAL3导出帧、C++ golden fixture、逐偏移比较 | 未执行 |
+
+### G. 本节来源记录（#1751–#1755）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1751 | [ICube VAL3 updateState @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | 位置/速度/力矩来源、valid标志、制动器和motion_possible推导、F/T与IO未实现 |
+| #1752 | [ICube VAL3 RobotState.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx) | 状态字段、valid flags及六轴/IO数据结构 |
+| #1753 | [ICube VAL3 encodeRobotStateMsg @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | 固定payload字段写入、valid flags及未实现字段占位 |
+| #1754 | [ICube ROS RobotStateMessage @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | ROS侧字段名称、单位注释、有效性标志与协议结构 |
+| #1755 | [ICube ROS RobotStateMessage deserialize @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | 固定帧解析和valid flags独立于数组内容的解码行为 |
+
