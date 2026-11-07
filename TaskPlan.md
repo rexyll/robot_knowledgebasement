@@ -965,3 +965,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v8.04 | 00-01/21-02继续MoveIt取消传播、控制器故障与执行结果一致性审查：区分MoveGroup与ExecuteTrajectory两条Action路径；MoveGroup取消有preempt→PlanExecution→TEM链，ExecuteTrajectory cancel回调仅ACCEPT且未调用已定义的preemptExecuteTrajectoryCallback，PREEMPTED结果统一abort；TEM忽略cancelExecution返回值、ActionBasedControllerHandle未校验Cancel response是否实际取消当前goal，waitForRobotToStop失败被忽略且取消路径不等待静止。新增专项审计§9.3.36、来源#1674–#1681及MEX-01–MEX-14，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行MoveIt/ROS构建、Action集成/故障注入、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.36；来源#1674–#1681；第21章TaskPlan |
+
+
+| 2026-11-07 | v8.05 | 00-01/21-02继续Stäubli MoveIt与ros2_control控制器生命周期、启动就绪及故障恢复静态审查：JTC默认inactive、spawner退出事件未校验退出码；wait_for_robot_ready只等待robot_description/joint_states首帧，未验证控制器active/Action Server/反馈新鲜度；TRANSIENT_LOCAL订阅与SystemDefaultsQoS joint_states publisher在默认VOLATILE环境存在QoS不兼容风险；MoveItSimpleControllerManager静态标记配置控制器active；Hardware ERROR停用控制器后没有统一重连、旧goal/session隔离和重新授权闭环。新增专项审计§9.3.37、来源#1682–#1692及LFR-01–LFR-14，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行ROS launch/QoS集成、生命周期故障注入、MoveIt重启、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.37；来源#1682–#1692；第21章TaskPlan |
