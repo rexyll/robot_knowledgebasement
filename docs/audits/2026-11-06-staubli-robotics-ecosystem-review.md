@@ -1387,3 +1387,73 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1639 | [staubli_hardware_interface.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp) | 生命周期override集合，未声明自定义on_deactivate |
 | #1640 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | LifecycleTransitions只覆盖init/configure/activate/read/write及现有测试边界 |
 
+
+
+## 9.3.32 ROS2—UDP—VAL3实时控制周期、反馈新鲜度与命令时序闭环审查（2026-11-07）
+
+### A. 审查基线与证据范围
+
+- 上游固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对ROS HardwareInterface、RobotDriver、RealtimeSocketSubscriber/Interface、协议消息序列化、VAL3 `start.pgx`、`controlTask.pgx`、`Comm/readData*.pgx`、`Comm/computeSequenceDelay.pgx`、`Serialization/decodeRobotCommandMsg.pgx`、`Control/updateJointPositionControl.pgx`及现有通信/HardwareInterface测试。
+- 来源#1641–#1647。仅源码和测试定义静态审查；未执行ROS构建、实时调度测量、VAL3编译、SRS仿真、UDP注入、CS9 HIL或实机测试。
+
+### B. 4ms控制周期与实时性证据
+
+1. VAL3 `start.pgx`将`l_nCtrlPeriod=0.004`并通过`taskCreateSync`创建`controlTask`；这只能证明代码配置目标周期为4ms，不能证明实际每次迭代严格4ms、抖动上界、WCET或调度优先级。
+2. `controlTask`检查`bIsOverrun`时只记录日志、清除标志并累加`nOverruns`；未见连续超限门槛、锁存故障、停止动作或向ROS暴露超限计数的闭环。该问题与§9.3.21既有RT审查一致，本节从ROS端周期参数与端到端链路补充。
+3. ROS `read()`忽略传入的`time/period`，仅调用`read_robot_state()`并更新接口状态；`write()`将ros2_control传入的`period.seconds()`乘1000写入command的`controller_period`字段。源码未对period是否为正、是否超出设计范围或周期突变进行校验。
+4. VAL3 `decodeRobotCommandMsg`将该字段解码为`nRemoteCtrlPeriod`；固定commit中检索到该字段仅在类型声明、初始化和解码中使用，未见controlTask或位置控制程序据此调整轨迹、插补或控制周期。因此该字段当前不能视为VAL3已按ROS实际周期进行时间补偿。
+5. `controlTask`循环末尾调用`delay(0)`，其4ms同步节拍由taskCreateSync配置；没有源码内的实际周期直方图、抖动分位数、每阶段执行耗时或最坏执行时间报告。Monitor speed低于100%仅告警的既有发现见§9.3.21。
+
+### C. 反馈消息新鲜度与序号推进
+
+1. `RealTimeSocketSubscriber::update_message()`对每个成功反序列化的RobotState数据报赋本地接收时间戳并覆盖latest-value缓存。它不是逐帧队列；快于读取速率的状态可能被覆盖。
+2. `read_message()`会在序号相同的情况下设置`status.new_message=false`，但仍返回true并将消息复制给调用者；`RobotDriver::read_robot_state()`没有检查`status.new_message`，只验证message_type和本地接收年龄，然后将该帧序号写入`last_valid_sequence_id_`。
+3. 因此重复序号报文仍可被当作一次成功的状态读取；只要重复报文持续抵达，其本地reception_timestamp持续刷新，100ms默认staleness timeout就不会单独识别“序号停滞”。本节不将其扩大解释为已发生现场故障，但它证明“收到新UDP数据报”“序号推进”“机器人状态实际更新”是三个不同条件。
+4. `read_robot_state()`默认状态staleness timeout为100ms；控制器VAL3循环的序号延迟阈值在运动时为`>5`个名义周期、非运动时为`>25`个名义周期。按4ms配置仅可换算为约20ms/100ms的名义周期数量，不是经过实测的绝对时延上限；任务抖动、漏周期、序号重置/回绕都会影响其真实时间含义。
+5. C++ outgoing command的header.sequence_number取`get_current_message_sequence()`，即最近一次被RobotDriver接受的状态序号，而不是独立生成的命令序号。VAL3以当前已发送状态序号减命令回显序号计算ping-pong delay。这是协议回显设计，但若C++反复接受相同序号，command也会反复携带旧序号；现有代码没有在RobotDriver层强制要求每次read都有序号前进。
+6. `computeSequenceDelay`对负差值仅在小于-60000时按uint16回绕修正；其他负差值由controlTask判为异常并切入错误路径。该边界需要对边界值、乱序、控制器重启和会话切换进行系统测试。
+
+### D. VAL3命令接收与执行时序
+
+1. `controlTask`每轮先更新并发送RobotState，再调用`readData()`读取ROS命令，然后解码、计算序号延迟、检查模式转换，最后执行运动命令。因此状态帧是在本轮新命令执行前生成的；ROS收到的该帧不能当作对随后同轮命令执行结果的确认。
+2. `readData()`最多调用两次`readDataOnce()`以尝试取出数据；当无数据时没有新命令标志，controlTask对上一条有效命令的staleness检查仍是TODO。其后虽通过状态序号回显延迟检查控制流，但这不是基于命令本地到达时间的独立超时。
+3. `decodeRobotCommandMsg`解析header并检查message type及数据长度，但没有在该程序内验证命令header.sequence_number相对上一条命令单调递增、拒绝重复命令或校验会话epoch。控制task用序号差作延迟代理，不等同完整anti-replay/session校验。
+4. 位置控制`updateJointPositionControl`读取`$movejSyncState()`，当状态为1（上次命令未及时刷新）时对应告警代码被注释；虽然controlTask有另一条基于序号延迟的停止路径，但movejSync的刷新超时没有独立的、明确的错误锁存和诊断闭环。该点与§9.3.21/§9.3.26关联。
+5. `nRemoteCtrlPeriod`被解码但没有发现后续控制算法消费；因此不能假设VAL3根据ROS侧周期变化动态调整movejSync刷新期限或插补参数。
+6. `send_robot_command()`返回true只表示序列化和本地socket发送路径没有报告错误；结合§9.3.30的would_block返回语义，不构成VAL3接收、解码、接受、执行或目标到位的确认。
+
+### E. 新增端到端验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| RT-09 | ROS control loop目标4ms，在CPU/网络负载阶跃下持续采样 | 同时输出ROS read/write、UDP收发、VAL3 task周期的P50/P95/P99/P99.9/max与missed-deadline；定义并验证预算 | 未实现/未执行 |
+| RT-10 | VAL3 task overrun连续、间歇和突发注入 | 超限计数有上报、阈值/锁存/恢复策略明确；不得只依赖日志 | 未实现/未执行 |
+| RT-11 | RobotState重复序号但每4ms重复发送 | RobotDriver识别序号停滞，即使本地接收时间刷新也不误判为持续新鲜状态 | 未实现/未执行 |
+| RT-12 | 状态序号停止推进、网络延迟/丢包/乱序/回绕 | C++ staleness与VAL3 ping-pong判据边界一致；阈值按实际周期与模式验证 | 未实现/未执行 |
+| RT-13 | ros2_control period为0、负值、4ms、抖动、跳变及异常长周期 | controller_period单位、范围和异常周期处理明确；VAL3是否消费该字段有可执行证据 | 未实现/未执行 |
+| RT-14 | 命令重复、旧序号、乱序、跨重启旧命令 | 控制器拒绝重复/过期/旧session命令；boot/session标识与序号回绕策略明确 | 未实现/未执行 |
+| RT-15 | VAL3发送状态后同轮收到并执行新命令 | 状态/命令时序可追踪，不能将前置状态帧误当作命令执行ACK；另有执行/停止确认 | 未实现/未执行 |
+| RT-16 | movejSyncState持续为1、短暂为1、恢复和超时 | 明确刷新超时动作、故障锁存、状态上报及重新授权路径 | 未实现/未执行 |
+| RT-17 | 多次read同一缓存消息后write | 同一反馈序号不能无限续发旧目标；序号无进展时进入可验证的降级/停止路径 | 未实现/未执行 |
+
+### F. 结论与安全边界
+
+当前固定源码展示了4ms VAL3同步任务配置、ROS周期字段传输和序号ping-pong延迟检测，但尚未形成可量化的端到端实时性保证。主要差距包括：无实际周期/WCET/抖动测量；overrun仅计数和日志；ROS subscriber把接收时间刷新与序号新鲜度分离，RobotDriver又忽略`status.new_message`；VAL3对无新命令时的上一命令staleness检查为TODO；命令周期字段虽被传输和解码，未见控制逻辑消费；movejSync刷新超时分支未形成明确故障动作。
+
+建议先定义端到端时序预算和统一的状态/命令序号语义，再添加重复帧停滞检测、命令session/age校验、周期字段单位与范围验证、overrun阈值与故障上报，并为状态发布—命令接收—命令执行—反馈确认分别添加可关联trace ID/时间戳。STOP和安全动作仍必须独立验证，不能把序号延迟阈值、UDP发送成功或ROS硬件回调返回OK视为安全停止保证。
+
+本节仅为固定commit源码与测试定义静态审查；未执行ROS构建/单测、4ms周期测量、VAL3编译/SRS仿真、网络注入、CS9 HIL/实机或安全验收；未修改ICube上游代码。
+
+### 本节来源记录（#1641–#1647）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1641 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read忽略time/period；write周期字段、状态门控、命令发送 |
+| #1642 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp)；[robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | 100ms默认staleness、read_message调用、状态序号更新和命令序号来源 |
+| #1643 | [real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 本地接收时间戳、latest-value缓存、相同序号new_message=false但仍返回true |
+| #1644 | [start.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx)；[controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 4ms taskCreateSync、overrun处理、状态先发送后收命令、序号延迟阈值、命令staleness TODO |
+| #1645 | [computeSequenceDelay.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx)；[getNextSequenceNumber.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx) | 序号差计算、uint16回绕逻辑 |
+| #1646 | [readData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx)；[readDataOnce.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx)；[decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 每轮最多两次读socket、消息解码、缺少重复/旧session命令门控 |
+| #1647 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx)；[messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | movejSyncState==1处理、RemoteCtrlPeriod解码/序列化与消息字段边界 |
+
