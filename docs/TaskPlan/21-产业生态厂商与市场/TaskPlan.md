@@ -526,3 +526,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli VAL3与C++状态UDP发送完整性、短写与失败恢复 | 固定ICube bd658e2审查VAL3 sendData/encodeRobotStateMsg/controlTask与C++ Boost.Asio udp_socket_impl。VAL3 sioSet返回值与帧长不一致会置错并进入STOP/reset路径，但没有按SIO手册处理部分写入后的剩余数据；2021手册指出内部缓冲区满时sioSet可能短写且需重写剩余数据，UDP datagram边界续写仍需目标CS9确认。C++ send_to未检查返回字节数，would_block丢包却返回true；两端发送错误语义不对称且没有端到端确认。新增§9.3.51、来源#1771–#1775、SERVO-126–SERVO-136。所有新测试未执行；未构建、未运行网络注入、未编译VAL3、未连接CS9/SRS/HIL或实机；21-02继续进行中，Stäubli未验收。 | 来源#1771–#1775；Stäubli专项审计§9.3.51；《主要厂商》§128.34 |
+
+
+| 2026-11-07 | 21-02/Stäubli控制Socket双向通信时序、接收窗口与控制周期 | 固定ICube bd658e2审查VAL3 controlTask/readData/resetControlSocket、ROS RealTimeSocketInterface/Subscriber、Boost.Asio UDP实现、StaubliHardwareInterface及controllers.yaml。确认VAL3单任务每轮先发状态后读命令，timeout=-1下最多尝试两次读取；发送失败仍进入接收调用，但错误门控后STOP/reset。ROS侧接收线程异步更新最新消息快照，read/write由250Hz ControllerManager更新线程执行；发送函数同步调用但底层MSG_DONTWAIT。VAL3循环仅delay(0)，未见固定4ms周期定时器；序号延迟阈值的20/100ms解释隐含4ms周期假设，需实机测量。新增§9.3.52、来源#1776–#1783、SERVO-137–SERVO-147。所有测试未执行，未做VAL3编译、SRS/CS9周期测量、ROS实时调度测试、网络注入或HIL/实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1776–#1783；Stäubli专项审计§9.3.52 |
