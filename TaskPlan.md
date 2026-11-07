@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.89  
+> 版本：v7.90  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -930,3 +930,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v7.87 | 00-01/21-02继续Stäubli ICube网络配置输入边界审查：发现HardwareInterface使用std::stoi解析四个UDP端口后直接转换uint16_t，未检查整串消费位置、1–65535范围、非零及本地端口冲突；65536/负值可能折返，尾随字符可能被数字前缀解析接受。核对随附Xacro固定11000/11001及测试夹具仅覆盖有效端口。新增专项审计§9.3.19、来源#1587–#1589和CV-01–CV-05测试矩阵。未运行边界测试、构建或CS9实机；Stäubli仍为静态审查未验收，TODO-EXT-001未授权合并。 | Stäubli专项审计§9.3.19；来源#1587–#1589；第21章TaskPlan |
 | 2026-11-07 | v7.88 | 00-01/21-02继续Stäubli ROS 2 Lifecycle安全退出审查：确认HardwareInterface没有on_deactivate override，on_cleanup只disconnect，on_shutdown依赖缓存control_state决定是否STOP并立即断开，on_shutdown/on_error忽略send_stop_all_command失败返回值；RobotDriver STOP函数可返回false，socket发送成功也不代表控制器确认或机器人静止。新增专项审计§9.3.20、来源#1590–#1592和LC-01–LC-06验收矩阵。明确未验证ros2_control基类默认回调、未执行lifecycle集成测试或CS9 HIL；Stäubli仍静态审查未验收，TODO-EXT-001未授权合并。 | Stäubli专项审计§9.3.20；来源#1590–#1592；第21章TaskPlan |
 | 2026-11-07 | v7.89 | 00-01/21-02继续Stäubli VAL3控制循环实时性与命令新鲜度静态审查：固定commit确认taskCreateSync配置4ms但无真实周期/WCET测量；monitor speed低于100%仅警告；bIsOverrun只日志并累计nOverruns，未见停止/锁存门槛；序号差>5/>25仅为名义周期代理阈值，staleness仍为TODO；readData每周期最多两次sioGet；movejSyncState==1刷新超时处理被注释。新增专项审计§9.3.21、来源#1593–#1598及RT-01–RT-08验收矩阵，并同步第21章、厂商档案与兼容矩阵。未执行VAL3编译、CS9周期测量、UDP故障注入、movejSync状态触发或HIL/实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.21；来源#1593–#1598；第21章TaskPlan |
+
+| 2026-11-07 | v7.90 | 00-01/21-02继续Stäubli错误恢复与运动重新授权静态审查：VAL3应用启动默认STOP；应用层错误处理STOP/reset后将模式置0并清除l_bError、重置序号/socket，1秒恢复等待仍为TODO；模式0后直接切换运动模式会被转换检查拒绝，需STOP模式先恢复；消息头无controller boot ID/session nonce，命令解码未见重复/重放校验；CS9安全状态非零通过motion_possible=false门控，但ROS on_activate仅设置本地STOP不等待控制器确认。新增专项审计§9.3.22、来源#1599–#1606、RS-01–RS-09验收矩阵，并同步第21章、厂商档案和兼容矩阵。未执行VAL3/ROS构建、CS9重启/网络故障注入或HIL；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.22；来源#1599–#1606；第21章TaskPlan |
