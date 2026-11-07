@@ -1774,3 +1774,104 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1679 | [ExecuteTrajectory Action capability @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/move_group/src/default_capabilities/execute_trajectory_action_capability.cpp) | cancel回调仅ACCEPT、preempt函数无调用连接、PREEMPTED终态走abort |
 | #1680 | [Stäubli MoveIt launch @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/launch/staubli_moveit.launch.py) | MoveGroup节点启动及MoveIt配置装载 |
 | #1681 | [Stäubli MoveIt controllers @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml) | SimpleControllerManager与FollowJointTrajectory Action映射 |
+
+
+## 9.3.37 MoveIt / ros2_control 控制器生命周期、启动就绪与故障恢复（2026-11-07）
+
+### A. 审查范围与版本边界
+
+- ICube Stäubli ROS 2驱动固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- 核对 `launch_robot_control.launch.py`、`launch_moveit.launch.py`、`launch_demo.launch.py`、`wait_for_robot_ready.py`、`controllers.yaml`、HardwareInterface生命周期回调，以及MoveItSimpleControllerManager/ActionBasedControllerHandle。
+- ros2_control框架行为按ROS 2 Jazzy官方文档理解；JointStateBroadcaster QoS实现另以公开源码作线索。对SystemDefaultsQoS最终解析结果仍需在目标RMW/发行版运行时确认。
+- 本节是静态源码与配置审查；未执行ROS构建、launch集成、QoS兼容性测试、控制器故障注入、MoveIt Action集成、UDP断链、VAL3/SRS、CS9 HIL或实机验证。
+
+### B. 启动编排与控制器激活顺序
+
+1. `launch_robot_control.launch.py`启动robot_state_publisher、ros2_control_node及RViz，并创建joint_state_broadcaster和joint_trajectory_controller两个spawner。
+2. joint_state_broadcaster通过spawner加载并激活；JTC则由spawner带`--inactive`加载/配置。只有`start_controller`参数与控制器名匹配时，spawner进程退出事件才会触发`ros2 control set_controller_state ... active`。
+3. `start_controller`默认值是`none`。因此单独运行该launch且不覆盖参数时，JTC会保持inactive；不能仅凭ros2_control_node和JTC spawner进程存在，就认为FollowJointTrajectory Action Server可接收目标。
+4. `launch_demo.launch.py`显式把`start_controller`覆盖为`joint_trajectory_controller`，因此示例总启动路径有意激活JTC。独立启动文档也要求显式传入该参数。
+5. 激活动作挂在spawner的OnProcessExit事件上，没有检查spawner退出码是否成功；事件处理本身也没有将`set_controller_state`的结果反馈给启动状态机。若spawner失败退出，后续激活命令仍可能被触发。应将“spawner成功完成且controller state确认为active”作为下一步前置条件。
+6. LaunchDescription中的Node列表并不等价于严格的硬件就绪依赖图。spawner会等待controller_manager服务，但当前bringup没有建立覆盖硬件ACTIVE、joint_state_broadcaster ACTIVE、JTC ACTIVE和Action Server可用性的统一启动屏障。
+
+### C. wait_for_robot_ready的检查范围与QoS风险
+
+1. `launch_moveit.launch.py`先启动`wait_for_robot_ready.py`，并通过OnProcessExit在该进程退出后启动MoveIt launch。该设计意图是等待robot_description和joint_states可用。
+2. 等待节点分别订阅`robot_description`和`joint_states`，两者都使用depth=1、durability=TRANSIENT_LOCAL；Future只在收到各自第一条消息后完成。没有检查消息时间戳、关节名称/数量、NaN/Inf、状态序号或连续更新。
+3. 它没有查询controller_manager的hardware/controller lifecycle state，也没有检查`/joint_trajectory_controller/follow_joint_trajectory` Action Server是否可用。因此“Robot is ready”只代表两个主题各收到过至少一条消息，不代表机械臂控制链路可执行。
+4. JointStateBroadcaster公开实现使用`rclcpp::SystemDefaultsQoS()`创建joint_states publisher；ROS 2默认QoS durability通常为VOLATILE，而本等待节点请求TRANSIENT_LOCAL。按ROS 2 QoS兼容规则，VOLATILE publisher与TRANSIENT_LOCAL subscriber不兼容，可能完全无法匹配，导致Future不完成、MoveIt launch一直等待。该结论是高优先级静态配置风险；最终需在目标Jazzy安装版本、RMW实现和实际publisher QoS上用`ros2 topic info --verbose`及集成测试确认，不能仅由源码默认值推断所有部署环境必然失败。
+5. `OnProcessExit`没有检查waiter退出码。正常路径由Future完成后退出；若进程被外部终止/异常退出，事件仍可能启动MoveIt，形成“等待失败但继续启动”的风险。建议明确成功退出码/ready结果，不以任意进程退出作为ready信号。
+
+### D. MoveIt对控制器active状态的认识与Action可用性
+
+1. Stäubli的`moveit_controllers.yaml`使用`moveit_simple_controller_manager/MoveItSimpleControllerManager`，并映射到`joint_trajectory_controller/follow_joint_trajectory`。
+2. 固定MoveIt Jazzy源码中，SimpleControllerManager初始化每个配置控制器后直接设置`state.active_=true`；`getActiveControllers()`返回全部配置控制器。源码注释明确说明该插件假设所有控制器已经active，且没有能力处理未激活情况。它不会向ros2_control controller_manager查询JTC真实生命周期状态。
+3. ActionBasedControllerHandle构造时创建Action client并不保证Action Server存在；`isConnected()`实际调用`action_server_is_ready()`，FollowJointTrajectory的`sendTrajectory()`在发送前才检查这一点。JTC inactive、尚未启动或Action Server掉线时，MoveIt的静态控制器清单仍可能显示控制器active，而真正发送目标时失败。
+4. 因此MoveIt规划可用、MoveIt控制器插件声明active、ros2_control JTC lifecycle active、Action Server ready是四种不同状态。当前启动ready节点没有把它们串成统一准入门槛。
+5. MoveIt节点重启会重新创建静态SimpleControllerManager句柄；这并不意味着底层JTC已经active或机器人反馈已恢复。当前bringup没有对move_group异常退出建立自动重启、控制器状态重新同步或旧Action清理机制。
+
+### E. 硬件错误、控制器停用与恢复路径
+
+1. ros2_control Jazzy文档说明：硬件read/write返回ERROR时，ControllerManager会停止使用该硬件command/state interfaces的控制器；硬件组件进入错误生命周期处理。控制器update返回ERROR时，对应控制器/控制器链会被deactivate，并可尝试fallback controllers。硬件重启后需要重新走生命周期以重新配置并导出interfaces。
+2. ICube HardwareInterface在driver未连接、RobotState读取失败或update_state失败时，read返回ERROR；write在连接丢失或机器人错误状态下也可返回ERROR。由此可触发框架层控制器停用，但这不是MoveIt Action cancel确认，更不是CS9安全停止确认。
+3. ICube `on_error()`若driver仍连接会尝试`send_stop_all_command()`，但忽略其bool返回值并返回SUCCESS；该回调没有显式disconnect，也没有自动重连循环。若driver已断开则返回ERROR。它没有报告“STOP已确认/机器人静止”状态。
+4. HardwareInterface `on_configure()`负责调用RobotDriver::connect；`on_activate()`仅把本地控制模式设为STOP。源码没有形成完整自动恢复状态机：断链检测→旧goal终结→停止确认/故障锁存→通信重新握手→反馈新鲜度确认→控制器重新配置/激活→操作员/上层重新授权。
+5. 由于前序§9.3.22已发现协议没有controller boot ID/session nonce，且命令序号以状态序号为基础，恢复后必须额外处理旧UDP帧/旧目标与新连接会话的隔离。当前静态证据不足以断言旧轨迹会自动恢复执行；同样也不足以证明旧Action、缓存命令及MoveIt执行状态在重连后一定被安全清除。
+6. 当前JTC重启、Action Server重新出现与MoveIt旧Action goal之间没有被本bringup统一协调。需要验证旧goal最终是ABORTED/CANCELED/UNKNOWN、客户端是否退出等待，以及恢复后是否必须提交全新轨迹。不得将Action Server重新上线等同于旧轨迹续跑，也不得假定它自动完成了重新授权。
+7. 当前配置的`moveit_manage_controllers`未见显式启用，TEM初始化默认不负责管理控制器；Stäubli SimpleControllerManager本身也不管理ros2_control生命周期。控制器启动/恢复责任主要留在bringup/operator流程。
+
+### F. 关键风险与分级
+
+- **P1：启动就绪误判。** ready节点不检查JTC active和Action Server ready；MoveIt可能先启动、先规划，直到执行时才发现控制器不可用。
+- **P1（条件性，需目标环境复现）：QoS durability不兼容。** wait_for_robot_ready请求TRANSIENT_LOCAL，而JointStateBroadcaster用SystemDefaultsQoS；默认VOLATILE场景下不会建立匹配，等待可能永久挂起。
+- **P1：控制器状态虚报active。** MoveItSimpleControllerManager把所有已配置控制器标记active，不查询ros2_control；规划与执行准入状态不一致。
+- **P1：spawner失败仍触发后续激活命令。** OnProcessExit不检查退出码；没有明确的失败分支与ready状态上报。
+- **P1：故障恢复缺少统一协调。** Hardware ERROR可停用控制器，但MoveIt goal、Action Server、UDP会话、旧命令与重新授权没有统一状态机。
+- **P0安全边界：** 以上ROS/MoveIt生命周期逻辑均不是安全功能。断网、进程退出、控制器deactivate或Action Server消失不能替代CS9安全停止、STO/SS1/SS2、安全PLC和制动器验证。
+
+### G. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| LFR-01 | 单独启动robot_control，start_controller默认none | JTC保持inactive；系统清晰报告不可执行，不误报控制ready | 静态确认默认none；未运行 |
+| LFR-02 | spawner加载/配置失败 | 不触发激活命令；启动失败被上报且MoveIt不进入可执行ready | 静态发现OnProcessExit无退出码检查 |
+| LFR-03 | spawner成功但controller activation失败 | 必须检查controller state与service结果；MoveIt保持执行禁止 | 未执行 |
+| LFR-04 | wait_for_robot_ready QoS匹配 | 在目标Jazzy/RMW上验证publisher/subscriber durability兼容并成功收到joint_states | 静态发现条件性不兼容风险 |
+| LFR-05 | joint_states只有单帧后停止 | ready不得长期保持；必须验证状态时间戳/连续更新/最大年龄 | 静态发现只检查首帧 |
+| LFR-06 | robot_description/joint_states存在但JTC inactive | MoveIt readiness必须失败或标记不可执行 | 静态发现未检查JTC状态 |
+| LFR-07 | JTC active但Action Server未ready | 不允许提交轨迹；提供有界等待和清晰诊断 | 静态发现缺少启动屏障 |
+| LFR-08 | JTC执行中Hardware read/write返回ERROR | controller deactivate、Action终态、MoveIt结果和停止状态一致；无假成功 | 未执行 |
+| LFR-09 | UDP断链后重新连接 | 旧goal/旧报文被隔离；状态刷新、STOP确认、控制器重新激活和新授权按序发生 | 未执行 |
+| LFR-10 | move_group进程重启 | 重新读取当前控制器状态/Action server状态；旧goal有明确终态；不自动续跑旧目标 | 未执行 |
+| LFR-11 | JTC lifecycle deactivate/activate | Action Server消失/恢复行为可预测；MoveIt不把静态active标记当作真实状态 | 未执行 |
+| LFR-12 | wait_for_robot_ready异常退出 | 非成功退出不得触发MoveIt启动 | 静态发现OnProcessExit未检查退出码 |
+| LFR-13 | 硬件ERROR后手动reconfigure/activate | driver连接状态幂等；重新导出接口；反馈新鲜且安全状态满足后才能启动控制器 | 未执行 |
+| LFR-14 | 恢复后提交新轨迹 | 必须建立新执行ID/session epoch；旧轨迹不会被隐式恢复或混淆 | 未执行 |
+
+### H. 整改建议
+
+1. 把启动编排改为显式依赖状态机：ControllerManager服务ready→硬件ACTIVE→joint_state_broadcaster ACTIVE→JTC ACTIVE→JointState连续新鲜→FollowJointTrajectory Action Server ready→MoveIt execution ready。每一步均检查服务响应/状态，不使用仅凭进程退出的事件推断成功。
+2. 修正wait_for_robot_ready QoS：对robot_description和joint_states分别采用与真实publisher兼容的QoS；joint_states通常应使用VOLATILE订阅，并增加持续更新时间/关节完整性检查。目标RMW需运行时确认。
+3. 若继续使用MoveItSimpleControllerManager，增加外部执行准入监控并在Action Server不ready时阻止执行；更合适的方案是评估MoveIt ROS2ControlManager插件，让MoveIt读取真实controller_manager状态。无论哪种方案，都需要明确管理控制器是否由TEM负责。
+4. Launch事件处理检查spawner和set_controller_state的返回码；失败时阻止后续MoveIt ready，提供有限超时和可诊断的失败状态。
+5. 设计统一RecoveryCoordinator：任何Hardware ERROR/UDP断链/Action Server消失均使当前trajectory进入ABORTED或UNKNOWN，执行独立停止策略并锁存故障；恢复时重新握手、刷新反馈、验证CS9安全状态、清理旧goal/命令、重新激活控制器，再等待明确的新授权。
+6. 将move_group/JTC进程监控、Action goal超时、状态新鲜度和恢复会话ID纳入集成测试。MoveIt进程重启不应隐式恢复旧运动目标。
+7. 所有恢复步骤均不得替代独立安全链；真实机器人测试前应由具备资质的人员制定低速、限区、急停和风险评估方案。
+
+### I. 本节来源记录（#1682–#1692）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1682 | [ICube launch_robot_control.launch.py @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_robot_control.launch.py`) | spawner顺序、JTC inactive加载、start_controller默认none、OnProcessExit激活 |
+| #1683 | [ICube wait_for_robot_ready.py @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/scripts/wait_for_robot_ready.py`) | 双topic Future、TRANSIENT_LOCAL QoS、只等首帧 |
+| #1684 | [ICube launch_moveit.launch.py @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_moveit.launch.py`) | MoveIt由waiter退出事件触发 |
+| #1685 | [ICube launch_demo.launch.py @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_demo.launch.py`) | 示例总启动覆盖start_controller为JTC |
+| #1686 | [ICube controllers.yaml @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml`) | 250Hz控制器配置和JTC参数 |
+| #1687 | [ICube HardwareInterface @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp`) | read/write ERROR、on_error STOP、configure connect、activate本地STOP |
+| #1688 | [MoveIt SimpleControllerManager @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp`) | 控制器静态active假设、不查询ros2_control状态 |
+| #1689 | [MoveIt ActionBasedControllerHandle @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp`) | Action client创建不保证server存在、send前检查ready |
+| #1690 | [ROS 2 Control Jazzy Controller Manager docs](`https://control.ros.org/jazzy/doc/ros2_control/controller_manager/doc/userdoc.html`) | Hardware ERROR停用关联控制器及硬件重启生命周期 |
+| #1691 | [JointStateBroadcaster publisher source](`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_state_broadcaster/src/joint_state_broadcaster.cpp`) | joint_states使用SystemDefaultsQoS |
+| #1692 | [ROS 2 Jazzy QoS compatibility docs](`https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html`) | VOLATILE publisher与TRANSIENT_LOCAL subscriber不兼容规则 |
+
