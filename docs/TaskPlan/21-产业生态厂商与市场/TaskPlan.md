@@ -515,3 +515,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli VAL3服务端命令接收、超时保护与运动模式切换 | 固定ICube driver bd658e2核对controlTask、位置/速度控制函数、命令解码、UDP接收与sequence delay。确认位置模式走movejSync，速度更新明确未实现并返回错误；POSITION↔VELOCITY切换必须经STOP；STOP→运动依赖bInMotion反馈；无新UDP包时上一条valid命令仍保留，staleness为TODO；序号差仅估算延迟，不严格拒绝重复/乱序；模式值4会落入未知模式错误分支。新增§9.3.46、来源#1743–#1750、SERVO-81–SERVO-90。未执行VAL3编译、故障注入、SIL/HIL或CS9实机测试；21-02继续进行中，Stäubli未验收。 | 来源#1743–#1750；Stäubli专项审计§9.3.46；《主要厂商》§128.29 |
+
+
+| 2026-11-07 | 21-02/Stäubli VAL3服务端命令接收、超时保护与运动模式切换 | 固定ICube bd658e2的controlTask、命令/header反序列化、readData、位置/速度更新与停止函数。确认POSITION/VELOCITY不能直接切换，必须经过STOP且bInMotion=false；velocity分支存在但实际$setVelCmd未实现、安全限幅TODO，与README仅支持position一致。命令头/类型/长度有校验，但无严格重复/乱序sequence拒绝、显式deadline、无包时staleness仍TODO，错误后冷却/重新授权也TODO。新增§9.3.46、来源#1743–#1750、SERVO-81–SERVO-90。未执行VAL3编译运行、CS9、SIL/HIL或实机停止验收；21-02继续进行中，Stäubli未验收。 | 来源#1743–#1750；Stäubli专项审计§9.3.46；《主要厂商》§128.29 |
