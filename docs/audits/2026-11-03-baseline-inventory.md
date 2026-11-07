@@ -2966,3 +2966,8 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 错误路径执行stopMove/resetMotion后清除错误标志并重置socket；恢复前延迟TODO，未建立源码级人工确认锁存。通信恢复后重新接受命令为静态设计风险，不代表实机已发生自动恢复运动。来源#1556。
 - bMotionPossible未纳入工作模式，bEStopped把所有非零安全状态映射为true，可能混淆急停/SS1/SS2/等待重启状态。来源#1559。
 - 未运行VAL3/CS9仿真、测试、网络注入、周期测量或实机验证；不能将VAL3 stopMove/resetMotion等同安全额定停止。专项报告§9.3.14。
+
+
+### Stäubli ICube ROS 2—VAL3端到端命令与停止链增量（2026-11-07）
+
+固定上游commit静态核对HardwareInterface模式切换/write、RobotDriver命令发送/状态读取、VAL3控制循环与安全状态映射。ROS侧只在位置模式切换时检查缓存motion_possible；write不逐周期检查motion_possible/estop_pressed/wait_for_ack。VAL3每轮先发送状态再读取执行命令，未见命令级STOP ACK或停止完成确认；STOP发送bool不证明机器人停止。stopMove/resetMotion物理语义、sioGet队列行为及真实失联停止响应须取得CS9/VAL3受控资料并实测。新增来源#1562–#1567；详见专项报告§9.3.15。未运行构建、测试、网络注入、VAL3仿真或CS9实机验证。
