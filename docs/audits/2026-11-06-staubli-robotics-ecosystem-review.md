@@ -2443,3 +2443,77 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1734 | [ros2_control Jazzy ResourceManager源码] (`https://github.com/ros-controls/ros2_control/blob/jazzy/hardware_interface/src/resource_manager.cpp`) | 硬件read/write错误结果与组件生命周期处理 |
 | #1735 | [ICube RobotDriver/Subscriber @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp`) | UDP socket ready、状态包age检查、STOP数据包发送与连接判定 |
 | #1736 | [ICube RealTimeSocketSubscriber @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp`) | 缓存消息复用、new_message与接收时间戳/staleness语义 |
+
+
+## 9.3.45 Stäubli驱动重连握手、VAL3会话复位与旧命令隔离（2026-11-07）
+
+### A. 审查范围
+
+固定ICube driver commit `bd658e2d266e315d2ee35f985fb352ea88306b79`，重点审查RobotDriver UDP连接/断开、RealTimeSocketSubscriber、UDP发送实现、VAL3 `ros2_server` 的启动/控制循环/序号管理，以及已有mock单元测试。来源#1737–#1742。此处区分UDP socket本地配置、收到状态帧、协议版本兼容、VAL3控制循环工作、机器人运动许可和控制权授权；这些不是同一个“连接成功”状态。
+
+### B. 连接流程并非完整会话握手
+
+1. **UDP connect的语义：** `UDPSocketImpl::connect()` 只打开UDP socket、bind本地端口、解析并设置remote endpoint，随后将本地 `is_connected_` 设为true；UDP没有TCP式连接握手，也不验证对端VAL3程序或CS9应用状态。RobotDriver之后创建接收线程，并检查socket connected/receiving。
+2. **控制通道首帧检查：** RobotDriver在最多给定timeout内（HardwareInterface传入5000ms）每500ms尝试读取RobotState；要求收到有效ROBOT_STATE且检查协议版本相同。该过程是“收到一个有效状态帧+协议版本匹配”，不是challenge-response，也没有随机nonce、session ID、client身份认证、会话租约或控制权授权。
+3. **诊断通道假就绪：** 当前connect流程将 `diag_interface_ready = true` 硬编码，实际 `read_diagnostic_data()` 被TODO注释；因此诊断subscriber ready仅代表本地socket及接收线程已建立，不代表收到有效诊断帧。控制器类型检查代码被注释，VAL3版本兼容检查仍为TODO；connect日志中的firmware版本可能来自未更新的默认/缓存diagnostic对象，不能作为有效身份或兼容性证明。
+4. **is_connected()不是机器人在线判据：** 该函数检查两个UDP socket本地标志和接收线程状态，不检查最近状态包age、诊断帧age、CS9应用健康或机器人可运动状态。RobotDriver头文件也明确注明不检查message staleness。
+5. **连接后故障没有自动重连：** read/write错误会向ros2_control返回ERROR；源码没有常驻reconnect supervisor、指数退避、重连状态机或自动恢复后重新授权逻辑。再次连接依赖HardwareInterface lifecycle重新执行on_configure（或外部管理器触发恢复），不是read失败后自行恢复。on_configure的connect失败会返回CallbackReturn::ERROR。
+6. **清理与重建：** disconnect销毁control interface/diagnostics subscriber，停止接收线程、关闭socket并调用reset_data将RobotDriver当前消息类型设为INVALID、序号归零。下一次connect重建RealTimeSocketSubscriber对象，其first_read和last_read_sequence_number重新初始化。该过程是客户端本地对象/缓存重建，不构成分布式会话协商。
+
+### C. VAL3侧启动、错误复位和序号语义
+
+1. **VAL3启动复位：** `start.pgx` 清空control socket buffer，调用stopMove()/resetMotion()，再以4ms周期创建controlTask。controlTask启动时把控制状态设为STOP/Idle，sequence number设为0，初始化消息并调用resetControlSocket清空socket缓冲。
+2. **序号不是会话ID：** `getNextSequenceNumber.pgx` 仅将uint16 sequence递增并在65535后回绕到0。没有boot ID、session epoch、随机nonce或客户端generation；sequence只能用于当前循环的延迟/丢包估计，不能区分控制器重启前后或ROS客户端重启前后的命令会话。
+3. **错误复位：** controlTask在错误/通信时延超限时尝试停止当前控制模式、调用stopMove()/resetMotion()、将command invalid、清除socket buffer、将sequence和控制活跃状态归零，再resetControlSocket。代码TODO明确写有“接受新命令前增加延迟”，目前未实现。因此错误复位后没有明确的冷却时间、操作员确认或新授权门槛。
+4. **旧命令新鲜度：** VAL3循环对控制延迟基于state/command sequence差计算；运动中delay超过5个控制周期（注释约20ms）会进入STOP/error，静止时超过25个周期（注释约100ms）会进入STOP/error。但“无新命令且上一条命令有效”的staleness处理标为TODO；缺少显式命令age、session epoch、owner lease和重放防护。不能把序号延迟阈值视为完整旧命令隔离。
+5. **错误后重新接受命令：** 错误处理将控制活跃状态和command validity清除并清socket buffer，但源码没有在复位后等待外部授权或新的会话挑战；注释反而将延迟/冷却机制留作TODO。应验证控制task错误恢复后是否立即接受下一条有效数据帧，以及该行为是否满足项目风险控制。
+6. **服务器端安全边界：** 状态帧中包含安全状态、急停、运动可能性等观测字段，但VAL3控制循环中若干更深层故障检测仍标TODO（例如机器人非预期运动、急停/运行时错误处理）。ROS侧接收到状态字段不能代替CS9自身安全功能。
+
+### D. UDP发送返回值的关键缺陷
+
+`UDPSocketImpl::send()` 对 `boost::asio::error::would_block` 的处理是：日志明确表示packet dropped，但随后仍返回true。上层 `RealTimeSocketInterface::send_message()` 因此会把“内核发送缓冲区满、数据包已丢弃”报告为发送成功。它不是网络对端确认，甚至不是本机数据报已排队的可靠确认。该问题直接影响命令确认、STOP发送记录、通信恢复判断和SERVO-63/68故障注入的判定：必须新增明确的drop计数/失败返回/故障阈值，不能以当前bool结果作为STOP或运动命令送达证据。
+
+### E. 当前测试覆盖及缺口
+
+- `test_robot_driver.cpp` 已有ConnectionTest、DisconnectionTest、ReadRobotStateTest。ReadRobotStateTest在同一连接对象上停止mock状态发送超过600ms，验证staleness失败；再恢复mock发送并在同一socket/session内验证状态读取恢复。
+- 该测试不是断开并重建UDP socket、不是VAL3/CS9重启，也不验证新旧session隔离、状态序号回绕、旧命令排空、命令重放或授权恢复。
+- 当前未发现覆盖UDP `would_block` 被报告为成功、诊断帧缺失仍connect成功、协议版本错误、VAL3错误复位后立即接受新命令、客户端重连后首条命令门控的自动化测试。
+- 因而已有测试只证明mock UDP状态流在单次会话中停止/恢复读取的部分行为；不能据此宣称CS9/VAL3重启重连和运动控制恢复已验收。
+
+### F. 推荐会话状态机与整改
+
+推荐显式状态机：`DISCONNECTED → SOCKETS_BOUND → CONTROL_STATE_VALID → DIAGNOSTICS_VALID → PROTOCOL_COMPATIBLE → ROBOT_SAFE_STATE_CONFIRMED → CONTROL_OWNER_GRANTED → ACTIVE`。任何状态帧超龄、序号/协议错误、CS9/VAL3重启迹象、UDP发送drop、控制器ERROR或生命周期异常，都进入 `FAULT_LATCHED`；故障锁存态不允许自动恢复运动。
+
+1. 引入由CS9/VAL3启动时生成的boot/session epoch，并在状态与命令两向携带；每条命令含source identity、session epoch、monotonic sequence、产生时间/有效期和授权租约。重启/重连必须更换epoch，拒绝旧epoch及旧owner命令。
+2. 增加明确握手：ROS客户端发起随机nonce/版本/客户端身份；VAL3回应自身boot ID、软件/协议版本、控制器类型和状态；客户端确认后建立session。诊断通道必须收到并验证有效帧，不能用本地socket ready代替。
+3. 对UDP发送实现可靠的本地drop语义：would_block必须返回失败或独立的DROPPED状态，计数、告警并纳入故障阈值；关键命令需应用层确认和超时处理。UDP应用层ACK仍不等于机器人机械停止。
+4. VAL3控制循环补齐无新命令时的staleness监控、明确复位冷却时间、故障锁存和操作员/上层重新授权；对旧epoch、重复/倒退sequence、过期命令拒绝执行。
+5. reconnect成功后先确认CS9/VAL3新鲜状态、协议和版本兼容、控制模式、安全状态、运动停止/静止状态、工具/负载配置与owner lease；需要人工确认的故障不能自动跳过。
+6. 建立Fake/SIL测试：丢弃UDP发送（含would_block模拟）、诊断帧缺失、CS9重启、VAL3 task restart、ROS客户端重启、socket重建、序号回绕、延迟/重放旧命令、双客户端竞争、恢复后第一帧运动命令；再进行受控CS9 HIL，最后按风险评估实机验收。
+
+### G. 新增验收矩阵（均待执行）
+
+| ID | 场景 | 预期结果 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-70 | UDP socket本地connect但CS9/VAL3未启动 | 不得判定robot connected；首个有效状态/握手超时后失败 | socket状态、状态帧、握手状态 | 未执行 |
+| SERVO-71 | 控制状态通道有效、诊断通道无数据 | connect不得将diagnostics标记为有效 | 有效诊断帧/age/兼容检查 | 未执行 |
+| SERVO-72 | CS9/VAL3重启，sequence从0重置 | 新boot epoch被识别；旧epoch命令拒绝 | boot ID、epoch、sequence日志 | 未执行 |
+| SERVO-73 | ROS客户端重启并重建UDP socket | 新session必须重新握手/授权，不沿用旧owner | session状态、owner lease、首命令记录 | 未执行 |
+| SERVO-74 | VAL3 controlTask错误复位并清空socket | 故障锁存/冷却/重新授权后才接受运动命令 | VAL3日志、首个有效命令、运动状态 | 未执行 |
+| SERVO-75 | 延迟或重放上一session命令 | 旧epoch/过期/重复sequence命令拒绝 | 抓包、拒绝原因、机器人状态 | 未执行 |
+| SERVO-76 | UDP send返回would_block | 明确报告DROPPED/ERROR，不能报告发送成功 | 注入错误码、API返回值、drop计数 | 未执行 |
+| SERVO-77 | 诊断socket可建但无有效诊断帧 | 不得使用默认diagnostic数据报告固件版本/兼容 | 诊断帧有效性与connect结果 | 未执行 |
+| SERVO-78 | 协议版本不匹配/未知VAL3版本 | fail closed，不允许进入可运动状态 | 握手拒绝、版本日志 | 未执行 |
+| SERVO-79 | sequence 65534→65535→0及跨boot重置 | 同一session正确回绕，跨session由epoch区分 | 边界测试及状态日志 | 未执行 |
+| SERVO-80 | 故障恢复后立即到达旧客户端运动命令 | 旧owner/session不得恢复控制权 | ACL/lease/epoch/运动状态 | 未执行 |
+
+### H. 本节来源记录（#1737–#1742）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1737 | [ICube RobotDriver @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp`) | connect/disconnect/is_connected、首帧/协议检查、诊断通道TODO与reset_data |
+| #1738 | [ICube UDP socket implementation @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp`) | UDP connect无应用握手、would_block丢包却返回true |
+| #1739 | [ICube RealTimeSocketSubscriber @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp`) | subscriber对象创建时序号追踪初始化、消息缓存与接收线程 |
+| #1740 | [ICube VAL3 controlTask @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`) | 4ms控制循环、序号delay门限、错误STOP/清缓存/复位、staleness TODO |
+| #1741 | [ICube VAL3 sequence/start/reset programs @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server`) | uint16序号回绕、启动/错误时归零、socket buffer清理及缺少session epoch |
+| #1742 | [ICube RobotDriver unit tests @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp`) | 已有mock连接/断开/同会话staleness恢复覆盖及重连测试缺口 |
