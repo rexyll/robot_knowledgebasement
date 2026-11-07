@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.08  
+> 版本：v8.09  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.40。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.41。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -975,3 +975,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v8.07 | 00-01/21-02继续Stäubli Servo超时与ForwardCommandController命令缓存语义审查：固定MoveIt Jazzy与ros2_controllers源码确认Servo输入Header stamp过期后smoothHalt逐步发布并在停止完成后结束发布；ForwardCommandController无下游命令年龄/watchdog，ACTIVE期间持续写入最后缓存的有限值，activate/deactivate重置NaN；pause跳过Servo输出且不触发smoothHalt。新增专项审计§9.3.39、来源#1705–#1710、SERVO-15–SERVO-24，并同步第21章、厂商档案和兼容矩阵。未执行ROS构建/集成、时间跳变/断流/多发布者故障注入、VAL3/SRS、CS9 HIL或实机测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.39；来源#1705–#1710；第21章TaskPlan |
 
 | 2026-11-07 | v8.08 | 00-01/21-02继续Stäubli Servo六轴命令数组顺序审查：MoveIt Servo Float64MultiArray按active joint names索引写入纯数值数组、不携带joint_names；Stäubli默认joint_names.yaml、SRDF arm chain、URDF接口生成顺序及JTC配置静态预期joint_1至joint_6一致，但ForwardCommandController未注册，实际接收端顺序未验证；其update仅检查数组长度，等长错序可能静默错轴。新增专项审计§9.3.40、来源#1711–#1714、SERVO-25–SERVO-29，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行xacro展开、集成、fake hardware、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.40；来源#1711–#1714；第21章TaskPlan |
+
+
+| 2026-11-07 | v8.09 | 00-01/21-02继续Stäubli Servo与ForwardCommandController命令接口契约审查：核对Servo绝对topic与controller私有~/commands解析、消息类型、SystemDefaultsQoS、namespace/remapping和ACTIVE生命周期。默认根namespace下topic预期一致，但当前ForwardController未注册；多机器人namespace可能分叉；QoS实际策略由RMW决定，未实测；inactive期间命令被拒绝，activate重置缓存。新增专项审计§9.3.41、来源#1715–#1720、SERVO-30–SERVO-36，并同步第21章、厂商档案、兼容矩阵、链接台账和审计索引。未执行ROS graph/QoS/namespace/lifecycle/250Hz实测、VAL3/SRS或CS9 HIL/实机测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.41；来源#1715–#1720；《主要厂商》§128.24 |
