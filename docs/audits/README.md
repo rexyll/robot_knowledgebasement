@@ -5,7 +5,6 @@
 本目录记录 Robot Knowledge Basement 的仓库资产、内容质量、来源和公开发布审查。
 
 ## 当前记录
-- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.27，覆盖协议/端序/Header、UDP信任边界与线程生命周期、VAL3 4ms循环/命令新鲜度/错误恢复、CS9独立安全链、ROS安全状态映射及测试证据分层；新增OBS-01–OBS-08。未运行上游测试、VAL3编译/SRS仿真、CS9 HIL/实机或安全验证。
 
 - [2026-11-06 FANUC ROS 2 Driver / Stream Motion 1 ms与数据包可靠性增量审计](2026-11-06-fanuc-ros2-stream-motion-reliability-review.md)：对照FANUC Open Platform 1 ms宣传与实际ROS 2控制器/选件/URDF矩阵；静态核对v2.4.0 main Stream Motion序列处理、open Issue #67乱序UDP状态包、轨迹加速度/jerk约束、position-only command接口和ros2_control API迁移风险；未构建、未运行网络注入或连接实机。
 
@@ -62,3 +61,6 @@
 清单中的未审文件不代表质量不合格，只表示尚无验收证据。抽样不能替代逐篇审查；文件存在、标题完整、链接数量或文章长度均不能单独作为完成证明。审计完成状态以根目录 TaskPlan 的 00-01 任务验收为准。
 
 
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.28，新增RobotDriver连接握手审查：诊断业务ready硬编码、transport-ready与业务数据ready混淆、握手循环无提前退出及未读取诊断帧却打印固件版本；增加CONN-01–CONN-07。未运行上游测试、VAL3编译/SRS仿真或CS9 HIL/实机验证。
