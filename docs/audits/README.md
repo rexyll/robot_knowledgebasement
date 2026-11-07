@@ -94,3 +94,5 @@
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.47；新增状态遥测来源/valid flags与物理语义边界：速度为命令速度近似、力矩为无精度承诺的电流估算、制动器状态为驱动上电代理、in_motion来自VAL3 settled判据、motion_possible未显式纳入Automatic Hold，F/T和IO仍未实现（SERVO-91–SERVO-100）。未执行独立测量、CS9模式扫描、跨语言运行测试或HIL/实机验证。
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.48；新增VAL3命令帧payload长度字段解析后未复核的问题：前置长度检查使用初始化Header的8+47，随后解码报文payload_size但未再核验47B固定payload；C++侧则在Header解码后严格校验（SERVO-101–SERVO-108）。未执行异常UDP注入、VAL3/SRS、CS9/HIL或实机验证。
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.49；新增VAL3 SIO UDP接收语义与错误返回问题：sioGet按输入缓冲区/数组读取，timeout=-1时0为空缓冲区、-1为读取错误；readDataOnce未处理-1，readData可能静默上报无新数据。SIO手册未保证UDP datagram边界语义，需目标CS9/SRS注入验证（SERVO-109–SERVO-118）。未执行仿真、HIL或实机验证。
