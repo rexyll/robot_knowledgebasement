@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.03  
+> 版本：v8.04  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -962,3 +962,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v8.03 | 00-01/21-02继续Stäubli轨迹取消、抢占、停止与受控减速语义审查：Jazzy JTC默认Action cancel为当前位置hold，当前配置未启用decelerate_on_cancel；新Action抢占abort旧goal并替换轨迹，不等于CS9 STOP或静止确认；HardwareInterface不因Action cancel切换STOP；VAL3 movejSyncEnd无静止等待，controlTask缓存命令staleness仍为TODO，通信中断不保证撤销旧目标。新增专项审计§9.3.35、来源#1665–#1673和CXL-01–CXL-12，并同步第21章、厂商档案、兼容矩阵及索引。未执行ROS/Action测试、UDP注入、VAL3/SRS、CS9 HIL/实机停止验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.35；来源#1665–#1673；第21章TaskPlan |
+
+
+| 2026-11-07 | v8.04 | 00-01/21-02继续MoveIt取消传播、控制器故障与执行结果一致性审查：区分MoveGroup与ExecuteTrajectory两条Action路径；MoveGroup取消有preempt→PlanExecution→TEM链，ExecuteTrajectory cancel回调仅ACCEPT且未调用已定义的preemptExecuteTrajectoryCallback，PREEMPTED结果统一abort；TEM忽略cancelExecution返回值、ActionBasedControllerHandle未校验Cancel response是否实际取消当前goal，waitForRobotToStop失败被忽略且取消路径不等待静止。新增专项审计§9.3.36、来源#1674–#1681及MEX-01–MEX-14，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行MoveIt/ROS构建、Action集成/故障注入、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.36；来源#1674–#1681；第21章TaskPlan |
