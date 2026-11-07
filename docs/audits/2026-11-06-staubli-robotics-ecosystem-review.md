@@ -481,3 +481,50 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 ### E. 证据边界
 
 本节补充的是源码层面的端到端控制流和接口语义，未在目标ROS 2/ros2_control版本运行，未执行构建、测试、网络故障注入、TSan/ASan、VAL3仿真、CS9 HIL或实机验证；没有测得停止时间、停止距离、队列深度或movejSync响应。未取得stopMove/resetMotion原生指令受控手册，故不作物理停止类别或安全等级判断。Stäubli项目仍是公开prototype，不能作为生产级控制软件验收。
+
+## 9.3.16 VAL3停止包装程序、错误清理顺序与ROS 2生命周期缺口（2026-11-07）
+
+> 上游固定基线：ICube-Robotics/staubli_driver_ros2，commit bd658e2d266e315d2ee35f985fb352ea88306b79。以下为源码静态控制流结论，不代表VAL3原生运动指令的物理语义或实机停止结果。
+
+### A. stopJointPositionControl()实际做了什么
+
+1. 程序先读取$movejSyncState()；仅当状态不等于-1（注释定义为movejSync未启动）时调用$movejSyncEnd()。之后不再读取状态、不等待状态进入停止态、不检查任何返回值，直接设置x_bError=false。来源#1568。
+2. 因此该包装函数的成功布尔值只代表程序走完了调用路径，不构成movejSync已停止、机器人已静止或停止动作已被控制器接受的证据。若movejSyncState()返回-2（错误态）或1/2（刷新超时/运动锁定），代码仍会尝试movejSyncEnd；实际可否调用及结果依赖VAL3原生API语义，不能由该包装代码确定。
+3. updateJointPositionControl在motion不可能、命令无效、命令类型错误、位置越界及movejSync错误等路径调用stopJointPositionControl；但上层controlTask随后仍会执行stopMove()/resetMotion()。这些调用的先后关系是源码事实，停止类别、制动过程和响应时间仍未证实。来源#1567、#1568、#1569。
+
+### B. controlTask错误恢复不是故障锁存
+
+4. STOP/ERROR执行分支：当前命令模式小于等于1时，若上一模式为2则先调用stopJointPositionControl；随后无条件调用stopMove()和resetMotion()。错误处理块若当前l_nCmdMode仍为2，会再调用一次stopJointPositionControl，然后再次stopMove()/resetMotion()。该重复调用路径取决于错误发生位置和当轮模式变量，不应一概认定每次错误都调用两次。来源#1569。
+5. 错误处理随后把命令类型置0、l_nCmdMode置0，**直接将l_bError清为false**，把序号清零、延迟设为1000、控制连接标志清零、命令置无效并重置控制socket；唯一的重置失败路径会重新置l_bError=true。最后保留的TODO仍是“在接受新命令前增加延迟”。静态上看，错误处理完成且socket重置成功后，没有独立FAULT_LATCHED状态、人工确认标志或重新使能token。来源#1569。
+6. controlTask结束退出时也调用stopMove()/resetMotion()，但这仍是程序退出清理路径，不能替代外部安全回路。stopMove/resetMotion/movejSyncEnd均不能仅凭函数名推断为E-stop、SS1、SS2、STO或安全额定停止。来源#1568、#1569。
+
+### C. ROS 2生命周期回调交叉核对
+
+7. on_activate()仅把current_control_mode_设为STOP并返回SUCCESS，没有发送STOP消息，也没有验证控制器当前模式/静止状态。若上次退出时控制器仍保留活动状态，主机激活动作本身不构成机器人侧状态同步屏障。来源#1570。
+8. on_cleanup()在robot_driver_存在时直接disconnect()，不先调用send_stop_all_command()；disconnect返回值也未用于回调结果。cleanup因而不能被视为有确认的停止序列。来源#1570。
+9. on_shutdown()仅在driver connected且缓存的state_msg_.control_state != STOP时发送普通STOP，然后立即disconnect；不检查STOP发送bool，不等待新状态确认。若缓存状态已是STOP但机械臂仍有运动、缓存陈旧或状态不同步，则此条件本身不能证明物理静止。来源#1570。
+10. on_error()在连接时发送普通STOP但忽略返回值，随后返回SUCCESS；未连接则返回ERROR。结合UDP would_block时发送接口可能丢包仍返回true的既有发现，这个回调没有可验证的停止成功条件。来源#1546、#1553、#1563、#1570。
+
+### D. 由源码推导的具体验收用例
+
+| ID | 注入/前置条件 | 必须观测的结果 | 当前代码证据/缺口 |
+|---|---|---|---|
+| STP-01 | movejSync状态分别为-1、-2、0、1、2时调用stopJointPositionControl | 记录原生API返回、状态转移、机器人速度/位置及错误传播 | 包装函数无停止后状态检查，所有分支最终x_bError=false（除调用异常未建模） |
+| STP-02 | 正常运动中发送STOP | 记录STOP命令接收、movejSync结束、控制器停止状态、实际静止时间 | 当前没有命令级ACK或静止确认 |
+| STP-03 | 在updateJointPositionControl各错误出口注入错误 | 记录stopJointPositionControl/stopMove/resetMotion调用次数和顺序 | 部分路径可能重复请求停止，需检查是否幂等及原生API允许性 |
+| STP-04 | 控制任务错误后立即恢复UDP并发送新位置命令 | 验证保持故障锁存，只有授权复位后才允许运动 | 当前清除l_bError、reset socket，延迟TODO |
+| STP-05 | ros2_control触发cleanup/on_error/on_shutdown，分别设置缓存状态STOP/非STOP/陈旧 | 验证停止命令送达、停止完成确认后才断连；失败时明确故障 | cleanup无STOP；shutdown不等ACK；error忽略bool |
+| STP-06 | ROS进程崩溃/断电、网络中断 | 机器人由控制器独立看门狗/安全链进入定义的停止状态 | ROS生命周期回调无法在进程崩溃时保证执行，必须由机器人侧独立机制兜底 |
+
+### E. 修复要求
+
+- **P0：将停止请求与停止确认分离。** movejSyncEnd/stopMove调用结果、VAL3程序状态、机器人静止判据分别建模；增加带命令ID的STOP接收ACK与停止完成反馈，超时进入锁存故障。
+- **P0：修复故障恢复状态机。** 错误时进入FAULT_LATCHED，不能在同一错误处理块自动清除；只有明确的安全复位条件、操作员授权、控制模式/权限检查、状态新鲜度和显式重新使能全部满足后才能恢复。
+- **P0：定义VAL3本地失联策略。** 即使ROS主机崩溃或网络断开，机器人侧仍须按经风险评估验证的控制器/安全配置停止；不要依赖ROS on_error/on_shutdown回调。
+- **P1：统一生命周期停止契约。** deactivate/cleanup/shutdown/error均应执行一致的停止请求、确认、超时与故障上报；确认失败时不应悄然断连并返回SUCCESS。
+- **P1：停止API可观测性。** stopJointPositionControl应验证movejSync状态终态和错误码；区分“请求已发出”“控制器接受”“运动停止确认”，并记录停止请求序号、时间和原因。
+- **P1：明确重复停止的幂等性。** 对controlTask中多路径重复调用stopJointPositionControl/stopMove/resetMotion进行VAL3模拟器与CS9测试，确定允许的调用顺序、异常条件和幂等保证。
+
+### F. 证据边界
+
+本节没有执行VAL3仿真、机器人仿真器、CS9 HIL/实机、构建、单元测试、网络注入或停止时间测量。$movejSyncEnd、stopMove、resetMotion为VAL3环境中的原生/系统函数，公开包装代码没有给出其底层实现与安全等级；本节只记录调用条件、顺序和上层反馈处理，不宣称物理停止性能。
