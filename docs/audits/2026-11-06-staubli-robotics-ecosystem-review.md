@@ -1328,3 +1328,62 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1636 | [real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp)；[real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp)；[real_time_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp) | latest-value缓存、序号/时间戳处理、析构停止线程、send_message错误传播 |
 | #1637 | [test_sockets.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp)；[test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | 已有loopback、接收/重连/常规stop及subscriber缓存测试的覆盖边界 |
 
+
+
+## 9.3.31 ros2_control生命周期回调、STOP责任与模式切换边界审查（2026-11-07）
+
+### A. 审查基线
+
+- 上游固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对`staubli_hardware_interface.cpp/.hpp`、`robot_driver.cpp`及`test_staubli_hardware_interface.cpp/.hpp`。
+- 来源#1638–#1640。仅静态审查源码与测试定义；未执行ROS构建、gtest、生命周期故障注入、VAL3仿真或CS9测试。
+
+### B. 生命周期回调的实际动作
+
+1. `on_configure()`负责解析网络参数并调用`robot_driver_->connect(..., 5000)`；连接失败返回CallbackReturn::ERROR。连接流程中的诊断ready与等待行为已在§9.3.28审查，端口输入边界见§9.3.29。
+2. `on_activate()`仅将本地`current_control_mode_`设置为STOP并返回SUCCESS；没有在该回调内调用`send_stop_all_command()`或等待控制器确认。随后是否发送STOP取决于后续`write()`周期是否执行。
+3. 类头文件声明并实现`on_init/on_configure/on_activate/on_cleanup/on_shutdown/on_error`，没有自定义`on_deactivate()`。因此本驱动没有显式的deactivate专属STOP、停止确认或disconnect步骤；基类默认行为不能替代本驱动的设备侧动作证据。
+4. `on_cleanup()`调用`robot_driver_->disconnect()`，但忽略其bool结果并无条件返回SUCCESS；也没有在断开前显式发送STOP或确认机器人静止。
+5. `on_shutdown()`只在driver仍connected时执行；其是否发送STOP由缓存的`state_msg_.control_state != CommandType::STOP`决定，而不是本地`current_control_mode_`。该判断前没有重新读取状态或验证状态新鲜度；STOP发送结果和disconnect结果均未检查，随后返回SUCCESS。
+6. `on_error()`在driver connected时调用`send_stop_all_command()`，但忽略返回值并返回SUCCESS；只有driver未连接时才返回ERROR。因此生命周期回调成功并不能证明STOP数据报成功发出，更不能证明VAL3已接收、运动已停止或安全停止已完成。
+7. 析构函数也仅调用`disconnect()`并忽略结果。普通断开、清理和析构均不能被当成具有停止确认语义的流程。
+8. 与§9.3.30结合：UDP send遇到would_block且丢弃数据报仍返回true；因此即便上层检查STOP bool，当前底层返回值本身也尚不足以证明报文已被本地网络栈接受。
+
+### C. 命令模式切换与生命周期耦合
+
+- `prepare_command_mode_switch()`根据`start_interfaces`解析incoming mode；`stop_interfaces`未参与实际决策（outgoing mode代码被注释），源码TODO也明确指出尚未验证所有相关接口是否成组停止/启动及混合position/velocity接口。
+- `resolve_mode()`按传入列表遍历并在首个匹配的position/velocity/effort/acceleration名称处返回；混合接口组合可能由列表中先出现的匹配项决定，缺少完整集合一致性校验。
+- `perform_command_mode_switch()`在本地更新`current_control_mode_`；切换为STOP并不在该回调中同步发送停止命令，实际发送仍依赖后续write周期。切换为位置模式时使用缓存的`state_msg_`检查error_state/motion_possible，并对operation_mode_status非零仅告警；没有在该回调中重新读取控制器状态或检查报文年龄。
+- 因此需要把“控制器管理器模式切换完成”“本地命令模式变量更新”“STOP报文发送”“VAL3确认停止”“安全系统进入安全停止状态”作为不同证据节点。
+
+### D. 现有测试覆盖
+
+`test_staubli_hardware_interface.cpp`包含Construction、Initialization、InitializationFailsWithEmptyInfo、Configuration、ConfigurationShouldFailWithoutRobot、PluginLoading、PluginLoadingAndInitialization、InterfaceExport和LifecycleTransitions。LifecycleTransitions测试实际执行init/configure/activate/read/write；未调用on_deactivate、on_cleanup、on_shutdown或on_error，也没有验证STOP报文数量/内容、发送失败传播、disconnect失败处理、重复生命周期转换或状态陈旧时的停止策略。配置失败用例虽存在，但不构成各生命周期回调的错误路径矩阵。
+
+### E. 新增验收规格
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| LIFE-01 | activate后立即deactivate，不安排后续write周期 | 驱动定义并执行明确的deactivate动作；若要求STOP，则必须验证发送及控制器侧确认，不依赖未来write | 未实现/未执行 |
+| LIFE-02 | on_error中STOP发送失败/底层would_block | 回调不得把未确认的停止动作伪报为成功；错误升级与后续安全处置策略明确 | 未实现/未执行 |
+| LIFE-03 | cleanup/shutdown期间disconnect失败或接收线程无法退出 | 检查并传播清理结果；资源残留可观测，重复清理幂等 | 未实现/未执行 |
+| LIFE-04 | shutdown时缓存control_state为STOP但本地模式非STOP，或缓存状态陈旧 | 使用明确的新鲜状态/命令状态策略，不依赖单一旧缓存跳过停止流程 | 未实现/未执行 |
+| LIFE-05 | on_activate后没有read/write调度、控制器仍有前一会话状态 | 明确激活准入、首个STOP/状态同步和session epoch；不能把本地STOP变量当作控制器已停止 | 未实现/未执行 |
+| LIFE-06 | 同时启动/停止position、velocity、effort、acceleration接口的混合组合 | 对完整start/stop集合进行原子验证；拒绝不一致/混合模式，不依赖接口列表顺序 | 未实现/未执行 |
+| LIFE-07 | STOP mode switch后不再调度write | STOP责任不依赖下一周期write；停止确认与超时故障路径可测 | 未实现/未执行 |
+| LIFE-08 | 生命周期重复configure/activate/deactivate/cleanup/shutdown/error及异常注入 | 每条路径状态转移、线程、socket和命令权责明确；无资源泄漏/双重释放/错误成功 | 未实现/未执行 |
+
+### F. 结论与边界
+
+当前驱动的生命周期回调没有建立完整的停止确认闭环：deactivate没有驱动自定义实现；activate只设置本地STOP变量；cleanup直接disconnect；shutdown根据缓存的控制器control_state条件性发送STOP且忽略发送/断开结果；error回调同样忽略STOP发送结果却返回SUCCESS。模式切换将STOP写入本地状态，实际网络发送依赖后续write周期。以上结论是固定源码结构和返回路径的静态判断，不代表已复现现场故障。
+
+普通UDP STOP命令不是CS9独立安全停止功能。任何应用层STOP验证都不能替代急停、SS1/SS2、STO/SBC及目标安全配置验证。未运行ROS构建/单测、Lifecycle故障注入、VAL3编译/SRS仿真、CS9 HIL/实机或安全验收；未修改ICube上游代码。
+
+### 本节来源记录（#1638–#1640）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1638 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | init/configure/activate/cleanup/shutdown/error、read/write、mode-switch及本地STOP模式行为 |
+| #1639 | [staubli_hardware_interface.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp) | 生命周期override集合，未声明自定义on_deactivate |
+| #1640 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | LifecycleTransitions只覆盖init/configure/activate/read/write及现有测试边界 |
+
