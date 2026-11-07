@@ -3177,3 +3177,105 @@ noJitter下cyclicRatio仍有效；例如ratio=2时，用户IO在同步系统任�
 | #1790 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §§3.1–3.3](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 系统同步任务、用户IO刷新任务、单CPU扫描顺序、cyclicRatio语义 |
 | #1791 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §3.4](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | jitter/noJitter模式及noJitter用户IO刷新过载后果 |
 | #1792 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §§4.1–4.2、5.3.1](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 单处理器任务序列、同步任务3000行限制、delay(0)、IO刷新引入的周期延迟 |
+
+
+## 9.3.55 VAL3同步任务中的SIO网络读写、错误折叠与4ms周期预算
+
+### A. 固定审查基线与代码路径
+
+- 上游仓库：ICube-Robotics/staubli_driver_ros2
+- 固定提交：bd658e2d266e315d2ee35f985fb352ea88306b79
+- 本节直接核对：Comm/resetControlSocket.pgx、Comm/readDataOnce.pgx、Comm/readData.pgx、Comm/sendData.pgx、controlTask.pgx、Control/updateJointPositionControl.pgx、start.pgx。
+
+### B. SIO接收调用的实际控制流
+
+1. resetControlSocket.pgx通过sioCtrl(x_UdpSocket, "timeout", -1)设置SIO超时，并在注释中明确称为“Non-blocking socket”；随后调用clearBuffer。这是项目的配置意图和源码证据，不等于已测得CS9上每次SIO调用的固定执行上界。
+2. readDataOnce.pgx每次先将x_bNewData和x_bError清为false，再调用sioGet：
+   - 返回值等于目标数组长度：标记收到完整帧；
+   - 返回值大于0但长度不符：标记通信错误并返回；
+   - 返回0或负值：没有进入任何错误分支，函数以“无新数据、无错误”返回。
+3. readData.pgx每轮最多连续调用readDataOnce两次，两个调用之间没有显式等待或让出。第一次收到有效帧后，第二次若无新数据，则保留第一次的x_bNewData=true并退出；如果底层返回-1，第二次也会被当成“没有新数据”。若两次均返回0/-1，则上层只看到无新数据。
+4. 因此，上一节关于SIO读取错误可能被折叠为“无新数据”的发现，在本节控制循环中有明确调用路径：底层负返回值不会通过l_bError上报，可能延迟暴露或完全丢失本次错误信息。不能把“没有新命令”与“读取成功但缓冲区为空”视为同一种已验证状态。
+5. 两次调用使用同一个目标数据数组；若连续读取两帧，后一次可能覆盖前一次。该行为与接收窗口/最新帧策略相关，不能假设两帧都会逐条处理。
+
+### C. SIO发送调用与超时边界
+
+- sendData.pgx检查待发送数组非空，然后调用一次sioSet。只有返回字节数严格等于数组长度才认为成功；短写或负返回均置x_bError=true，没有循环续写剩余字节的逻辑。
+- 这与VAL3 SIO手册关于sioSet返回实际写入字符数、可能少于请求长度的定义相吻合；本节不将“短写”推断为已发生的CS9网络故障。UDP datagram在目标控制器上是否允许按剩余片段继续写、是否会改变数据报边界，仍需SRS/CS9实测，不能照搬TCP字节流续写策略。
+- resetControlSocket将timeout设置为-1，源码注释称non-blocking；据此可确认项目意图是不等待未来数据/不使用常规正超时等待。但不能仅凭该注释推断socket首次激活、内部复制、缓冲区处理、协议栈调度和错误返回在所有CS9版本上均具有确定且足够小的WCET。
+- 前序§9.3.50已确认clearBuffer对Ethernet socket具有停用/关闭语义；因此socket生命周期与读写调用必须共同验证。启动、错误恢复后的首个sioGet/sioSet是否触发重新激活、其执行时间和失败语义，不可从普通已激活socket路径外推。
+
+### D. SIO操作在4ms同步任务中的预算位置
+
+start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含：
+
+1. overrun标志检查与日志；
+2. updateState采集机器人状态；
+3. 序号更新和状态结构填充；
+4. encodeRobotStateMsg序列化；
+5. sendData/sioSet发送状态帧；
+6. readData/readDataOnce/sioGet最多两次接收；
+7. 命令帧解码、序号延迟和模式检查；
+8. 位置/速度控制函数及运动API调用，或STOP/reset路径；
+9. GPIO占位分支、错误恢复、日志和socket重置；
+10. 最后执行delay(0)让出当前同步任务片段。
+
+- 这些步骤位于同一VAL3同步任务控制路径；SIO读写不是独立的异步用户任务。即使timeout=-1意图避免等待数据，序列化、内存复制、socket系统调用、错误日志、运动API和CS9系统任务竞争仍会占用任务执行预算。
+- delay(0)在控制循环尾部调用，不能缩短本轮之前已经执行的SIO/运动/日志路径，也不能作为每个网络阶段的超时保护。
+- 状态发送失败后，controlTask先置l_bError，仍继续进入命令读取调用；后续模式选择会因错误转入STOP/ERROR处理。因此“发送失败仍读命令”不代表失败状态下会正常执行新运动命令，但会增加错误路径的本轮工作量。
+- 当接收返回-1被折叠成无新数据时，控制循环可能继续使用上一条有效命令；源码中无新命令staleness分支仍为TODO。该点与§9.3.49、§9.3.52的命令新鲜度风险相互叠加。
+- 4ms是任务调度周期目标，不是允许SIO调用独占的4ms窗口。CS9系统同步任务和用户IO刷新先于VAL3同步任务执行；CPU资源还受其他同步任务和系统任务影响。参见§9.3.54及Stäubli CS9实时配置文档§§3–4。
+
+### E. 当前可下结论与不可下结论
+
+静态代码可确认：
+- SIO timeout被设置为-1，且注释明确表达non-blocking意图；
+- 每轮最多连续调用两次sioGet；
+- 0和负返回值在readDataOnce中均未置通信错误；
+- sioSet必须一次返回完整帧长，否则报告发送错误；当前无重试/续写；
+- 状态更新、SIO发送、SIO接收、命令处理、运动控制及错误日志都在同一同步控制任务路径；
+- delay(0)只出现在本轮末尾。
+
+不能据此宣称：
+- CS9上的sioGet/sioSet实际执行时间恒定或有已知WCET；
+- timeout=-1意味着所有内部操作绝不阻塞或永不触发运行时错误；
+- 发生了4ms周期超限、丢包、socket死锁或机械运动异常；
+- UDP部分写入可安全按TCP方式续写；
+- 当前驱动具备完整的命令超时、网络故障诊断和恢复策略。
+
+### F. 建议的可测量预算与整改
+
+- 在隔离SRS/CS9单元中对控制循环各阶段记录开始/结束时间：状态采集、序列化、SIO发送、SIO接收（分别记录两次尝试）、解码、序号检查、运动API、日志、错误复位；同时记录总周期、最大值、P99/P99.9、overrun计数和任务状态。
+- 分别测量socket已激活、首次调用/重新激活、无数据、单帧、连续两帧、错误返回、短写、缓冲区压力、网络断开和恢复场景；将发送与接收调用分别统计，不以单一“通信耗时”掩盖差异。
+- 为sioGet返回值建立三态以上结果：有效完整帧、无数据、底层错误/异常长度；负返回不得默认为无数据。错误必须进入独立诊断计数和可观测故障状态。
+- 对UDP固定帧协议，不应未经控制器手册和SRS验证就实现短写余量续传；应先确定sioSet在目标CS9 UDP socket上的数据报原子性/边界语义，再决定重试策略。
+- 把本轮时间预算拆分为系统同步任务/IO刷新、VAL3控制任务、通信与运动处理、异步及系统后台任务；通过运行时跟踪确认尾部余量，不把3000行指令上限或4ms任务周期当作WCET证明。
+- 将命令新鲜度改为真实时间deadline/watchdog，并在网络读取错误、无数据、旧命令、序号异常和socket重置后定义不同状态转移；避免用“未收到新帧”掩盖SIO错误。
+
+### G. 新增验收任务（SERVO-175–SERVO-187）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-175 | SIO timeout=-1运行语义 | 目标CS9/SRS确认无数据读取、首次socket激活和错误时的实际等待/返回行为 | SRS/CS9时间戳与任务跟踪 | 未执行 |
+| SERVO-176 | sioGet返回值三态覆盖 | 0、-1、正数短读、完整帧均产生明确且不同的诊断结果 | VAL3测试记录/故障注入 | 未执行 |
+| SERVO-177 | readData双次读取窗口 | 确认两次连续读取的缓冲区覆盖、帧顺序及队列行为 | 连续UDP帧注入与抓包 | 未执行 |
+| SERVO-178 | 无数据与读取错误区分 | 底层错误不会被折叠为普通无新命令 | 错误注入和状态机日志 | 未执行 |
+| SERVO-179 | sioSet完整写/短写行为 | 明确目标UDP socket上的返回字节数、超时和数据报边界 | CS9/SRS发送测试与抓包 | 未执行 |
+| SERVO-180 | socket首次激活耗时 | 首次读写/clearBuffer后重激活的最大耗时及错误路径有记录 | CS9任务跟踪 | 未执行 |
+| SERVO-181 | 4ms控制循环分阶段耗时 | 每阶段最大值、P99/P99.9及总预算有可复现测量 | 带时间戳的运行时报告 | 未执行 |
+| SERVO-182 | 双次sioGet最坏路径 | 无数据、两帧连续到达、第二次错误等路径的总耗时满足批准预算 | 网络注入与周期报告 | 未执行 |
+| SERVO-183 | SIO与运动API联合压力 | 网络读写、状态更新和movejSync压力下无未解释周期超限 | CS9联合压力报告 | 未执行 |
+| SERVO-184 | 错误日志对周期的影响 | 高频错误/限流日志不会导致不可接受的同步任务超限 | 日志压力与任务跟踪 | 未执行 |
+| SERVO-185 | 发送失败后控制状态门控 | 发送错误后读取/解码路径不会导致旧或新命令继续驱动运动 | SRS/HIL状态机测试 | 未执行 |
+| SERVO-186 | 读取错误后的命令新鲜度 | 网络错误、无数据和旧命令分别触发经批准的deadline/watchdog策略 | 故障注入与命令年龄记录 | 未执行 |
+| SERVO-187 | 4ms预算与CS9系统任务联合验收 | 纳入系统同步任务、IO刷新、VAL3同步任务及后台任务后仍满足批准的周期/抖动限值 | 目标CS9运行时验收报告 | 未执行 |
+
+### H. 本节来源记录（#1793–#1797）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1793 | [ICube readDataOnce.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx) | sioGet返回值分支与0/负值未置错误 |
+| #1794 | [ICube readData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx) | 每轮最多两次连续读取、缓冲区复用和返回标志 |
+| #1795 | [ICube sendData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx) | sioSet必须完整写入、无部分写重试 |
+| #1796 | [ICube resetControlSocket/controlTask/start @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server) | timeout=-1配置、控制循环顺序、4ms同步任务与delay(0)位置 |
+| #1797 | [Stäubli VAL3 Reference Manual D.280.935.01-G (2021)](https://fr.scribd.com/document/655664199/Doc-VAL3) | SIO读写返回值、socket等待/错误语义的手册交叉核对；目标CS9 UDP运行行为仍需验证 |
