@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.04  
+> 版本：v8.07  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.39。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -971,3 +971,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v8.06 | 00-01/21-02继续Stäubli MoveIt Servo、JTC与直接关节命令互斥仲裁审查：Servo输出指向未配置的forward_position_controller；moveit_servo运行时依赖未声明；MoveItSimpleControllerManager只映射JTC；ros2_control接口claim可限制同一position接口被单实例占用，但不提供多发布者身份仲裁；HardwareInterface切换不确认物理静止/重新授权；Servo pause不发送STOP。新增专项审计§9.3.38、来源#1693–#1704、SERVO-01–SERVO-14，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行Servo/JTC集成、controller switching、pause/timeout/崩溃、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.38；来源#1693–#1704；第21章TaskPlan |
+
+| 2026-11-07 | v8.07 | 00-01/21-02继续Stäubli Servo超时与ForwardCommandController命令缓存语义审查：固定MoveIt Jazzy与ros2_controllers源码确认Servo输入Header stamp过期后smoothHalt逐步发布并在停止完成后结束发布；ForwardCommandController无下游命令年龄/watchdog，ACTIVE期间持续写入最后缓存的有限值，activate/deactivate重置NaN；pause跳过Servo输出且不触发smoothHalt。新增专项审计§9.3.39、来源#1705–#1710、SERVO-15–SERVO-24，并同步第21章、厂商档案和兼容矩阵。未执行ROS构建/集成、时间跳变/断流/多发布者故障注入、VAL3/SRS、CS9 HIL或实机测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.39；来源#1705–#1710；第21章TaskPlan |
