@@ -451,3 +451,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli停止函数、自动连接运动与停止确认纵深审查 | 固定ICube commit核对stopJointPositionControl/stopJointVelocityControl/controlTask/start/stop/updateState：位置停止函数仅调用movejSyncEnd且无完成等待；速度停止函数调用resetMotion但上游尚未实现速度控制；普通STOP与错误/cleanup路径均连续stopMove/resetMotion，VAL3参考手册说明resetMotion立即返回并恢复程序运动授权；start显式autoConnectMove(true)，存在偏离轨迹自动连接运动配置；bInMotion由isSettled映射而速度字段来自命令速度。新增专项审计§9.3.23、来源#1607–#1612及ST-01–ST-09验收矩阵。未执行VAL3编译、CS9停止时间/急停/断网/任务崩溃/掉电/HIL测试；21-02继续进行中，Stäubli未验收。 | 来源#1607–#1612；Stäubli专项审计§9.3.23 |
+
+
+| 2026-11-07 | 21-02/Stäubli CS9独立安全链、停止类别与断电边界 | 审查CS9控制器说明书D.280.940.01-F：区分应用stop()/stopMove、MCP/USI安全停止、控制器逻辑/安全故障和主电源故障对应的SS2/SS1/SS0/制动器停止；确认默认安全程序200.x下USI双通道输入、安全重启确认、RSI9接口及外部24V安全供电的断电边界；外部24V丢失可能导致运动中机械臂下落。新增专项审计§9.3.24、来源#1613–#1616及SC-01–SC-10验收矩阵。未取得目标CS9安全配置/接线图/机器人型号安全手册，未进行任何安全故障注入或HIL；21-02继续进行中，Stäubli未验收。 | 来源#1613–#1616；Stäubli专项审计§9.3.24 |
