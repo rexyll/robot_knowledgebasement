@@ -84,3 +84,6 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.44；新增ros2_control Jazzy硬件read/write ERROR、controller update ERROR、controller chain/fallback与hardware lifecycle恢复路径；核对ICube read反馈超龄检测、UDP本地连接状态、on_error STOP发送未检查返回值及STOP不等于机械/安全停止。新增SERVO-58–SERVO-69。未执行故障注入、SIL/HIL、CS9实机或端到端停止时间验收。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.45；新增UDP本地connect不构成应用握手、诊断帧未验证却标记ready、无自动重连监督器、VAL3 uint16序号复位无session epoch、错误恢复缺少冷却/授权门控，以及UDP would_block丢包仍返回true等发现（SERVO-70–SERVO-80）。现有mock测试仅覆盖同一会话内staleness恢复；未执行跨重启/重连、旧命令重放、SIL/HIL或CS9实机测试。
