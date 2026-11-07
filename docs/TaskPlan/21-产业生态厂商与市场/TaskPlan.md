@@ -485,3 +485,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli轨迹取消、抢占与停止/受控减速语义 | 固定ICube commit追踪Jazzy JTC Action cancel/preemption、当前JTC参数、MoveIt Action映射、HardwareInterface::write和VAL3 STOP/缓存命令调用链。确认当前未启用decelerate_on_cancel，Action取消默认hold当前位置而非VAL3 STOP；Action抢占abort旧goal并替换轨迹；VAL3 movejSyncEnd无静止等待，controlTask对有效缓存命令的staleness仍为TODO。新增专项审计§9.3.35、来源#1665–#1673、CXL-01–CXL-12。未执行ROS/Action测试、UDP注入、VAL3/SRS、CS9 HIL或实机停止验证；21-02继续进行中，Stäubli未验收。 | 来源#1665–#1673；Stäubli专项审计§9.3.35；《主要厂商》§128.18 |
+
+
+| 2026-11-07 | 21-02/Stäubli MoveIt取消传播、控制器故障与执行结果一致性 | 固定MoveIt Jazzy commit审查MoveGroup/ExecuteTrajectory两条Action入口、PlanExecution、TEM、ActionBasedControllerHandle和FollowJointTrajectory result；核对Stäubli launch及控制器映射。发现MoveGroup cancel有preempt→TEM调用链；ExecuteTrajectory cancel回调仅ACCEPT且未调用已定义的preemptExecuteTrajectoryCallback，PREEMPTED统一abort；TEM忽略cancelExecution返回值、handle未验证goals_canceling、waitForRobotToStop返回值被忽略且取消路径不等待静止。新增§9.3.36、来源#1674–#1681、MEX-01–MEX-14。未执行MoveIt/ROS构建、Action集成/故障注入、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1674–#1681；Stäubli专项审计§9.3.36；《主要厂商》§128.19 |
