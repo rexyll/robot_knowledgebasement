@@ -2517,3 +2517,74 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1740 | [ICube VAL3 controlTask @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`) | 4ms控制循环、序号delay门限、错误STOP/清缓存/复位、staleness TODO |
 | #1741 | [ICube VAL3 sequence/start/reset programs @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server`) | uint16序号回绕、启动/错误时归零、socket buffer清理及缺少session epoch |
 | #1742 | [ICube RobotDriver unit tests @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp`) | 已有mock连接/断开/同会话staleness恢复覆盖及重连测试缺口 |
+
+
+## 9.3.46 VAL3服务端命令接收、超时保护与运动控制模式切换（2026-11-07）
+
+### A. 审查范围与结论边界
+
+固定ICube Stäubli driver commit `bd658e2d266e315d2ee35f985fb352ea88306b79`，静态检查VAL3 `controlTask.pgx`、位置/速度控制启停程序、命令帧解码、UDP读取、序号延迟计算、ROS侧命令消息定义/序列化及现有RobotDriver单元测试。来源#1743–#1750。此节只确认代码路径与静态风险，不代表VAL3编译、CS9执行、SIL/HIL或实机验收。
+
+**核心结论：** VAL3控制循环定义STOP(1)、关节位置(2)、关节速度(3)模式；位置模式有`movejSync`更新路径，速度更新函数当前明确记录“not yet implemented”并返回错误。因此速度控制模式虽然存在协议枚举和分支，不能视为可用功能。模式切换逻辑要求经过STOP，但STOP状态、运动静止确认、命令新鲜度和错误复位授权之间仍有缺口。
+
+### B. 命令接收与解析路径
+
+1. **接收缓存行为：** `readData`以非阻塞方式读取固定长度UDP数据；没有新数据时返回`x_bNewData=false`，不会主动使上一条`robot_command_msg.robotCommand.bIsValid`失效。控制循环在“无新消息且上一条命令仍有效”分支中标注staleness处理TODO，随后仍依据缓存命令计算模式并执行控制更新。故当前没有独立、完整的命令年龄/租约超时保护。
+2. **消息帧校验：** `decodeHeader`检查magic number、protocol version及header尺寸；`decodeRobotCommandMsg`检查message type为2、数据长度和解码偏移。但它没有按会话维度验证客户端身份、session epoch，也没有显式拒绝重复或倒退sequence。
+3. **序号仅用于延迟估算：** `computeSequenceDelay`用当前发送序号减收到的命令序号，并对uint16回绕做补偿。controlTask在控制活跃后对较大的delay设门限（运动中>5周期、静止>25周期）并转STOP/error；这不是严格的单调序号验证或防重放策略。重复/乱序包可能先被当作普通命令处理，只有差值达到阈值或出现负值时才触发错误路径。
+4. **无新数据时继续使用旧命令：** controlTask的staleness分支仍是TODO；只要缓存命令保持valid，模式提取与控制更新会继续使用该对象。位置控制函数内部另有`movejSyncState`/命令刷新相关语义，但不能替代服务端明确的命令租约、过期拒绝与故障锁存。
+5. **无效命令处理：** 解码失败会把消息设为无效并进入STOP/error路径；非法命令类型检查却只拒绝小于0或大于4的值。枚举定义实际只说明0–3，故值4会通过前置范围检查，之后落入“Unknown command mode”错误分支。建议将协议允许值收敛为0–3，并对未知值fail closed。
+6. **头部和载荷边界：** VAL3解码器对magic/version/type/最终偏移有检查，但需补充畸形长度、payload size与实际数据、所有字段范围、NaN/Inf、远程控制周期合法性和跨版本兼容测试。当前静态代码不能证明所有异常帧均在任何字段访问前被安全拒绝。
+
+### C. STOP与位置/速度模式切换
+
+1. **模式定义：** controlTask注释定义0=Invalid/Error、1=STOP/Idle、2=Joint position、3=Joint velocity。主循环初始化`l_nCmdMode`和`l_nPreviousCmdMode`为1。
+2. **位置模式启动/连续更新：** 从STOP进入位置模式时调用`updateJointPositionControl(..., true)`，后续同模式调用传false。位置更新函数检查`bMotionPossible`、命令有效性及命令类型，并使用`movejSync`路径。停止位置模式时调用`stopJointPositionControl`，若movejSync已启动则调用`$movejSyncEnd()`，随后主循环调用`stopMove()`和`resetMotion()`。
+3. **速度模式尚未实现：** `updateJointVelocityControl`会检查motion possible、命令有效性和类型；首次调用仅resetMotion并留有速度参数配置注释，安全限位检查为TODO，实际`$setVelCmd`被注释，函数输出“not yet implemented”、设置错误并返回。故STOP→VELOCITY会立即进入错误复位，不能宣称速度模式可运行。
+4. **位置↔速度直接切换被禁止：** 当新模式与前一模式不同且两者都不是STOP时，controlTask将当前模式改为STOP、置error并记录“requires a stop”。例如POSITION→VELOCITY或VELOCITY→POSITION不会直接调用新模式启动函数，而会先停止旧模式并执行错误复位。需要单独发送STOP并建立可确认的静止状态后才可能再次尝试新模式；但当前错误复位也会将命令invalid、清空socket buffer并把控制模式置为0，恢复路径还需要新的STOP帧/明确授权测试。
+5. **STOP→POSITION/VELOCITY的静止条件：** 当previous mode为STOP而新命令请求运动时，若robot state仍报告`bInMotion`，则拒绝启动并置error。该判断依赖状态反馈字段，未证明反馈时间戳/新鲜度与实际机械静止一致；没有独立停止完成确认或安全静止证明。
+6. **STOP动作不是安全停止认证：** `stopMove()`、`resetMotion()`及模式专用stop函数属于VAL3运动API调用路径。它们不自动证明安全类别、停止时间、制动保持或独立急停回路满足目标应用风险要求。
+
+### D. 错误复位、超时与重启边界
+
+- 控制循环遇到接收错误、解析错误、命令时延超限或控制函数错误，会尝试停止运动、把命令设invalid、清理UDP socket buffer并重置序号/控制活跃状态。错误处理末尾将`l_bError`清除以便循环继续，且`TODO: add delay ... before accepting new commands`明确表明冷却门控尚未实现。
+- 运行时“机器人非预期运动”“急停按下”“runtime errors”等硬停止检查在controlTask中仍有TODO。不能把状态消息中的字段存在等同于VAL3服务端已实施相应保护。
+- CS9/VAL3 task重启时controlTask会把模式设STOP并将sequence归零、清空socket buffer；但没有boot/session epoch或随机握手，因此旧客户端/旧会话命令无法仅靠sequence归零可靠区分。
+- 当前没有明确命令源身份、单调序号窗口、过期时间、控制租约、错误锁存和人工/上层重新授权的完整状态机。建议错误后进入FAULT_LATCHED，只有完成新session握手、控制器/安全状态确认和显式授权才允许重新进入ACTIVE。
+
+### E. 新增验收矩阵（均待执行）
+
+| ID | 场景 | 预期结果 | 必须留存证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-81 | POSITION→VELOCITY直接切换 | 拒绝直接切换；先完成受控STOP并确认静止 | VAL3模式、movejSync状态、关节速度 | 未执行 |
+| SERVO-82 | VELOCITY→POSITION直接切换 | 同样要求STOP与静止确认，不保留速度命令 | 模式日志、命令缓存、关节速度 | 未执行 |
+| SERVO-83 | STOP→POSITION但反馈仍in_motion | 不启动新运动，保持故障/等待状态 | 状态帧age、in_motion、控制输出 | 未执行 |
+| SERVO-84 | STOP→VELOCITY | 当前版本应明确拒绝未实现模式，不得进入伪ACTIVE | 返回错误、控制模式、运动输出 | 未执行 |
+| SERVO-85 | POSITION/VELOCITY运行中停止发送新包 | 命令租约超时后失效并锁存；不得无限复用旧命令 | 最后有效包时间、超时检测、停止行为 | 未执行 |
+| SERVO-86 | 重复sequence命令 | 明确拒绝重复包，不执行重复目标 | 抓包、sequence窗口、执行计数 | 未执行 |
+| SERVO-87 | 乱序/回退sequence命令 | 拒绝旧序号；仅允许当前session内定义的回绕 | 注入序列、拒绝原因、状态 | 未执行 |
+| SERVO-88 | 命令模式值4及其他未知枚举 | 在解码/校验边界fail closed，不进入未知执行分支 | 帧内容、拒绝日志、模式输出 | 未执行 |
+| SERVO-89 | 错误复位后立即发送运动命令 | 冷却、故障锁存和新授权未完成前拒绝 | reset时间、授权状态、首条命令结果 | 未执行 |
+| SERVO-90 | VAL3/CS9重启后重放旧客户端命令 | 旧boot/session epoch命令全部拒绝 | boot ID、epoch、抓包与控制状态 | 未执行 |
+
+### F. 整改建议
+
+1. 将命令协议定义为严格枚举：STOP、POSITION；VELOCITY在实现与验证完成前从可用能力声明中移除或显式标记unsupported；拒绝4及所有未知值。
+2. 在服务端增加命令有效期/租约与单调sequence窗口；重复、回退、过期、错误epoch和未知source一律拒绝。超时必须进入明确的故障锁存停止流程，而不是依赖movejSync内部刷新行为。
+3. 将POSITION↔VELOCITY切换设计为独立状态机：请求STOP→调用当前模式停止函数→等待新鲜反馈证明静止→清理旧命令/目标→重新验证模式/安全条件→获取新控制授权→启动新模式。
+4. 将错误复位后的“清socket buffer”与“新会话建立”分开；加入boot/session epoch、challenge-response、owner lease、冷却时间及人工/上层重新授权。
+5. 补齐VAL3运行时安全状态检查、急停/运动许可/非预期运动监控；这些检查必须与独立安全系统边界清晰分离。
+6. 对速度控制实现先完成限位、单位/坐标/采样周期定义、速度斜坡/加速度约束、停止策略、通信失联保护及测试，再单独做CS9 HIL与风险评估后的实机验收。
+
+### G. 本节来源记录（#1743–#1750）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1743 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 模式状态机、STOP转换、序号延迟阈值、staleness/运行时检查TODO及错误复位 |
+| #1744 | [ICube VAL3 position control @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control) | 位置模式启动、连续更新、movejSync停止与输入检查 |
+| #1745 | [ICube VAL3 velocity control @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx) | 速度模式当前未实现、限位检查TODO、返回错误 |
+| #1746 | [ICube VAL3 command decoder @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization) | magic/version/message type/尺寸解码及缺少epoch/严格sequence拒绝 |
+| #1747 | [ICube VAL3 UDP read path @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm) | 非阻塞读、无新数据时保留上一条有效命令及staleness TODO |
+| #1748 | [ICube VAL3 sequence delay @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | uint16序号差值与回绕处理，仅用于延迟估算 |
+| #1749 | [ICube ROS command serialization @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | ROS侧命令帧字段/序号与VAL3解码协议对应关系 |
+| #1750 | [ICube RobotDriver unit tests @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | 已有mock连接/断开/状态读取测试范围；未覆盖VAL3模式切换/旧命令防重放 |
