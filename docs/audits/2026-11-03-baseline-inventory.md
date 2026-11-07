@@ -2910,6 +2910,13 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 结论仅为源码与测试文件静态审查；未运行测试/构建/VAL3/CS9。详见Stäubli专项报告§9.3.9–§9.3.10。
 
 
+
+### 128.10 Stäubli ICube UDP接收错误传播与缓冲区边界（2026-11-07）
+- 固定1024字节UDP接收缓冲区；异步接收error非零时仍调用subscriber callback，后者将bytes_transferred送入消息解析器，成功解析后刷新消息和接收时间戳。来源#1541–#1543。
+- 三类消息解析器按最小固定帧长工作，socket测试使用128字节数据；未发现超长数据报、message_size错误或错误回调不得提交消息的测试。来源#1544–#1545。
+- 超长数据报截断前缀是否会被目标OS/Boost组合接受尚未复现，列为条件性风险候选；需要目标环境UDP注入和精确长度拒绝测试。仅静态审查，未运行测试/构建/CS9实机验证。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md §9.3.11。
+
+
 ### 129.1 Universal Robots增量主张核验（2026-11-06）
 - PolyScope X ROS 2 URScript文档警示publisher/subscriber句柄生命周期及至少2ms方法调用延迟，运动段间调用可能影响blend；应解耦通信线程并在目标PSX版本实测。来源#1437。
 - UR Safety FAQ称CB3于2022年EOL且不在ISO 10218-1:2025认证路径，CB5.6为PolyScope X要求控制箱；e-Series/UR Series现行PLd Cat.3声明和2025版认证计划（2027-01）必须区分。来源#1436。
