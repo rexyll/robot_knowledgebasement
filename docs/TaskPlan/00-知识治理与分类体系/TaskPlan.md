@@ -484,3 +484,6 @@
 
 
 | 2026-11-07 | 00-01 | 对Stäubli ros2_control生命周期执行固定commit静态审查：确认无自定义on_deactivate；activate仅更新本地STOP模式；cleanup直接断开并忽略结果；shutdown按缓存control_state条件性发STOP且忽略STOP/disconnect结果；on_error忽略STOP发送bool却返回SUCCESS；mode switch仅改本地模式，STOP依赖后续write周期。LifecycleTransitions只覆盖init/configure/activate/read/write。新增专项审计§9.3.31、来源#1638–#1640、LIFE-01–LIFE-08。未运行构建/单测、生命周期故障注入、VAL3仿真或CS9 HIL/实机；00-01继续进行中。 | ICube固定commit HardwareInterface/测试源码；来源#1638–#1640；Stäubli专项审计§9.3.31 |
+
+
+| 2026-11-07 | 00-01 | 对Stäubli ROS2—UDP—VAL3控制周期与反馈新鲜度进行固定commit静态审查：确认4ms taskCreateSync只是目标配置、overrun仅计数/日志；ROS read忽略周期，controller_period被VAL3解码但未见控制逻辑消费；subscriber相同序号仍刷新本地接收时间，RobotDriver忽略new_message；VAL3按序号差估算延迟，先发状态再处理命令，命令staleness为TODO，movejSync刷新超时分支被注释。新增审计§9.3.32、来源#1641–#1647和RT-09–RT-17。未执行构建、单测、实时周期测量、VAL3/SRS仿真、网络注入或CS9 HIL/实机；00-01继续进行中。 | ICube固定commit ROS2/VAL3/通信源码；来源#1641–#1647；Stäubli专项审计§9.3.32 |
