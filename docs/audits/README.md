@@ -6,6 +6,7 @@
 
 ## 当前记录
 
+- [2026-11-06 Stäubli Robotics软件与ROS生态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube ROS 2 Jazzy/CS9 prototype上游提交的静态源码与生态审查；覆盖协议帧、序号、诊断链路、Header校验及测试缺口，未执行上游测试、VAL3编译或CS9实机验证。
 - [2026-11-06 FANUC ROS 2 Driver / Stream Motion 1 ms与数据包可靠性增量审计](2026-11-06-fanuc-ros2-stream-motion-reliability-review.md)：对照FANUC Open Platform 1 ms宣传与实际ROS 2控制器/选件/URDF矩阵；静态核对v2.4.0 main Stream Motion序列处理、open Issue #67乱序UDP状态包、轨迹加速度/jerk约束、position-only command接口和ros2_control API迁移风险；未构建、未运行网络注入或连接实机。
 
 - [2026-11-06 Techman Robot TMflow/ROS 2/EIH Camera生态静态审查](2026-11-06-techman-robot-software-ros2-ecosystem-review.md)：区分传统TM与S系列驱动、Humble/Jazzy、Ethernet Slave/Listen Node、MoveIt/Gazebo模型、EIH gRPC客户端及S系列安全/网络安全声明；未构建、未连接实机或执行安全/HIL/FAT/SAT验证。
