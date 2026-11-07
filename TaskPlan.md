@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.02  
+> 版本：v8.03  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -959,3 +959,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v8.01 | 00-01/21-02继续Stäubli运动命令输入边界与关节限位审查：ROS HardwareInterface仅显式拒绝NaN，未见Inf/极大值/目标增量本地校验；固定6元素command_reference的NaN检查按num_joints_遍历；TX2-60L YAML经Xacro生成URDF关节限位，ros2_control是否启用JointLimiter需检查ControllerManager配置/日志；MoveIt缩放不能替代执行侧约束；VAL3 isInRange检查软件关节范围但目标接近性仍TODO。新增专项审计§9.3.33、来源#1648–#1654、JNT-01–JNT-10，并同步第21章、厂商档案、兼容矩阵和索引。未运行构建/单测、限位器实测、MoveIt轨迹、VAL3/SRS仿真或CS9 HIL/实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.33；来源#1648–#1654；《主要厂商》§128.16 |
 
 | 2026-11-07 | v8.02 | 00-01/21-02继续Stäubli轨迹执行状态和反馈一致性审查：VAL3以!isSettled产生全局bInMotion、herej提供关节位置、$getJntSpeedCmd提供近似速度；RobotState无轨迹ID/目标/接受/到位字段，movejSyncState不是目标完成回执，controlTask先发状态后处理当前命令；JTC启用interpolate_from_desired_state，允许末端非零速度，goal_time=0且未显式配置逐轴path/goal容差。新增专项审计§9.3.34、来源#1655–#1664及TRJ-01–TRJ-12，并同步第21章、厂商档案、兼容矩阵和索引。未执行ROS/MoveIt/VAL3/SRS/CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.34；来源#1655–#1664；《主要厂商》§128.17 |
+
+
+| 2026-11-07 | v8.03 | 00-01/21-02继续Stäubli轨迹取消、抢占、停止与受控减速语义审查：Jazzy JTC默认Action cancel为当前位置hold，当前配置未启用decelerate_on_cancel；新Action抢占abort旧goal并替换轨迹，不等于CS9 STOP或静止确认；HardwareInterface不因Action cancel切换STOP；VAL3 movejSyncEnd无静止等待，controlTask缓存命令staleness仍为TODO，通信中断不保证撤销旧目标。新增专项审计§9.3.35、来源#1665–#1673和CXL-01–CXL-12，并同步第21章、厂商档案、兼容矩阵及索引。未执行ROS/Action测试、UDP注入、VAL3/SRS、CS9 HIL/实机停止验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.35；来源#1665–#1673；第21章TaskPlan |
