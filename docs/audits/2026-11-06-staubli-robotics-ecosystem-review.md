@@ -1983,3 +1983,76 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1703 | [ros2_control Jazzy ControllerInterface API](`https://control.ros.org/jazzy/doc/api/classcontroller__interface_1_1ControllerInterfaceBase.html`) | ControllerManager按接口配置claim硬件命令接口 |
 | #1704 | [MoveIt Ros2ControlManager README](`https://github.com/moveit/moveit2/blob/main/moveit_plugins/moveit_ros_control_interface/README.md`) | MoveIt ROS2ControlManager基于资源冲突执行controller switching；与当前SimpleControllerManager配置对比 |
 
+
+
+## 9.3.39 Servo超时停止与ForwardCommandController命令保持语义（2026-11-07）
+
+### A. 审查范围与版本边界
+
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- ros2_controllers固定源码快照：`c8d26930ff87bc819db1452af1d45da5bfa3d50d`；接口语义同时对照ROS 2 Control Jazzy官方API文档。
+- 审查Servo输入消息时间戳、超时处理、平滑停止输出、pause分支，以及ForwardCommandController订阅回调、实时命令缓存、update循环和生命周期回调。
+- 本节是固定源码静态审查；未启动Jazzy工作区、未运行控制器/Servo、未验证目标RMW和硬件驱动的实际命令保持行为。
+
+### B. Servo超时处理的真实触发条件
+
+1. Servo对JointJog、TwistStamped和PoseStamped分别读取消息Header stamp，并用`node_->now() - header.stamp >= incoming_command_timeout`判断命令是否过期；这不是由下游控制器检测发布者断流，也不是基于接收端单调时钟的独立watchdog。
+2. 对已收到且当前命令类型匹配的消息，过期后调用`smoothHalt(last_commanded_state_)`。只要平滑停止尚未完成，Servo继续生成新的关节状态；停止完成后，该消息标志被清除，不再继续发布该命令的停止状态。
+3. 当前Stäubli Servo配置采用Float64MultiArray位置输出，故平滑停止期间发布的是连续位置目标；超时处理结束后，Servo不再持续刷新最后一条位置目标。
+4. Servo循环没有输入消息时，不会仅凭“从未收到过消息”进入某个已验证的停止状态；但此时Servo尚无已发出的新目标。必须区分“无命令启动”“收到命令后超时”和“运行中pause”三个状态。
+5. 超时年龄取决于ROS节点时钟与消息Header stamp。仿真时间暂停/回跳、系统时间与ROS time切换、未来时间戳和上游发送端时钟偏差都应纳入测试，不能将0.1s参数直接解释为端到端物理停止时间。
+
+### C. ForwardCommandController会持续应用最后一条有效命令
+
+1. `ForwardControllersBase::on_configure()`创建`~/commands`的Float64MultiArray订阅；回调只在controller lifecycle为ACTIVE时接受命令，并拒绝含NaN/Inf的数组。
+2. 收到有效消息后，回调将整条消息写入RealtimeThreadSafeBox；代码没有记录消息接收时间、命令年龄、来源身份、session epoch或sequence，也没有命令超时参数。
+3. `update()`每个控制周期尝试从实时盒读取新命令；若没有新消息，保留成员变量`joint_commands_`中的旧值。只要该数组不是全NaN，控制器就继续把缓存值写入各command interface。
+4. 因此，当controller保持ACTIVE且已接受过一条有限值命令时，发布者停止发送并不会自动令ForwardCommandController超时或清除目标；控制器会继续写入最后缓存的设定值，直到新命令覆盖、controller生命周期变化或发生其他控制器错误。
+5. `on_activate()`与`on_deactivate()`会把内部命令缓存重置为NaN；全NaN时update不再写接口。该行为是控制器缓存/生命周期语义，不应未经目标硬件测试推断为机械臂已经停止或已进入安全状态。
+6. 当Servo的smoothHalt完成并停止发布后，ForwardCommandController若仍active，会保留并重复写入最后一条停止位置目标。这个结果可能形成位置保持设定值，但并不提供独立的命令新鲜度监控、停止确认或安全锁存。
+7. Servo的`pause_servo`分支直接跳过命令处理和发布；它不会触发smoothHalt。若ForwardCommandController仍active，底层控制器仍会持续应用缓存命令。故pause与输入timeout不是等价路径。
+
+### D. 新发现的工程缺口与风险分级
+
+- **P1：下游命令缓存无watchdog。** ForwardCommandController没有时间戳/年龄检查；上游发布者失联时，缓存的有限位置目标仍会在每周期写入硬件接口。
+- **P1：Servo超时不是系统级停止闭环。** Servo仅在已接收命令的Header时间戳过期后计算smoothHalt；停止序列结束不代表底层controller停止写目标，也不代表机器人静止。
+- **P1：pause不会进入smoothHalt。** pause时Servo循环不输出命令，若下游controller仍active则保持最后缓存值；不得把pause服务用作STOP/急停接口。
+- **P1：消息时间基准依赖。** Header stamp与Servo node clock必须兼容；时钟跳变、时间源错误、future stamp及发送端时钟偏差可能改变超时触发时机。
+- **P1：命令来源竞争。** ForwardCommandController的订阅回调不认证publisher身份；多个发布者向同一topic发布时，实时盒中的最后写入值获后续update使用，不能提供确定的owner仲裁。
+- **安全边界：** 位置目标保持、Servo smoothHalt、controller deactivate和普通UDP STOP均不是CS9安全额定停止。停止距离、停止时间、制动器行为和安全功能必须由目标机器人/控制器独立安全链验证。
+
+### E. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| SERVO-15 | ForwardCommandController收到有限位置命令后publisher停止 | 需求明确规定命令租约/watchdog；过期后进入定义的受控故障状态，不无限期静默复用旧命令 | 静态确认无时间戳/超时检查 |
+| SERVO-16 | Servo输入Header stamp为旧时间/未来时间 | 对旧戳、未来戳、发送端时钟偏差、ROS time暂停/回跳有确定策略和诊断 | 未执行 |
+| SERVO-17 | Servo输入超时并完成smoothHalt | 记录最后发布目标；验证下游controller继续缓存该目标的行为及硬件响应 | 静态确认下游缓存持续写入；未集成验证 |
+| SERVO-18 | 机器人运动中调用pause_servo | 明确pause不等于smoothHalt/STOP；确认缓存目标、硬件响应和恢复前重新授权 | 静态确认pause分支不发布；未执行 |
+| SERVO-19 | ForwardCommandController deactivate→activate | 生命周期切换清空缓存；旧命令不被重新应用；只有新鲜且已授权命令才能恢复 | 静态确认缓存重置为NaN；未执行 |
+| SERVO-20 | 两个publisher并发发送commands | 未授权源被拒绝；命令owner/epoch/sequence唯一，不能由最后到达消息隐式抢占 | 静态发现无来源认证/仲裁 |
+| SERVO-21 | Float64MultiArray长度与关节接口数量不匹配 | 明确错误传播、controller lifecycle及硬件安全响应，不保留含糊的旧命令状态 | 静态发现update返回ERROR；未执行 |
+| SERVO-22 | 命令包含NaN/Inf | 非有限值拒绝并产生可观测诊断，不改变现有有效目标；覆盖数组长度边界 | 静态确认回调拒绝；未执行 |
+| SERVO-23 | controller inactive期间收到命令后再activate | inactive命令不进入活动缓存；activate后要求新命令，不接受旧消息残留 | 静态确认activate重置NaN；未执行 |
+| SERVO-24 | UDP断链/硬件ERROR发生在最后目标保持期间 | 控制器错误、硬件模式、VAL3命令缓存、恢复授权一致；不得自动恢复旧目标 | 未执行 |
+
+### F. 整改建议
+
+1. 不应把通用ForwardCommandController直接当作具备命令超时保护的运动控制器。若用于Servo，应增加明确的上层命令mux/lease，或实现带时间戳、单调时钟年龄检查、来源授权、sequence/session epoch和超时故障策略的受控controller。
+2. 命令watchdog触发后的策略必须由系统安全需求定义：是否请求平滑减速、锁存STOP、切换controller或请求独立安全系统；不得简单将缓存清零/写零速度等同于安全停止。
+3. Servo输入超时与下游controller命令超时应分别配置和监控；两者的时间预算、时钟域、最大通信延迟、平滑停止时长和硬件响应需形成端到端预算。
+4. pause应明确为“停止Servo更新/输入处理”的软件暂停；若产品需要运动中停止，应走独立停止协调器并等待可验证的控制器状态/静止反馈。安全急停仍走CS9安全回路。
+5. 对多个发布者采用唯一owner仲裁；仅依赖ROS topic名称、DDS endpoint或“最后一条消息”不构成命令授权。考虑ROS 2 SROS2权限/隔离，但必须验证具体部署与身份配置。
+6. 集成验收应同步记录Servo发布序列、controller订阅序列、command interface值、HardwareInterface write值、VAL3收到的命令序号、关节反馈及独立安全状态；使用统一时间基准或明确时钟映射。
+7. 先在仿真/fake hardware验证生命周期和缓存语义，再在风险评估、限速限区和独立急停保障下执行HIL/FAT；不在未验证的真实机器人上以断流测试替代安全测试。
+
+### G. 本节来源记录（#1705–#1710）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1705 | [ros2_controllers ForwardControllersBase @ c8d2693](`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller/src/forward_controllers_base.cpp`) | commands订阅、ACTIVE检查、非有限值拒绝、RealtimeThreadSafeBox缓存、update持续写接口、activate/deactivate NaN重置 |
+| #1706 | [ros2_controllers ForwardCommandController @ c8d2693](`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller/src/forward_command_controller.cpp`) | joints/interface_name参数生成命令接口列表 |
+| #1707 | [ROS 2 Control Jazzy Forward Command Controller文档](`https://control.ros.org/jazzy/doc/ros2_controllers/forward_command_controller/doc/userdoc.html`) | 公开接口为~/commands Float64MultiArray及关节/接口参数 |
+| #1708 | [ROS 2 Control Jazzy ForwardControllersBase API](`https://control.ros.org/jazzy/doc/api/classforward__command__controller_1_1ForwardControllersBase.html`) | 生命周期回调、command interface claim与update API契约 |
+| #1709 | [MoveIt Servo servo_node.cpp @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp`) | Header stamp timeout、smoothHalt发布时序、pause时跳过输出及最后命令状态 |
+| #1710 | [MoveIt Servo参数文档与实现 @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_parameters.cpp`) | incoming_command_timeout参数说明及停止行为参数定义 |
