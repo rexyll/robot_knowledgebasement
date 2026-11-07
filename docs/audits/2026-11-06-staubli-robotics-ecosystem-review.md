@@ -989,3 +989,56 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 - 已有充分手册依据说明CS9具有独立于ROS/VAL3应用层的安全控制接口和安全停止功能；但这些功能能否覆盖当前机器人单元的危险，取决于现场安全程序、输入接线、模式选择、外部电源、机械臂制动器和单元集成。
 - 不能推断“ROS/VAL3崩溃必然触发CS9安全停止”；也不能推断“主电源或外部24V丢失时机器人一定保持静止/当前位置”。
 - 本节仅审查2020版控制器说明书和固定上游源码，没有目标CS9配置导出、现场电气图、机器人型号安全手册或实机故障注入。未执行VAL3/ROS构建、HIL或安全功能验证；不构成PL/SIL评估、安全认证或工程验收。
+
+
+## 9.3.25 ROS/VAL3安全状态映射、监督语义与运动授权门控审查（2026-11-07）
+
+### A. 审查基线与文件范围
+
+- 上游仓库：`ICube-Robotics/staubli_driver_ros2`，固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`；本轮重新读取GitHub `main` 分支，HEAD仍为该commit（分支提交日期2026-07-03），未发现相对固定基线的新源码提交。
+- 核对文件：`staubli_hardware_interface.cpp/.hpp`、`messages.hpp/.cpp`、`types.hpp`、VAL3 `updateState.pgx`、`encodeRobotStateMsg.pgx`。
+- 代码证据来源#1617–#1620。该审查是源码静态追踪，不代表CS9安全功能已实测。
+
+### B. VAL3侧安全状态原始映射
+
+1. `updateState.pgx`通过`esStatus()`读取安全状态，注释列出：0=无安全停止、1=等待Safety Restart、2=SS1、3=SS2、4=等待WMS重启；代码令`bEStopped = (nSafetyStatus != 0)`，即把所有非零安全状态统一折叠为EStopped标志。
+2. `bWaitAck`仅在`nSafetyStatus == 1`时为真。状态4（等待WMS重启）并不进入该标志，因此ROS导出的`wait_for_ack`不能代表所有需要工作模式/安全重启确认的情形。
+3. `bMotionPossible`当前计算为`bDrivePowered && !bEStopped`。相邻一行曾考虑加入`nRobotStatus == 0`的模式状态条件，但该条件目前被注释。由此，自动模式下HOLD状态（注释中status=2）可能仍得到`motion_possible=true`，只要驱动上电且没有安全停止；此为逻辑推导，尚未在CS9验证。
+4. `bBrakeReleased`直接等于`isPowered()`，是软件映射而非制动器位置/夹紧状态的独立传感器反馈；`bInMotion`来自`!isSettled()`，不等于安全静止检测。
+5. `updateState.pgx`明确把`bInError`留给调用者填充；必须继续追踪`controlTask`的赋值路径，不能把它误认为由`esStatus()`自动覆盖。
+
+### C. ROS侧导出与授权门控
+
+- HardwareInterface将`operation_mode`、`operation_mode_status`、`safety_status`、`motion_possible`、`estop_pressed`、`wait_for_ack`等导出为ros2_control监督状态接口，故这些字段并非完全没有暴露给ROS。
+- `update_state()`将`state_msg.estop_pressed`复制到接口；但VAL3上游的`bEStopped`代表任意非零安全状态，而不只是急停按钮被按下。因此接口名`estop_pressed`存在语义过宽/误导风险，消费者应优先读取原始`safety_status`并依据目标安全程序解释。
+- `perform_command_mode_switch()`在切换到位置模式时检查缓存的`error_state`和`motion_possible`；`operation_mode_status != 0`只发出HOLD警告，不拒绝切换。结合VAL3未把HOLD纳入`motion_possible`的当前公式，HOLD状态的运动授权边界存在缺口。
+- `write()`在非STOP模式下检查`error_state`及`control_state == INVALID`，没有在每次写周期重新检查`motion_possible`、`safety_status`或`wait_for_ack`。因此ROS侧安全门控主要发生在模式切换时，运行中状态变化的最终响应依赖VAL3侧控制函数和CS9独立安全链；不得把ROS导出状态接口视为安全控制器输入。
+- 当前源码能证明状态字段被采集/导出且部分参与位置模式切换；不能证明其形成完整、实时、锁存、抗陈旧的安全授权状态机。
+
+### D. 主要风险与工程要求
+
+1. **HOLD误授权风险：** 将`nRobotStatus == 0`条件恢复与否必须由Stäubli工作模式语义确认；若HOLD不允许新运动，应在VAL3端拒绝运动命令，并在ROS切换及周期写入路径保持一致。
+2. **等待重启语义不完整：** 区分Safety Restart与WMS Restart，不能只用一个布尔`wait_for_ack`表达所有安全重启状态；增加原始状态码、原因和模式上下文。
+3. **E-stop命名失真：** 将`estop_pressed`重命名/拆分为`safety_stop_active`与`emergency_stop_active`（后者只有在控制器能明确提供独立语义时才可使用）；在无法区分时保留原始状态码并标注兼容字段。
+4. **状态新鲜度与原子性：** 授权决策应绑定状态报文序号、单调时钟接收年龄和控制器启动epoch；状态过期、乱序、重复、未知枚举值或字段不一致时应fail-closed。
+5. **逐周期门控：** 运动期间每个控制周期应对安全停止、驱动状态、工作模式、错误状态和授权epoch进行一致性检查；任何失效都应转入经定义的停止/锁存流程，但ROS软件门控不得替代CS9安全回路。
+6. **状态接口消费契约：** 对`safety_status`和`operation_mode_status`建立有版本的枚举表、未知值策略、ROS诊断映射和单元测试，避免消费者仅订阅一个布尔字段。
+
+### E. 新增静态审查与后续验证矩阵
+
+| ID | 场景 | 验收要求 | 当前状态 |
+|---|---|---|---|
+| SI-01 | 自动模式HOLD（operation_mode_status=2）尝试切换位置控制 | 必须按目标CS9模式语义拒绝或明确允许；VAL3与ROS结果一致 | 发现status条件被注释；未实测 |
+| SI-02 | 位置模式运行中从MOVE切换至HOLD | 下一控制周期按定义停止/拒绝新命令，不依赖旧模式切换快照 | ROS write未逐周期检查；未注入 |
+| SI-03 | safety_status=4（等待WMS重启） | ROS监督状态明确显示待确认，禁止未授权运动 | 当前wait_for_ack只覆盖状态1 |
+| SI-04 | safety_status=2/3（SS1/SS2） | 保留原始状态码，不将其误报为急停按钮按下 | 当前estop_pressed折叠全部非零状态 |
+| SI-05 | isPowered与真实制动器状态不一致 | 不把brakes_released软件推导值作为制动器独立反馈 | 当前由isPowered映射；未实测 |
+| SI-06 | 未知/新增安全状态枚举值 | 未知状态默认禁止运动并上报诊断 | 当前枚举/消费者兼容策略需补测 |
+| SI-07 | 状态报文陈旧、重复或乱序时进行模式切换 | 过期或无序状态不得授权运动 | 需结合§9.3.17、§9.3.18测试 |
+| SI-08 | ROS write运行中安全状态改变 | 证明VAL3端与CS9安全链在ROS门控缺失时仍按风险分析响应 | 未执行受控故障注入 |
+
+### F. 结论与边界
+
+本轮确认：ROS驱动确实导出多项CS9监督状态，并在位置控制模式切换时使用`error_state`和`motion_possible`；但VAL3的`motion_possible`计算没有纳入HOLD状态条件，`wait_for_ack`未覆盖WMS重启状态4，`estop_pressed`将所有非零安全状态折叠，ROS `write()`不逐周期复核完整监督状态。上述问题说明监督状态接口与安全授权状态机并非同一概念。
+
+未运行VAL3编译、ROS构建/单测、CS9仿真、HIL或实机HOLD/SS1/SS2/WMS Restart故障注入；未验证具体控制器配置和安全程序。不能据此宣称已发生危险运动，也不能以本节代替安全评估、功能安全验证或Stäubli书面确认。
