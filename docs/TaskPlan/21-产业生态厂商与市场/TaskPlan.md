@@ -478,3 +478,5 @@
 
 
 | 2026-11-07 | 21-02/Stäubli ROS2—UDP—VAL3实时控制时序审查 | 固定commit跨栈审查4ms任务配置、ROS read/write、RobotDriver/subscriber、VAL3状态/命令顺序和序号延迟：overrun仅日志/计数；read忽略period、write传递controller_period但VAL3未见消费；重复序号报文刷新本地接收时间且RobotDriver忽略new_message；命令序号回显状态序号；VAL3先发状态后处理命令，无新命令staleness仍TODO，movejSync刷新超时分支未形成明确错误动作。新增审计§9.3.32、来源#1641–#1647、RT-09–RT-17。未执行实时测量、构建/单测、VAL3/SRS仿真、UDP注入或CS9 HIL/实机；21-02继续进行中。 | 来源#1641–#1647；Stäubli专项审计§9.3.32；《主要厂商》§128.15 |
+
+| 2026-11-07 | 21-02/Stäubli运动命令数值边界、关节限位与轨迹跳变 | 固定ICube commit核对HardwareInterface::write、TX2-60L joint_limits.yaml、Xacro URDF限位生成、MoveIt速度/加速度缩放、VAL3 decodeRobotCommandMsg/updateJointPositionControl及HardwareInterface测试。发现ROS入口仅拒绝NaN，未见Inf/目标增量本地校验；固定6元素命令数组检查按num_joints_遍历；URDF限位与运行时JointLimiter启用状态需区分；VAL3 isInRange仅检查软件关节范围，目标接近性仍TODO。新增§9.3.33、来源#1648–#1654和JNT-01–JNT-10。未执行构建/单测、限位器实测、MoveIt轨迹、VAL3/SRS或CS9 HIL/实机验证；21-02继续进行中。 | 来源#1648–#1654；Stäubli专项审计§9.3.33；《主要厂商》§128.16 |
