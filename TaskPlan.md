@@ -921,3 +921,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v7.83 | 00-01/21-02完成Stäubli ROS 2—VAL3端到端命令门控与故障传播增量审查：对照HardwareInterface::perform_command_mode_switch/write、RobotDriver send/read、VAL3状态发布/命令读取/位置控制，确认motion_possible主要在模式切换快照和VAL3控制函数检查、ROS write不逐周期检查全部安全监督状态；状态报文先于本轮命令执行发送，未见命令级STOP ACK/停止完成确认；STOP bool不证明报文送达/机器人停止；安全状态码映射折叠及sioGet队列语义需目标CS9验证。新增专项报告§9.3.15、来源#1562–#1567，并同步第21章、厂商档案、兼容矩阵、基线审计和索引。未运行构建、测试、网络注入、VAL3仿真或CS9实机；Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.15；来源#1562–#1567；第00/21章TaskPlan |
+
+
+| 2026-11-07 | v7.84 | 00-01/21-02完成Stäubli停止包装程序与生命周期增量审查：stopJointPositionControl仅调用movejSyncEnd后无条件返回x_bError=false，不验证停止终态；controlTask错误分支清除l_bError、重置socket，人工复位/锁存仍缺失；ROS on_cleanup直接断连，on_shutdown不等待STOP确认，on_error忽略STOP结果。新增§9.3.16、来源#1568–#1570，更新第21章、厂商档案、兼容矩阵、基线和索引。未运行VAL3仿真、构建/测试、网络注入、CS9 HIL或实机。TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.16；来源#1568–#1570 |
