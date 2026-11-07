@@ -102,3 +102,6 @@
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.51；新增VAL3 sioSet短写/超时处理、手册要求剩余数据续写与当前实现差异、controlTask发送失败STOP/reset路径，以及C++ Boost.Asio send_to忽略字节数、would_block丢包仍返回true的跨端不对称（SERVO-126–SERVO-136）。未执行SRS/CS9网络注入、VAL3编译、HIL或实机验证。
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.54；§9.3.52–§9.3.53审查双向UDP时序、4ms同步任务与overrun；§9.3.54审查CS9系统轨迹/系统IO、用户IO刷新、VAL3同步/异步任务的单CPU扫描顺序，澄清3000行限制并非WCET，分析cyclicRatio与noJitter刷新过载后果。目标cell.cfx/IO模块配置未提供，实际刷新模式未知；GPIO仍为TODO（SERVO-161–SERVO-174）。所有CS9 CPU/IO跟踪、过载注入、HIL/实机验证未执行。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.55；本轮核对VAL3 SIO timeout=-1、readData双次连续sioGet、0/负返回值错误折叠、sioSet完整帧写入要求，以及状态采集/序列化/发送/接收/运动API/日志共用4ms同步任务片段。源码注释的non-blocking意图不等于CS9实测WCET；未测量SIO调用、socket激活和控制循环尾部延迟（SERVO-175–SERVO-187）。所有SRS/CS9网络注入、任务跟踪、HIL或实机验证未执行。
