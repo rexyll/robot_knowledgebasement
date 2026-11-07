@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.79  
+> 版本：v7.80  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -912,3 +912,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v7.79 | 00-01/21-02对Stäubli ICube UDP接收路径做增量静态审查：固定1024字节接收缓冲区；异步接收error非零时handle_data_received仅记录日志仍调用subscriber回调，消息解析器按最小帧长处理，socket测试仅覆盖128字节正常数据。新增专项审计§9.3.11与来源#1541–#1545；将超长UDP数据报截断前缀被误解析限定为待目标OS/Boost复现的风险候选。未运行测试、网络注入、构建或CS9实机验证；00-01/21-02继续进行中，Stäubli未验收；TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.11；来源#1541–#1545；第00/21章TaskPlan |
+
+| 2026-11-07 | v7.80 | 00-01/21-02继续Stäubli ICube UDP发送与线程生命周期审查：固定main源码确认would_block丢包后send仍return true，可能导致send_message/send_robot_command误报成功；stop_receive_thread仅io_service.stop()+join而未显式cancel异步接收；start_receive_thread在检查状态前覆盖现有callback；Subscriber回调捕获裸this；RobotDriver生命周期操作未见整体互斥。现有socket测试缺少stop→restart、不同callback重复start、并发send/disconnect及错误注入。新增专项审计§9.3.12、来源#1546–#1549。stop/restart遗留操作竞争仍需锁定Boost/Ubuntu后复现；未运行构建、测试、TSan、网络压力或CS9实机。00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.12；来源#1546–#1549；第00/21章TaskPlan |
