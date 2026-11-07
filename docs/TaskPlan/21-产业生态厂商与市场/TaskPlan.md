@@ -500,3 +500,5 @@
 
 
 | 2026-11-07 | 21-02/Stäubli Servo六轴命令数组顺序契约 | 固定ICube/MoveIt/ros2_controllers源码核对SRDF arm chain、default_names.yaml、URDF ros2_control接口生成、Servo active joint names/Float64MultiArray组包与ForwardCommandController按索引写接口。默认静态配置预期joint_1至joint_6顺序一致，但Float64MultiArray不携带joint_names，等长错序无法由controller长度检查发现；且ForwardCommandController尚未注册，实际接收端顺序未验证。新增专项审计§9.3.40、来源#1711–#1714、SERVO-25–SERVO-29。未执行xacro展开、fake hardware、MoveIt/Servo集成、VAL3/SRS或CS9 HIL/实机验证；21-02继续进行中，Stäubli未验收。
+
+| 2026-11-07 | 21-02/Stäubli Servo与ForwardCommandController命令接口、命名空间及QoS契约 | 固定ICube/MoveIt/ros2_controllers源码和配置核对Servo绝对topic、ForwardController私有~/commands、消息类型、SystemDefaultsQoS及controller lifecycle。根namespace下topic预期一致，但多机器人namespace可能分叉；两端QoS实际策略由RMW决定且未实测；ForwardController未注册，MoveIt仍仅映射JTC，inactive期间命令被拒绝。新增专项审计§9.3.41、来源#1715–#1720、SERVO-30–SERVO-36。未执行ROS graph/QoS/namespace/remapping/250Hz测量或生命周期测试；21-02继续进行中，Stäubli未验收。 | 来源#1715–#1720；Stäubli专项审计§9.3.41；《主要厂商》§128.24 |
