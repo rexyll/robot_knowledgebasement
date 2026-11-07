@@ -90,3 +90,5 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.46；本轮核对VAL3服务端STOP中转模式切换、bInMotion启动门控、position/velocity函数实际实现、命令解析和sequence滞后检查。确认velocity分支仍未实现、无严格重复/乱序命令拒绝和显式deadline，无包staleness及故障后冷却/重新授权仍为TODO（SERVO-81–SERVO-90）。未执行VAL3编译运行、CS9、SIL/HIL或实机停止验证。
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.47；新增状态遥测来源/valid flags与物理语义边界：速度为命令速度近似、力矩为无精度承诺的电流估算、制动器状态为驱动上电代理、in_motion来自VAL3 settled判据、motion_possible未显式纳入Automatic Hold，F/T和IO仍未实现（SERVO-91–SERVO-100）。未执行独立测量、CS9模式扫描、跨语言运行测试或HIL/实机验证。
