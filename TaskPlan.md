@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.76  
+> 版本：v7.77  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -894,6 +894,8 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v7.75 | 对Stäubli DiagnosticData读取路径补做序号新鲜度审查：read_diagnostic_data()没有检查status.new_message；通用subscriber将重复序号帧标记为new_message=false但仍返回true，并在每个成功反序列化数据报上刷新reception_timestamp。若集成方诊断发送端持续重复/重放帧，旧诊断内容可能反复成功返回并使staleness保持新鲜。现有通用subscriber测试确认无新帧时返回true但new_message=false，缺少read_diagnostic_data集成测试。该风险条件性适用于外部诊断发送端接通后；随附VAL3 app仍无诊断publisher。新增来源#1525–#1527，更新Stäubli专项审计§9.3.7、厂商§128.7、兼容矩阵、基线审计、审计索引与00/21章记录。未运行测试/网络注入；00-01/21-02继续进行中，20-07未验收。 | ICube固定main RobotDriver/subscriber/test源码；Stäubli专项审计§9.3.7；来源#1525–#1527 |
 
 | 2026-11-07 | v7.76 | 00-01/21-02继续Stäubli ICube跨语言协议布局审查：核对C++序列化辅助函数、FrameHeader及三类消息serializer与VAL3状态编码/命令解码，确认C++构建目标要求little-endian、宿主double在线上转换为float32，VAL3使用2l/4.0l小端格式；建立RobotState 132字节、RobotCommand 55字节、DiagnosticData 74字节的绝对字段偏移表，澄清DiagnosticData线格式先连续写10个error_code再连续写10个timestamp，并推导一条74字节C++侧参考黄金向量。另确认VAL3状态编码器预留的F/T尾部及DI/AIO部分写入仍为TODO，当前对应有效标志均关闭。未发现新的独立端序冲突；§9.3.3状态Header错误与§9.3.4命令Header校验缺陷保持不变。新增来源#1528–#1534，更新Stäubli专项审计§9.3.8、厂商§128.8、兼容矩阵、基线审计、审计索引及00/21章执行记录。参考向量为源码派生、非VAL3输出或实机抓包；未运行上游测试、未编译VAL3、未执行UDP注入/HIL/FAT/SAT。根00-01与21-02继续进行中，Stäubli未验收；TODO-EXT-001仍未授权合并。 | ICube固定commit serialization/protocol/messages与VAL3 state serializer/validity源码；来源#1528–#1534；Stäubli专项审计§9.3.8 |
+
+| 2026-11-07 | v7.77 | 00-01/21-02继续Stäubli ICube序列化健壮性审查：对固定上游messages.cpp与test_message_serialization.cpp逐段对照，发现RobotState serializer/deserializer的Header字段校验位置仅有注释、没有实际type/payload_size/version验证；RobotCommand实施部分前后校验；DiagnosticData serializer在写Header后才校验，deserializer在读取输入Header前校验对象旧Header且读取后未复核当前输入字段。现有测试为同实现round-trip和小buffer测试，未发现独立逐字节golden fixture及三类消息Header负向矩阵。新增§9.3.9及来源#1535–#1537，提出独立golden fixture、畸形Header、长度、版本、端序及float边界测试规格。未运行上游测试/构建，未编译VAL3或连接CS9；00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | ICube固定commit messages.cpp/messages.hpp/test_message_serialization.cpp；来源#1535–#1537；Stäubli专项审计§9.3.9 |
 
 ## 9. 跨项目待办与外部依赖（只追加）
 
