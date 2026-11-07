@@ -2122,3 +2122,83 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1712 | [Stäubli SRDF macro @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/srdf/staubli_macro.srdf.xacro`) | arm组按base_link到tool0定义chain |
 | #1713 | [MoveIt Servo common.cpp @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/utils/common.cpp`) | Float64MultiArray按KinematicState.positions索引写入data，不附带joint_names |
 | #1714 | [Stäubli ros2_control joint Xacro @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro`) | 按joint_names列表顺序递归生成关节接口 |
+
+
+## 9.3.41 MoveIt Servo与ForwardCommandController命令接口、命名空间及QoS契约（2026-11-07）
+
+### A. 审查范围与固定版本
+
+- Stäubli ICube驱动与配置固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- ros2_controllers固定源码快照：`c8d26930ff87bc819db1452af1d45da5bfa3d50d`。
+- 对照Stäubli Servo YAML、MoveIt controller映射、bringup controllers.yaml、Servo publisher创建、ForwardControllersBase subscription创建及ROS 2 SystemDefaultsQoS语义。
+- 本节仅为固定源码和配置静态审查；未启动ROS graph、未运行ros2 topic info/endpoint QoS检查、未执行controller spawner或消息注入。
+
+### B. 当前Stäubli配置的topic字符串表面一致，但接收端未部署
+
+1. `staubli_servo.yaml`配置`command_out_type: std_msgs/Float64MultiArray`、位置输出启用、速度/加速度输出关闭，topic为绝对名称`/forward_position_controller/commands`。
+2. `ForwardControllersBase::on_configure()`在控制器节点上创建`~/commands`订阅，消息类型同为`std_msgs::msg::Float64MultiArray`。对名为`forward_position_controller`且位于根命名空间的controller node，私有topic解析后预期为`/forward_position_controller/commands`，与Servo配置字符串一致。
+3. 但Stäubli `controllers.yaml`只注册joint_state_broadcaster和joint_trajectory_controller，没有forward_position_controller；MoveIt controller manager也只映射JTC的FollowJointTrajectory Action。因此上述topic一致只是“未来拟配置时可对齐”的静态接口契约，不是当前运行时已存在的publisher-subscriber连接。
+4. Servo节点名/命名空间与controller manager namespace必须作为同一部署配置审查。Servo输出写成绝对根路径；若未来将controller manager放入`/robot_X`等命名空间，`~/commands`会随controller节点命名空间解析，而Servo绝对topic不会自动跟随。此时即使controller名称相同，也会形成不同topic。应统一采用同一namespace参数化后的完整topic，或显式remap两端；不能依赖默认根命名空间假设。
+5. ROS 2名称解析验收必须记录最终resolved topic name，而不是仅比较YAML中的原始字符串。还需确认controller node实际名称、namespace、ROS_DOMAIN_ID及remapping。
+
+### C. 消息类型与数据语义
+
+1. Servo publisher根据`command_out_type`创建`Float64MultiArray` publisher；ForwardControllersBase订阅同一消息类型。类型层面兼容。
+2. 消息本身没有关节名、控制源身份、时间戳、session epoch或sequence。§9.3.40已确认数组索引依赖关节顺序；§9.3.39已确认下游没有命令年龄watchdog。本节将两者纳入接口准入条件，而不是将“类型相同”误判为端到端契约完整。
+3. `publish_joint_positions: true`意味着当前Stäubli Servo配置发布位置值；未来ForwardCommandController必须配置`interface_name: position`，并确认机器人HardwareInterface确实导出同名position command interfaces。不能将Servo位置数组接到velocity/effort controller，也不能只以数组长度验证单位/语义。
+4. Servo的`publish_period: 0.004`为250Hz目标发布周期；bringup controller_manager的`update_rate: 250`同为250Hz。频率数值相等不代表调度相位、网络延迟、DDS队列和controller update周期同步，也不构成实时期限保证。应测量实际发布间隔、接收间隔、update周期、丢帧和最坏延迟。
+
+### D. QoS：两端均使用SystemDefaultsQoS，但实际策略由RMW决定
+
+1. 固定MoveIt Servo源码以`rclcpp::SystemDefaultsQoS()`创建Float64MultiArray publisher；固定ros2_controllers源码也以`rclcpp::SystemDefaultsQoS()`创建`~/commands` subscriber。
+2. 两端使用相同的SystemDefaultsQoS API，降低了应用代码显式设置不同QoS配置的风险；但SystemDefaultsQoS将策略交给底层RMW实现，不应直接写成“已证明Reliable、Volatile、KeepLast(10)”或“所有RMW必然兼容”。
+3. ROS 2 QoS兼容性按request-versus-offered规则判断；不兼容的publisher/subscriber不会建立数据连接。不同RMW实现可能采用不同system defaults，必须在目标发行版、RMW、DDS XML/环境配置下读取实际endpoint QoS并检查匹配状态。
+4. 因此当前审计结论是：源码层面两端均调用SystemDefaultsQoS；实际QoS策略与连接兼容性未在目标运行环境验证。不得把未观察到的QoS告警当作兼容证据。
+
+### E. Lifecycle、启动时序与消息丢失窗口
+
+1. ForwardCommandController在on_configure阶段创建订阅，但回调仅在controller lifecycle为ACTIVE时接收命令；非ACTIVE时消息被拒绝。controller在inactive状态下即使已创建订阅，也不代表命令会被缓存供激活后使用。
+2. Servo节点构造时创建publisher并启动servo loop。若Servo先开始发布而ForwardController尚未ACTIVE，早期命令可能没有匹配订阅者，或被inactive回调丢弃；当前SystemDefaultsQoS没有应用层“激活后首条有效命令确认”协议。
+3. ForwardControllersBase在activate时将命令缓存重置为NaN；这避免直接沿用此前缓存的有限值，但不能证明硬件物理停止，也不等于激活前命令会被保留。
+4. 启动顺序应为：硬件状态与反馈新鲜度有效→controller配置成功→目标position接口claim成功并ACTIVE→核对topic/type/QoS匹配→显式命令owner授权→Servo进入可发布状态。任何一步失败都应保持禁止运动，而不是以节点进程存活或topic存在替代ready。
+5. 停止/切换顺序应先撤销命令owner并执行经验证的停止策略，再停Servo/切换controller；单纯deactivate会释放接口并清空缓存，但不构成机械臂静止确认。
+
+### F. 风险分级与整改要求
+
+- **P1：当前链路未闭合。** ForwardCommandController未注册；不能声称Servo发布数据已到达controller或HardwareInterface。
+- **P1：绝对topic与私有topic的namespace耦合。** 默认根namespace下名称预期一致；多机器人/命名空间部署可能分叉。应在launch层统一参数化并对resolved name做启动断言。
+- **P1：SystemDefaultsQoS没有目标RMW实测证据。** 两端同用SystemDefaultsQoS不是QoS匹配报告；必须采集实际QoS和matched endpoint状态。
+- **P1：生命周期窗口和授权未闭环。** 配置态/非ACTIVE期间消息不会被controller接受；激活时缓存清NaN。必须设计controller ACTIVE、接口claim、Servo发布使能和owner授权的互锁状态机。
+- **P2：250Hz配置相等不代表端到端实时保证。** 必须通过运行测量确定频率、延迟、抖动、丢帧及控制周期预算。
+
+### G. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| SERVO-30 | topic名称解析 | 记录Servo publisher与controller subscriber的resolved name，完全一致 | 默认根命名空间静态字符串预期一致；未运行 |
+| SERVO-31 | namespace/remapping | 根namespace及至少一个机器人namespace场景均解析到同一目标topic；错误配置启动失败 | 未执行 |
+| SERVO-32 | 消息类型/接口语义 | 两端类型为Float64MultiArray；Servo位置输出与controller position interface匹配 | 静态配置相符；ForwardController未注册 |
+| SERVO-33 | QoS endpoint核验 | 目标RMW下记录双方实际QoS、matched publisher/subscription数量和兼容结果 | 两端源码均SystemDefaultsQoS；未实测 |
+| SERVO-34 | controller inactive消息 | inactive期间输入不导致接口写入；激活后必须收到新的、经授权的命令才允许更新 | 源码静态可追溯；未执行 |
+| SERVO-35 | 启动/关闭时序 | controller ACTIVE、接口claim、反馈新鲜度、命令owner与Servo enable互锁；异常启动保持禁止运动 | 当前未实现/未验证 |
+| SERVO-36 | 250Hz链路测量 | 统计发布/接收/update频率、最大延迟、抖动、丢帧和超限动作 | 仅配置目标均为250Hz；未测量 |
+
+### H. 整改建议
+
+1. 为机器人实例定义单一namespace参数，并由launch同时生成Servo `command_out_topic`和controller订阅最终名称；启动时通过ROS graph introspection断言topic名称、类型及publisher/subscriber数量。
+2. 生产配置建议显式定义双方QoS，而不是长期依赖RMW system defaults；选择前须结合命令新鲜度、可靠性、队列深度、延迟预算和目标RMW做实验。即使Reliable也不能替代命令租约/watchdog。
+3. controller manager启动后先配置并激活ForwardCommandController，确认position interfaces claim成功、hardware状态与joint_states新鲜；再由独立仲裁器授予Servo命令owner。未获得授权不得启动Servo输出。
+4. 将接口契约固化为自动化测试：resolved topic、类型、QoS、关节顺序、单位、position接口、active状态、owner/epoch和端到端命令追踪全部一致。
+5. 若采用250Hz，必须记录实测分布和最坏情况；不能以两个配置字段都写250Hz作为实时验收。
+
+### I. 本节来源记录（#1715–#1720）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1715 | [Stäubli staubli_servo.yaml @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/staubli_servo.yaml`) | Float64MultiArray位置输出、250Hz publish_period、绝对commands topic |
+| #1716 | [Stäubli moveit_controllers.yaml @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml`) | MoveIt仅映射JTC FollowJointTrajectory Action |
+| #1717 | [Stäubli controllers.yaml @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml`) | controller_manager 250Hz；未注册ForwardCommandController |
+| #1718 | [MoveIt Servo servo_node.cpp @ 6ed6372] (`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp`) | publisher使用SystemDefaultsQoS |
+| #1719 | [ros2_controllers ForwardControllersBase @ c8d2693] (`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller/src/forward_controllers_base.cpp`) | ~/commands订阅使用SystemDefaultsQoS，ACTIVE检查和缓存生命周期 |
+| #1720 | [ROS 2 QoS compatibility documentation] (`https://docs.ros.org/en/jazzy/Concepts/Intermediate/About-Quality-of-Service-Settings.html`) | system default由RMW解析；QoS request/offered兼容性与不兼容时不通信 |
