@@ -2056,3 +2056,69 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1708 | [ROS 2 Control Jazzy ForwardControllersBase API](`https://control.ros.org/jazzy/doc/api/classforward__command__controller_1_1ForwardControllersBase.html`) | 生命周期回调、command interface claim与update API契约 |
 | #1709 | [MoveIt Servo servo_node.cpp @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp`) | Header stamp timeout、smoothHalt发布时序、pause时跳过输出及最后命令状态 |
 | #1710 | [MoveIt Servo参数文档与实现 @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_parameters.cpp`) | incoming_command_timeout参数说明及停止行为参数定义 |
+
+
+
+## 9.3.40 Servo Float64MultiArray关节顺序与ForwardCommandController接口映射（2026-11-07）
+
+### A. 审查范围与版本边界
+
+- ICube Stäubli驱动固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- ros2_controllers固定源码快照：`c8d26930ff87bc819db1452af1d45da5bfa3d50d`。
+- 对照MoveIt SRDF group、机器人默认joint_names、ros2_control URDF接口生成顺序、Servo Float64MultiArray组包和ForwardCommandController命令接口顺序。
+- 本节是源码/配置静态映射审查；未执行xacro展开、MoveIt RobotModel运行时枚举、ForwardCommandController集成或六轴实机命令测试。
+
+### B. Servo消息采用隐式位置索引，不携带关节名
+
+1. MoveIt Servo的`getNextJointState()`从`JointModelGroup::getActiveJointModelNames()`取得关节名序列，并将其写入目标KinematicState。
+2. Stäubli当前Servo配置选择`std_msgs/Float64MultiArray`与`publish_joint_positions: true`。MoveIt的`composeMultiArrayMessage()`只按KinematicState的joint_names数量分配data数组，并按同一索引复制positions；Float64MultiArray本身不携带joint_names或接口名。
+3. 因此，Servo数组第i个数值的含义完全依赖MoveIt活动关节组的joint order；接收端不能从消息本身识别关节名，也不能自动纠正排列差异。
+
+### C. Stäubli默认TX2-60L静态配置的预期顺序
+
+1. Stäubli机器人描述的`default_names.yaml`将joint_names依次定义为joint_1、joint_2、joint_3、joint_4、joint_5、joint_6。
+2. SRDF宏将`arm`组定义为从base_link到tool0的chain；机器人描述URDF宏递归消费joint_names列表，并按列表顺序生成每个关节的ros2_control命令接口。
+3. 当前JTC配置也按joint_1至joint_6顺序声明六个joints。以上静态资料在预期默认配置下呈现一致的六轴命名顺序。
+4. 但当前controllers.yaml没有ForwardCommandController配置，故不存在已部署的Servo接收端joint list可供逐项对照；本节不能宣称Servo→ForwardCommandController轴映射已经集成或通过。
+5. SRDF chain经xacro展开后MoveIt实际active joint顺序、前缀/型号变体及运行时加载的robot_description仍需在目标工作区解析验证，不能仅凭默认YAML认定所有型号/前缀都相同。
+
+### D. ForwardCommandController按参数索引写入接口，等长但错序可能静默映射错误
+
+1. `ForwardCommandController::read_parameters()`按`params_.joints`遍历并依次生成`joint/interface_name`命令接口名列表。
+2. `ForwardControllersBase::update()`以数组下标i将`joint_commands_.data[i]`写入`command_interfaces_[i]`。它检查data长度与接口数量是否相等，但Float64MultiArray没有关节名，因此无法发现两个六元素数组的排列不同。
+3. 若未来ForwardCommandController的joints参数顺序与Servo活动关节顺序不一致，即使长度都是6且所有值有限，也可能把一个关节的目标写入另一个关节的接口；这种错序不一定触发现有长度错误检查。
+4. 当前未发现Stäubli默认YAML本身已发生错序；真正缺口是ForwardCommandController尚未配置，且缺少显式的启动期顺序一致性校验与端到端测试。将其定为P1集成准入要求，而非已复现的当前运行故障。
+
+### E. 风险分级
+
+- **P1：Float64MultiArray缺少关节名。** 数组语义由隐式索引决定；长度校验不能检测同长度错序。
+- **P1：未来ForwardCommandController配置尚不存在。** 不能证明Servo active joint order与controller joints参数顺序一致。
+- **P2：型号/前缀/模型展开差异。** 默认TX2-60L YAML与SRDF宏的静态一致性不能替代每个robot_model、robot_prefix和生成后robot_description的实际检查。
+
+### F. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| SERVO-25 | 解析目标型号SRDF/URDF | 运行时active joint names与预期六轴顺序逐项一致 | 静态默认配置可追溯；未展开验证 |
+| SERVO-26 | Servo Float64MultiArray组包 | 记录joint_names→data索引映射；无名字丢失或隐式重排 | 静态确认按KinematicState索引组包 |
+| SERVO-27 | ForwardCommandController joints参数配置 | joints顺序与Servo active joint names逐项相同，且与HardwareInterface接口名一致 | 控制器未配置，待实施 |
+| SERVO-28 | 同长度六轴数组故意打乱顺序 | 启动期检查拒绝错序配置，不允许静默写入错误关节接口 | 当前无该检查；未执行 |
+| SERVO-29 | 不同robot_model/robot_prefix组合 | 对每个受支持型号生成robot_description并验证关节名、顺序、接口数量 | 未执行 |
+
+### G. 整改建议
+
+1. 若继续使用Float64MultiArray，必须在启动时读取MoveIt RobotModel的active joint names和ForwardCommandController joints参数，逐项比较并拒绝任何顺序不一致；不能只比较数量。
+2. 优先考虑带joint_names字段的消息接口或受控适配层；如果保留Float64MultiArray，需在接口契约中明确数组顺序、单位、维度和型号配置，并由CI从展开后的URDF/SRDF生成检查结果。
+3. ForwardCommandController配置应显式声明六轴joints及position interface，并验证命令数组长度、接口列表、URDF导出列表和HardwareInterface joint order四者一致。
+4. 为错序测试构造非对称六轴目标向量，逐关节比对Servo发布、controller订阅、command interface值、HardwareInterface write及VAL3接收数据；全零/对称向量不能发现轴交换。
+5. 当前默认YAML命名顺序一致只能作为静态配置证据；在ForwardCommandController真正注册、启动并通过fake hardware/HIL验证之前，Servo链路继续标记未闭合。
+
+### H. 本节来源记录（#1711–#1714）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1711 | [Stäubli default_names.yaml @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/default_names.yaml`) | 默认joint_names顺序joint_1至joint_6 |
+| #1712 | [Stäubli SRDF macro @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/srdf/staubli_macro.srdf.xacro`) | arm组按base_link到tool0定义chain |
+| #1713 | [MoveIt Servo common.cpp @ 6ed6372](`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/utils/common.cpp`) | Float64MultiArray按KinematicState.positions索引写入data，不附带joint_names |
+| #1714 | [Stäubli ros2_control joint Xacro @ bd658e2](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro`) | 按joint_names列表顺序递归生成关节接口 |
