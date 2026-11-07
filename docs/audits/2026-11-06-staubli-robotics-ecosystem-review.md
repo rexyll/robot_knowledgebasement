@@ -1214,3 +1214,43 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1631 | [test_robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp)；[staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ConnectionTest的mock发送和1000ms timeout；生产HardwareInterface以5000ms调用connect |
 
 以上来源均固定在同一上游commit；本轮没有修改ICube上游仓库。
+
+
+## 9.3.29 HardwareInterface网络端口参数解析与窄化转换审查（2026-11-07）
+
+### A. 审查范围
+
+- 固定上游commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对`staubli_robot_driver/src/staubli_hardware_interface.cpp`的`on_configure()`及`src/communication/udp_socket.cpp`、`src/communication/udp_socket_impl.hpp`。
+- 来源#1632–#1633；静态审查，未执行构建或参数故障注入。
+
+### B. 参数处理路径
+
+1. `on_configure()`通过`std::stoi`解析control_port、diagnostic_port、local_control_port、local_diagnostic_port为有符号int。
+2. 解析后直接`static_cast<uint16_t>`传入NetworkConfig，转换前没有检查端口范围、远端端口是否为0或本地端口是否符合部署约束。
+3. 对超出uint16_t范围的正数或负数，窄化转换会按目标无符号16位类型转换；例如65536转换为0，-1转换为65535。最终socket层只接收到转换后的16位值，原始配置错误信息丢失。
+4. `std::stoi`未提供`pos`参数并检查完整消费长度，因此像`"30001junk"`这样的字符串可能被解析为前缀数值而非严格拒绝。
+5. UDP实现将remote_port/local_port直接构造为Asio endpoint/resolver输入；没有在HardwareInterface参数边界恢复原始数值或提供语义清晰的参数错误。
+6. 本节只指出配置输入验证不足。实际绑定/解析结果还取决于操作系统、Asio和具体数值；不能推断每种非法输入都会成功启动或造成网络连接。
+
+### C. 风险与修正规格
+
+| ID | 场景 | 建议修正与验收条件 | 当前状态 |
+|---|---|---|---|
+| PORT-01 | 远端端口为0、负数或大于65535 | 在窄化前严格拒绝；远端端口必须为1–65535 | 源码未见范围检查 |
+| PORT-02 | 本地端口超范围 | 明确本地端口策略；若允许0表示临时端口，应只对本地端口允许0，其余必须1–65535 | 源码未见策略校验 |
+| PORT-03 | 数字后附带非数字字符/空白 | 使用严格解析并检查完整字符串消费；拒绝前后非法字符 | 当前stoi未检查pos |
+| PORT-04 | 四个端口发生冲突或配置重复 | 按网络拓扑定义远端/本地控制与诊断端口约束；发现不合理重复时给出明确错误 | 未见跨字段校验 |
+| PORT-05 | 参数边界回归 | 覆盖-1、0、1、65535、65536、INT_MAX、非数字、数字前后缀、空字符串；验证拒绝/接受策略和错误消息 | 未实现/未执行 |
+
+### D. 结论与边界
+
+当前HardwareInterface把端口字符串解析为int后直接窄化为uint16_t，没有在转换前进行严格范围及完整字符串验证。建议在配置层完成严格解析和语义校验，避免错误配置被转换成另一个有效数值后才进入socket层。未执行编译、单测、网络绑定或CS9连接测试；该发现属于静态输入验证缺口，不代表已经发生端口误连或现场故障。
+
+### 本节来源记录（#1632–#1633）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1632 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | stoi解析及直接static_cast<uint16_t> |
+| #1633 | [udp_socket.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket.cpp)；[udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | 16位端口参数向Asio endpoint/resolver传递 |
+
