@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.94  
+> 版本：v7.95  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -940,3 +940,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v7.93 | 00-01/21-02继续Stäubli ROS/VAL3安全状态语义与HOLD运动授权审查：固定上游commit追踪VAL3 esStatus状态映射、RobotState编码/解码和ROS HardwareInterface导出/门控，确认bEStopped将所有非零状态折叠，wait_for_ack仅覆盖Safety Restart而不覆盖WMS Restart状态，bMotionPossible未纳入HOLD模式状态，ROS模式切换仅对非零operation_mode_status告警且write不逐周期复核完整监督状态；brakes_released由isPowered推导而非制动器独立反馈。新增专项审计§9.3.25、来源#1617–#1620及SI-01–SI-08矩阵，并同步第21章、厂商档案与兼容矩阵。未执行VAL3编译、ROS构建/单测、CS9仿真、HIL或实机故障注入；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.25；来源#1617–#1620；第21章TaskPlan |
 
 | 2026-11-07 | v7.94 | 00-01/21-02继续Stäubli VAL3错误标志生命周期与位置命令门控审查：确认位置控制函数每次调用检查软件bMotionPossible并在false时停止位置控制/返回错误；但controlTask将非预期运动hard-stop、急停告警、runtime error处理留为TODO；bInError来自局部l_bError，状态报文先于命令执行/错误处理，错误分支随后清标志并重置Socket，存在故障诊断可观测性和持久锁存不足；位置目标接近性、staleness/lost packet及恢复延迟仍未完成。新增审计§9.3.26、来源#1621–#1624和ER-01–ER-08矩阵，并同步第21章、厂商档案与兼容矩阵。未执行VAL3编译/仿真、ROS构建/单测、CS9故障注入、HIL或实机停止测试；Stäubli仍为静态审查未验收，TODO-EXT-001未授权合并。 | Stäubli专项审计§9.3.26；来源#1621–#1624；第21章TaskPlan |
+
+
+| 2026-11-07 | v7.95 | 00-01/21-02继续Stäubli VAL3故障可观测性与测试覆盖边界审查：对照controlTask先发送状态后接收/执行命令/处理错误的时序、位置控制门控及C++ ReadRobotStateTest/RTSocketSubscriberTest/消息round-trip测试，明确现有测试仅证明mock状态反馈staleness、缓存读取和普通序号跳号，不证明VAL3命令staleness、错误锁存/重新授权、movejSync状态机、CS9停止或跨语言互操作。新增专项审计§9.3.27、来源#1625–#1628及OBS-01–OBS-08验收规格，并更新厂商档案。未运行ROS测试、VAL3编译/SRS仿真、CS9 HIL/实机或安全验证；00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.27；来源#1625–#1628；《主要厂商》§128.10 |
