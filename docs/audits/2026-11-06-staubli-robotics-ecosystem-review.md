@@ -1457,3 +1457,70 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1646 | [readData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx)；[readDataOnce.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx)；[decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 每轮最多两次读socket、消息解码、缺少重复/旧session命令门控 |
 | #1647 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx)；[messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | movejSyncState==1处理、RemoteCtrlPeriod解码/序列化与消息字段边界 |
 
+
+
+## 9.3.33 运动指令输入边界、关节限位与轨迹执行安全审查（2026-11-07）
+
+### A. 审查基线与证据范围
+
+- 上游固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对ROS `StaubliHardwareInterface::write()`、模型Xacro关节生成逻辑、TX2-60L关节限位配置、MoveIt关节动态限位配置、VAL3 `decodeRobotCommandMsg` 与 `updateJointPositionControl`，以及现有HardwareInterface单元测试。
+- 来源#1648–#1654。仅源码/配置/测试定义静态审查；未运行ROS构建、单测、MoveIt规划、VAL3编译、SRS仿真、CS9 HIL或实机轨迹/安全测试。
+
+### B. ROS命令数值输入边界
+
+1. `write()`将position接口的rad转换为degree后写入6元素`command_reference`；之后的数值检查只调用`std::isnan()`。因此NaN会触发STOP请求并返回ERROR，但正/负Inf没有被该检查拒绝；也未见对有限但极大数值、单周期目标跳变量或命令相对当前反馈偏差的HardwareInterface本地边界检查。
+2. 数值检查遍历`i < num_joints_`，而`command_reference`固定6元素；前序命令填充循环虽限制`i < 6`，NaN检查循环未限制。若硬件描述错误配置超过6个joint，检查本身会越过数组边界。该风险与早先§9.3.1轴数边界发现相互印证；本节不声称已运行复现。
+3. `write()`把ros2_control的周期转换成毫秒字段并发送，但本节未发现对周期非正、非有限或异常突变的二次校验；该周期字段的VAL3消费缺口已在§9.3.32记录。
+4. ROS层未见`std::isfinite()`或对位置命令进行独立限位裁剪/拒绝的代码。不能仅凭URDF/MoveIt配置文件存在，就断言每一条直接写入HardwareInterface的命令都已被限幅；必须核验实际ControllerManager参数、JointLimiter启动日志及write入口收到的最终数值。
+
+### C. URDF、ros2_control与MoveIt限位配置分层
+
+1. TX2-60L模型的`joint_limits.yaml`为6个关节提供`min_position/max_position`、`max_velocity`、`max_acceleration`，位置限位标记为true；例如J1为±180°、J2为±127°、J3为±150°、J4为±270°、J5为±120°、J6为±270°。这些是随附模型配置值，不等同目标机器人铭牌/控制器安全参数已核实。
+2. `staubli_helpers.xacro`将配置中的min/max position和max velocity写入URDF joint的`limit`；可选`safety_controller`再基于margin生成软限位。此处证明模型描述具有位置/速度边界，但是否在实际运行链路中对所有命令接口强制执行，仍取决于展开后的URDF、ros2_control限位启用配置及运行时JointLimiter行为。
+3. R2C ros2_control关节宏导出position与velocity命令接口；可选acceleration接口仅用于向JointLimiter提供加速度限值，源码注释和文档明确它不是实际运动命令模式。HardwareInterface仍会导出velocity接口，但上游文档说明当前拒绝velocity控制模式；不得将导出接口误写为已实现速度控制。
+4. MoveIt的`joint_limits.yaml`设置默认velocity/acceleration scaling为0.1，并为各关节设置速度/加速度上限；该文件未在本次核对中提供独立的min/max position覆盖。MoveIt规划缩放与HardwareInterface/VAL3执行侧保护属于不同层，不可相互替代。
+5. ROS 2官方ros2_control文档说明命令限位可受ControllerManager全局`enforce_command_limits`、joint级或interface级配置控制；因此必须在实际启动配置和日志中确认限位器是否启用，而不是只检查YAML是否存在。
+
+### D. VAL3控制器侧软件关节限位与目标跳变
+
+1. VAL3 `updateJointPositionControl.pgx`将6个float命令字段映射为joint，并在调用`$movejSync()`之前执行`isInRange(l_jJointPositionCmd)`。越界时记录错误、调用`stopJointPositionControl`、置错误并返回。这构成独立于ROS规划层的控制器软件关节范围检查。
+2. `isInRange()`检查的是机械臂软件关节限位范围；它不能单独证明目标速度、加速度、jerk、关节间耦合、碰撞、奇异性、制动距离或工具/工件负载均满足要求。真实安全能力仍受CS9/机器人型号/配置约束。
+3. 同一位置控制程序紧接着保留“Check target is close enough to current position // TODO”，没有看到目标与当前关节位置差值的最大阈值/单周期跳变限制。因而任意一个仍处于合法关节范围内的远距离目标，不能仅凭`isInRange`判定为安全或可平滑执行。
+4. 命令解码程序读取6个float字段并设置`bIsValid`，但没有对每个运动字段执行显式有限数检查；最终位置程序的`isInRange`是当前可见的关节位置门槛。NaN/Inf在VAL3比较、序列化和运动指令API中的实际行为必须通过目标VAL3版本仿真/控制器测试确认，不应推断其必然被安全拒绝。
+5. `$movejSyncState()==1`表示上次命令没有及时刷新，对应日志分支仍被注释；该刷新超时风险已在§9.3.32 RT-16记录，本节将其纳入目标轨迹连续性与跳变验收，而不重复判定为已触发故障。
+
+### E. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| JNT-01 | ROS位置命令输入NaN、+Inf、-Inf | 所有非有限值在socket发送前被拒绝；STOP/ERROR路径和错误可观测性明确 | 未实现/未执行 |
+| JNT-02 | ROS位置命令刚好等于min/max、略超限、远超限 | 边界包含性、限幅/拒绝策略一致；最终写入HardwareInterface的值可追踪 | 未实现/未执行 |
+| JNT-03 | 有限但极大目标、单周期大幅跳变、跨多关节同步跳变 | 在控制器执行前按经验证的目标增量/速度/加速度约束拒绝或安全整形 | 未实现/未执行 |
+| JNT-04 | num_joints为0、1、6、7及错误URDF | 配置准入明确限定支持DoF；固定6轴数组无越界访问 | 未实现/未执行 |
+| JNT-05 | 对照URDF、ros2_control JointLimiter和MoveIt三层限位 | 生成后的URDF边界、ControllerManager enforce配置、启动日志和MoveIt参数一致且差异有说明 | 未实现/未执行 |
+| JNT-06 | ControllerManager关闭/开启enforce_command_limits | 关闭时不得误宣称ROS限位仍生效；开启时验证每个position接口最终命令的边界行为 | 未实现/未执行 |
+| JNT-07 | VAL3 isInRange下限/上限/刚好边界/越界及当前臂已在软件限位外 | 明确CS9目标版本边界语义；越界命令不进入movejSync，异常状态有可观测故障路径 | 未实现/未执行 |
+| JNT-08 | 合法范围内远距离目标与当前反馈偏差 | 实现并验证TODO所指目标接近性阈值，阈值按速度/加速度/周期/负载工况定义 | 未实现/未执行 |
+| JNT-09 | MoveIt规划目标与绕过MoveIt直接写position接口 | 两条入口都满足同一执行侧约束；不能依赖MoveIt缩放作为唯一保护 | 未实现/未执行 |
+| JNT-10 | movejSync刷新延迟、跳变、丢帧后恢复 | 刷新超时进入明确停止/锁存路径；恢复需同步状态并重新授权 | 未实现/未执行 |
+
+### F. 结论与安全边界
+
+固定源码呈现了三层不同性质的约束：模型Xacro/URDF关节范围和速度描述、ros2_control可配置的JointLimiter、VAL3执行前的`isInRange()`软件关节范围检查。MoveIt另有规划速度/加速度缩放。但目前不能据此认定这些层已形成端到端、不可绕过的执行安全闭环：ROS HardwareInterface只显式拒绝NaN而未拒绝Inf；未见其本地位置/增量/周期硬限制；JointLimiter是否实际启用需检查运行时参数；VAL3目标接近性仍为TODO，且关节范围检查不等同轨迹动力学/碰撞/功能安全验证。
+
+优先建议：先将支持轴数固定校验为6并修复所有固定数组索引边界；在ROS发送入口拒绝所有非有限数值；从目标型号官方规格和CS9配置生成唯一版本化限位数据；验证ControllerManager限位启用与启动日志；在VAL3端补目标增量/时间约束与刷新watchdog，并对movejSync拒绝/停止状态做故障锁存。所有阈值需按机器人型号、工具/负载、控制器版本和风险评估确认，不能直接把TX2-60L示例值推广到其他Stäubli型号。
+
+本节仅为固定commit静态审查；未运行构建/单测、限位器实测、MoveIt轨迹执行、VAL3编译/SRS仿真、CS9 HIL/实机或功能安全验证；未修改ICube上游代码。
+
+### 本节来源记录（#1648–#1654）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1648 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | rad→deg转换、NaN检查、固定6元素command_reference及write路径 |
+| #1649 | [staubli_helpers.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro)；[staubli_r2c_joints.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro) | YAML限位加载、URDF joint limit/soft limit、ros2_control接口生成 |
+| #1650 | [TX2-60L joint_limits.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/joint_limits.yaml) | 六轴位置、速度、加速度配置值 |
+| #1651 | [MoveIt joint_limits.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/joint_limits.yaml) | MoveIt默认缩放及速度/加速度上限 |
+| #1652 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | VAL3 isInRange、目标接近性TODO、movejSync刷新状态 |
+| #1653 | [decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 运动float字段解码及有效位设置 |
+| #1654 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 当前测试覆盖接口导出和常规mock write，缺少NaN/Inf/边界/跳变测试 |
