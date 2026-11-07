@@ -1137,3 +1137,15 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 本轮补充确认：现有测试能够覆盖C++侧状态反馈陈旧、缓存读取和普通序号丢包，但不覆盖VAL3控制任务的命令新鲜度、故障标志生命周期、错误恢复授权、movejSync状态机或CS9停止行为。尤其不能把`ReadRobotStateTest`中的mock发送停止称为“机器人停止测试”，也不能把普通round-trip测试称为VAL3互操作测试。
 
 本节仍是固定公开源码与测试文件的静态审查。未运行ROS构建/单测、未运行VAL3编译或SRS仿真、未连接CS9/真实机器人、未执行HIL/FAT/SAT或安全功能验证。所有OBS测试均为后续验收规格，不表示缺陷已复现或测试已通过。
+
+
+### 本节来源记录（#1625–#1628）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1625 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 状态先发、命令处理后置、错误处理和TODO路径 |
+| #1626 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | bMotionPossible/命令/关节范围门控及movejSync状态分支 |
+| #1627 | [test_robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | mock状态反馈staleness测试边界 |
+| #1628 | [test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp)；[test_message_serialization.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp) | subscriber缓存/普通丢包及同实现round-trip测试边界 |
+
+以上均为固定commit源码文件的访问快照；GitHub文件内容不构成编译、测试执行或真实控制器行为证据。
