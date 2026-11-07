@@ -2780,3 +2780,58 @@ ROS侧`RobotCommandMessage::deserialize`先反序列化Header，然后明确检�
 | #1759 | [ICube VAL3 decodeHeader @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx) | 从本次报文读取payload size但不校验与实际帧长度一致性 |
 | #1760 | [ICube ROS RobotCommandMessage::deserialize @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | C++侧Header解析后严格校验固定payload长度的对照实现 |
 
+## 9.3.49 VAL3 sioGet UDP接收语义、非阻塞返回值与报文边界（2026-11-07）
+
+### A. 审查范围与依据
+
+固定ICube driver commit `bd658e2d266e315d2ee35f985fb352ea88306b79`。核对VAL3 `readDataOnce.pgx`、`readData.pgx`、`resetControlSocket.pgx`、`ros2_server.dtx`、`sio.cfx`及C++ UDP实现；并查阅Stäubli VAL3 Reference Manual D.280.935.01-F（2020）中`sioGet`说明。手册规定`sioGet`读取字符/数组，直到数组填满或输入读取缓冲区为空；socket timeout=-1时读取现有缓冲区，空缓冲区返回0，读取错误返回-1。手册没有在该API契约中承诺UDP datagram边界与数组读取边界一一对应。
+
+### B. 当前配置和读取行为
+
+1. `ros2_server.dtx`将控制socket链接到`UdpSocket\\control`；`sio.cfx`明确配置UDP，控制端口11000，timeout=-0.001，endOfString=10。VAL3 `resetControlSocket`又将timeout设为-1。
+2. `readDataOnce`每次调用`sioGet(socket, fixed_array)`。返回值恰等于数组长度时标记新消息；正数但长度不匹配时标记通信错误；返回0或负数时都保持`x_bNewData=false,x_bError=false`。
+3. 因而手册明确规定的`-1`读取错误被误归类为“本次没有新数据”。`readData`最多尝试两次；如果两次均为-1，最终仍向调用方返回无新数据且无通信错误。
+4. `controlTask`在无新消息但旧命令有效时仍进入旧命令的sequence-delay/staleness路径；因此不能说负返回值必然导致旧命令无限执行，但底层读取错误没有被及时、明确地提升为通信故障，行为依赖后续sequence-delay门控和控制状态。
+5. `sioGet`手册描述的是输入读取缓冲区，不是UDP datagram接收API契约。仅凭返回字节数无法证明多数据报不会被合并读取、单数据报不会被部分读取或接收队列不会覆盖/丢弃。上述情况必须在实际CS9/VAL3版本和SIO UDP配置上测量，不能套用Linux recvfrom语义。
+6. `resetControlSocket`将timeout设为-1，符合手册所述的非阻塞读取缓冲区语义：缓冲区空时返回0。注意这与timeout=0（手册描述为无限等待）不是同一配置。
+
+### C. 与C++ UDP实现的边界对照
+
+ROS C++侧使用Boost.Asio UDP socket，`receive_once`的回调按`bytes_transferred`调整vector长度并复制本次接收内容；UDP socket API以单次接收操作报告一个数据报的传输长度。该边界语义不能自动推导到VAL3 SIO层。必须将同一数据报序列（单包、短包、连续包、超大包、乱序/丢包）分别注入C++与VAL3接收路径，比较每次返回长度和帧内容。
+
+### D. 风险判断与整改建议
+
+- **已确认缺陷：** `sioGet==-1`未设置错误状态，readData可能将两次底层读取错误当作正常无数据返回。
+- **已确认接口限制：** VAL3手册定义sioGet按输入缓冲区/数组长度读取，没有承诺该函数提供UDP数据报边界语义。
+- **待验证问题：** 当前CS9 UDP SIO在短数据报、连续数据报和队列拥塞时是否保留报文边界；是否存在跨报文聚合、分段、丢弃或截断；超出固定数组的datagram如何报告。
+- 将读取结果显式建模为DATA / NO_DATA / IO_ERROR；`sioGet<0`立即进入IO_ERROR，不得与正常空缓冲区混淆。
+- 若VAL3 SIO不保证datagram原子性，应增加明确的长度前缀/帧缓存状态机，或使用能保留datagram边界的受支持接口；不得仅通过固定长度数组和换行符配置假定边界正确。
+- 为每次接收记录返回长度、错误码、帧序号、接收时间和队列丢弃计数；异常后清除旧命令有效状态，并按故障锁存/重新授权规则恢复。
+- 明确timeout=-1的非阻塞读取语义，避免将其与timeout=0无限等待混淆。评估`clearBuffer`对Ethernet socket生命周期的影响时，应遵循手册关于socket deactivation的说明，不能把它简单视为纯内存flush。
+
+### E. 新增验证矩阵（SERVO-109–SERVO-118，均待执行）
+
+| ID | 场景 | 预期验收条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-109 | SIO UDP缓冲区空，timeout=-1 | `sioGet`返回0且不置通信错误 | VAL3版本、SIO配置、日志 | 未执行 |
+| SERVO-110 | 注入底层读取错误/关闭或失效socket | `sioGet<0`映射为IO_ERROR，不得静默当作NO_DATA | SRS/CS9日志、错误返回值 | 未执行 |
+| SERVO-111 | 注入短于固定帧长的单个UDP datagram | 确认返回长度、是否消费完整datagram及后续帧是否错位 | 抓包、VAL3逐次返回值 | 未执行 |
+| SERVO-112 | 连续发送两个完整帧且间隔小于控制周期 | 每帧边界与序号可辨识；不得合并成一个伪帧 | 双端pcap、VAL3日志 | 未执行 |
+| SERVO-113 | 一个短帧紧接一个完整帧 | 短帧被拒绝后，下一完整帧仍从正确边界开始解析 | 抓包、帧内容/序号 | 未执行 |
+| SERVO-114 | 一个完整帧紧接另一个完整帧，读取数组已满 | 明确第二帧留在队列、被丢弃或可下一次读取；行为有文档 | 队列实验、逐次返回长度 | 未执行 |
+| SERVO-115 | 注入超过固定接收数组的UDP datagram | 明确报告截断/长度异常，不接受其前缀为完整命令 | 最大长度扫描、抓包 | 未执行 |
+| SERVO-116 | 高速突发使接收队列积压 | 明确测得队列深度/丢弃行为，控制端不执行过期命令 | 突发测试、序号与时间戳 | 未执行 |
+| SERVO-117 | 对照VAL3 SIO与C++ Boost.Asio接收同一数据报语料 | 明确两侧边界/长度/截断策略差异并有一致性策略 | 同步pcap、golden corpus | 未执行 |
+| SERVO-118 | IO_ERROR后恢复正常数据流 | 旧命令失效，须满足故障锁存、冷却和重新授权条件 | 状态机日志、命令序列 | 未执行 |
+
+### F. 本节来源记录（#1761–#1766）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1761 | [ICube VAL3 readDataOnce @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx) | sioGet返回值分支，-1未处理 |
+| #1762 | [ICube VAL3 readData @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx) | 两次读取尝试及错误传播 |
+| #1763 | [ICube VAL3 SIO config @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx) | UDP控制socket配置、timeout和端口 |
+| #1764 | [ICube VAL3 socket binding @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx) | 控制任务SIO绑定 |
+| #1765 | [ICube C++ UDP implementation @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | Boost.Asio UDP单次接收长度与vector处理 |
+| #1766 | [Stäubli VAL3 Reference Manual D.280.935.01-F (2020)](https://bvdp.inetdoc.net/files/iut/robotiqueBUT2/Manuel_de_ref_VAL3.PDF) | sioGet读取终止条件、timeout=-1/0及0/-1返回语义 |
+
