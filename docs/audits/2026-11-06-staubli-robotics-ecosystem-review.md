@@ -576,3 +576,46 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 框架源码版本说明：ROS 2生命周期行为以ROS 2 Jazzy官方文档为依据；实现细节交叉检查ros2_control仓库`jazzy`分支文件快照，`hardware_component.cpp` blob SHA `feffb4063586d577db51cfdbaac86aed95e882f5`、`controller_manager.cpp` blob SHA `3a7a2ee84a7e81af458107fb3abdf24819c8724d`、硬件错误处理测试 blob SHA `a987ef03005913a52f1206e7649bc6b0fe6e52cf`。分支URL为可变引用；部署时仍须锁定实际安装的ros2_control包版本/补丁并复核，不把该分支快照冒充为目标设备已安装版本。
 
 本节为固定上游commit、ROS 2 Jazzy官方文档及ros2_control对应源码/测试的静态交叉审查。没有在本环境构建ICube工作区，没有执行ROS 2 Jazzy ControllerManager集成测试、UDP重复/乱序/静默/缓冲区压力注入、TSan/ASan、VAL3仿真、CS9 HIL或真实机器人停止测量。重复帧刷新时间戳的风险尚未动态复现；框架通用测试不等于ICube插件集成通过。Stäubli仍保持静态审查未验收。
+
+
+## 9.3.18 UDP控制/状态网络的本地绑定与发送方信任边界（2026-11-07）
+
+本节继续固定上游提交 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，将ROS主机侧HardwareInterface参数解析、RobotDriver网络配置、Boost.Asio UDP socket实际绑定/接收行为，以及随附VAL3部署网络说明交叉核对。结论为静态网络暴露面审查，不代表已完成渗透测试或证明存在可远程利用的运动控制漏洞。
+
+### A. ROS主机侧默认绑定行为
+
+1. `RobotDriver::NetworkConfig`中`local_ip`默认空字符串，头文件注释明确说明空值表示绑定任意网络接口；`RobotDriver::connect()`把该值和本地控制/诊断端口传给两个UDP socket。来源#1580–#1581。
+2. `StaubliHardwareInterface::on_configure()`只解析`robot_ip`、control/diagnostic远端端口及local_control/local_diagnostic端口，没有从硬件参数读取或设置`local_ip`。因此通过该HardwareInterface常规配置路径创建的NetworkConfig保留空`local_ip`默认值；除非上游其他调用方显式构造NetworkConfig指定地址，否则不会绑定到专用机器人网卡地址。来源#1581–#1582。
+3. `UDPSocketImpl::connect()`对空地址或`0.0.0.0`选择`address_v4::any()`，再对本地端口执行bind；故常规HardwareInterface路径下控制与诊断接收socket分别监听本机所有IPv4接口上的配置端口（默认11000/11001）。这是由配置默认值与绑定实现共同推导出的静态行为，尚未在目标Ubuntu主机用`ss`/`getsockname`实测。来源#1579–#1582。
+4. `UDPSocketImpl`保存`remote_endpoint_`用于`send_to()`，但没有调用UDP socket的peer-connect来约束接收对端；异步接收使用`async_receive_from(..., sender_endpoint_, ...)`。接收回调中“validate sender before processing”的代码仍为TODO，示例地址比较被注释，随后不论发送方均调用业务callback。因而配置的robot_ip当前是发送目的地址，不构成入站数据报的发送方认证/过滤。来源#1579。
+5. VAL3 README指导将ROS主机接到CS9的J204端口、将主机地址设为`192.168.0.1/24`，并以控制器`192.168.0.254`部署；随附`sio.cfx`把控制和诊断UDP目的地址均设为`192.168.0.1`，端口分别为11000/11001。这说明文档示例预期使用专用链路，但不能抵消ROS主机socket在所有IPv4接口上绑定的实现事实。来源#1583–#1584。
+
+### B. 安全影响与边界
+
+- **P1｜非预期网络接口可达性。** 在常规HardwareInterface路径中，UDP端口监听所有IPv4接口；如果ROS主机还有办公网、Wi-Fi、VPN、容器桥或其他可路由接口，且主机防火墙未阻断，则这些网络上具备路由可达性的主机可能向控制/诊断接收端口发送数据报。实际可达性取决于OS路由、防火墙、网络命名空间和部署拓扑，本轮未探测。
+- **P1｜入站来源未验证。** 接收代码已明确留下发送方校验TODO，并继续把数据报交给消息解析回调。结合已审查的序号/重复帧/staleness路径，伪造或重放的状态数据可能污染ROS侧反馈、序号跟踪和健康判断；伪造诊断数据的影响仅在诊断接收链路被外部发送端接通时适用。尚未构造数据报验证端到端影响。
+- **安全协议边界。** 当前公开消息Header/字段布局没有显示应用层身份认证、消息完整性MAC或会话nonce字段；UDP校验和不提供发送方身份认证。不得据此宣称网络链路已加密或具备抗重放认证。若产品威胁模型要求跨不可信网络部署，应设计经过实时性评估的认证封装/隔离隧道，而不是仅依赖magic、version、sequence和固定robot_ip。
+- **禁止过度推断。** 本节没有证明攻击者能够直接向CS9注入运动命令：当前ROS侧入站方向主要接收状态/诊断，运动命令由ROS主机发往配置的robot_ip；控制器端VAL3的SIO对端过滤/报文接收语义还需受控手册和CS9实验确认。当前可确认的是ROS主机接收面未在源码中验证发送方，以及所有接口绑定默认值扩大了可能的入站暴露范围。
+
+### C. 修复与部署准入要求
+
+1. **默认拒绝宽绑定：** 将`local_ip`纳入HardwareInterface必填参数，要求显式配置机器人专用NIC地址；空值/0.0.0.0在真实硬件模式下应fail-closed。若mock模式不需要socket，应避免误把mock路径作为真实网络安全证据。
+2. **验证对端地址与端口：** 在任何消息解析、序号更新和接收时间戳刷新之前，校验`sender_endpoint_`的IP及端口与冻结的机器人端点一致；拒绝非预期来源并记录限速计数。若CS9可能使用多个合法源端口，必须从受控资料/抓包建立明确白名单，不可仅凭猜测放宽。
+3. **网络隔离：** 将CS9控制链路放在专用物理接口/VLAN/受控子网；配置主机防火墙仅允许目标CS9 IP及必要UDP端口；禁止从办公网、访客Wi-Fi、VPN或公网路由到控制/诊断端口。网络隔离是纵深防御，不替代应用层发送方验证。
+4. **协议抗伪造/重放：** 定义会话/重连标识、单调序号窗口及认证完整性机制；评估MAC/HMAC或受控安全隧道对4ms VAL3循环、主机实时调度和网络时延的影响。不得未经性能与安全验证就直接增加阻塞式加密操作到实时控制循环。
+5. **可观测性：** 分开统计有效peer包、拒绝peer包、重复/乱序包、解析失败、staleness和网络接口；日志不得泄露凭据或使攻击者通过高频数据报触发无界日志/CPU开销。
+
+### D. 新增可执行验收矩阵
+
+| ID | 注入/前置条件 | 必须观测的结果 | 当前证据/缺口 |
+|---|---|---|---|
+| NS-01 | 在双网卡主机启动真实HardwareInterface并检查UDP 11000/11001绑定 | socket只绑定显式机器人NIC地址；不得出现0.0.0.0 wildcard | 源码默认推导；未在Ubuntu目标机检查 |
+| NS-02 | 从非机器人网卡/第二主机向控制端口发送合法格式RobotState | 在解析前按peer IP/port拒绝；状态缓存、序号、接收时间戳均不变化 | sender检查仍为TODO；未注入 |
+| NS-03 | 从非预期源发送重复/乱序/高频状态帧 | 不进入subscriber，不刷新staleness，不造成无界日志/CPU负载 | 未执行网络压力/资源观测 |
+| NS-04 | 向诊断端口发送伪造DiagnosticData | 在来源验证失败时拒绝；诊断ready状态不得被伪造报文提升 | 随附VAL3诊断publisher未实现；外部发送路径未测 |
+| NS-05 | 机器人IP正确但源UDP端口异常/变更 | 按已冻结的合法源端口策略处理，不能仅凭目的IP配置放行所有来源端口 | 端口契约尚待CS9受控资料/抓包确认 |
+| NS-06 | 主机同时连接专用机器人网、办公网、VPN/容器桥 | 防火墙/路由验证无非授权路径可达11000/11001 | 依赖目标部署拓扑，未执行渗透/防火墙测试 |
+
+### E. 验证边界
+
+本节证据来自固定commit的`udp_socket_impl.hpp`、`robot_driver.hpp`、`robot_driver.cpp`、`staubli_hardware_interface.cpp`、VAL3 README及`sio.cfx`静态源码/配置。未构建驱动、未运行Ubuntu socket绑定检查、未执行双网卡/跨网段UDP注入、未做防火墙/渗透测试、未运行TSan/ASan、未连接CS9或真实机器人。所有安全影响均为基于源码和部署参数的风险分析，不是已复现攻击。Stäubli仍为静态审查未验收。
