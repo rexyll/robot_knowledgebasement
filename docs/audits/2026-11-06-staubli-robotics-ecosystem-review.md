@@ -1676,3 +1676,101 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1671 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync启动、刷新与状态处理 |
 | #1672 | [stopJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx) | movejSyncEnd后无等待/静止确认 |
 | #1673 | [moveit_controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml) | MoveIt使用FollowJointTrajectory Action而非topic映射 |
+
+
+---
+
+## 9.3.36 MoveIt取消传播、控制器故障与执行结果一致性（2026-11-07）
+
+### A. 审查基线与范围
+
+- Stäubli上游固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy源码固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- 核对Stäubli MoveIt launch/controller配置，并分别追踪`MoveGroup` Action与`ExecuteTrajectory` Action、PlanExecution、TrajectoryExecutionManager（TEM）、MoveItSimpleControllerManager和FollowJointTrajectory Action结果。
+- 来源#1674–#1681。静态源码审查；未运行MoveIt/ROS构建、Action集成测试、控制器故障注入、SRS/CS9 HIL或实机测试。
+
+### B. Stäubli配置与两条MoveIt执行入口
+
+1. `staubli_moveit.launch.py`直接启动`move_group`，由`MoveItConfigsBuilder(...).to_moveit_configs()`提供MoveIt参数；本仓库`moveit_controllers.yaml`选择`moveit_simple_controller_manager/MoveItSimpleControllerManager`，控制器Action为`joint_trajectory_controller/follow_joint_trajectory`。
+2. MoveIt存在不同的Action入口，不能把其取消逻辑混为一谈：
+   - `MoveGroup` Action：组合规划与执行入口。
+   - `ExecuteTrajectory` Action：执行已给定的RobotTrajectory；MoveGroupInterface的execute()路径使用该Action。
+   - 两者最终均可能经TEM与MoveIt controller handle调用底层FollowJointTrajectory Action，但上游Action取消回调的接线不同。
+
+### C. MoveGroup Action取消传播：存在明确的停止调用链
+
+1. Jazzy `move_action_capability.cpp`的MoveGroup Action cancel回调调用`preemptMoveCallback()`，然后返回ACCEPT。
+2. `preemptMoveCallback()`设置`preempt_requested_=true`并调用`PlanExecution::stop()`。
+3. `PlanExecution::stop()`设置内部preempt标志；正在执行的`executeAndMonitor()`循环检查该标志，退出监控循环后调用`TrajectoryExecutionManager::stopExecution()`。
+4. PlanExecution将结果设为`MoveItErrorCodes::PREEMPTED`；MoveGroup Action回调最终调用`goal->canceled(action_res)`。因此这条MoveGroup Action路径在静态源码中有完整的软件取消传播链。
+5. 但TEM的stopExecution只向控制器Action请求cancel，并不发VAL3 STOP或CS9安全停止；取消响应不是机械臂静止证明。该路径的物理停止行为仍继承§9.3.35的JTC默认hold和VAL3停止确认缺口。
+
+### D. ExecuteTrajectory Action取消：取消回调与停止函数未接线
+
+1. `execute_trajectory_action_capability.cpp`创建ExecuteTrajectory Action server时，cancel回调只有`return CancelResponse::ACCEPT`，没有调用`preemptExecuteTrajectoryCallback()`或TEM的`stopExecution()`。
+2. 类中确实声明并定义了`preemptExecuteTrajectoryCallback()`，其函数体会调用`trajectory_execution_manager_->stopExecution(true)`；但在该固定Jazzy源码中，全文搜索只发现声明和定义，没有找到任何调用点。它没有被传给Action server的cancel回调。
+3. 执行回调调用`executePath()`后同步等待`waitForExecution()`。当前cancel回调只接受取消请求，不会使该等待路径主动停止TEM。由此存在高风险：客户端收到取消请求被接受的响应，但控制器轨迹仍可能继续执行；Action执行回调后续还会走正常结果终结代码。
+4. 即使将停止函数接线，`executePath()`会把TEM的PREEMPTED映射为MoveIt PREEMPTED，但`executePathCallback()`只在SUCCESS时调用`goal->succeed()`，其余所有结果统一调用`goal->abort()`，没有对PREEMPTED调用`goal->canceled()`。这与Action取消的终态语义不一致。
+5. 这是静态源码接线缺口；Action协议状态在运行时的具体表现（canceling状态能否保持、后续succeed/abort调用是否被拒绝或报错、客户端是否超时）尚未实测。不能将其写成已验证的运行时故障，但必须作为P1/P0集成验收项。
+
+### E. TEM与ControllerHandle的取消确认、状态和等待问题
+
+1. Jazzy TEM的`stopExecutionInternal()`遍历活动controller handles调用`cancelExecution()`，但忽略该函数返回的bool值，只捕获异常。随后`stopExecution()`提前设置`execution_complete_=true`并将`last_execution_status_`设置为PREEMPTED，再join执行线程。软件状态因此可能先于控制器真实取消结果被标记为PREEMPTED。
+2. `ActionBasedControllerHandle::cancelExecution()`调用`async_cancel_goal(current_goal_)`并等待Cancel response；但只检查response指针是否为空，没有验证response的return_code或`goals_canceling`是否包含当前goal。只要response对象非空，就设置PREEMPTED、`done_=true`并返回true。取消被拒绝/未命中当前goal时存在误报PREEMPTED的风险。
+3. `waitForExecution()`仍等待Action最终result；取消响应仅表示取消请求处理结果，不代表最终result已到达，更不代表机器人静止。控制器拒绝取消、Action server失联或不返回终态时，等待线程可能长期阻塞；TEM的stopExecution随后join该线程，停止调用也可能被拖住。需要有界等待、结果超时和明确的故障升级策略。
+4. FollowJointTrajectory的`controllerDoneCallback()`会记录result payload中的`error_code/error_string`，但最终`finishControllerExecution()`只根据外层rclcpp Action `wrapped_result.code`更新ExecutionStatus，没有把payload的`error_code`纳入状态判定。对非标准或异常Action server，外层SUCCEEDED与payload非SUCCESSFUL可能产生状态不一致；标准JTC通常通过ABORTED表达执行错误，但仍应加入一致性测试。
+5. TEM的`executeThread()`在last status为SUCCEEDED时调用`waitForRobotToStop()`，但忽略其bool返回值；即使状态采样失败或1秒内未观察到连续3次无运动，仍可能保留SUCCEEDED并通知完成。其“静止”判定是连续状态位置变化小于allowed start tolerance，并非基于独立速度阈值、目标位置误差或安全控制器静止信号。
+6. 该等待仅位于成功完成路径；外部stopExecution设置`execution_complete_=true`后，executeThread不会进入成功等待分支。因此取消路径没有等价的机器人静止确认。另，成功路径调用waitForRobotToStop时持有`execution_state_mutex_`，并发stopExecution需等待该临界区结束，可能增加取消响应延迟。
+7. 当前TEM默认执行时长监控开启，默认允许时长为预估轨迹时长乘1.1并增加0.5秒；但这只是MoveIt执行监控超时，不是机械停止时间/距离保证，也不能替代控制器Action结果和状态新鲜度检查。
+
+### F. 故障传播与状态一致性结论
+
+- **MoveGroup Action**：源码上有cancel→preempt flag→PlanExecution→TEM→controller Action cancel的链；Action最终可返回CANCELED/PREEMPTED，但TEM/ControllerHandle仍可能在取消未确认时提前报告PREEMPTED。
+- **ExecuteTrajectory Action**：cancel回调只接受请求，没有调用现有preempt停止函数；停止调用链静态上未接通。即使TEM返回PREEMPTED，当前Action终结代码仍统一走ABORTED分支。
+- **控制器Action**：MoveIt等待最终result；取消请求response、Action终态、FollowJointTrajectory payload error_code和机械臂静止是四种不同证据，不能互相替代。
+- **执行成功**：TEM对waitForRobotToStop()失败不处理，存在“状态流未证明静止但执行结果仍SUCCEEDED”的风险。
+- **节点/控制器故障**：需要注入move_group退出、JTC lifecycle deactivate/error、Action server失联、UDP断链、反馈停止更新和取消拒绝，确认MoveIt不将未知/失联状态误报成功，且有界超时后进入明确故障态。
+
+### G. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| MEX-01 | MoveGroup Action规划中取消 | cancel触发preempt标志，MoveGroup以CANCELED终结，无后续意外执行 | 未执行 |
+| MEX-02 | MoveGroup Action执行中取消 | TEM stopExecution被调用；底层JTC收到cancel；Action结果与控制器终态一致 | 未执行 |
+| MEX-03 | ExecuteTrajectory Action执行中取消 | cancel回调必须调用TEM stopExecution；当前源码接线缺口须先修复/验证 | 静态发现缺口 |
+| MEX-04 | ExecuteTrajectory取消终态 | PREEMPTED映射为Action CANCELED，而不是统一ABORTED；无重复/非法终结 | 静态发现终态映射缺口 |
+| MEX-05 | 控制器拒绝cancel | 检查Cancel response return_code和goals_canceling；不得无条件标记PREEMPTED | 静态发现确认不足 |
+| MEX-06 | cancel response成功但result迟迟不返回 | 有界等待、超时诊断和故障升级；不得无限join或假报已停止 | 未执行 |
+| MEX-07 | TEM controller handle返回false/抛异常 | 取消失败被传播为失败/未知状态，不得无条件PREEMPTED | 静态发现返回值被忽略 |
+| MEX-08 | 外层Action SUCCEEDED但payload error_code非SUCCESSFUL | MoveIt报告控制失败/结果不一致，不得假报成功 | 未执行 |
+| MEX-09 | waitForRobotToStop超时 | TEM将失败映射为TIMED_OUT/CONTROL_FAILED；不得保留SUCCEEDED | 静态发现返回值被忽略 |
+| MEX-10 | joint state停止更新/时间戳陈旧 | 停止确认失败并进入STALE/FAULT，不以重复旧状态当作静止 | 未执行 |
+| MEX-11 | cancel与成功收尾并发 | 验证execution_state_mutex竞争、取消延迟、Action结果唯一且无竞态 | 未执行 |
+| MEX-12 | move_group/JTC退出、deactivate、UDP断链 | 有界检测、停止/安全链响应、MoveIt返回失败且不残留旧goal | 未执行 |
+| MEX-13 | 取消完成后新目标提交 | 旧goal终态确认、控制器状态刷新、静止/授权条件满足后才允许重启 | 未执行 |
+| MEX-14 | MoveGroup与ExecuteTrajectory双入口并发 | 单一执行仲裁；禁止两个入口对同一机械臂并行写入或状态错配 | 未执行 |
+
+### H. 优先整改建议
+
+1. 修复ExecuteTrajectory Action cancel回调，直接调用统一的取消/停止协调器；终态必须区分SUCCESS、CANCELED/PREEMPTED、ABORTED和UNKNOWN。
+2. 为MoveGroup和ExecuteTrajectory共用一个执行状态机/仲裁层，明确每个goal UUID到控制器goal的映射，防止两个入口并行控制或取消错对象。
+3. ControllerHandle必须校验Cancel response的return_code及goals_canceling；TEM必须检查cancelExecution()返回值并将取消拒绝、通信失败和Action超时传播为明确状态，不能先验设置PREEMPTED。
+4. 为Action最终result等待设置单调时钟超时；超时后报告控制器失联/状态未知，触发独立故障策略，不能无限等待。
+5. TEM必须处理waitForRobotToStop()的false结果；将“Action成功”“轨迹控制器成功”“机器人反馈静止”“目标位置误差合格”分开定义和报告。静止确认应使用新鲜状态、速度/位置增量阈值、连续稳定时间及明确超时。
+6. 成功收尾和取消路径都需要相同的状态新鲜度及停止确认策略；不得仅在SUCCEEDED路径检查静止，也不得在取消时把PREEMPTED当作停止确认。
+7. 所有软件路径都不是安全停止功能；E-stop、SS1/SS2、STO、制动器及安全PLC必须独立有效。
+
+本轮只完成静态源码/配置审查及文档维护；未执行MoveIt/ROS构建、Action集成测试、取消拒绝/超时故障注入、JTC lifecycle故障、UDP断链、VAL3/SRS、CS9 HIL或实机测试。未修改MoveIt或ICube上游代码。
+
+### 本节来源记录（#1674–#1681）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1674 | [MoveGroup Action capability @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp) | MoveGroup Action取消回调、PlanExecution stop和CANCELED终态 |
+| #1675 | [PlanExecution @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/plan_execution/src/plan_execution.cpp) | preempt flag、TEM stopExecution、PREEMPTED映射 |
+| #1676 | [TrajectoryExecutionManager @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp) | stopExecution忽略cancel返回值、PREEMPTED设置、等待静止结果忽略 |
+| #1677 | [ActionBasedControllerHandle @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp) | async_cancel_goal响应检查与PREEMPTED设置、Action result等待 |
+| #1678 | [FollowJointTrajectoryControllerHandle @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_plugins/moveit_simple_controller_manager/src/follow_joint_trajectory_controller_handle.cpp) | result payload错误日志与wrapped_result.code状态映射 |
+| #1679 | [ExecuteTrajectory Action capability @ MoveIt Jazzy commit 6ed6372](https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/move_group/src/default_capabilities/execute_trajectory_action_capability.cpp) | cancel回调仅ACCEPT、preempt函数无调用连接、PREEMPTED终态走abort |
+| #1680 | [Stäubli MoveIt launch @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/launch/staubli_moveit.launch.py) | MoveGroup节点启动及MoveIt配置装载 |
+| #1681 | [Stäubli MoveIt controllers @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml) | SimpleControllerManager与FollowJointTrajectory Action映射 |
