@@ -3097,3 +3097,83 @@ Stäubli 2021年CS9实时配置文档§4.2说明：同步VAL3任务按创建时�
 | #1785 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | bIsOverrun只日志、清标志、nOverruns递增；循环末尾delay(0)，无overrun专属STOP |
 | #1786 | [ICube VAL3 database @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx) | bIsOverrun、nOverruns全局变量声明与初值 |
 | #1787 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §4.2](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 同步任务周期、3000行执行上限、delay(0)让出、超周期取消下一周期及overrun bool语义 |
+
+
+## 9.3.54 CS9系统任务、IO刷新与VAL3同步任务CPU预算（2026-11-08）
+
+本节继续固定审查ICube上游 `bd658e2d266e315d2ee35f985fb352ea88306b79`，重点区分VAL3用户任务周期与CS9系统扫描/IO刷新调度。重要边界：Stäubli《CS9 Real Time Val3/Fieldbus configuration》TSS.000.014.04-A（2021）说明了系统任务调度机制，但当前ICube仓库未包含目标单元的 `usr/configs/cell.cfx`、UserIORefresh配置、IO模块清单或CS9运行时跟踪。因此不能推断目标设备实际使用默认cyclicRatio、jitter或noJitter模式，也不能把文档时序图当作本项目实测结果。
+
+### A. CS9单扫描周期不是VAL3独占窗口
+
+Stäubli文档§3.1–§3.2描述CS9每个CPU扫描周期的基本顺序：
+
+1. Synchro system task：处理机器人轨迹及系统IO板刷新，包括CpuIO、DsiIO、FastIO、PowerSupplyIO、Rsi9IO、StarcIO。
+2. IO Refresh task：刷新用户IO板，包括J206 EtherCAT master、J207/J208 Real Time Ethernet及Hilscher CIFX PCIe现场总线卡。
+3. 用户VAL3同步任务。
+4. 用户VAL3异步任务。
+
+文档明确指出CS9单处理器一次只执行一个任务；用户同步VAL3任务会消耗较多CPU资源。系统任务与用户任务按上述扫描顺序竞争同一处理器时间。因此，`taskCreateSync(...,0.004,...)`表达的是任务调度周期请求，并不意味着每4ms都有完整4ms供该VAL3程序执行，也不意味着它能越过系统轨迹与IO刷新任务。
+
+### B. 3000行限制不是CPU时间预算或WCET
+
+§4.2规定每次同步VAL3任务调度最多执行3000条VAL3指令行；遇到不能立即完成的指令（例如运行时错误、等待信号、任务停止等）时，调度器会转向下一个任务。实践中使用`delay(0)`主动让出本次任务片段。该规则是每次同步任务序列的指令行数上限，不是“3000行必定在4ms内执行完”的时间保证，也不是CPU总预算百分比。
+
+当前`controlTask.pgx`包含状态采样、序列号处理、消息编码、SIO UDP发送/接收、命令解码、延迟检查、运动控制调用、错误恢复和日志等路径。源码行数本身无法估算实际执行时间；SIO读写等指令也可能使当前同步任务片段提前让出。必须按不同命令模式、正常/异常路径和IO规模测量每轮执行时间及尾部延迟。
+
+### C. User IO刷新周期比与Jitter模式是未决配置项
+
+§3.3说明用户IO数量很大时，IO Refresh task可能无法在一个CPU scan内刷新全部IO；可通过`usr/configs/cell.cfx`中的`UserIORefresh/cyclicRatio`设置刷新周期比。默认值为1；设置为2表示IO刷新任务可用最多两个CPU scan完成一轮刷新。文档建议只在必要时增大该值，因为数值越大，VAL3程序与用户IO刷新的时间差越大。
+
+§3.4描述两种刷新组织方式：
+
+- 默认jitter模式：单独运行IO Refresh task。
+- `noJitter`模式：不再单独运行IO Refresh task，用户IO在Synchro system task中刷新。若用户板刷新时间过长导致Synchro system task overrun，文档指出机器人会停止且需要重启。
+
+noJitter下cyclicRatio仍有效；例如ratio=2时，用户IO在同步系统任务中隔一扫描周期刷新。该模式把用户IO刷新与系统同步任务耦合，不能简单理解为“抖动更低且没有代价”。本次未取得目标CS9的`cell.cfx`和IO配置，因此无法判断ICube部署使用哪种模式、ratio为何值、用户板有哪些或是否存在刷新周期缺口。
+
+### D. 对本项目4ms控制路径的影响
+
+1. `start.pgx`配置VAL3 controlTask周期0.004s，但本任务位于系统同步轨迹/系统IO和用户IO刷新之后；4ms不是本任务独占CPU预算。
+2. 如果User IO Refresh采用cyclicRatio>1，VAL3控制任务可能每4ms执行，而部分用户IO的刷新周期更长。若未来把GPIO命令实现为现场总线输出，必须在协议和控制语义中区分“命令已被VAL3接受”“IO已写入VAL3变量”“物理IO模块已刷新”三个时刻。
+3. 若采用noJitter，用户IO刷新过载的后果可能升级为同步系统任务overrun和机器人停止/重启；这与用户VAL3 controlTask自身的overrun标志不是同一层级、也不是同一故障处理路径。
+4. 当前`controlTask.pgx`中的GPIO数字/模拟输出处理仍是TODO；因此现阶段不能声称ROS命令已经具备物理GPIO输出时序保证，也不能把尚未实现的GPIO路径纳入已验证的4ms控制预算。
+5. Stäubli文档§4.1说明CS9单处理器通过任务序列模拟并发，异步任务的执行片段受优先级和系统空闲时间影响；网络通信、屏幕刷新和文件访问等低优先级系统工作会利用剩余CPU时间。不能将“有多个VAL3任务”解释为多核并行执行。
+6. Stäubli文档§5.3.1给出的示例中，同步VAL3采集到的位置通过用户IO刷新任务在后续CPU scan才送到现场总线；4ms scan时示例延迟为4ms。该例证明IO采样与物理刷新之间可能存在一个周期级延迟，但不是ICube当前UDP状态通道的测量结果。
+
+### E. 配置核验和工程整改
+
+- 获取与机器人型号、CS9软件版本匹配的实际`cell.cfx`、IO模块/总线配置、CPU scan time、UserIORefresh cyclicRatio及jitter mode；保存配置文件哈希和控制器版本。
+- 记录Synchro system task、IO Refresh task、VAL3同步任务及异步任务的实际执行时间线；同步记录系统CPU负载、VAL3任务状态、IO刷新耗时和overrun计数。
+- 分别在ratio=1、目标配置ratio及最大IO负载下测量IO更新年龄、刷新周期、抖动和任务overrun；任何ratio/noJitter更改必须在隔离测试单元中按Stäubli流程验证，不直接对生产机器人试错。
+- 对controlTask拆分测量updateState、序列化、SIO发送、SIO接收、解码、运动控制及错误恢复的时间预算；覆盖位置/速度控制、停止、首帧、拥塞和异常日志路径。
+- 将“VAL3同步任务overrun”和“同步系统任务/IO刷新overrun”设计为不同诊断类别；后者可能影响机器人系统级运行状态，不可只通过nOverruns计数推断。
+- 在GPIO输出实现前定义物理IO生效确认方式（反馈输入、现场总线周期计数或硬件时间戳），不要把软件变量赋值当作物理输出已刷新。
+
+### F. 新增验证项（SERVO-161–SERVO-174，均未执行）
+
+| ID | 验证场景 | 通过条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-161 | 获取目标CS9实际cell.cfx | 文件版本、哈希、UserIORefresh配置可追溯 | 原始配置/版本记录 | 未执行 |
+| SERVO-162 | 核对目标CS9系统任务顺序 | 运行时轨迹符合Synchro system→IO Refresh→VAL3 sync→VAL3 async | CS9跟踪/厂商诊断 | 未执行 |
+| SERVO-163 | 4ms任务CPU执行预算测量 | 在目标负载下得到controlTask各阶段耗时、最大值及剩余CPU预算 | 高分辨率跟踪 | 未执行 |
+| SERVO-164 | 3000行同步任务调度上限行为 | 验证达到行数上限、遇等待/阻塞指令时的切换语义 | 隔离测试程序/跟踪 | 未执行 |
+| SERVO-165 | cyclicRatio配置核验 | 实际配置值与用户IO完整刷新周期及延迟一致 | cell.cfx/IO跟踪 | 未执行 |
+| SERVO-166 | jitter与noJitter模式识别 | 运行时刷新组织方式与配置一致，模式切换有记录 | 配置与周期跟踪 | 未执行 |
+| SERVO-167 | noJitter用户IO过载保护 | 在安全隔离测试环境确认系统同步任务overrun、机器人停止及恢复要求 | 故障注入/控制器日志 | 未执行 |
+| SERVO-168 | 用户IO采样到物理刷新延迟 | 测得VAL3写入、IO任务刷新、外部端子变化三个时刻的延迟分布 | 示波器/逻辑分析仪/总线跟踪 | 未执行 |
+| SERVO-169 | 同周期多个VAL3同步任务排序 | 实际执行顺序与创建顺序规则一致，累计耗时不超周期 | 任务创建记录/跟踪 | 未执行 |
+| SERVO-170 | SIO读写指令的任务让出行为 | 明确发送/接收调用对同步任务片段执行与下一任务调度的影响 | CS9任务跟踪/网络注入 | 未执行 |
+| SERVO-171 | monitor speed与真实周期预算相关性 | 记录monitor speed、CPU负载、同步任务执行时间及overrun的关联 | 多工况运行日志 | 未执行 |
+| SERVO-172 | CPU与IO联合压力测试 | 最大用户IO负载、UDP双向压力和VAL3计算负载下，周期/刷新延迟满足经批准的预算 | 压力测试报告 | 未执行 |
+| SERVO-173 | 系统级与用户级overrun诊断区分 | 可区分同步系统任务overrun、IO Refresh问题与VAL3 controlTask overrun | 诊断记录/故障注入 | 未执行 |
+| SERVO-174 | GPIO命令到物理IO反馈闭环 | 输出命令、总线刷新、端子变化及反馈输入的时序可追溯 | HIL/逻辑分析仪记录 | 未执行 |
+
+### G. 本节来源记录（#1788–#1792）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1788 | [ICube VAL3 start @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | 0.004s周期配置、monitor speed低于100%仅warning、任务创建路径 |
+| #1789 | [ICube VAL3 project @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | 项目包含的用户VAL3程序清单；仓库未提供cell.cfx/UserIORefresh配置 |
+| #1790 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §§3.1–3.3](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 系统同步任务、用户IO刷新任务、单CPU扫描顺序、cyclicRatio语义 |
+| #1791 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §3.4](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | jitter/noJitter模式及noJitter用户IO刷新过载后果 |
+| #1792 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §§4.1–4.2、5.3.1](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 单处理器任务序列、同步任务3000行限制、delay(0)、IO刷新引入的周期延迟 |
