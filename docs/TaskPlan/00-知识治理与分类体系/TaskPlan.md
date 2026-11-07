@@ -475,3 +475,6 @@
 
 
 | 2026-11-07 | 00-01/Stäubli连接就绪声明与底层证据分层 | 对照RobotDriver::connect、RealTimeSocketSubscriber::is_ready和ConnectionTest，明确transport readiness不能代表业务报文有效；诊断ready硬编码true、连接循环无提前退出、固件版本日志无诊断帧依据。新增审计§9.3.28与来源#1629–#1631。未运行测试/构建或硬件验证。 | Stäubli专项审计§9.3.28；来源#1629–#1631 |
+
+
+| 2026-11-07 | 00-01/Stäubli网络配置输入边界 | 记录端口参数stoi解析后窄化uint16_t的输入校验缺口及PORT-01–PORT-05测试规格；静态证据不代表已发生网络误连，尚未运行参数注入或socket测试。 | Stäubli专项审计§9.3.29；来源#1632–#1633 |
