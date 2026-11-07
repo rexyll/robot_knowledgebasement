@@ -65,5 +65,5 @@
 
 
 
-- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.33；新增ROS2—UDP—VAL3端到端实时控制周期/反馈新鲜度/命令时序闭环（§9.3.32，RT-09–RT-17）、ros2_control生命周期STOP责任与模式切换边界（§9.3.31，LIFE-01–LIFE-08）、连接握手/诊断双通道ready（§9.3.28，CONN-01–CONN-07）、UDP端口参数严格解析/uint16_t窄化边界（§9.3.29，PORT-01–PORT-05），以及UDP发送错误传播、接收错误回调、stop/start线程生命周期和peer校验缺口（§9.3.30，UDP-01–UDP-09、SUB-01–SUB-02）。未运行构建/单测、参数/网络故障注入、VAL3编译/SRS仿真或CS9 HIL/实机验证。
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.34；新增轨迹完成语义/反馈一致性/MoveIt Action容差（§9.3.34，TRJ-01–TRJ-12）、运动命令NaN/Inf输入边界及URDF/ros2_control/MoveIt/VAL3限位分层（§9.3.33，JNT-01–JNT-10）、ROS2—UDP—VAL3端到端实时控制周期/反馈新鲜度/命令时序闭环（§9.3.32，RT-09–RT-17）、ros2_control生命周期STOP责任与模式切换边界（§9.3.31，LIFE-01–LIFE-08）、连接握手/诊断双通道ready（§9.3.28，CONN-01–CONN-07）、UDP端口参数严格解析/uint16_t窄化边界（§9.3.29，PORT-01–PORT-05），以及UDP发送错误传播、接收错误回调、stop/start线程生命周期和peer校验缺口（§9.3.30，UDP-01–UDP-09、SUB-01–SUB-02）。未运行构建/单测、参数/网络故障注入、VAL3编译/SRS仿真或CS9 HIL/实机验证。
 
