@@ -2917,6 +2917,14 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - 超长数据报截断前缀是否会被目标OS/Boost组合接受尚未复现，列为条件性风险候选；需要目标环境UDP注入和精确长度拒绝测试。仅静态审查，未运行测试/构建/CS9实机验证。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md §9.3.11。
 
 
+
+### 128.11 Stäubli ICube UDP发送语义与线程生命周期（2026-11-07）
+- 固定main源码中would_block分支记录数据报丢弃但最终返回true，上层send_message/send_robot_command可能误报成功；静态确认，未触发内核缓冲区满。来源#1546、#1548。
+- stop_receive_thread仅stop io_service并join，未显式cancel socket异步接收；stop→restart可能遗留旧异步操作并与新接收复用缓冲区，需在目标Boost版本复现。start_receive_thread先替换callback再检查线程状态，失败的重复start仍改变当前回调。来源#1546。
+- Subscriber捕获裸this，析构依赖停止/join；RobotDriver生命周期操作未见整体互斥。现有socket测试缺少stop→restart、不同callback重复start、并发send/disconnect及would_block错误注入。来源#1547–#1549。
+- 建议修复发送成功语义、cancel outstanding receive、串行化socket生命周期，并补充TSan/压力测试。专项报告§9.3.12。未运行测试、构建或实机验证。
+
+
 ### 129.1 Universal Robots增量主张核验（2026-11-06）
 - PolyScope X ROS 2 URScript文档警示publisher/subscriber句柄生命周期及至少2ms方法调用延迟，运动段间调用可能影响blend；应解耦通信线程并在目标PSX版本实测。来源#1437。
 - UR Safety FAQ称CB3于2022年EOL且不在ISO 10218-1:2025认证路径，CB5.6为PolyScope X要求控制箱；e-Series/UR Series现行PLd Cat.3声明和2025版认证计划（2027-01）必须区分。来源#1436。
