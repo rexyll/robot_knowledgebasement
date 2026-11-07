@@ -764,3 +764,68 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 ### G. 验证边界
 
 本轮仅审查固定commit中的VAL3源码与随附README；未运行VAL3编译器、未连接CS9、未测量真实周期/overrun、未做UDP丢包乱序/队列注入、未触发movejSync状态1、未执行HIL或实机停止时间测试。Stäubli仍为静态审查未验收。
+
+
+## 9.3.22 VAL3错误恢复、控制器/ROS重启与运动重新授权（2026-11-07）
+
+本节固定审查ICube上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`（当前公开main解析到该提交）。检查VAL3的`start.pgx`、`stop.pgx`、`controlTask.pgx`、消息头/命令解码、`updateState.pgx`，以及ROS 2侧HardwareInterface和RobotDriver。结论：正常启动默认STOP，控制器安全状态参与运动许可；但应用层错误恢复没有明确的故障锁存/人工确认协议，也没有会话epoch/重连握手把新命令绑定到当前控制器任务实例。
+
+### A. VAL3任务启动/停止行为
+
+1. `start.pgx`启动时调用`stopMove()`、`resetMotion()`、`autoConnectMove(true)`，然后将4 ms周期任务`controlTask`创建运行。控制任务初始化时将本地命令模式与上一命令模式都设为1（STOP/Idle）、命令消息设为默认STOP但无效，并清零本地序号。启动程序没有独立的通信会话ID、随机挑战值或要求操作员确认后才接受第一条新运动命令的步骤。来源#1599–#1600。
+2. `stop.pgx`调用`stopMove()`、`resetMotion()`并清空控制socket buffer。它没有记录可跨任务重启保留的故障锁存/授权状态；该程序也不能据此证明控制器掉电、VAL3应用停止或进程退出时的实际停止响应。来源#1600。
+
+### B. 应用层错误处理存在“清错后重新接收”路径
+
+1. `controlTask.pgx`在错误处理块中调用停止函数（对位置控制模式调用`stopJointPositionControl`）、随后调用`stopMove()`和`resetMotion()`；将命令类型和当前模式置为0（Invalid/Error），随后将`l_bError`清为false、清零状态序号和延迟、将`l_bControlActive`置false、将命令标记为无效，并调用`resetControlSocket`清理接收缓冲区。来源#1601。
+2. 紧接着的源码注释明确写着“TODO: add delay (e.g., 1000ms) before accepting new commands?”；因此当前代码没有实施该等待，也没有操作员ACK、故障原因确认、授权令牌或独立恢复状态机。不能将软件错误清零视为安全故障已排除。
+3. 错误后`l_nCmdMode`设为0，并在循环尾部赋给`l_nPreviousCmdMode`。下一轮若直接收到非STOP运动模式，模式转换检查会因前一模式0、当前运动模式非1而再次拒绝并触发错误；先收到STOP模式1，才会使后续从STOP到运动模式的转换满足该检查。该行为是代码控制流推导，尚未在VAL3上运行验证。
+4. 对连续旧运动数据报，服务器错误处理会清空socket buffer，但没有会话epoch/nonce验证；清空瞬间之后抵达的延迟旧数据报是否会被接受，取决于UDP到达时序和socket队列行为，需故障注入确认。来源#1601–#1603。
+
+### C. 协议层缺少会话绑定
+
+1. 消息头包含magic number、protocol version、message type、16位sequence number和payload size；解码检查magic number与协议版本，但没有controller boot ID、VAL3 task generation、session nonce或握手阶段字段。来源#1602。
+2. 命令解码成功后将`bIsValid=true`；未见在该函数中验证命令序号必须比上次有效序号更新，也未见重复命令拒绝或重放窗口。序号差计算和负值检查在控制循环其他位置，不能替代会话身份验证。来源#1601–#1603。
+3. VAL3控制任务启动和应用层错误恢复都会把服务端序号归零；ROS Driver的`reset_data()`也将本地最后有效序号与缓存状态序号置零。两端均有重置行为，但没有跨重启epoch区分“新会话的序号0”与“旧会话延迟报文”的协议字段。来源#1601–#1603、#1606。
+
+### D. CS9安全状态与应用层运动授权的边界
+
+1. `updateState.pgx`读取`esStatus()`；任何非零安全状态都令`bEStopped=true`，进而令`bMotionPossible=false`。状态1表示等待Safety Restart，状态2/3分别标识SS1/SS2，状态4表示等待WMS重启。该逻辑为应用层运动许可提供了控制器安全状态门控。来源#1604。
+2. ROS 2的`perform_command_mode_switch()`在切换到关节位置模式时检查`state_msg_.error_state`和`state_msg_.motion_possible`；`operation_mode_status!=0`目前只告警。Safety Restart状态通常会通过VAL3的`motion_possible=false`间接拒绝位置模式，但没有单独对`wait_for_ack`字段做授权状态机。来源#1605。
+3. `on_activate()`只把ROS侧`current_control_mode_`设为STOP，不在该回调中发送STOP或等待控制器STOP确认；后续write周期才会发送当前STOP模式命令。不能将Lifecycle activate成功视为机器人已确认停止。来源#1605。
+4. `RobotDriver::connect()`建立UDP接口并等待有效状态报文、检查协议版本；没有控制器启动epoch/会话挑战或显式“STOP确认后允许控制”握手。连接阶段诊断报文读取仍是TODO占位。来源#1606。
+
+### E. 风险定性
+
+- **P1｜应用层故障未锁存。** 错误处理执行停止动作后清除`l_bError`，没有持久故障原因、人工ACK或明确恢复许可状态。正常Safety Restart仍受CS9安全状态控制，但不能覆盖全部软件/通信故障。
+- **P1｜恢复延迟/复位步骤未定义。** 1秒恢复等待是TODO；错误模式0会影响后续命令模式转换。需要定义明确的STOP确认、清错、序号同步、人工授权和重新使能顺序。
+- **P1｜重启会话未绑定。** 消息头没有控制器启动ID或session nonce，序号重置后不能从协议层证明数据报属于当前会话；socket清空不能替代会话认证。
+- **P2｜Lifecycle激活与机器人停止确认脱节。** ROS侧activate仅改软件模式，未在回调中发送STOP并等待控制器状态回读。
+- 本节未证明任何实际机器人会在上述路径下意外运动；旧数据报被接受、故障后恢复到运动的具体时序均属于待验证风险，不是已复现漏洞。
+
+### F. 修复与验收要求
+
+1. 建立显式控制状态机：BOOT/UNSYNCED → STOP_REQUESTED → STOP_CONFIRMED → FAULT_LATCHED或READY_FOR_OPERATOR_ACK → SESSION_SYNCHRONIZED → MOTION_ENABLED。所有通信错误、协议错误、控制周期超限、机器人侧运行时错误均进入故障锁存；不能在同一错误处理块中无条件清除故障。
+2. 错误恢复必须要求明确的操作员/上层安全监督授权（按系统风险评估确定），并且先确认机器人静止、Safety Restart完成、驱动上电状态有效，再进行会话握手；收到新运动命令本身不得等同授权。
+3. 协议增加控制器启动epoch或随机session nonce；每条命令携带会话标识、单调序号和可验证年龄。控制器/ROS任一端重启、通信恢复、错误复位时先完成握手，旧epoch报文一律拒绝。
+4. 错误恢复时先发送STOP并等待控制器状态回读确认；失败/超时保持锁存，不清除故障；明确VAL3任务崩溃、应用停止、控制器重启和网络断开时由哪一层独立执行停止/看门狗。
+5. 把模式0（ERROR）与模式1（STOP/IDLE）分离成有定义的状态转移；补齐错误后必须STOP确认的转移，不依赖“下一条客户端STOP刚好先到”的隐含行为。
+6. ROS 2 on_activate前执行STOP请求和状态确认；命令模式切换同时检查错误锁存、motion_possible、wait_for_ack、安全状态和新会话状态；任何状态未知或过期均拒绝使能。
+
+### G. 新增故障注入/状态机验收矩阵
+
+| ID | 场景 | 必须结果 | 当前证据/缺口 |
+|---|---|---|---|
+| RS-01 | VAL3启动、停止、重启及任务异常退出 | 启动默认为STOP；异常退出由独立安全机制停止；恢复前不得直接运动 | 仅静态见start/stop动作，未做控制器测试 |
+| RS-02 | 运动中触发通信/协议/overrun错误 | STOP请求后进入持久故障锁存，等待停止确认和授权 | 当前清除l_bError；未见ACK锁存 |
+| RS-03 | 错误后直接发送旧运动命令 | 必须拒绝；不能靠序号恰好对齐恢复 | 模式0转换会拒绝直接切换；未实测 |
+| RS-04 | 错误后STOP→重新同步→授权→运动 | 只有完整流程成功后才能进入运动模式 | 目前无显式会话/授权握手 |
+| RS-05 | 控制器重启后网络延迟注入旧epoch报文 | 所有旧会话命令拒绝 | header无boot ID/session nonce |
+| RS-06 | ROS 2进程重启、驱动重新connect | 先取得新鲜状态、STOP确认、完成同步；不得继承旧控制授权 | connect等状态并校验协议，但无STOP确认/epoch握手 |
+| RS-07 | ROS Lifecycle deactivate/cleanup/activate | STOP-before-disconnect；activate必须等待停止确认和授权 | on_activate仅改本地模式；未验证 |
+| RS-08 | Safety Restart / wait_for_ack / SS1 / SS2 | 安全状态未恢复时拒绝运动；恢复后仍要求应用层会话同步 | motion_possible间接门控；无独立授权状态机 |
+| RS-09 | UDP延迟旧包在clearBuffer之后到达 | 旧序号/旧epoch拒绝，且记录丢弃原因 | 当前无epoch；到达时序未注入 |
+
+### H. 验证边界
+
+本轮仅审查固定commit的VAL3与ROS 2源码；未运行VAL3编译器、未运行ROS 2构建/单测、未连接CS9、未执行网络重启/延迟旧包注入、未测STOP确认时间或实机恢复路径。不能据此宣称机器人存在已复现的意外运动漏洞，也不能宣称其恢复流程满足工业安全要求。
