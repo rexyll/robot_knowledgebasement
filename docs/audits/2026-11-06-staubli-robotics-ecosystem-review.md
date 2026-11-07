@@ -1095,3 +1095,45 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 本轮发现应作双向、准确表述：VAL3位置控制函数确实逐次检查`bMotionPossible`，在其为false时停止位置控制并返回错误；因此不是完全缺少VAL3软件门控。但该门控依赖软件计算的状态快照，且上游`controlTask`明确把非预期运动hard-stop、急停告警、运行时错误处理留作TODO。内部`l_bError`在状态发送后才可能置位，并在同周期错误处理后清零，存在故障状态未被ROS状态报文观察到的时序风险；源码没有证明它是持久故障锁存或重新授权机制。
 
 未执行VAL3编译/仿真、ROS构建/单测、CS9受控安全状态注入、HIL或实机停止测试。不能将本轮静态发现解释为已发生事故或证明安全链失效，也不能替代风险评估、功能安全验证或Stäubli书面确认。
+
+
+## 9.3.27 VAL3故障可观测性与现有测试覆盖边界审查（2026-11-07）
+
+### A. 审查基线与证据
+
+- 上游仓库：`ICube-Robotics/staubli_driver_ros2`，固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`；本节未改变固定源码基线。
+- 核对文件：`val3/userapp/ros2_server/controlTask.pgx`、`Control/updateJointPositionControl.pgx`、`test/unit_tests/test_robot_driver.cpp`、`test/unit_tests/communication/test_rt_socket_interface.cpp`、`test/unit_tests/communication/test_message_serialization.cpp`。
+- 来源#1625–#1628。仅进行源码与测试用例静态检查，未执行上游测试、VAL3编译或控制器验证。
+
+### B. 现有测试实际证明的内容
+
+1. `RobotDriverTest.ReadRobotStateTest`通过mock robot持续发送RobotState，设置100ms状态staleness timeout；停止mock发送并等待后，`read_robot_state()`应失败；重新启动mock发送后应恢复读取。这证明的是C++驱动对状态接收时间年龄的局部处理，不证明VAL3命令staleness watchdog或机器人停止。
+2. `RTSocketSubscriberTest.ReceiveMessage`验证收到新帧后可重复读取缓存帧，重复读取时`new_message=false`，并在等待超过测试设定时间后报告缓存消息陈旧。这里的“重复读取缓存”不是网络重复/重放帧注入；它不覆盖相同序号UDP数据报重新到达时接收时间戳是否刷新。
+3. `LostPackageDetection`覆盖普通递增序号中的跳号计数；未覆盖16位65535→0边界、乱序下降、重复序号、重放风暴或跨控制器重启序号重置。
+4. `MessageSerializationTest`主要做当前C++实现的序列化—反序列化往返；不能验证C++与VAL3的逐字节互操作，也不能发现双方以相同错误方式编码/解码造成的对称性问题。
+
+### C. VAL3故障路径与测试隔离边界
+
+- `controlTask.pgx`在每轮先采集并发送RobotState，再读取/解码命令、执行位置控制，最后才处理本轮错误。因此由本轮命令解码或运动更新触发的`l_bError`，不会出现在本轮已经发送的状态帧中；是否在下一轮稳定可见还受错误分支清除时序影响。
+- `updateJointPositionControl.pgx`对`bMotionPossible`、命令有效性、命令类型和关节范围有软件检查；但目标接近性仍为TODO，`movejSyncState()==1`刷新超时分支仍是注释，状态2的处理也未明确置错。
+- `controlTask.pgx`将非预期运动hard-stop、急停告警和runtime error处理留为TODO；通用错误处理调用停止相关函数后清除`l_bError`并重置通信。当前所审C++测试没有执行VAL3程序，也没有模型化这套错误状态机。
+- 因此测试覆盖应分层陈述：ROS/C++ socket和消息单元测试、VAL3静态代码检查、VAL3/SRS仿真、CS9控制器在环、真实机器人安全验证。前一层通过不能代替后一层。
+
+### D. 新增测试规格（不代表已实现或执行）
+
+| ID | 测试目标 | 建议方法与通过条件 | 当前状态 |
+|---|---|---|---|
+| OBS-01 | 本周期运动更新错误的状态可观测性 | 在受控VAL3测试程序中触发updateJointPositionControl错误；记录发送帧、错误置位、错误处理、下一帧状态的时间顺序，确认错误不会被静默吞掉 | 未实现/未执行 |
+| OBS-02 | 错误清除与重新授权 | 注入可恢复通信错误；验证错误锁存、人工ACK/重新授权条件、会话epoch变化和旧命令拒绝 | 未实现/未执行 |
+| OBS-03 | 命令陈旧与丢包 | 在VAL3侧分别注入静默、丢包、重复、乱序、延迟及恢复；按命令实际年龄而非只按序号差验证停止/锁存 | 未实现/未执行 |
+| OBS-04 | movejSync状态转换 | 对-2/-1/0/1/2分别建立受控状态测试，验证命令刷新超时、停止完成和错误传播 | 未实现/未执行 |
+| OBS-05 | ROS状态重复/重放 | 发送新序号、重复序号、旧序号、回绕和重启后序号重置的真实UDP数据报；重复/旧帧不得刷新有效状态新鲜度或覆盖最新状态 | 未实现/未执行 |
+| OBS-06 | C++/VAL3跨语言黄金帧 | 用独立规范fixture验证RobotState/RobotCommand每字节Header、payload、字段偏移、端序和长度；至少包含正确帧与畸形Header负例 | 未实现/未执行 |
+| OBS-07 | 运动停止确认契约 | 将STOP请求、发送成功、VAL3接受、运动控制结束、CS9静止反馈分别作为独立事件记录；不能用UDP send成功替代停止确认 | 未实现/未执行 |
+| OBS-08 | 故障后生命周期退出 | 覆盖deactivate/cleanup/shutdown/error、socket断开、VAL3任务异常和ROS进程终止；要求独立安全链与通信watchdog按已批准风险分析响应 | 未实现/未执行 |
+
+### E. 结论与工程边界
+
+本轮补充确认：现有测试能够覆盖C++侧状态反馈陈旧、缓存读取和普通序号丢包，但不覆盖VAL3控制任务的命令新鲜度、故障标志生命周期、错误恢复授权、movejSync状态机或CS9停止行为。尤其不能把`ReadRobotStateTest`中的mock发送停止称为“机器人停止测试”，也不能把普通round-trip测试称为VAL3互操作测试。
+
+本节仍是固定公开源码与测试文件的静态审查。未运行ROS构建/单测、未运行VAL3编译或SRS仿真、未连接CS9/真实机器人、未执行HIL/FAT/SAT或安全功能验证。所有OBS测试均为后续验收规格，不表示缺陷已复现或测试已通过。
