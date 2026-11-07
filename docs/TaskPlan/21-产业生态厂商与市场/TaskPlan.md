@@ -532,3 +532,5 @@
 
 
 | 2026-11-07 | 21-02/Stäubli VAL3同步任务overrun与实时性故障门控 | 复核§9.3.52周期结论并固定审查start.pgx/controlTask.pgx/ros2_server.dtx：start设置0.004s并调用taskCreateSync创建4ms同步任务；delay(0)是让出当前任务片段；Stäubli CS9 2021文档说明同步任务超周期会取消下一周期并置位overrun bool。当前controlTask仅日志、清标志、累计nOverruns，不直接触发STOP/ERROR；monitor speed低于100%仅warning。序号差在跳周期后可能低估墙钟命令年龄。新增§9.3.53、来源#1784–#1787、SERVO-148–SERVO-160。所有新增验证未执行；未运行VAL3编译、CS9周期/overrun注入、ROS调度跟踪或HIL/实机测试；21-02继续进行中，Stäubli未验收。 | 来源#1784–#1787；Stäubli专项审计§9.3.53 |
+
+| 2026-11-08 | 21-02/Stäubli CS9系统任务、IO刷新与VAL3同步任务CPU预算 | 固定ICube bd658e2审查start.pgx与ros2_server.pjx，结合Stäubli 2021 CS9实时配置文档§§3.1–3.4、4.1–4.2、5.3.1。确认每个CS9扫描周期依次执行系统轨迹/系统IO、用户IO刷新、VAL3同步任务、VAL3异步任务；单CPU并非并行，用户同步任务消耗较多CPU。3000行是每次同步任务序列上限，不是4ms WCET/CPU预算。cyclicRatio可跨多个scan完成IO刷新；noJitter把用户IO刷新并入系统同步任务，过载可导致机器人停止并需重启。仓库没有目标cell.cfx/IO模块清单，不能推断实际ratio/jitter模式。GPIO实现仍为TODO。新增§9.3.54、来源#1788–#1792、SERVO-161–SERVO-174，均未执行。未进行CS9 CPU/IO跟踪、过载注入、HIL或实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1788–#1792；Stäubli专项审计§9.3.54 |
