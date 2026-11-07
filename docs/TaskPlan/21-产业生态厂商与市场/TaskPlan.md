@@ -491,3 +491,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli MoveIt与ros2_control控制器生命周期、启动就绪和故障恢复 | 固定ICube commit核对robot_control/demo/MoveIt launch、spawner、wait_for_robot_ready、controllers.yaml、HardwareInterface lifecycle及MoveIt Jazzy SimpleControllerManager/ActionBasedControllerHandle。确认JTC默认inactive、示例显式激活但spawner退出码未检查；ready waiter只检查两主题首帧，不检查JTC active/Action Server/反馈新鲜度；TRANSIENT_LOCAL joint_states订阅与SystemDefaultsQoS publisher存在默认VOLATILE场景的兼容性风险；SimpleControllerManager静态标记active；Hardware ERROR停用控制器后没有统一的自动重连、旧goal隔离和重新授权状态机。新增§9.3.37、来源#1682–#1692、LFR-01–LFR-14。未执行ROS launch/QoS集成、lifecycle故障注入、MoveIt重启、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1682–#1692；Stäubli专项审计§9.3.37；《主要厂商》§128.20 |
+
+
+| 2026-11-07 | 21-02/Stäubli MoveIt Servo、JTC与直接关节命令互斥仲裁 | 固定ICube/MoveIt commit审查Servo launch/YAML、MoveIt控制器映射、ros2_control controllers.yaml、URDF position接口、HardwareInterface模式切换和Servo pause/timeout。确认Servo输出指向未配置的forward_position_controller；package.xml缺moveit_servo exec_depend；SimpleControllerManager只映射JTC；资源claim能防止两个正确配置控制器同时占用同一position接口，但不管理多topic发布者；硬件切换不等待物理静止/重新授权；Servo pause不发送STOP。新增§9.3.38、来源#1693–#1704、SERVO-01–SERVO-14。未执行Servo/JTC集成、controller switching、pause/timeout/崩溃、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1693–#1704；Stäubli专项审计§9.3.38；《主要厂商》§128.21 |
