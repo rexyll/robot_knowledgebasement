@@ -3,7 +3,7 @@
 > 审查范围：Stäubli 官方 CS9/VAL 3/uniVAL 资料、ICube ROS 2 Jazzy 驱动、ROS-Industrial VAL3 历史驱动及 ROS Index 元数据。  
 > 审查类型：公开资料与公开仓库静态审查；不是产品选型结论、供应商资格审查或工程验收。  
 > 对应任务：根任务 00-01；第 21 章 21-02。  
-> 来源：链接台账 #1413–#1421、#1481–#1545。
+> 来源：链接台账 #1413–#1421、#1481–#1549。
 
 ## 1. 控制器与产品接口
 
@@ -296,6 +296,29 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 
 **本节结论：** 新增一项UDP接收错误传播与缓冲区边界风险候选。静态证据足以确认1024字节固定接收缓冲区、错误回调仍被调用及subscriber继续尝试解析；超长数据报是否在特定运行环境中形成可接受的截断前缀，尚待复现。该结论不改变既有协议Header/诊断链路发现，也不代表已经进行网络注入或实机验证。
 
+
+### 9.3.12 UDP发送成功语义、接收线程停止/重启与回调生命周期（新增，静态风险）
+
+对固定main快照的UDPSocketImpl、RealTimeSocketSubscriber、RealTimeSocketInterface、RobotDriver及socket单元测试做跨层核对：
+
+- **would_block丢包被报告为发送成功。** UDPSocketImpl::send调用非阻塞send_to(..., MSG_DONTWAIT, err)。遇到boost::asio::error::would_block时记录“Packet dropped”并保留TODO计数/阈值，但没有返回false；函数最终返回true。上层RealTimeSocketInterface::send_message据此返回true，RobotDriver::send_robot_command也可能将未发送的运动命令报告为成功。该行为是静态代码路径确认，不代表本轮实际触发了内核发送缓冲区满。来源#1546、#1548。
+- **停止接收线程只停止io_service并join，没有显式取消socket上的异步接收。** stop_receive_thread执行io_service_.stop()、receive_thread_.join()，随后才把receiving_设为false；未见socket_.cancel()或关闭/重建socket的操作。Asio run循环停止不等于底层异步操作已取消。若调用方在不disconnect的情况下直接stop后restart，旧接收操作仍可能在io_service_.reset()后被重新派发，同时start_receive又提交新操作；两者复用同一个recv_buffer_和sender_endpoint_，存在重复接收链和共享缓冲区并发写风险。该重启序列未在目标Boost版本上运行复现，列为条件性生命周期风险。来源#1546。
+- **重复start会先覆盖现有回调，再检查线程状态。** start_receive_thread在检查is_connected()和is_receiving()之前执行reception_callback_ = reception_callback。当接收线程已经运行时，第二次start最终返回false，但已经替换了当前活动回调；若另一线程正执行回调读取该std::function，还可能形成未同步读写。现有DoubleStart测试两次传入同一callback，只断言第二次返回false，未验证原callback保持不变，也未用不同回调并发验证。来源#1546、#1549。
+- **接收回调捕获Subscriber裸this。** RealTimeSocketSubscriber::init_communication传入[this]回调并调用update_message；析构函数调用socket_->stop_receive_thread()。正常外部析构路径在join完成后可等待回调线程退出，但Socket公共接口没有表达“析构必须由非接收线程发起”的约束，也没有独立回调生命周期令牌；若未来回调内触发自析构/stop，可能产生线程自join或对象生命周期问题。当前仓库没有发现该调用路径，故只记录设计约束，不标记为已触发UAF。来源#1547。
+- **RobotDriver关闭顺序有重复stop但可等待subscriber析构。** RobotDriver::disconnect先reset control_interface_/diagnostics_subscriber_（其基类析构停止接收线程），随后又按socket状态检查并再次stop，再disconnect socket。Socket stop对已停止线程返回true，常规单线程disconnect路径有join屏障；但RobotDriver整体connect/disconnect/send没有可见互斥保护，并发生命周期操作与周期命令发送的安全性未由此顺序证明。来源#1547–#1548。
+- **测试覆盖不构成生命周期验收。** 现有测试覆盖单次start/stop、重复start/stop、正常回调、多包接收、disconnect后reconnect；没有stop→start但不disconnect、stop期间持续数据报、重复start时替换callback、并发send/disconnect、发送would_block返回值、销毁与回调同时发生等测试。来源#1549。
+
+**建议修复/验收：**
+
+1. would_block必须返回false或返回结构化发送结果（sent/dropped/error）；命令路径不得把已丢弃的数据报报告为成功。增加可观测drop counter、连续丢包阈值和上层安全降级策略；阈值/动作由系统安全需求定义，不能仅靠日志。
+2. 将停止状态设为原子/受锁保护的“stopping”并先阻止handler重新投递；显式cancel socket outstanding operations，处理operation_aborted，再join；确保stop完成后没有遗留async operation，start只允许在明确清理完成后复用io_context/socket。
+3. 在start_receive_thread中先完成连接/状态校验，再安全安装callback；对start/stop/connect/disconnect建立统一生命周期互斥或明确线程安全契约，避免并发访问socket、io_service、thread及std::function。
+4. 增加不同callback的重复start测试，断言失败的第二次start不替换原callback；增加stop→start（无disconnect）、stop时持续收包、重复start/stop压力循环、callback触发析构边界测试。
+5. 增加可控发送错误注入（包装socket/注入错误码）验证would_block、message_size、其他错误分别映射为明确结果；验证RobotDriver命令发送失败时不更新成功状态/命令序号。
+6. 为disconnect/connect/send增加生命周期锁或由单一拥有者串行化，并在ThreadSanitizer构建下运行并发压力测试；实时路径锁策略需评估阻塞上界，不得直接在周期线程引入无界互斥等待。
+
+**本节结论：** 已确认would_block路径“丢包但返回成功”这一静态缺陷；另确认stop不显式cancel异步接收、重复start先覆盖回调及并发生命周期缺少显式同步的设计风险。stop→restart造成旧操作重入/共享缓冲区竞争属于由代码控制流推导的条件性风险，仍需在锁定的Boost/Ubuntu版本下通过回归测试与TSan复现。没有执行上游构建、单测、网络压力或实机验证。
+
 ### 9.4 测试覆盖范围
 
 - 公开单元测试含UDP loopback/mock：连接/断开、state序列化/反序列化、消息序列丢失计数、状态staleness检测及恢复、HardwareInterface初始化/配置/接口导出/Lifecycle和位置命令写入路径。测试代码可证明存在这些测试用例，不代表本轮已执行。CI在2026-11-01有一次Jazzy build_and_test成功记录；它只代表该次工作流成功，不能替代真实机器人、网络故障注入或安全验证。来源#1487、#1491。
@@ -314,5 +337,6 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 8. 取得Stäubli受控文档、SRS/VAL Blocks具体版本、目标型号/控制器选件矩阵、驱动器兼容与安全证书原件；按产品SKU/固件/地区核验，不以产品页面能力名称代替证据。
 9. 将§9.3.8的固定字段偏移表和74字节DiagnosticData参考向量固化为C++ golden tests；修复Header字段缺陷后再建立RobotState 132字节、RobotCommand 55字节的VAL3↔C++双向fixture，覆盖端序、float32舍入、字段顺序、有效标志和畸形Header。
 10. 统一FrameHeader与三类消息的magic/version/type/payload_size校验，并明确buffer容量和实际datagram长度的区别；对解析失败时对象状态、输出buffer原子性、序号基准和接收时间戳开展负向测试。\n11. 修复UDP接收错误传播：错误码非零时不得调用业务解析器；在目标Ubuntu/Boost组合复现1024字节边界和超长数据报行为，补充精确帧长、发送方endpoint及错误报文不刷新状态的集成测试。
+12. 修复UDP发送与生命周期：would_block丢包必须向上返回失败；停止接收时cancel异步操作并阻止handler重投递；保证stop/restart、重复start、disconnect/send并发和callback销毁有明确同步契约及TSan/压力测试。
 
 本轮完成公开页面、上游GitHub元数据、源码和测试目录的静态核查；没有安装SRS/VAL Blocks、没有构建或运行ICube工作区、没有运行上游测试、没有连接CS9/机器人/PLC/安全回路，也没有执行实时测量、故障注入、HIL/FAT/SAT或功能安全验证。因此本次只能更新静态审查结论和工程验证清单；Stäubli档案与21-02节点继续保持未验收。
