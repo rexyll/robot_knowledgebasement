@@ -488,3 +488,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli MoveIt取消传播、控制器故障与执行结果一致性 | 固定MoveIt Jazzy commit审查MoveGroup/ExecuteTrajectory两条Action入口、PlanExecution、TEM、ActionBasedControllerHandle和FollowJointTrajectory result；核对Stäubli launch及控制器映射。发现MoveGroup cancel有preempt→TEM调用链；ExecuteTrajectory cancel回调仅ACCEPT且未调用已定义的preemptExecuteTrajectoryCallback，PREEMPTED统一abort；TEM忽略cancelExecution返回值、handle未验证goals_canceling、waitForRobotToStop返回值被忽略且取消路径不等待静止。新增§9.3.36、来源#1674–#1681、MEX-01–MEX-14。未执行MoveIt/ROS构建、Action集成/故障注入、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1674–#1681；Stäubli专项审计§9.3.36；《主要厂商》§128.19 |
+
+
+| 2026-11-07 | 21-02/Stäubli MoveIt与ros2_control控制器生命周期、启动就绪和故障恢复 | 固定ICube commit核对robot_control/demo/MoveIt launch、spawner、wait_for_robot_ready、controllers.yaml、HardwareInterface lifecycle及MoveIt Jazzy SimpleControllerManager/ActionBasedControllerHandle。确认JTC默认inactive、示例显式激活但spawner退出码未检查；ready waiter只检查两主题首帧，不检查JTC active/Action Server/反馈新鲜度；TRANSIENT_LOCAL joint_states订阅与SystemDefaultsQoS publisher存在默认VOLATILE场景的兼容性风险；SimpleControllerManager静态标记active；Hardware ERROR停用控制器后没有统一的自动重连、旧goal隔离和重新授权状态机。新增§9.3.37、来源#1682–#1692、LFR-01–LFR-14。未执行ROS launch/QoS集成、lifecycle故障注入、MoveIt重启、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1682–#1692；Stäubli专项审计§9.3.37；《主要厂商》§128.20 |
