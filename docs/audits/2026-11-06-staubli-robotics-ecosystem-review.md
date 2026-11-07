@@ -429,3 +429,55 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 ### F. 结论与证据边界
 
 固定源码明确存在：staleness TODO、movejSync状态1处理被注释、错误分支清除错误锁存、恢复前延迟TODO、工作模式状态未纳入bMotionPossible、多个安全状态折叠为bEStopped等设计缺口/语义风险。它们说明源码没有完整表达所需的失联安全停止与人工重新使能契约，但不等于已经在实机观察到自动恢复运动或停止失败。本轮未运行VAL3、CS9仿真、构建、测试、网络注入、控制周期测量或实机试验；Stäubli未验收。
+
+
+## 9.3.15 ROS 2—VAL3端到端命令门控、STOP确认与故障矩阵（2026-11-07）
+
+> 基线仍为ICube上游固定commit bd658e2d266e315d2ee35f985fb352ea88306b79。本节把ROS 2硬件接口、RobotDriver、VAL3控制循环和状态映射串联审查；仅为公开源码静态分析。未在CS9/VAL3环境执行，未推断Stäubli原生运动指令的物理停止特性。
+
+### A. ROS 2侧命令准入与反馈语义
+
+1. **位置模式切换时检查最近一次状态，但不是逐周期安全门控。** perform_command_mode_switch()在切换到JOINT_POSITION时检查缓存的state_msg_.error_state和motion_possible；operation_mode_status != 0只产生HOLD警告，仍继续完成模式切换。该检查依赖最近一次read取得的状态快照，没有在切换动作内重新请求新鲜状态，也没有校验状态时间戳在切换瞬间仍有效。来源#1562。
+
+2. **write()不直接检查全部监督状态。** 每次写入会检查连接状态；非STOP模式下检查error_state及control_state == INVALID，但不直接检查motion_possible、estop_pressed或wait_for_ack。因此运行中安全/模式状态变化的实际阻断主要依赖VAL3位置控制函数每周期的bMotionPossible检查，以及控制器自身安全机制，而不是ROS write每周期重新门控。若read先返回错误，ros2_control调用顺序/错误传播如何影响同周期write，需锁定具体ros2_control版本验证。来源#1562、#1567。
+
+3. **主机命令限位仍未形成完整防线。** RobotDriver::send_robot_command明确保留位置/速度限位TODO；HardwareInterface写入路径仅检查NaN（Inf不在该判断内），并把命令转换为度后发送。模式切换对operation_mode_status只警告。控制器端isInRange提供另一层位置范围检查，但主机侧应补finite、限位、最大单步变化、速度/加速度/jerk及工作模式准入。来源#1562、#1563、#1567。
+
+4. **状态序号不是命令执行确认。** VAL3每轮先采集/发送RobotState，再读取并执行本轮命令；ROS端读取该状态序号作为下一命令的序号来源。它用于ping-pong延迟计算/通信同步，但没有看到带命令序号的执行结果ACK或STOP完成ACK。状态中control mode/in_motion可用于后续观察，但由于发送发生在本轮命令处理之前，不应把同一轮状态包当成本轮新命令执行后的确认。来源#1556、#1562、#1563、#1566。
+
+5. **STOP是尽力发送的普通控制消息。** send_stop_all_command构造STOP命令并调用control_interface_->send_message，返回发送函数bool；未等待VAL3确认、停止状态或机器人静止状态。结合此前would_block分支丢包仍return true的静态发现，STOP调用返回true也不能作为数据报到达或机器人已停止的证据。on_error还忽略STOP返回值，cleanup直接disconnect。来源#1546、#1553、#1563。
+
+### B. VAL3状态与停止处理链
+
+6. **安全状态原始码与ROS布尔状态存在语义折叠。** updateState列出0无安全停止、1等待Safety Restart、2 SS1、3 SS2、4等待WMS重启；bEStopped对全部非零码置true，bWaitAck仅对码1置true。workingMode另写入机器人模式/状态；bMotionPossible仅由drive-powered与非bEStopped构成，未把工作模式状态纳入该布尔值。ROS导出这些监督字段，但不能将bEStopped解释为“急停按钮确实按下”。来源#1559、#1562、#1564。
+
+7. **VAL3 STOP路径是应用层停止请求，不是已证明的安全功能。** controlTask在STOP/错误路径调用stopMove()/resetMotion()，位置控制停止函数还包含movejSync停止相关调用；但公开仓库没有提供足以证明这些原生VAL3指令停止类别、响应时间、制动器行为或PL/SIL能力的受控文档。不能推断stopMove等同E-stop、SS1、SS2或STO。具体原生语义必须以对应CS9/VAL3版本手册和Stäubli书面确认/实测为准。来源#1556、#1567。
+
+8. **命令读取的队列语义仍未闭环。** readData每周期最多调用readDataOnce两次；readDataOnce通过sioGet返回字节数判断完整帧，正数短/长长度置错误、零字节视为无新数据。代码没有记录一个周期内覆盖/丢弃的命令数量。sioGet是否从UDP队列取最新包、是否可能阻塞、超长datagram如何表现以及队列溢出行为，不能仅凭源码假设，必须在目标控制器上测量。来源#1557、#1565。
+
+### C. 端到端故障矩阵
+
+| 故障/事件 | 当前可见响应 | 未闭环点/验收要求 |
+|---|---|---|
+| ROS节点崩溃或进程退出 | ROS端可能停止发送；VAL3序号延迟阈值可在控制任务仍运行且控制已激活时触发错误并进入STOP路径 | ROS退出是否必然触发UDP失联、何时触发、失联时机械臂实际停止时间、驱动重启后是否锁存，需故障注入/实机测量 |
+| UDP丢包/延迟 | VAL3按序号差在运动中>5、静止>25触发错误；C++发送would_block存在丢包误报成功路径 | 乱序/重复/重放、突发多包、16位回绕和真实序号时钟关系未完整验证；阈值不是墙钟保证 |
+| UDP断连/Socket异常 | VAL3读取错误置错误并进入stopMove/resetMotion及socket reset；ROS read可能因无新状态/陈旧返回ERROR | ROS lifecycle是否随后发STOP、断连期间STOP不可达、恢复后是否要求人工重新使能均未闭环 |
+| VAL3任务overrun | 记录overrun并累计nOverruns | 未见按累计次数触发确定性降级/锁存策略；实际控制周期和最坏停止响应未测 |
+| movejSync状态1 | 代码注释称上次命令刷新不及时，但warning/error处理被注释；序号看门狗可能后续触发 | 内部超时与外层序号看门狗先后、停止响应时间需仿真/HIL确认 |
+| SS1/SS2/E-stop/等待重启 | bMotionPossible因非零安全状态变false；bEStopped统一为true，bWaitAck仅状态1 | 原始安全状态、E-stop输入、工作模式、控制权和最终运动许可应分别映射；不得将ROS状态当安全回路 |
+| 故障后通信立即恢复 | 错误分支清除l_bError、重置socket；恢复前延迟/人工确认仍是TODO | 自动重新接收命令的锁存风险；必须实现故障锁存/授权复位并验证，不能由通信恢复单独触发运动 |
+| ROS deactivate/cleanup/shutdown/error | deactivate未覆写；cleanup直接disconnect；shutdown条件性发STOP；error尝试STOP但不检查返回值 | 需要生命周期停止契约、STOP送达/执行反馈、控制器侧失联策略和失败时故障锁存 |
+
+### D. 修复优先级与验证门槛
+
+- **P0：STOP与失联必须可证实。** 定义命令接收ACK、命令执行/模式ACK、停止完成状态及超时；STOP失败或通信丢失时由独立安全链承担风险降低，不能依赖UDP bool。
+- **P0：故障恢复必须锁存。** VAL3错误后进入明确FAULT_LATCHED；通信恢复仅恢复诊断，不得自动恢复运动。由操作者/安全系统确认、模式/控制权验证、状态新鲜度检查及显式重新使能组成状态机。
+- **P0：明确模式和安全状态映射。** 分离E-stop输入、SS1、SS2、Safety Restart、WMS restart、manual/test/automatic local/remote/hold；由CS9安全功能与控制器许可决定运动，不由压缩后的布尔值替代。
+- **P1：补主机实时准入。** 每周期验证状态年龄、motion_possible、safety status、operation mode/control ownership、finite命令、关节软限位和单步增量；验证read错误后同周期write的框架语义。
+- **P1：确定UDP队列/序号策略。** 明确只接收最新命令或按序执行；拒绝重复、倒退/重放；记录每周期消费/丢弃数量、序号回绕和接收年龄；在目标VAL3上验证sioGet行为。
+- **P1：停止函数语义证据。** 取得CS9/VAL3受控手册，确认stopMove/resetMotion/movejSyncEnd及stopJointPositionControl的行为、错误码、停止类别、可中断性和适用版本；无文档时在受控单元测量，不对安全等级作推断。
+- **P1：生命周期测试。** 覆盖deactivate、cleanup、shutdown、error、controller_manager停止、进程崩溃、socket断连、反馈过期和重连；断言机器人停止反馈而非只断言API返回值。
+
+### E. 证据边界
+
+本节补充的是源码层面的端到端控制流和接口语义，未在目标ROS 2/ros2_control版本运行，未执行构建、测试、网络故障注入、TSan/ASan、VAL3仿真、CS9 HIL或实机验证；没有测得停止时间、停止距离、队列深度或movejSync响应。未取得stopMove/resetMotion原生指令受控手册，故不作物理停止类别或安全等级判断。Stäubli项目仍是公开prototype，不能作为生产级控制软件验收。
