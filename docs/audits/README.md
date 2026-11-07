@@ -65,4 +65,4 @@
 
 
 
-- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.29；新增连接握手/诊断双通道ready审查（§9.3.28，CONN-01–CONN-07）和UDP端口参数严格解析/uint16_t窄化边界（§9.3.29，PORT-01–PORT-05）。未运行构建/单测、参数/网络故障注入、VAL3编译/SRS仿真或CS9 HIL/实机验证。
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.30；新增连接握手/诊断双通道ready（§9.3.28，CONN-01–CONN-07）、UDP端口参数严格解析/uint16_t窄化边界（§9.3.29，PORT-01–PORT-05），以及UDP发送错误传播、接收错误回调、stop/start线程生命周期和peer校验缺口（§9.3.30，UDP-01–UDP-09、SUB-01–SUB-02）。未运行构建/单测、参数/网络故障注入、VAL3编译/SRS仿真或CS9 HIL/实机验证。
