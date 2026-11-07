@@ -1149,3 +1149,68 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1628 | [test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp)；[test_message_serialization.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp) | subscriber缓存/普通丢包及同实现round-trip测试边界 |
 
 以上均为固定commit源码文件的访问快照；GitHub文件内容不构成编译、测试执行或真实控制器行为证据。
+
+
+## 9.3.28 RobotDriver连接握手、双通道就绪判定与启动时延审查（2026-11-07）
+
+### A. 审查基线与文件范围
+
+- 上游仓库：`ICube-Robotics/staubli_driver_ros2`，固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`；本轮按固定commit读取，不改变源码基线。
+- 核对文件：`staubli_robot_driver/src/robot_driver.cpp`、`src/real_time_socket_subscriber.cpp`、`include/staubli_robot_driver/real_time_socket_subscriber.hpp`、`test/unit_tests/test_robot_driver.cpp`、`src/staubli_hardware_interface.cpp`。
+- 来源#1629–#1631。仅源码/测试静态检查；未执行ROS构建、单元测试、VAL3编译或控制器连接。
+
+### B. connect()握手流程的实际行为
+
+1. `RobotDriver::connect()`分别建立控制UDP socket和诊断UDP socket，并创建控制`RealTimeSocketInterface`及诊断`RealTimeSocketSubscriber`。
+2. 两个接口的`is_ready()`语义均为socket已连接且接收线程正在运行；它不表示已经收到有效、最新、协议兼容的业务报文。
+3. 随后的握手循环每轮调用`read_robot_state()`检查控制状态，但诊断侧原本应调用的`read_diagnostic_data()`仍是TODO；实际代码将`diag_interface_ready = true`硬编码。
+4. 循环条件是`now - start_connect_time < timeout`，循环体内在一次状态有效后没有break/return，而是继续每500ms轮询直到超时窗口耗尽。成功条件取决于循环退出时最后一次`read_robot_state()`的结果，而非“首次达到就绪立即成功”。
+5. 因此连接时延被人为拉长到接近timeout配置值（HardwareInterface当前传入5000ms；单测传入1000ms），且控制状态有效性只以500ms间隔被重新采样。若控制器在中间出现短暂有效后停止发送，最终一次采样仍可能使connect失败；具体时序需动态测试确认。
+6. 循环退出后代码打印`current_diagnostic_data_.robot_firmware_version`，但握手循环没有读取诊断数据；`reset_data()`仅将诊断消息Header标为INVALID，没有填充来自控制器的固件信息。因此日志中的版本值不能作为已读取的真实控制器固件版本证据，默认值可能显示为0.0.0。
+7. `is_connected()`随后检查socket及subscriber是否ready，仍只证明连接/接收线程状态，不证明诊断业务数据已到达。它也没有补上连接时缺失的诊断握手。
+
+### C. 测试覆盖审查
+
+- `RobotDriverTest.ConnectionTest`启动mock robot线程，并以1000ms timeout调用connect；mock线程同时发送RobotState与DiagnosticData，但connect代码没有消费DiagnosticData。该测试可以在mock状态流存在时验证控制通道握手，不证明诊断报文被接收、校验或固件版本读取。
+- mock机器人以4ms sleep发送两类数据，但测试没有断言connect返回耗时、首次状态报文延迟、诊断通道业务就绪或无诊断数据时连接失败。
+- 当前静态审查没有运行该测试；不能把测试源码视为测试已通过，也不能从mock双通道发送推断真实VAL3诊断发布端已实现。
+
+### D. 风险与修正规格
+
+| ID | 问题/场景 | 建议修正与验收条件 | 当前状态 |
+|---|---|---|---|
+| CONN-01 | 状态报文首次有效后仍等待完整timeout | 首次满足全部握手条件时立即退出；测量connect延迟应接近首次有效报文到达时间加有限处理开销，而非固定接近timeout | 静态确认无提前退出；未运行 |
+| CONN-02 | 诊断就绪硬编码true | 诊断业务通道必须收到并校验真实DiagnosticData（类型、长度、协议版本、staleness、序号）；否则连接失败或明确降级为不具备诊断能力的受限模式 | 静态确认；未实现验证 |
+| CONN-03 | is_ready与业务数据ready混淆 | 将transport_ready、control_data_ready、diagnostic_data_ready分层表示；is_connected命名/契约明确区分socket状态和业务握手状态 | 规格建议；未实现 |
+| CONN-04 | 固件版本从未填充的诊断对象读取 | 仅在成功读取并验证诊断帧后打印版本；否则打印unknown并明确诊断未就绪，禁止把默认结构体值记录成设备版本 | 静态确认日志路径；未运行 |
+| CONN-05 | 500ms轮询导致握手延迟/采样稀疏 | 使用条件变量/消息到达通知或短周期有界等待；deadline采用单调时钟；避免在连接握手期间无条件sleep 500ms | 静态确认500ms sleep；未运行 |
+| CONN-06 | 诊断发送端缺失时mock仍可通过连接 | 增加仅控制通道有帧、仅诊断通道有帧、诊断帧畸形/陈旧/协议不匹配、诊断线程启动但无业务帧等负例 | 未实现/未执行 |
+| CONN-07 | 握手中控制状态短暂有效后停止 | 在deadline内按消息事件更新ready状态；定义一旦达到ready后是否需连续稳定帧窗口；不得因等待剩余timeout而把先前有效性无意覆盖 | 未实现/未执行 |
+
+### E. 推荐连接状态机
+
+建议将连接过程显式建模，而不是用两个布尔值混合表示：
+
+`DISCONNECTED → SOCKETS_OPEN → RECEIVERS_RUNNING → CONTROL_VALID → DIAGNOSTICS_VALID → SESSION_READY`
+
+- 任一阶段失败均转入`CONNECT_FAILED`并清理已创建资源。
+- 只有目标部署配置明确允许诊断降级时，才允许从`CONTROL_VALID`进入受限会话；必须将诊断能力标记为不可用，禁止伪造ready或伪造固件版本。
+- 首帧校验至少包括消息类型、协议版本、固定长度/字段约束、有效接收时间；如需支持重启恢复，应另有session/boot epoch与序号重置策略。
+- 连接deadline使用单调时钟，成功条件一旦满足立即完成；任何“连续稳定N帧”策略应有明确N值和超时预算，并单独验证。
+- 即使连接握手成功，仍不能把网络连接状态当作机器人运动许可或CS9安全状态。
+
+### F. 结论与工程边界
+
+本轮确认的核心缺口是：当前connect()把诊断通道的业务就绪状态硬编码为成功；同时控制通道即使已收到有效RobotState也没有提前退出握手循环，持续以500ms间隔轮询至配置timeout附近。连接成功日志读取的固件版本对象在该流程中未被诊断帧填充，不能视为真实设备版本证据。现有ConnectionTest虽然mock发送诊断数据，但没有验证connect消费或验证它。
+
+本节为固定公开源码静态审查，未执行ROS构建/单测、网络故障注入、VAL3编译/SRS仿真、CS9 HIL或实机测试；没有证明现场一定发生5秒延迟或诊断误报。不得将修正规格视为已实现，也不得据此宣称Stäubli工程验收完成。
+
+### 本节来源记录（#1629–#1631）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1629 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect握手循环、诊断ready硬编码、固件版本日志、is_connected与reset_data |
+| #1630 | [real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp)；[real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | is_ready只表示socket连接和接收线程运行 |
+| #1631 | [test_robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp)；[staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ConnectionTest的mock发送和1000ms timeout；生产HardwareInterface以5000ms调用connect |
+
+以上来源均固定在同一上游commit；本轮没有修改ICube上游仓库。
