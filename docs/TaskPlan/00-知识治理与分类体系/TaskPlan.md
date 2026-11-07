@@ -478,3 +478,6 @@
 
 
 | 2026-11-07 | 00-01/Stäubli网络配置输入边界 | 记录端口参数stoi解析后窄化uint16_t的输入校验缺口及PORT-01–PORT-05测试规格；静态证据不代表已发生网络误连，尚未运行参数注入或socket测试。 | Stäubli专项审计§9.3.29；来源#1632–#1633 |
+
+
+| 2026-11-07 | 00-01 | 对Stäubli ICube UDP可靠性与接收生命周期进行固定commit静态审查：确认UDP send遇到would_block丢包仍返回true；异步接收错误仍调用回调并尝试重挂接；stop_receive_thread未显式cancel挂起操作，stop/start及并发停止竞态待动态验证；peer来源校验TODO；receive_once连续回调存在promise重复完成风险。核对现有socket/subscriber单测只覆盖常规loopback、重连、缓存/跳号和常规stop。新增专项审计§9.3.30、来源#1634–#1637、UDP-01–UDP-09/SUB-01–SUB-02。未运行构建、测试、故障注入、TSan/ASan、VAL3仿真或CS9 HIL/实机；00-01继续进行中。 | ICube固定commit UDP socket/subscriber/interface/通信测试源码；来源#1634–#1637；Stäubli专项审计§9.3.30 |
