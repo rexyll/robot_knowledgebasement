@@ -497,3 +497,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli Servo超时与ForwardCommandController命令缓存语义 | 固定MoveIt Jazzy与ros2_controllers源码审查Servo Header stamp超时、smoothHalt发布结束条件、pause分支及ForwardControllersBase订阅/实时缓存/update/lifecycle：确认Servo超时停止完成后不再发布；ForwardCommandController无命令年龄/watchdog，ACTIVE期间会持续将最后缓存有限值写入command interfaces；activate/deactivate重置NaN；pause不触发smoothHalt。新增专项审计§9.3.39、来源#1705–#1710、SERVO-15–SERVO-24。未执行ROS构建/集成、fake hardware、时间跳变/断流/多发布者注入、VAL3/SRS、CS9 HIL或实机测试；21-02继续进行中，Stäubli未验收。
+
+
+| 2026-11-07 | 21-02/Stäubli Servo六轴命令数组顺序契约 | 固定ICube/MoveIt/ros2_controllers源码核对SRDF arm chain、default_names.yaml、URDF ros2_control接口生成、Servo active joint names/Float64MultiArray组包与ForwardCommandController按索引写接口。默认静态配置预期joint_1至joint_6顺序一致，但Float64MultiArray不携带joint_names，等长错序无法由controller长度检查发现；且ForwardCommandController尚未注册，实际接收端顺序未验证。新增专项审计§9.3.40、来源#1711–#1714、SERVO-25–SERVO-29。未执行xacro展开、fake hardware、MoveIt/Servo集成、VAL3/SRS或CS9 HIL/实机验证；21-02继续进行中，Stäubli未验收。
