@@ -500,3 +500,6 @@
 
 
 | 2026-11-07 | 00-01 | 对Stäubli MoveIt/ros2_control控制器生命周期、启动ready和故障恢复开展固定commit静态审查：JTC默认inactive、spawner退出后激活事件未检查退出码；wait_for_robot_ready只等robot_description/joint_states首帧，未检查JTC active、Action Server及反馈新鲜度；TRANSIENT_LOCAL订阅与SystemDefaultsQoS publisher在默认VOLATILE环境存在QoS不兼容风险；MoveItSimpleControllerManager静态把配置控制器标记active；Hardware ERROR停用关联控制器后未见统一重连、旧goal隔离与重新授权闭环。新增专项审计§9.3.37、来源#1682–#1692、LFR-01–LFR-14，并同步厂商档案、兼容矩阵、索引和任务计划。未执行launch/QoS集成、生命周期故障注入、MoveIt重启、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；00-01继续进行中。 | ICube固定commit bd658e2；MoveIt Jazzy固定commit 6ed6372；ros2_control Jazzy文档；来源#1682–#1692；专项报告§9.3.37 |
+
+
+| 2026-11-07 | 00-01 | 对Stäubli MoveIt Servo/JTC/直接命令互斥仲裁开展固定commit静态审查：Servo输出topic所需ForwardCommandController未注册；moveit_servo运行时依赖缺失；SimpleControllerManager只管理JTC；ros2_control资源claim提供接口级互斥但无多发布者身份仲裁；HardwareInterface模式切换不确认物理静止/重新授权；Servo pause不发送STOP。新增§9.3.38、来源#1693–#1704、SERVO-01–SERVO-14，并同步厂商档案、兼容矩阵、索引与TaskPlan。未执行动态集成、故障注入或硬件验收；00-01继续进行中。 | ICube固定commit bd658e2；MoveIt Jazzy固定commit 6ed6372；ros2_control Jazzy API；来源#1693–#1704；专项报告§9.3.38 |
