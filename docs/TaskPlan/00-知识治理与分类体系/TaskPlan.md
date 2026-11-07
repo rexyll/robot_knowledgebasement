@@ -497,3 +497,6 @@
 
 
 | 2026-11-07 | 00-01 | 对MoveIt取消传播和结果一致性开展固定MoveIt Jazzy commit静态审查：区分MoveGroup与ExecuteTrajectory Action取消路径；发现ExecuteTrajectory cancel callback仅ACCEPT且未接线到已定义的TEM stop函数，PREEMPTED终态走abort；TEM忽略cancelExecution返回值并先标记PREEMPTED，ActionBasedControllerHandle未验证Cancel response是否实际取消当前goal，waitForRobotToStop失败被忽略且取消路径不等待静止。新增专项审计§9.3.36、来源#1674–#1681及MEX-01–MEX-14，并同步厂商档案、兼容矩阵、索引和任务计划。未执行MoveIt/ROS构建、Action集成/故障注入、VAL3/SRS、CS9 HIL或实机验证；00-01继续进行中。 | MoveIt Jazzy固定commit 6ed6372；Stäubli固定commit bd658e2；来源#1674–#1681；专项报告§9.3.36 |
+
+
+| 2026-11-07 | 00-01 | 对Stäubli MoveIt/ros2_control控制器生命周期、启动ready和故障恢复开展固定commit静态审查：JTC默认inactive、spawner退出后激活事件未检查退出码；wait_for_robot_ready只等robot_description/joint_states首帧，未检查JTC active、Action Server及反馈新鲜度；TRANSIENT_LOCAL订阅与SystemDefaultsQoS publisher在默认VOLATILE环境存在QoS不兼容风险；MoveItSimpleControllerManager静态把配置控制器标记active；Hardware ERROR停用关联控制器后未见统一重连、旧goal隔离与重新授权闭环。新增专项审计§9.3.37、来源#1682–#1692、LFR-01–LFR-14，并同步厂商档案、兼容矩阵、索引和任务计划。未执行launch/QoS集成、生命周期故障注入、MoveIt重启、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；00-01继续进行中。 | ICube固定commit bd658e2；MoveIt Jazzy固定commit 6ed6372；ros2_control Jazzy文档；来源#1682–#1692；专项报告§9.3.37 |
