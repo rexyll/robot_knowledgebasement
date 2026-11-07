@@ -2983,9 +2983,10 @@ Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`clearBuffer(sio)`说�
 ### D. 控制周期配置与VAL3循环的时间基准不一致
 
 - bringup的`controllers.yaml`设置`controller_manager.update_rate: 250`，即ROS 2侧目标更新周期4 ms；硬件接口将实际`period`写入命令帧的`controller_period`字段。
-- VAL3侧主循环结尾是`delay(0)`，本仓库没有在该控制任务中看到显式4 ms周期定时器/绝对时间调度。任务overrun只检查`bIsOverrun`并累计`nOverruns`，没有看到本循环的周期执行时间统计或硬性周期补偿。
-- VAL3以状态序号减命令序号计算`nSequenceDelay`。controlTask注释将运动中延迟阈值5解释为约20 ms、静止时阈值25解释为约100 ms，隐含每个序号周期约4 ms的假设；但VAL3代码本身未证明循环稳定运行在250 Hz。若实际循环周期不是4 ms，序号差阈值对应的真实时间将发生偏移。
-- 因此存在明确的时间基准/配置耦合风险：ROS 2侧明确配置250 Hz，而VAL3侧没有对应的固定周期声明。不能据此断言VAL3一定超周期或已发生实时性故障；需要在目标控制器测量每轮执行时间、抖动、overrun和双向报文时间戳后才能判定。
+- `start.pgx`明确设置`l_nCtrlPeriod=0.004`并调用`taskCreateSync`创建4 ms同步任务；`controlTask`末尾的`delay(0)`是同步任务主动让出当前执行片段的调度点，不是唯一的周期来源。此前“没有明确4 ms周期定时器/VAL3没有固定周期声明”的表述撤回。源码配置4 ms不等于已实测证明周期抖动、WCET或长期稳定性。
+- Stäubli CS9 2021实时配置文档§4.2说明同步任务按创建周期调度，每次最多执行3000行；若执行超过周期，当前周期正常结束但下一周期被取消，并置位任务创建时绑定的overrun bool。故overrun会形成调度周期缺口，而不是仅代表普通日志事件。
+- 当前`controlTask`检测`bIsOverrun`时仅日志、清标志并递增`nOverruns`；该分支不直接置`l_bError`、切换STOP或调用停止函数。它仍继续处理状态、通信和命令。monitor speed低于100%也只warning，随后仍创建任务。
+- ROS 2 `controller_manager.update_rate=250`与VAL3 4 ms同步任务名义上同为250 Hz，但两者独立调度，静态代码未显示相位锁定/时钟同步。VAL3序号延迟5/25在无跳周期且稳定4 ms时才近似20/100 ms；overrun取消周期时，序号差可能低估真实墙钟命令年龄。
 
 ### E. 整改建议
 
@@ -3023,3 +3024,76 @@ Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`clearBuffer(sio)`说�
 | #1781 | [ICube ros2_control controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | ControllerManager update_rate=250 Hz |
 | #1782 | [ICube StaubliHardwareInterface @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read/write在控制更新线程内执行，命令帧携带实际period |
 | #1783 | [ICube VAL3 computeSequenceDelay @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | 以状态/命令序号差估算循环延迟 |
+
+
+## 9.3.53 VAL3同步任务周期、Overrun跳周期与故障门控（2026-11-07）
+
+本节用于纠正§9.3.52对VAL3周期调度的错误表述，并进一步核对同步任务超周期后的实际控制策略。固定上游仍为 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。结论来自固定版本源码与Stäubli CS9官方实时调度文档，不代表已在目标CS9上测得周期或触发过overrun。
+
+### A. 源码明确创建4 ms VAL3同步任务
+
+- `start.pgx`先设置 `l_nCtrlPeriod = 0.004`，随后执行 `taskCreateSync "controlTask", l_nCtrlPeriod, bIsOverrun, controlTask()`。因此控制循环不是仅靠 `delay(0)` 自由运行的异步while循环；它被创建为周期4 ms的VAL3同步任务。
+- `ros2_server.dtx`将 `bIsOverrun` 声明为公开全局bool，初值true；`start.pgx`在创建任务前将其设为false。任务入口又将 `nOverruns=0`，用于本次控制任务运行期间的累计计数。
+- `controlTask.pgx`每轮末尾调用 `delay(0)`。结合Stäubli《CS9 Real Time Val3/Fieldbus configuration》§4.2，这条指令用于主动结束本次同步任务片段、让调度器继续执行下一个VAL3任务；周期本身由 `taskCreateSync` 的4 ms参数决定，而不是由 `delay(0)` 决定。
+- §9.3.52中“没有明确4 ms周期定时器/绝对时间调度”“VAL3没有对应固定周期声明”的结论撤回。准确表述应为：源码明确请求4 ms同步周期，但本次静态审查没有取得目标控制器实测的周期分布、抖动、WCET或长期稳定性证据。
+
+### B. CS9同步任务的调度与Overrun语义
+
+Stäubli 2021年CS9实时配置文档§4.2说明：同步VAL3任务按创建时指定的周期调度；每次调度最多执行3000条VAL3指令行；实践中常用 `delay(0)` 主动结束本次执行片段；同周期同步任务按创建顺序执行。若同步任务执行时间超过指定周期，当前周期正常结束，但下一个周期会被取消；任务创建时绑定的bool overrun变量被置true，用于向应用报告上一轮调度未完整完成。
+
+据此应区分：
+
+1. 4 ms是本项目显式配置的同步任务请求周期，不是已经实测证明的端到端控制延迟上限。
+2. overrun的调度后果不是简单“日志警告后照常补跑所有周期”，而是至少会取消下一次周期调度；发生超限时可能形成一个或多个实际更新间隔缺口。
+3. `delay(0)`是同步任务让出/结束当前执行片段的调度点，不是把同步任务改成异步任务，也不提供WCET保证。
+4. CS9系统任务、IO刷新、其他VAL3同步任务及CPU资源都会影响可用执行预算。文档指出同步任务消耗较多CPU资源；是否在当前CS9配置下稳定满足4 ms必须测量，不能从源码参数直接推导。
+
+### C. 当前Overrun处理只记录，不触发STOP
+
+固定 `controlTask.pgx` 在主循环开头执行：若 `bIsOverrun` 为true，则记录“Task overrun detected”，将标志清false，并令 `nOverruns = nOverruns + 1`。该分支本身没有设置 `l_bError`、没有将 `l_nCmdMode` 切换为STOP/ERROR、没有调用 `stopMove()` 或 `resetMotion()`，也没有阈值锁存、连续超限退避或任务停用逻辑。
+
+因此，静态证据支持的判断是：**当前代码把同步任务overrun作为日志和累计计数事件处理，而不是直接的运动停止条件。** 不能据此声称发生过实际超周期；也不能把后续其他命令延迟/通信错误可能触发的STOP等同于overrun专属保护。控制循环在处理该标志后仍继续状态更新、收发和命令处理。
+
+另外，`start.pgx`在monitor speed低于100%时只记录warning，随后仍继续创建4 ms同步任务；源码没有在该条件下拒绝启动或调整任务周期。该警告不等于实时性能验证。
+
+### D. 对序号延迟与ROS 2 250 Hz的影响
+
+- ROS 2 `controller_manager.update_rate=250` 与VAL3 `taskCreateSync(...,0.004,...)` 名义上均为250 Hz/4 ms，但它们由不同执行环境调度。静态源码没有显示二者之间存在相位锁定、时钟同步或周期反馈闭环。
+- ROS侧将本周期 `period` 写入命令帧，但固定VAL3控制逻辑未见使用该字段来校正同步任务周期或补偿调度偏差；因此不能把ROS发送的period字段视为VAL3周期控制器。
+- VAL3序号差门限5/25按名义4 ms周期可解释为约20/100 ms，但在overrun跳过周期、网络丢包或任务调度间隔变化时，序号差不再与真实墙钟时间一一对应。特别是被调度器取消的周期不会执行该轮控制代码及其序号递增，单靠序号差可能低估真实经过时间。
+- 目前命令无新帧staleness分支仍为TODO，故overrun计数不能替代独立的命令年龄watchdog。建议保留序号用于顺序/丢包诊断，同时在协议中加入会话epoch、单调时间戳或明确deadline，并以真实时间判定命令失效。
+
+### E. 整改与验收建议
+
+1. 为overrun建立明确的分级策略：单次超限可诊断记录，连续/窗口化超限应触发确定性降级或停止策略；阈值、动作和复位授权须经风险评估及CS9安全验证确定，不能直接把普通VAL3 STOP当作安全功能。
+2. 记录每次同步任务进入/退出时间、发送/接收/命令处理阶段耗时、周期抖动、最大执行时间、overrun次数和连续超限长度；同时记录控制器CPU负载、monitor speed、其他同步任务与IO刷新配置。
+3. 验证 `bIsOverrun` 的置位/清除时序，尤其在连续超限时是否可能合并事件或被应用清标志操作覆盖；将累计计数和最新overrun状态提供给ROS诊断通道，避免仅存在VAL3全局变量而主机不可见。
+4. 在同一时基或经校准的双端时间戳下比较ROS update、UDP发送/接收、VAL3同步任务开始/结束及命令应用时刻；分别统计正常、CPU压力、网络压力和混合压力下P50/P95/P99/P99.9与最大值。
+5. 保留ROS 250 Hz与VAL3 4 ms两个独立周期的明确配置和监测，若要求相位/采样同步，需设计并验证专用同步机制，不能仅凭相同的名义周期认定同步。
+
+### F. 新增验证项（SERVO-148–SERVO-160，均未执行）
+
+| ID | 验证场景 | 通过条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-148 | CS9上controlTask同步任务创建 | 实际任务类型、请求周期4 ms、启动/退出状态与源码配置一致 | VAL3任务清单、控制器版本 | 未执行 |
+| SERVO-149 | 正常负载下同步任务周期测量 | 记录周期分布、抖动、最大执行时间与CPU负载 | CS9时间戳/跟踪记录 | 未执行 |
+| SERVO-150 | 人为制造单次任务overrun | 验证被取消的后续周期、bIsOverrun置位时刻及恢复调度 | CS9任务跟踪/日志 | 未执行 |
+| SERVO-151 | 连续overrun与标志清除竞态 | 每次超限事件不被静默合并或覆盖，计数与调度器事件可对账 | 注入记录、nOverruns、任务时间线 | 未执行 |
+| SERVO-152 | 单次overrun后的控制门控 | 明确验证当前代码不会仅因该标志直接STOP，并评估是否满足风险要求 | 安全受控SRS/HIL记录 | 未执行 |
+| SERVO-153 | 连续/窗口化overrun策略 | 达到经风险评估确定的阈值时触发规定降级/停止与重新授权 | 故障注入、状态机记录 | 未执行 |
+| SERVO-154 | overrun与序号延迟相关性 | 测得跳周期后sequence delay与真实墙钟命令年龄的偏差 | 双端同步时间戳/抓包 | 未执行 |
+| SERVO-155 | ROS 250 Hz与VAL3 4 ms相位/频率漂移 | 量化两套调度时基偏差、长期漂移和网络往返延迟 | ros2_tracing/CS9跟踪 | 未执行 |
+| SERVO-156 | controller_period字段消费核验 | 证明VAL3是否消费该字段；若未消费，协议与文档明确其仅为遥测/预留 | 源码追踪/协议测试 | 未执行 |
+| SERVO-157 | monitor speed低于100%启动行为 | 明确warning后任务是否仍启动及周期性能变化，不把warning当作保护 | CS9配置与日志 | 未执行 |
+| SERVO-158 | 其他VAL3同步任务/IO刷新竞争 | 评估同周期创建顺序、CPU预算、IO刷新及任务间干扰 | 系统任务配置/跟踪 | 未执行 |
+| SERVO-159 | overrun诊断可观测性 | ROS侧能区分累计overrun、连续超限、计数复位和通信失联 | 诊断接口/故障注入 | 未执行 |
+| SERVO-160 | stop/restart后overrun状态与计数生命周期 | bIsOverrun、nOverruns初始化/复位行为确定，旧会话统计不污染新会话 | 多轮启停日志 | 未执行 |
+
+### G. 本节来源记录（#1784–#1787）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1784 | [ICube VAL3 start @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | l_nCtrlPeriod=0.004与taskCreateSync创建4 ms同步任务；monitor speed低于100%仅warning |
+| #1785 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | bIsOverrun只日志、清标志、nOverruns递增；循环末尾delay(0)，无overrun专属STOP |
+| #1786 | [ICube VAL3 database @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx) | bIsOverrun、nOverruns全局变量声明与初值 |
+| #1787 | [Stäubli CS9 Real Time Val3/Fieldbus configuration TSS.000.014.04-A (2021), §4.2](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 同步任务周期、3000行执行上限、delay(0)让出、超周期取消下一周期及overrun bool语义 |
