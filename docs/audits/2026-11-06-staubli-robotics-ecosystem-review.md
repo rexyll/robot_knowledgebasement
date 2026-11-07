@@ -2285,3 +2285,91 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1723 | [ros2_control Jazzy realtime_tools文档] (`https://control.ros.org/jazzy/doc/realtime_tools/doc/index.html`) | RealtimeThreadSafeBox best-effort单值交换与LockFreeQueue保留中间样本的选型指引 |
 | #1724 | [ros2_control Jazzy RealtimeThreadSafeBox API源码] (`https://control.ros.org/jazzy/doc/api/realtime__thread__safe__box_8hpp_source.html`) | try_get best effort与set覆盖Box当前值的实现；try_get锁不可得时返回空 |
 | #1725 | [ros2_controllers ForwardControllersBase header/source @ c8d2693] (`https://github.com/ros-controls/ros2_controllers/tree/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller`) | rt_command_为RealtimeThreadSafeBox；callback set、update try_get及旧joint_commands_保留路径 |
+
+
+## 9.3.43 多发布者竞争、命令来源身份与运动控制授权隔离（2026-11-07）
+
+### A. 审查范围与固定版本
+
+- Stäubli ICube驱动与配置固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- MoveIt 2 Jazzy固定commit：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+- ros2_controllers固定源码快照：`c8d26930ff87bc819db1452af1d45da5bfa3d50d`。
+- ROS 2 SROS 2 / DDS-Security官方设计与访问控制策略文档用于核对认证、加密、enclave和topic级授权能力。
+- 本节为固定源码、仓库配置与官方安全设计静态审查；未部署SROS2 keystore、未生成/签署权限文件、未启动安全DDS网络，也未执行恶意/未授权publisher注入。
+
+### B. 当前命令链没有应用层发布者身份与仲裁
+
+1. Stäubli Servo的`Float64MultiArray`输出topic是`/forward_position_controller/commands`。消息只有数值数组，没有`source_id`、认证主体、命令租约、epoch或sequence。
+2. ros2_controllers固定源码中的ForwardControllersBase创建普通topic subscription。callback只检查controller lifecycle ACTIVE以及数组中所有值有限，然后将消息写入`rt_command_`；没有检查publisher GID、ROS node name、enclave身份、授权token或source优先级。
+3. 同一个topic允许多个匹配publisher时，subscription会收到来自各publisher的样本。callback按到达顺序覆盖单槽位Box；两次controller update之间最后写入Box的样本成为下一次可读取值。网络调度和executor调度决定到达顺序，不能保证业务优先级、发布者优先级或“Servo永远胜出”。
+4. 即使某一发布者以更高频率发布，也不能认为它拥有控制权；另一个publisher的样本可能在其之后到达并覆盖槽位。控制器不会检测控制源切换，也不会对源身份变化执行平滑过渡、重新授权或安全停止。
+5. MoveIt Servo的JointJog/Twist/Pose输入topic各自只有一个subscription对象，但ROS topic允许多个publisher。对应callback仅把收到的消息复制到`latest_joint_jog_`/`latest_twist_`/`latest_pose_`并置位标志；没有publisher身份校验或多源仲裁。若多个上游节点向同一输入topic发布，Servo处理的是executor最后更新的latest消息。
+6. Servo内部会按当前CommandType处理一种输入类型，并清除另外两种类型的new-message标志；这不是多个publisher的授权隔离机制。任何能向当前有效输入topic发布的参与者都可能影响Servo命令。
+7. 因而当前链路存在两处独立多源入口：上游Servo输入topic和下游ForwardController输出topic。只保护其中一端不能形成完整的命令授权边界。
+
+### C. DDS/SROS2能提供什么，不能提供什么
+
+1. ROS 2默认不启用DDS-Security；官方设计说明SROS2通过DDS-Security提供身份认证、通信加密和访问控制。部署需要每个安全参与者对应的身份材料、签名governance与permissions文件。
+2. SROS2 access-control policy支持按topic限制publish/subscribe权限，亦支持service request/reply和action call/execute权限。可将Servo命令输出topic仅授权给Servo enclave发布，并仅授权ForwardController enclave订阅；对Servo的JointJog/Twist/Pose输入topic仅授权给指定上游命令网关发布。
+3. 必须启用`ROS_SECURITY_ENABLE=true`并将`ROS_SECURITY_STRATEGY=Enforce`用于强制模式。官方设计说明默认是permissive：安全材料缺失时可无安全启动；strict Enforce模式下缺失材料应导致启动失败。仅生成keystore或设置enclave参数，不等于安全策略已启用。
+4. Enclave权限是DDS participant/安全身份级别，不是应用消息中每条命令的业务授权token。若多个ROS节点/进程共用同一enclave或同一授权身份，它们会共享该身份权限；不能用“节点名称看起来可信”替代独立身份和密钥隔离。
+5. SROS2 topic ACL控制哪些安全身份可以向topic发布/订阅，不提供应用层多源优先级、控制租约、授权交接、命令序号防重放、运动模式互锁或命令速率限制。获准publisher仍可能发布错误但格式合法的命令。
+6. 安全配置应同时限制Servo的`~/pause_servo`、`~/switch_command_type`服务请求权限以及上游JointJog/Twist/Pose输入；否则攻击者即使不能直接写controller topic，也可能通过未授权输入或服务改变运动状态。实际resolved service/topic名称必须以部署namespace/remapping结果生成权限策略。
+7. DDS-Security的认证与访问控制不是功能安全急停。证书泄漏、错误ACL、合法publisher失陷、策略签名/更新错误或安全基础设施故障仍需由独立安全控制系统和物理急停覆盖。
+
+### D. 推荐授权与仲裁架构
+
+1. 为每个机器人实例分配独立ROS_DOMAIN_ID/网络隔离域（是否拆域由系统架构决定），并为Servo、上游命令网关、controller_manager/ForwardController、监控/维护工具分配独立enclave和独立密钥，不共享高权限身份。
+2. Servo输出命令topic只允许Servo enclave publish；ForwardController enclave只允许subscribe；其他应用、调试工具和遥操作端均拒绝直接publish该topic。
+3. Servo输入topic只允许单一命令网关publish。遥操作、自动规划、示教、维护模式等多种来源先进入命令网关，由它实施显式仲裁；不允许多个源绕过网关直接争用同一Servo输入topic。
+4. 命令网关/仲裁器必须实现单一active owner、优先级/模式策略、授权租约、心跳/租约到期、显式交接握手、切换期间停止或受控过渡，以及源撤销后旧命令失效。切换不能只靠两个publisher停止/启动的时序假设。
+5. 对命令协议增加source identity、session epoch、monotonic sequence、接收端单调时钟年龄和有效期。拒绝未授权源、epoch回退、序号回退/重复、超龄、模式不匹配和越权关节命令；消息字段只是应用协议的一部分，身份真实性仍由安全通道/授权网关保证。
+6. 如果短期保留Float64MultiArray，至少在DDS ACL层做到唯一publisher，并通过独立网关封装消息来源/租约/序号校验；不能仅凭Float64MultiArray数组有限且长度正确就视为已授权。
+7. 权限策略应遵循最小权限：显式列出必要topic、service、action、parameter/event和发现通信所需权限；避免使用`*`宽泛匹配。对namespace remapping做负向测试，确保攻击者不能通过改名topic绕过权限范围。
+8. 密钥/证书轮换、撤销、过期、权限文件签名、keystore备份、设备克隆、生产镜像注入和现场维护访问应纳入安全生命周期。生产环境禁止把开发keystore/私钥提交到公开仓库。
+
+### E. 风险分级
+
+- **P1：ForwardController没有发布者身份/授权检查。** 任何能够连接该topic的publisher都可能覆盖命令单槽位；目前没有应用层控制源仲裁。
+- **P1：Servo输入topic同样允许多publisher竞争。** latest-message callback不区分来源，无法保证命令来源优先级。
+- **P1：当前Stäubli配置未见SROS2部署/Enforce基线。** ROS 2默认不启用DDS-Security；不能声称topic受到身份认证或ACL保护。
+- **P1：同一enclave身份共享权限。** 多个进程/节点若共用身份，不构成彼此隔离；获准身份的失陷会直接影响该身份权限范围。
+- **P1：SROS2 ACL不等于业务控制授权。** 不具备控制租约、命令序号/防重放、模式互锁和安全停止语义。
+- **P2：权限策略与namespace/remapping耦合。** 规则必须与resolved names同步，并验证改名/重映射后不会扩大权限。
+- **P1：安全策略不能替代功能安全。** 必须保留独立安全PLC/安全驱动/急停及安全速度/空间限制等风险评估确定的保护层。
+
+### F. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| SERVO-47 | 双publisher竞争 | 两个不同身份同时向controller命令topic发布；未经授权publisher被拒绝，命令owner唯一且可追溯 | 未执行 |
+| SERVO-48 | Servo输入多publisher | 两个上游publisher同时发送JointJog/Twist/Pose；非授权源不能改变Servo输出 | 未执行 |
+| SERVO-49 | SROS2严格模式 | ROS_SECURITY_ENABLE=true且STRATEGY=Enforce；无证书/无enclave进程启动失败 | 未配置/未执行 |
+| SERVO-50 | DDS topic ACL | 仅Servo enclave可publish commands，仅ForwardController enclave可subscribe；其他身份被拒绝 | 未配置/未执行 |
+| SERVO-51 | 同enclave隔离负测 | 两个进程共用同一enclave时确认其共享权限风险；生产策略要求独立身份且密钥不共享 | 未执行 |
+| SERVO-52 | Service权限 | 未授权主体不能调用Servo pause/unpause和switch_command_type服务 | 未配置/未执行 |
+| SERVO-53 | Namespace/remap绕过 | 对topic/service重映射、namespace变化和通配符规则执行正反向访问测试，越权全部失败 | 未执行 |
+| SERVO-54 | 控制权租约交接 | owner租约过期/撤销/切换时旧源命令失效；新源须完成握手后取得唯一控制权 | 未实现/未执行 |
+| SERVO-55 | Replay/epoch/sequence | 注入重复、乱序、旧epoch、重启序号回退和超龄命令，全部被拒绝并可审计 | 当前Float64MultiArray不支持 |
+| SERVO-56 | 密钥轮换与撤销 | 轮换、过期、撤销、丢失、镜像克隆和策略签名错误均按fail-closed策略处理 | 未配置/未执行 |
+| SERVO-57 | 安全与功能安全独立 | 关闭DDS安全、失去授权网关或安全通信时，独立安全回路仍可执行风险评估规定的停止/限速动作 | 未验证 |
+
+### G. 整改建议
+
+1. 先绘制部署后的完整ROS通信图：所有Servo输入topic、输出topic、pause/switch服务、controller_manager服务、硬件接口和监控/维护通道，并标注每个endpoint所属进程、enclave、命名空间和用途。
+2. 在fake hardware/SIL中先部署SROS2 Enforce与最小权限策略，确认启动/发现/参数/服务所需的辅助权限完整，同时验证未授权publisher无法发布。禁止先在实机上试错安全ACL。
+3. 建立唯一命令网关/仲裁器，所有遥操作、规划和维护源都必须经它取得owner lease；Servo输出topic只允许Servo发布，ForwardController只允许Servo对应身份发布者通过DDS ACL连接。
+4. 将控制owner状态、来源、epoch、sequence、接收时间、租约截止时间和切换原因写入诊断/审计日志；日志不得记录私钥、访问token或敏感凭据。
+5. 把SROS2 ACL、应用仲裁、接收端新鲜度watchdog、controller lifecycle互锁和独立功能安全停止形成分层安全论证；任一层失效不应导致未授权运动。
+6. 记录RMW/DDS厂商与版本、ROS_SECURITY相关环境变量、enclave路径、签名权限文件版本、证书有效期和launch remapping；启动时检查Enforce确实生效，不能仅依据环境变量配置文件宣称安全已启用。
+
+### H. 本节来源记录（#1726–#1730）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1726 | [MoveIt Servo servo_node.cpp @ 6ed6372] (`https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp`) | Servo输入订阅与latest消息回调、输出publisher和pause/switch服务 |
+| #1727 | [ForwardControllersBase @ c8d2693] (`https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/forward_command_controller/src/forward_controllers_base.cpp`) | callback只检查ACTIVE和finite值、rt_command_.set，无来源身份校验 |
+| #1728 | [ROS 2 DDS-Security integration / SROS 2 design] (`https://design.ros2.org/articles/ros2_dds_security.html`) | 默认安全关闭、身份认证/加密/访问控制、enclave材料、Enforce/Permissive |
+| #1729 | [ROS 2 Access Control Policies] (`https://design.ros2.org/articles/ros2_access_control_policies.html`) | topic publish/subscribe及service/action权限策略 |
+| #1730 | [ROS 2 Security deployment guidelines Jazzy] (`https://docs.ros.org/en/jazzy/Tutorials/Advanced/Security/Deployment.html`) | 安全部署、keystore/证书/权限策略生命周期与运行配置 |
+
