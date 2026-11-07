@@ -528,3 +528,49 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 ### F. 证据边界
 
 本节没有执行VAL3仿真、机器人仿真器、CS9 HIL/实机、构建、单元测试、网络注入或停止时间测量。$movejSyncEnd、stopMove、resetMotion为VAL3环境中的原生/系统函数，公开包装代码没有给出其底层实现与安全等级；本节只记录调用条件、顺序和上层反馈处理，不宣称物理停止性能。
+
+## 9.3.17 状态反馈新鲜度、read/write错误传播与控制器停机契约（2026-11-07）
+
+本节固定ICube上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`，并将其ros2_control运行语义与ROS 2 Jazzy对应文档/源码对照。结论分为上游驱动静态事实、框架版本行为和仍需目标环境验证的事项。
+
+### A. ROS侧RobotState接收与新鲜度
+
+1. `RobotDriver`构造时调用`set_state_staleness_timeout()`；头文件默认阈值为100 ms。每次`read_robot_state()`先检查control interface ready，再读取最新消息、校验消息有效性，并在`status.time_since_received >= state_staleness_timeout_`时返回false；只有全部通过后才更新输出state和`last_valid_sequence_id_`。因此，不能笼统声称ROS状态反馈完全没有staleness检查。来源#1571–#1572。
+2. Subscriber在每个成功反序列化的数据报上设置`reception_timestamp=now()`并覆盖消息缓冲区。若没有新消息，`read_message()`会继续使用已有缓存并计算其接收年龄；初始没有任何有效消息时返回false。来源#1573。
+3. 该100 ms检查衡量的是“最近一个可解析数据报的到达年龄”，不必然代表状态序号持续前进。§9.3.2已确认重复序号/重复帧仍可能被接收路径接受，而每个成功反序列化数据报都会刷新接收时间戳；因此重复/重放旧状态帧可能持续刷新时间年龄，使序号停滞与数据陈旧未被同一门槛识别。此处属于跨§9.3.2与本节的静态逻辑组合结论，尚未做网络注入复现。来源#1496–#1500、#1573。
+4. 状态丢包统计在`read_robot_state()`中仅保留注释掉的warning，不作为错误门槛；100 ms阈值、重复序号接受和VAL3侧命令新鲜度是不同层次，不应混为一谈。来源#1572。
+5. `StaubliHardwareInterface::read()`在未连接、状态读取失败（包括超时/无有效消息）或`update_state()`失败时返回`hardware_interface::return_type::ERROR`；成功时才返回OK。失败时没有把旧`state_msg_`当作本轮成功状态继续更新接口。来源#1574。
+
+### B. ROS 2 Jazzy框架对read/write错误的处理
+
+6. ROS 2 Jazzy官方文档明确：硬件组件`read()`或`write()`返回`return_type::ERROR`时，框架调用`on_error(previous_state)`；回调返回SUCCESS后硬件组件进入UNCONFIGURED，回调返回FAILURE/ERROR则进入FINALIZED。来源#1575–#1576。
+7. 固定的ros2_control源码还显示，HardwareComponent在read/write调用后检测到ERROR会先执行`error()`，再向上返回该错误；`error()`暂停异步操作并执行插件`on_error()`。ControllerManager收到read/write错误后，会按受影响硬件组件查找关联控制器并执行停用。框架测试覆盖了read错误和write错误时关联控制器转为INACTIVE的行为。来源#1576–#1578。
+8. 因而本驱动read错误并非仅打印日志：在该Jazzy框架路径下会进入on_error，硬件组件状态转为UNCONFIGURED（若on_error成功），ControllerManager随后停用关联控制器；处于UNCONFIGURED的HardwareComponent不再执行正常ACTIVE态write。这是框架源码/测试语义，不代表机器人端已经收到STOP或已静止。
+9. 驱动`on_error()`在连接时调用`send_stop_all_command()`，但忽略其bool结果，随后无条件返回CallbackReturn::SUCCESS；只有未连接时才返回ERROR。它也没有在该回调中disconnect。因此框架会把回调视为成功并将组件置为UNCONFIGURED，即使STOP发送失败、被底层would_block路径丢弃或未得到机器人确认；同时socket/RobotDriver连接对象没有在on_error中显式释放。来源#1546、#1574、#1576。
+10. `write()`对连接丢失、活动模式下的机器人error/INVALID状态、未知控制模式、NaN命令及`send_robot_command()`失败返回ERROR；机器人error/NaN路径会先尝试普通STOP，但未知模式和发送失败路径本身不先显式发STOP，之后依赖框架触发的on_error再次尝试。STOP发送bool仍未被检查。来源#1574。
+11. ControllerManager停用关联控制器和HardwareComponent进入UNCONFIGURED，属于ROS框架层的命令源隔离/调度结果；它们不是CS9安全功能，不证明VAL3已处理STOP、驱动器已撤能、制动器已闭合或机械臂达到静止。STOP的端到端确认缺口仍由§9.3.15–§9.3.16覆盖。
+
+### C. 新增风险边界与修复要求
+
+- **P0｜区分报文到达新鲜度与状态进展新鲜度。** 将接收时间戳与单调递增/回绕安全的状态序号进展分开判断；重复帧不得无限刷新“状态正在前进”的健康判据。需定义重复、乱序、回绕和合法重连的独立策略。
+- **P0｜on_error必须报告STOP结果并进入可观测故障状态。** 检查STOP发送返回值、传输错误、VAL3 ACK和停止完成反馈；不能在STOP结果未知时无条件返回SUCCESS并将硬件标记为可重新配置。普通UDP STOP不得替代独立安全链。
+- **P1｜明确UNCONFIGURED资源所有权。** on_error进入UNCONFIGURED前，应定义socket/线程/RobotDriver资源是关闭、保留还是隔离；重新configure必须有确定的重连、状态重新同步和命令清空流程。
+- **P1｜write错误分类。** 区分可恢复命令拒绝、数据无效、通信发送失败和硬件状态故障；所有需要停止的出口均需检查停止请求结果，并将“已请求”“已送达”“已停止”作为不同状态暴露。
+- **P1｜版本锁定。** 项目目标为ROS 2 Jazzy，但公开仓库依赖版本与部署环境仍需冻结；本节框架语义依据ROS 2 Jazzy文档及对应ros2_control源码快照，不外推到其他发行版/自定义补丁。
+
+### D. 可执行验收矩阵
+
+| ID | 注入/前置条件 | 必须观测的结果 | 当前证据/缺口 |
+|---|---|---|---|
+| FB-01 | 状态帧静默超过100 ms | read返回ERROR；on_error调用次数/返回值、硬件生命周期状态和关联控制器状态符合锁定Jazzy版本 | 静态路径明确，未在目标工作区执行 |
+| FB-02 | 连续发送相同序号、相同payload的有效状态帧 | 接收时间可刷新，但状态进展健康判据必须判定序号停滞；不得仅靠到达时间维持健康 | 现有接收逻辑可能刷新时间戳；未注入复现 |
+| FB-03 | 发送旧序号/乱序帧及65535→0合法回绕帧 | 分别识别重放、乱序、回绕和新会话；状态进展计数无误 | §9.3.2已有静态问题，尚无UDP集成测试 |
+| FB-04 | read超时后on_error的STOP发送触发would_block/硬错误 | on_error不得将失败伪装为成功恢复；记录发送错误、组件状态、控制器状态及VAL3反馈 | 既有would_block返回true问题；未注入 |
+| FB-05 | read返回ERROR，随后执行ControllerManager完整update周期 | 验证组件转UNCONFIGURED、关联控制器INACTIVE、该组件不再向机器人发送活动命令 | 框架源码/测试已覆盖通用组件，ICube集成未测 |
+| FB-06 | write因NaN/unsupported mode/send failure返回ERROR | 验证on_error停止请求、发送结果、控制器停用和硬件生命周期状态 | 插件静态路径已核对，未执行目标版本测试 |
+| FB-07 | on_error成功后重新configure/activate | 验证旧socket资源清理、重新连接、首个新鲜状态、命令缓存清零、需人工重新使能且不会自动恢复旧轨迹 | 未做生命周期集成测试 |
+| FB-08 | STOP发送成功但机器人状态仍显示in_motion，或状态缓存陈旧 | 系统不得将发送成功/缓存STOP等同静止；须等待独立停止完成判据 | 当前无STOP ACK/静止确认 |
+
+### E. 验证边界
+
+本节为固定上游commit、ROS 2 Jazzy官方文档及ros2_control对应源码/测试的静态交叉审查。没有在本环境构建ICube工作区，没有执行ROS 2 Jazzy ControllerManager集成测试、UDP重复/乱序/静默/缓冲区压力注入、TSan/ASan、VAL3仿真、CS9 HIL或真实机器人停止测量。重复帧刷新时间戳的风险尚未动态复现；框架通用测试不等于ICube插件集成通过。Stäubli仍保持静态审查未验收。
