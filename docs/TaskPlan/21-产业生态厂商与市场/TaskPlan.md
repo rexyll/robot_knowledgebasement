@@ -436,3 +436,5 @@
 
 
 | 2026-11-07 | 21-02/Stäubli停止包装程序、错误清理与生命周期回调 | 审查stopJointPositionControl/movejSyncEnd、controlTask错误处理和HardwareInterface on_activate/on_cleanup/on_shutdown/on_error。发现停止包装无停止后状态验证且无条件x_bError=false；错误处理自动清除l_bError并重置socket，缺故障锁存；cleanup直接断连，shutdown不等待STOP确认，error忽略STOP结果。新增专项审计§9.3.16、来源#1568–#1570。静态审查，未做VAL3仿真/CS9实机，21-02继续进行中。 | 来源#1568–#1570；专项审计§9.3.16 |
+
+| 2026-11-07 | 21-02/Stäubli状态反馈新鲜度、read/write错误传播与控制器停机契约 | 新增专项审计§9.3.17及来源#1571–#1578：核实RobotDriver默认100ms状态新鲜度检查；跨§9.3.2确认重复/重放状态帧刷新接收时间戳但不保证序号进展；对照ROS 2 Jazzy框架源码/官方文档，read/write ERROR会调用on_error，成功后组件转UNCONFIGURED并停用关联控制器；ICube on_error忽略STOP bool且不显式disconnect。新增FB-01–FB-08测试矩阵，明确框架停用不等于机器人停止。未执行ROS构建/集成测试、UDP注入、TSan/ASan、VAL3仿真或CS9 HIL/实机；21-02继续进行中，Stäubli未验收。 | 来源#1571–#1578；Stäubli专项审计§9.3.17 |
