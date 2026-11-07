@@ -2835,3 +2835,55 @@ ROS C++侧使用Boost.Asio UDP socket，`receive_once`的回调按`bytes_transfe
 | #1765 | [ICube C++ UDP implementation @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | Boost.Asio UDP单次接收长度与vector处理 |
 | #1766 | [Stäubli VAL3 Reference Manual D.280.935.01-F (2020)](https://bvdp.inetdoc.net/files/iut/robotiqueBUT2/Manuel_de_ref_VAL3.PDF) | sioGet读取终止条件、timeout=-1/0及0/-1返回语义 |
 
+## 9.3.50 VAL3 clearBuffer对Ethernet UDP Socket生命周期的影响（2026-11-07）
+
+### A. 固定源码调用链
+
+固定ICube driver commit `bd658e2d266e315d2ee35f985fb352ea88306b79`。调用关系如下：
+
+1. `start.pgx`在创建controlTask之前调用`clearBuffer(siSocketControl)`。
+2. `controlTask.pgx`启动后调用`resetControlSocket`。
+3. `resetControlSocket.pgx`设置timeout=-1、endOfString=10，然后再次调用`clearBuffer(x_UdpSocket)`。
+4. 控制循环先编码并通过`sendData`发送状态，再调用`readData`接收命令。
+5. `stop.pgx`停止运动并调用`clearBuffer(siSocketControl)`。
+
+### B. 手册语义与影响
+
+Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`clearBuffer(sio)`说明：该函数清空输入读取缓冲区并返回清除的字符数；对于Ethernet socket，`clearBuffer`会使socket失效/关闭；若socket已经失效，则返回-1。手册同时说明Ethernet socket在VAL3程序首次读取或写入时激活，`sioGet`在socket未激活时会尝试建立连接。由此可确认：
+
+- 当前注释“Clear socket buffers”不完整：调用不仅清理输入缓存，还会关闭/停用Ethernet socket。
+- `start`和`resetControlSocket`在控制任务开始前后连续调用clearBuffer，第二次调用可能遇到socket已经停用而返回-1；当前代码忽略该返回值。
+- 后续`sendData/sioSet`或`readData/sioGet`会触发socket重新激活（具体UDP配置和CS9固件上的实际行为仍需验证）。因此启动路径包含明确的停用—重新激活生命周期切换，而非单纯的队列清空。
+- `stop`调用clearBuffer会关闭/停用socket；如果停止入口与控制任务并发执行，是否存在读写竞态、重开socket或任务未退出后继续访问的情况，必须检查任务调度和实机时序。当前静态代码不足以证明并发竞态实际发生。
+- 对已停用socket再次调用clearBuffer的-1返回值没有被检查；这可能是预期的重复清理结果，但目前没有明确记录/验证。
+
+### C. 整改建议
+
+1. 将封装函数重命名/注释为`deactivateSocketAndClearInput`一类明确语义，区分纯清空数据与关闭socket。
+2. 检查并记录clearBuffer返回值；对“已经停用”的-1按明确状态处理，不得与其他错误混淆。
+3. 明确socket生命周期状态机：INACTIVE → ACTIVATING → ACTIVE → DEACTIVATING；只允许一个任务拥有socket生命周期管理权。
+4. 在stop流程中先停止/等待controlTask退出，再关闭socket；若VAL3任务模型保证stop程序只在主任务退出后执行，应通过SRS/CS9证据记录该保证。
+5. 启动流程只执行一次有定义的清理/停用操作；之后由明确的首次发送/接收路径激活socket，并确认首帧不会被丢弃或延迟。
+6. 将“清空旧命令”与“关闭socket”拆成两个需求分别验收，避免为清理旧数据而无意引入通信中断。
+
+### D. 新增验证矩阵（SERVO-119–SERVO-125，均待执行）
+
+| ID | 场景 | 预期验收条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-119 | 对active UDP socket调用clearBuffer | 记录返回值、socket激活状态、远端可达性及队列清理效果 | VAL3日志、双端抓包 | 未执行 |
+| SERVO-120 | 对inactive socket调用clearBuffer | 明确验证-1语义；调用方按预期处理，不误报其他故障 | 返回值、状态日志 | 未执行 |
+| SERVO-121 | start与controlTask连续执行两次clearBuffer | 第二次调用行为明确，首次状态发送/命令接收能正常重新激活 | 启动时序、首帧抓包 | 未执行 |
+| SERVO-122 | clearBuffer后由sioSet首次写入 | socket自动激活行为、首个状态帧送达及延迟可测 | 抓包、时间戳 | 未执行 |
+| SERVO-123 | clearBuffer后由sioGet首次读取 | socket自动激活行为、首个命令帧不丢失且边界正确 | 抓包、VAL3日志 | 未执行 |
+| SERVO-124 | stop与controlTask并发/任务退出边界 | 关闭socket前任务退出顺序确定，无关闭后访问或意外重开 | 任务状态、时序日志、SRS | 未执行 |
+| SERVO-125 | 连续start/stop/restart与残留UDP包 | 重启后旧命令不可执行，socket状态与首帧握手一致 | 多轮循环、序号/抓包 | 未执行 |
+
+### E. 本节来源记录（#1767–#1770）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1767 | [ICube VAL3 start @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | 控制任务创建前调用clearBuffer |
+| #1768 | [ICube VAL3 resetControlSocket @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx) | 设置SIO timeout/endOfString并再次clearBuffer |
+| #1769 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | Socket初始化、发送状态、接收命令顺序 |
+| #1770 | [ICube VAL3 stop @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx) | 停止运动后调用clearBuffer |
+
