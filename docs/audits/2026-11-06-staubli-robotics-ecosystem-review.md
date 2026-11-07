@@ -2887,3 +2887,62 @@ Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`clearBuffer(sio)`说�
 | #1769 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | Socket初始化、发送状态、接收命令顺序 |
 | #1770 | [ICube VAL3 stop @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx) | 停止运动后调用clearBuffer |
 
+
+
+## 9.3.51 VAL3/C++状态UDP发送完整性与失败恢复语义（2026-11-07）
+
+本节固定审查上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。重点区分VAL3的显式写入长度校验、控制任务的故障处理，以及C++ UDP发送接口的返回值处理；本节是静态源码与手册契约审查，不代表已触发网络拥塞或真实CS9发送故障。
+
+### A. VAL3发送路径
+
+- `Comm/sendData.pgx`先拒绝空数组；随后调用`sioSet(x_UdpSocket, x_nData)`，并将返回值与`size(x_nData)`比较。任何返回值不等于完整数组长度（包括-1、0或正数短写）都会设置`x_bError=true`；只有完整长度才清除错误标志。该封装没有实现“从已发送偏移继续发送剩余字节”的重试。
+- `controlTask.pgx`每个控制周期先更新状态、递增状态序号、编码RobotState并发送；若编码/发送失败，设置`l_bError=true`。随后仍会进入命令接收/处理段，但命令模式选择会因`l_bError`进入ERROR/STOP路径；本周期执行停止处理（`stopMove()`、`resetMotion()`），清除控制会话状态并调用`resetControlSocket()`。因此不能把VAL3端描述为“发送失败被忽略”；它具有错误置位与停止/重置路径。
+- 但该路径没有对状态帧发送失败做独立计数、连续失败阈值或退避；发送失败会影响控制通道本身，主机可能同时失去状态反馈。错误处理后重新接受命令的冷却/重新授权仍是既有TODO（见§9.3.45–§9.3.46）。停止调用和socket重置也不构成独立安全停止证明。
+
+### B. SIO手册契约与部分写入处理
+
+- Stäubli VAL3 Reference Manual D.280.935.01-F（2020）说明`sioSet`返回实际写入字符数；Ethernet socket未激活时会尝试打开；输出等待超时返回-1；通信错误时返回数可能小于数组长度。
+- Stäubli VAL3编程手册 D.280.935.01-G（2021）进一步说明：若内部缓冲区已满，`sioSet`返回数可能与请求数量不同，Socket不会因此关闭，调用方需要对未写入的剩余数据重新执行写入。
+- 当前`sendData.pgx`仅检测长度不匹配并升级为控制错误，没有按手册描述的剩余字节偏移继续发送。因此存在两层需区分的问题：一是短写/超时会导致当前状态帧未完整输出；二是实现直接把它转为控制故障和socket reset，而不是尝试补写。不能仅凭手册“Socket不会关闭”推断当前UDP配置的线上数据报边界、短写后续补写是否能保持同一数据报；必须在目标CS9与对应VAL3版本确认SIO对UDP socket的具体行为。若协议设计要求一帧对应一个UDP datagram，不能未经验证地将剩余字节作为第二次`sioSet`追加发送。
+
+### C. C++ UDP发送路径与跨端不对称
+
+- 固定源码`udp_socket_impl.hpp`的`UDPSocketImpl::send()`调用Boost.Asio `socket_.send_to(..., MSG_DONTWAIT, err)`，但没有保存/检查其返回的`bytes_transferred`。
+- 当`err == would_block`时，代码记录“Packet dropped”，但不返回false，而是继续返回true；注释说明这是为了避免阻塞实时线程，并明确TODO考虑丢包计数/阈值错误。因此发送缓冲区拥塞导致命令数据报被丢弃时，上层可能仍得到成功语义。该行为已在§9.3.45记录，本节进一步与VAL3发送端作跨语言语义对照。
+- 对其他非零错误码，C++返回false；对无错误返回true。当前没有检查返回字节数是否等于输入vector长度。UDP常规数据报发送通常以完整数据报为单位，但这里不能把未检查的API返回值当作应用层完整性验收，也不能用VAL3的SIO字符写入数语义直接替代Boost.Asio UDP datagram语义。
+- 因此两端语义不对称：VAL3把任何短写/超时作为错误并触发控制任务停止/重置；C++对would_block明确丢弃但返回成功，对其他错误返回失败，且未核对实际发送长度。两端均没有端到端确认机制；发送API成功不证明对端收到、解析或执行。
+
+### D. 影响、修复方向与验证要求
+
+1. 为VAL3发送封装定义明确的传输契约：若目标CS9的SIO允许对同一UDP datagram做部分写入续传，按返回数推进偏移并验证最终长度；若无法保证续传仍属于同一datagram，则将短写视为不可恢复帧错误并在协议层重新发送完整帧，不能把余量盲目作为独立UDP包发送。
+2. 为C++ `send_to`保存并检查返回字节数；would_block必须向上层传播“本帧未发送”或通过明确的丢包状态/计数和控制器看门狗策略处理，不能继续返回无条件成功。实时线程不得因重试而无界阻塞。
+3. 在两端统一定义发送失败的状态机：命令发送失败、状态遥测发送失败、连续丢包、超时、会话重置、恢复冷却和重新授权分别处理；不得把UDP本地发送成功视为控制器已接收确认。
+4. 建立VAL3与C++跨端发送故障注入：满长度成功、SIO返回-1、SIO正数短写、内部缓冲区满后续写、Boost.Asio would_block、其他系统错误、返回字节数异常、连续丢帧、状态通道中断与控制通道恢复；记录原始抓包、VAL3日志、C++返回值、控制模式、机器人停止状态和重新授权过程。
+5. 在SRS/CS9上确认UDP SIO短写是否可能发生、短写后续写的数据报边界、socket是否保持激活、resetControlSocket是否丢弃未发送余量，以及失败时机械运动停止的实际时间与安全回路独立性。
+
+### E. 新增验证项（均未执行）
+
+| ID | 验证场景 | 通过条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-126 | VAL3 sioSet完整长度返回 | 返回长度与帧长一致，抓包恰为一帧且内容正确 | VAL3日志/抓包 | 未执行 |
+| SERVO-127 | VAL3 sioSet返回-1 | 识别发送失败，不将该帧标记成功；控制状态按设计进入受控故障处理 | SRS/CS9故障注入 | 未执行 |
+| SERVO-128 | VAL3 sioSet正数短写 | 确认短写是否可发生及返回长度；不得静默丢弃未发送余量 | 手册版本/VAL3日志/抓包 | 未执行 |
+| SERVO-129 | VAL3内部发送缓冲区满与剩余数据续写 | 确认续写是否仍属于同一UDP datagram；否则拒绝采用跨datagram拼帧 | CS9抓包 | 未执行 |
+| SERVO-130 | VAL3状态帧发送失败后的控制任务路径 | 验证STOP/reset调用顺序、错误标志清理和socket重新激活 | 任务时序/日志/抓包 | 未执行 |
+| SERVO-131 | 连续状态帧发送失败 | 有界计数/故障策略明确，不发生无限重启或无监督自动恢复 | 故障注入/状态机记录 | 未执行 |
+| SERVO-132 | C++ UDP would_block | 上层明确收到未发送结果或可观测丢包状态，不返回无条件成功 | 单测/网络缓冲区注入 | 未执行 |
+| SERVO-133 | C++ send_to返回字节数检查 | 对返回长度与帧长不一致的情形明确报错/计数 | 单测/Mock socket | 未执行 |
+| SERVO-134 | C++其他发送系统错误 | 错误可靠传播至HardwareInterface，触发预期ERROR处理 | 单测/故障注入 | 未执行 |
+| SERVO-135 | VAL3与C++同一故障语料对照 | 对成功、短写、超时、拥塞、断线的结果分类一致且有明确差异说明 | 跨端测试报告 | 未执行 |
+| SERVO-136 | 发送失败后的恢复与重新授权 | 恢复需满足会话重建、状态新鲜、人工/上层授权及独立安全条件 | SRS/CS9/HIL记录 | 未执行 |
+
+### F. 本节来源记录（#1771–#1775）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1771 | [ICube VAL3 sendData @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx) | sioSet长度检查、短写直接置错、无剩余字节续写 |
+| #1772 | [ICube VAL3 encodeRobotStateMsg @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | 状态帧编码入口与固定序列化缓冲区 |
+| #1773 | [ICube VAL3 controlTask @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 状态发送失败后置错、STOP/reset和socket重置路径 |
+| #1774 | [ICube C++ UDP socket implementation @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | send_to返回值忽略、would_block丢包仍返回true |
+| #1775 | [Stäubli VAL3 Programming Manual D.280.935.01-G (2021)](https://fr.scribd.com/document/655664199/Doc-VAL3) | sioSet部分写入/内部缓冲区满时返回实际数量，Socket不关闭，需重写剩余数据 |
+
