@@ -2726,3 +2726,57 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1754 | [ICube ROS RobotStateMessage @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | ROS侧字段名称、单位注释、有效性标志与协议结构 |
 | #1755 | [ICube ROS RobotStateMessage deserialize @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | 固定帧解析和valid flags独立于数组内容的解码行为 |
 
+## 9.3.48 VAL3命令帧Header长度字段的解析后校验缺口（2026-11-07）
+
+### A. 审查范围与固定版本
+
+固定ICube driver commit `bd658e2d266e315d2ee35f985fb352ea88306b79`。交叉检查VAL3 `initRobotCommandMsg.pgx`、`initHeader.pgx`、`decodeRobotCommandMsg.pgx`、`decodeHeader.pgx`，以及ROS侧`RobotCommandMessage::deserialize`。本节仅确认静态解析顺序与校验差异；不推断未执行的异常报文会造成越界、代码执行或机器人运动。
+
+### B. VAL3解析顺序
+
+1. `initHeader`将本地header size初始化为8字节；`initRobotCommandMsg`将payload size初始化为47字节，并将接收缓冲区resize为55字节。
+2. `readData`将命令读入固定大小的`robot_command_msg.nSerializedData`。
+3. `decodeRobotCommandMsg`首先执行`size(buffer) != header.nHeaderSize + header.nPayloadSize`检查。此时header字段仍是初始化时的8+47，而不是本次报文中的Header值。
+4. 随后调用`decodeHeader`，从本次数据覆盖magic、protocol version、message type、sequence和payload size。该函数检查头缓冲区至少容纳本地header size、magic=43981和version=1，但不验证解码出的payload size与实际数据长度的关系。
+5. 回到命令解码函数后，检查message type=2并按固定偏移读取remote control period、motion type、6个float、数字输出mask和4个模拟输出；最后只检查读取偏移是否等于固定缓冲区长度。没有再次检查`decoded payload_size == 47`。
+6. 因此，若收到固定55字节帧且其Header payload_size字段不是47，前置检查仍可能使用初始化值8+47通过；后续固定偏移解码也不依赖该payload_size，末尾偏移检查仍可能通过。该异常字段不一致不会被当前这条校验路径明确拒绝。
+
+### C. 与ROS C++解析器的差异
+
+ROS侧`RobotCommandMessage::deserialize`先反序列化Header，然后明确检查：
+
+`header.payload_size == get_serialized_size() - header.get_serialized_size()`
+
+对当前命令消息，这一条件要求payload为47字节；不匹配时返回false。因而同一异常帧在C++客户端解析器与VAL3服务端解析器中的拒绝行为不对称。
+
+### D. 风险判断与整改建议
+
+- **已确认：** VAL3命令解析在Header解码前检查长度，解码后未验证payload size与固定命令结构的匹配关系。
+- **未确认：** 该不一致是否会导致VAL3底层fromBinary异常、命令字段错读、任务错误或其他控制器行为；需要在SRS/受控测试环境验证，不能仅凭静态代码推断。
+- 将解析顺序调整为：先验证接收缓冲区至少包含完整固定Header → 解码Header → 校验magic/version/type → 校验payload size严格等于当前协议版本的固定长度 → 校验实际datagram/frame长度严格等于header+payload → 再读取任何payload字段。
+- 对未知版本、未知消息类型、短帧、长帧、payload size小于/大于预期、序号异常和字段非有限值统一fail closed；解析失败必须清除命令有效标志并进入定义明确的故障锁存/停止处理。
+- 将协议固定长度、版本和字段偏移由单一协议定义生成或共享，避免VAL3与C++分别维护常量后漂移。
+
+### E. 新增验证矩阵（SERVO-101–SERVO-108，均待执行）
+
+| ID | 注入/场景 | 预期验收条件 | 证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-101 | 正常55B命令帧，payload_size=47 | VAL3正确解码且与C++ golden fixture逐字段一致 | 抓包、解码日志、字段对照 | 未执行 |
+| SERVO-102 | 55B帧但payload_size=46 | Header解码后明确拒绝，不进入payload读取 | 抓包、错误码、控制状态 | 未执行 |
+| SERVO-103 | 55B帧但payload_size=48 | 明确拒绝，不因固定缓冲区长度而接受 | 同上 | 未执行 |
+| SERVO-104 | 短于55B的UDP datagram | 在任何payload字段访问前拒绝；确认VAL3 sioGet实际返回语义 | 注入记录、返回长度、任务日志 | 未执行 |
+| SERVO-105 | 长于55B的UDP datagram | 明确拒绝或按协议定义处理截断；不得静默当作合法55B帧 | 抓包、接收长度、解码结果 | 未执行 |
+| SERVO-106 | Header magic/version/type任一非法且payload长度异常 | 拒绝原因稳定，不能因错误标志覆盖顺序而继续解码 | 抓包、错误码、字段快照 | 未执行 |
+| SERVO-107 | 解析失败后立即发送合法/旧运动命令 | 旧命令无效；必须遵守故障锁存、冷却与重新授权策略 | 命令序列、状态机日志 | 未执行 |
+| SERVO-108 | 对照C++与VAL3同一组畸形帧 | 两端对长度、payload、版本、类型和截断策略保持一致 | 双端测试报告、golden corpus | 未执行 |
+
+### F. 本节来源记录（#1756–#1760）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1756 | [ICube VAL3 initRobotCommandMsg @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx) | 固定payload=47与55B接收缓冲区初始化 |
+| #1757 | [ICube VAL3 initHeader @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initHeader.pgx) | Header固定8B初始化 |
+| #1758 | [ICube VAL3 decodeRobotCommandMsg @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 解码前长度检查、解码后未校验payload size及固定偏移读取 |
+| #1759 | [ICube VAL3 decodeHeader @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx) | 从本次报文读取payload size但不校验与实际帧长度一致性 |
+| #1760 | [ICube ROS RobotCommandMessage::deserialize @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | C++侧Header解析后严格校验固定payload长度的对照实现 |
+
