@@ -1254,3 +1254,77 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1632 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | stoi解析及直接static_cast<uint16_t> |
 | #1633 | [udp_socket.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket.cpp)；[udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | 16位端口参数向Asio endpoint/resolver传递 |
 
+
+
+## 9.3.30 UDP通信可靠性、异步接收错误与线程生命周期审查（2026-11-07）
+
+### A. 审查基线与文件范围
+
+- 上游仓库：`ICube-Robotics/staubli_driver_ros2`，固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对：`src/communication/udp_socket.cpp`、`src/communication/udp_socket_impl.hpp`、`include/staubli_robot_driver/communication/socket.hpp`、`src/real_time_socket_subscriber.cpp`、`include/staubli_robot_driver/real_time_socket_subscriber.hpp`、`src/real_time_socket_interface.cpp`及两组通信单测。
+- 来源#1634–#1637。仅固定源码与测试源码静态审查；没有执行构建、单测、压力测试、网络故障注入或CS9连接。
+
+### B. UDP发送语义与错误传播
+
+1. `UDPSocketImpl::send()`先检查本地`is_connected`，随后调用`socket_.send_to(..., MSG_DONTWAIT, err)`。它检查了错误码，但没有检查实际发送字节数；对UDP而言，本地send调用成功不证明远端控制器收到、解析或执行了报文。
+2. 更明确的缺口是：当错误码为`would_block`时，代码记录“Packet dropped”，但没有返回false，函数最终仍返回true。上层因此可能把“本次命令已发送”与“本地发送缓存满、报文已丢弃”混为一谈。
+3. 其他非零错误码会返回false；当前没有发送丢包计数器、连续丢包阈值或从发送失败升级为硬件组件ERROR的明确机制（源码注释将计数/阈值列为TODO）。
+4. `RealTimeSocketInterface::send_message()`只根据底层bool返回序列化/发送成功或失败。即使底层返回true，也只代表该函数未观察到被传播的本地错误，不是VAL3接收ACK、命令执行确认、运动停止确认或安全状态确认。
+
+### C. 异步接收错误与发送方校验
+
+1. `handle_data_received(error, bytes_transferred)`在error非零时记录日志，但仍继续调用`reception_callback_`；随后只要`receiving_`仍为true，就重新调用`start_receive()`。
+2. 因而错误完成路径没有在调用业务回调前按错误类别过滤，也没有区分可恢复错误、取消操作和致命错误的重试策略。持续错误是否造成重复回调/重挂接或高CPU循环，必须通过受控错误注入确认，不能仅凭源码断言现场必然发生。
+3. `async_receive_from`填充`sender_endpoint_`，但当前发送方地址/端口校验仍以TODO注释存在；收到数据报不等于已验证来源是配置的机器人控制器。需要明确预期peer的IP与端口策略，并在业务解析前拒绝不符合策略的数据报。
+4. 接收缓冲区最大长度由`MAX_SOCKET_PACKET_SIZE=1024`限定。需要对超长UDP数据报的截断/错误行为建立显式测试，避免把缓冲区容量当成协议帧长度校验。
+
+### D. stop/join、重启与对象生命周期
+
+1. `stop_receive_thread()`调用`io_service_.stop()`后立即join线程，之后才将`receiving_`置false；该函数没有显式取消socket上的挂起异步接收操作。
+2. 如果停止时已有接收handler正在执行，它在join完成前仍可能观察到`receiving_==true`并重新挂接下一次异步接收。停止后挂起操作是否残留、随后`io_service_.reset()`并启动新接收线程是否造成旧/新接收操作并存，需要专门的停止-重启测试验证。
+3. `disconnect()`在停止接收线程后关闭socket，这条路径会由socket close影响挂起操作；但仅调用`stop_receive_thread()`并保持socket连接时，没有看到相同的显式cancel/close步骤。
+4. `RealTimeSocketSubscriber`析构函数只调用`socket_->stop_receive_thread()`，不负责断开共享socket；socket资源最终关闭依赖拥有者后续disconnect或socket对象析构。调用方必须保证共享socket所有权和关闭顺序清晰。
+5. `receive_once()`复用持续接收线程并用promise通知首个回调；回调本身没有“只执行一次”的门控。若在调用方停止线程前第二个数据报再次触发回调，重复`promise.set_value()`可能抛出`future_error`；接收线程入口没有本地异常捕获。该竞态需以高频连续数据报确定性复现测试确认。
+
+### E. Subscriber缓存、新鲜度和线程语义
+
+- `RealTimeSocketSubscriber::update_message()`对每个成功反序列化的数据报写入接收时间戳并覆盖thread-safe box中的最新消息；这是一槽latest-value缓存，不是逐帧队列。
+- `read_message()`按读取时观察到的序号差计算丢包数；若生产速度高于读取速度，中间数据报会被最新值覆盖，序号差可估计缺口，但无法恢复每一帧或区分所有网络重排情形。
+- 当前实现按序号回绕分支计算丢包；重复序号被标记为`new_message=false`，但消息的接收时间戳已在update阶段刷新。故“接收时间较新”不等价于“序号持续前进/状态持续更新”。此项与§9.3.7已记录的重复/重放新鲜度问题相互关联，不在本节重复定性为新缺陷。
+- `first_read_`和`last_read_sequence_number_`不在subscriber内部加锁；源码接口没有声明多线程并发调用`read_message()`的支持契约。若实际存在多个读取线程，需增加调用约束或同步保护并用TSan验证；当前不能推断单线程ros2_control调用已发生数据竞争。
+
+### F. 现有测试覆盖与缺口
+
+现有`test_sockets.cpp`覆盖UDP loopback连接/断开、单次/多次接收、断开后重连、receive_once正常路径、断开状态发送、重复connect/disconnect及重复start/stop；`test_rt_socket_interface.cpp`覆盖subscriber初始化、正常接收、缓存重复读取/陈旧、普通递增序号跳号和双向接口通信。它们属于测试源码存在性证据，本轮没有运行测试。
+
+| ID | 新增验收场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| UDP-01 | 注入`would_block`发送结果 | 底层返回失败或独立可观测的明确丢弃状态；丢包计数递增，不得向上层伪报已发送 | 未实现/未执行 |
+| UDP-02 | 注入其他发送错误及短发送结果 | 错误完整传播；诊断日志/计数可关联到周期与报文 | 未实现/未执行 |
+| UDP-03 | 注入operation_aborted、network_unreachable等接收错误 | 取消/致命错误不进入业务解析；重试策略有界且分类明确 | 未实现/未执行 |
+| UDP-04 | receive线程停止后、socket保持连接再启动 | 任意时刻仅有一个有效接收链；旧handler不重复投递、不覆盖新callback | 未实现/未执行 |
+| UDP-05 | handler执行期间并发stop | stop返回后不再重挂接异步操作；线程可确定性join | 未实现/未执行 |
+| UDP-06 | 接收中disconnect、重连及重复循环 | 无遗留线程/handler；重连后只消费新session数据 | 未实现/未执行 |
+| UDP-07 | 从非预期IP/端口发送合法格式报文 | peer策略不匹配的数据报在反序列化/状态更新前被拒绝 | 未实现/未执行 |
+| UDP-08 | receive_once超时、单包、连续多包及回调异常 | promise只完成一次；无未捕获线程异常、死锁或悬挂线程 | 未实现/未执行 |
+| UDP-09 | 大于1024字节、零长度、截断及协议长度不符数据报 | 长度策略显式、拒绝路径可观测，缓存不被部分/畸形数据污染 | 未实现/未执行 |
+| SUB-01 | 多生产/多读取速率、重复/乱序/回绕/重启序号 | 明确latest-value语义、丢包统计边界及session epoch处理 | 部分现有覆盖；扩展未执行 |
+| SUB-02 | 多线程并发调用read_message与TSan | 若不支持多读者则契约明确并防误用；若支持则无数据竞争 | 未实现/未执行 |
+
+### G. 结论与工程边界
+
+本节确认一个明确的错误传播缺口：UDP发送遇到`would_block`并丢弃数据报时仍返回true。另有三类高优先级生命周期/可靠性待验证点：异步接收错误仍调用回调并尝试重挂接；stop仅停止io_service并join、没有显式取消挂起接收；停止与重启之间可能遗留异步操作。接收方身份校验仍是TODO。现有单测覆盖基本loopback与常规生命周期，但未覆盖上述错误注入和停止-重启竞态。
+
+不得将UDP本地send返回true解释为VAL3收到命令；不得将STOP数据报本地发送成功解释为机器人已停止；不得将socket接收线程运行解释为控制器业务数据有效。建议先修复发送结果语义，再引入可注入socket/错误码的单测，随后进行ASan/TSan、长时间压力、断网/恢复、VAL3仿真和CS9 HIL分层验证。
+
+本节仅为固定commit源码/测试静态审查；未执行ROS构建/单测、UDP错误注入、压力测试、VAL3编译/SRS仿真、CS9 HIL/实机或安全验收。未修改ICube上游代码。
+
+### 本节来源记录（#1634–#1637）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1634 | [udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | would_block返回true、异步接收错误回调/重挂接、stop/join及receive_once promise路径、发送方校验TODO |
+| #1635 | [udp_socket.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket.cpp)；[socket.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/socket.hpp) | UDP接口转发、最大数据报缓冲区及抽象发送/接收契约 |
+| #1636 | [real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp)；[real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp)；[real_time_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp) | latest-value缓存、序号/时间戳处理、析构停止线程、send_message错误传播 |
+| #1637 | [test_sockets.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp)；[test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | 已有loopback、接收/重连/常规stop及subscriber缓存测试的覆盖边界 |
+
