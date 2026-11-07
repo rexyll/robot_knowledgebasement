@@ -2886,6 +2886,8 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 
 - Stäubli诊断链路端到端复核发现：随附VAL3 userapp在sio.cfx中定义diagnostics UDP socket（11001），但ros2_server.dtx没有绑定该socket的变量，ros2_server.pjx没有DiagnosticData消息类型/编码程序，start.pgx将supervision/diagnostics task留作TODO，controlTask.pgx仅通过control socket发送RobotState。C++ mock/test harness自行合成诊断数据；RobotDriver::connect只检查socket/subscriber readiness并将diag_interface_ready硬编码true，未等待首个诊断报文。结论限于公开仓库随附VAL3应用，不排除集成方自定义程序；未运行VAL3或连接真实CS9。来源#1516–#1524。
 - 对Stäubli DiagnosticData读取路径补做重复帧检查：read_diagnostic_data()不检查status.new_message；通用subscriber重复序号分支标记new_message=false但仍返回true，且update_message对每个成功解析的数据报刷新reception_timestamp，可能在外部发送端重复/重放帧持续到达时让旧诊断内容被反复报告成功并使staleness保持新鲜。现有通用subscriber单测说明new_message=false时仍返回true，但未发现read_diagnostic_data集成负向测试。此风险须待诊断发布端接通后验证；固定公开VAL3 app尚无诊断发送实现。未运行测试/注入。来源#1525–#1527。
+- 新增C++/VAL3协议字段布局与端序对照：固定上游源码确认C++构建目标要求little-endian，double成员转换为float32；VAL3使用2l/4.0l小端格式。列出RobotState 132字节、RobotCommand 55字节、DiagnosticData 74字节的绝对偏移表，明确DiagnosticData先编码10个error_code、再编码10个timestamp，并从C++序列化规则推导74字节参考黄金向量。当前未执行C++ golden test、VAL3编译/生成或真实CS9抓包；向量仅为源码派生fixture。同步记录状态编码器的F/T尾部及DI/AIO字段写入TODO，以及当前有效标志关闭的事实。来源#1528–#1534；Stäubli专项审计§9.3.8。
+
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
 - 驱动仓库UniversalRobots/Universal_Robots_ROS2_Driver固定main HEAD e55b899066caffbceda80662d63b61c80f56719a（2026-11-06 08:30 UTC），新增g-series launch支持；ur_robot_driver package.xml为7.2.0/BSD-3-Clause，main晚于7.2.0 release commit。README列Humble/Jazzy/Kilted/Lyrical/Rolling分支和EOL分支，Linux为驱动要求。来源#1422。
