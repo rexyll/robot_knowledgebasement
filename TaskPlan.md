@@ -5,7 +5,7 @@
 > 版本：v8.15  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.47。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.47；专项结论已同步厂商档案§128.30、知识生态兼容矩阵和审计索引。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -993,4 +993,4 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v8.14 | 00-01/21-02继续Stäubli VAL3服务端命令接收、超时保护与运动模式切换审查：固定ICube bd658e2的controlTask、命令/header反序列化、UDP读取、位置/速度控制及停止函数。确认位置/速度模式不能直接切换，必须经过STOP并等待bInMotion=false；velocity分支存在但$setVelCmd未实现、安全限幅TODO，与README仅支持position一致。命令解析具备magic/version/type/长度校验，但无严格重复/乱序sequence拒绝、显式deadline和无包staleness保护；错误恢复冷却/重新授权仍TODO。新增专项审计§9.3.46、来源#1743–#1750、SERVO-81–SERVO-90，并同步第21章、厂商档案、兼容矩阵、链接台账和审计索引。未执行VAL3编译/运行、CS9、故障注入、SIL/HIL或实机停止测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.46；来源#1743–#1750；《主要厂商》§128.29 |
 
 
-| 2026-11-07 | v8.15 | 00-01/21-02继续Stäubli VAL3状态遥测来源、有效性标志与物理语义边界审查：固定ICube bd658e2交叉核对updateState、RobotState结构、状态帧编码及ROS侧反序列化。确认关节速度来自$getJntSpeedCmd命令速度近似，关节力矩来自getJointForce电流估算且源码不承诺精度；brakes_released由isPowered推导，in_motion由!isSettled推导，motion_possible未显式纳入Automatic Hold状态；F/T和IO字段未实现，valid=false，固定帧占位不代表功能存在。新增专项审计§9.3.47、来源#1751–#1755及SERVO-91–SERVO-100，并同步第21章任务记录。未执行VAL3/CS9模式扫描、独立速度/力矩测量、制动器反馈核验、跨语言运行测试或HIL/实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.47；来源#1751–#1755；第21章TaskPlan |
+| 2026-11-07 | v8.15 | 00-01/21-02继续Stäubli VAL3状态遥测来源、有效性标志与物理语义边界审查：固定ICube bd658e2交叉核对updateState、RobotState结构、状态帧编码及ROS侧反序列化。确认关节速度来自$getJntSpeedCmd命令速度近似，关节力矩来自getJointForce电流估算且源码不承诺精度；brakes_released由isPowered推导，in_motion由!isSettled推导，motion_possible未显式纳入Automatic Hold状态；F/T和IO字段未实现，valid=false，固定帧占位不代表功能存在。新增专项审计§9.3.47、来源#1751–#1755及SERVO-91–SERVO-100，并同步第21章任务记录、厂商档案§128.30、知识生态兼容矩阵和审计索引。未执行VAL3/CS9模式扫描、独立速度/力矩测量、制动器反馈核验、跨语言运行测试或HIL/实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.47；来源#1751–#1755；第21章TaskPlan |
