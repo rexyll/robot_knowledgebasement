@@ -340,3 +340,43 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 12. 修复UDP发送与生命周期：would_block丢包必须向上返回失败；停止接收时cancel异步操作并阻止handler重投递；保证stop/restart、重复start、disconnect/send并发和callback销毁有明确同步契约及TSan/压力测试。
 
 本轮完成公开页面、上游GitHub元数据、源码和测试目录的静态核查；没有安装SRS/VAL Blocks、没有构建或运行ICube工作区、没有运行上游测试、没有连接CS9/机器人/PLC/安全回路，也没有执行实时测量、故障注入、HIL/FAT/SAT或功能安全验证。因此本次只能更新静态审查结论和工程验证清单；Stäubli档案与21-02节点继续保持未验收。
+
+## 9.3.13 UDP发送缓冲区并发、RobotDriver共享状态与ros2_control生命周期（2026-11-07）
+
+> 审查基线：ICube-Robotics/staubli_driver_ros2 固定源码commit `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节为源码静态审查；不代表已通过目标Ubuntu/Boost版本的线程检测或CS9实机验证。
+
+### A. UDP发送链的共享可变状态
+
+1. **RealTimeSocketInterface::send_message复用单个data_out_，未见发送互斥。** 构造函数只预分配一个成员vector；每次send_message都将消息serialize到同一data_out_，随后交给socket_->send。类声明/实现没有mutex、strand或发送队列。若两个调用线程并发进入同一个接口实例，会对data_out_产生并发写/读，属于可由C++内存模型判定的数据竞争候选；是否存在具体并发调用取决于上层调度和错误处理调用时序。来源#1550。
+
+2. **底层UDP socket也没有发送/关闭同步。** UDPSocketImpl::send先读取atomic is_connected_，随后访问非原子remote_endpoint_并调用socket_.send_to；disconnect可在另一路径stop接收线程后close同一socket。atomic连接标志只能提供该布尔值的原子访问，不能保护socket对象、remote_endpoint_或send与close之间的生命周期。没有发现统一锁或strand。若send与disconnect/connect并发，socket对象共享访问安全尚未建立；本轮未运行TSan或压力测试，不声称已观察到崩溃。来源#1550。
+
+3. **多个上层命令入口可能汇聚到同一个发送对象。** RobotDriver::send_robot_command和send_stop_all_command均通过control_interface_->send_message发送；后者没有先检查control_interface_是否为空。HardwareInterface::write在周期线程发送常规命令，而on_error/on_shutdown等生命周期回调也可能发STOP。框架在特定生命周期转换期间是否保证write与这些回调绝不并发，需按锁定的ros2_control版本和executor/controller_manager调用路径验证；不能仅凭当前类实现假设线程互斥。来源#1551、#1552、#1553。
+
+### B. RobotDriver对象内部状态的同步契约
+
+4. **RobotDriver没有对象级同步。** 头文件虽包含mutex/condition_variable，但类成员未声明用于连接状态、接口指针、命令发送或状态快照的锁。connect/disconnect会创建、reset接口并操作socket；send/read/is_connected直接读取shared_ptr成员并访问current_robot_state_、current_diagnostic_data_和last_valid_sequence_id_。这些字段不是原子变量，也未被统一锁保护。若调用者允许并发connect/disconnect/read/send，shared_ptr成员本身的读写及状态对象访问可能构成数据竞争；这是缺少线程安全契约的静态发现，不是已经复现的竞态。来源#1552。
+
+5. **序号读取与更新也依赖调用顺序。** read_robot_state更新last_valid_sequence_id_；HardwareInterface::write经get_current_message_sequence读取该值作为命令序号。该值是普通size_t，getter没有锁。如果read与write由同一个controller_manager更新线程按顺序调用，通常不会在这两个访问之间形成线程竞争；若另有线程调用读取/写入API，则需显式同步。当前API注释没有声明线程亲和性或禁止并发调用。来源#1552、#1553。
+
+### C. ros2_control生命周期与停止行为
+
+6. **on_deactivate没有在该插件中覆写。** StaubliHardwareInterface声明/实现覆写on_configure、on_activate、on_cleanup、on_shutdown和on_error，但未声明on_deactivate。因而插件自身没有在deactivate回调中明确将控制模式切为STOP、发送STOP或断开通信的动作。生命周期框架可能停止后续read/write调用，但这不等于向机器人控制器发送了停止命令；必须验证控制器端VAL3超时/失联策略是否会在失去新命令时安全停止。来源#1553。
+
+7. **cleanup和shutdown的停止语义不一致。** on_cleanup直接调用robot_driver_->disconnect()，没有先发送STOP；on_shutdown仅在robot_driver_仍连接且state_msg_.control_state != STOP时尝试send_stop_all_command，再disconnect。on_error会尝试send_stop_all_command，但忽略其bool返回值，之后仍返回SUCCESS。故代码层面无法据此证明deactivate/cleanup/error/shutdown每条路径都成功发送并确认STOP；尤其UDP send曾发现would_block误报成功，STOP路径同样受其影响。来源#1550、#1552、#1553。
+
+8. **on_activate只设置软件命令模式。** 它把current_control_mode_设为STOP并返回SUCCESS，没有显式等待新鲜状态、复核控制器安全状态/操作模式或验证通信链恢复。后续perform_command_mode_switch对位置模式检查error_state、motion_possible并警告operation_mode_status，但不能替代生命周期激活准入和安全回路验证。来源#1553。
+
+### D. 测试缺口与建议
+
+- 增加同一RealTimeSocketInterface并发send测试，使用TSan检查data_out_；明确发送API是单线程调用、内部序列化还是队列化。实时路径若加锁，必须测量锁等待上界和优先级反转。
+- 增加send与disconnect/connect并发压力测试；为连接生命周期定义单一所有者/状态机，确保关闭socket前禁止新发送并等待在途发送退出。
+- 为RobotDriver声明并实现线程安全契约：至少明确connect/disconnect只能在停止update循环后调用；若支持并发，则保护接口指针和共享状态，并避免在实时线程持有无界锁。
+- 对send_stop_all_command增加空接口/未连接检查；生命周期回调必须检查STOP发送结果，通信失败时返回ERROR并进入明确的故障锁存/人工复位路径，不能把“尝试发送”当作已停止。
+- 实现并测试on_deactivate行为；明确deactivate、cleanup、error、shutdown与VAL3侧命令超时之间的停止保证。STOP UDP报文不是安全额定急停，不能替代控制器安全功能、外部E-stop或风险评估。
+- 对每个生命周期转换记录状态机前后状态、最后有效反馈时间、STOP命令发送结果、控制器ACK/停止状态及超时行为；覆盖deactivate期间持续运动、反馈丢失、send would_block、controller disconnect、重复转换和异常退出。
+- 锁定ROS 2 Jazzy/ros2_control具体版本后，核实controller_manager在read/write与hardware lifecycle callbacks之间的调用/同步保证；再以TSan、ASan、故障注入和目标平台HIL验证，不将框架常见行为代替该版本证据。
+
+### E. 本节结论与证据边界
+
+本节确认的是：发送缓冲区与socket对象没有可见并发保护；RobotDriver接口指针和共享状态没有对象级同步；插件没有显式on_deactivate停止处理；cleanup不发送STOP，on_error不检查STOP发送结果。这些是静态代码事实。具体是否触发数据竞争，取决于运行时是否存在并发调用；本轮未执行构建、单元测试、TSan/ASan、并发压力、网络错误注入、ros2_control生命周期实验或CS9/VAL3实机测试。不得将风险候选写成已复现缺陷，也不得将STOP UDP命令视为安全功能验收。
