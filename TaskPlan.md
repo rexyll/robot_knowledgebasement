@@ -968,3 +968,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v8.05 | 00-01/21-02继续Stäubli MoveIt与ros2_control控制器生命周期、启动就绪及故障恢复静态审查：JTC默认inactive、spawner退出事件未校验退出码；wait_for_robot_ready只等待robot_description/joint_states首帧，未验证控制器active/Action Server/反馈新鲜度；TRANSIENT_LOCAL订阅与SystemDefaultsQoS joint_states publisher在默认VOLATILE环境存在QoS不兼容风险；MoveItSimpleControllerManager静态标记配置控制器active；Hardware ERROR停用控制器后没有统一重连、旧goal/session隔离和重新授权闭环。新增专项审计§9.3.37、来源#1682–#1692及LFR-01–LFR-14，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行ROS launch/QoS集成、生命周期故障注入、MoveIt重启、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.37；来源#1682–#1692；第21章TaskPlan |
+
+
+| 2026-11-07 | v8.06 | 00-01/21-02继续Stäubli MoveIt Servo、JTC与直接关节命令互斥仲裁审查：Servo输出指向未配置的forward_position_controller；moveit_servo运行时依赖未声明；MoveItSimpleControllerManager只映射JTC；ros2_control接口claim可限制同一position接口被单实例占用，但不提供多发布者身份仲裁；HardwareInterface切换不确认物理静止/重新授权；Servo pause不发送STOP。新增专项审计§9.3.38、来源#1693–#1704、SERVO-01–SERVO-14，并同步第21章、厂商档案、兼容矩阵和审计索引。未执行Servo/JTC集成、controller switching、pause/timeout/崩溃、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.38；来源#1693–#1704；第21章TaskPlan |
