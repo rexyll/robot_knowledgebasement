@@ -1042,3 +1042,56 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 本轮确认：ROS驱动确实导出多项CS9监督状态，并在位置控制模式切换时使用`error_state`和`motion_possible`；但VAL3的`motion_possible`计算没有纳入HOLD状态条件，`wait_for_ack`未覆盖WMS重启状态4，`estop_pressed`将所有非零安全状态折叠，ROS `write()`不逐周期复核完整监督状态。上述问题说明监督状态接口与安全授权状态机并非同一概念。
 
 未运行VAL3编译、ROS构建/单测、CS9仿真、HIL或实机HOLD/SS1/SS2/WMS Restart故障注入；未验证具体控制器配置和安全程序。不能据此宣称已发生危险运动，也不能以本节代替安全评估、功能安全验证或Stäubli书面确认。
+
+
+## 9.3.26 VAL3错误标志生命周期、位置命令门控与故障可观测性审查（2026-11-07）
+
+### A. 审查范围与固定基线
+
+- 上游仓库：`ICube-Robotics/staubli_driver_ros2`，固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`；本轮重新核验`main`仍指向该commit。
+- 核对文件：VAL3 `controlTask.pgx`、`updateState.pgx`、`Control/updateJointPositionControl.pgx`、`Control/updateJointVelocityControl.pgx`、`Serialization/encodeRobotStateMsg.pgx`；ROS消息解码文件`messages.cpp`。
+- 来源#1621–#1624。仅源码静态审查，未运行VAL3、CS9或ROS测试。
+
+### B. bInError的真实来源与生命周期
+
+1. `updateState.pgx`注释明确将`bInError`留给调用者填充；`controlTask.pgx`在每轮开始更新状态后，将局部变量`l_bError`赋给`robot_state_msg.robotState.bInError`。
+2. `l_bError`并非从CS9安全控制器读取的独立控制器故障位。它主要由VAL3任务内部的软件处理错误置位：初始化/Socket错误、命令接收/解码错误、命令模式无效、序号延迟超限、模式转换非法、位置/速度控制更新错误等。
+3. 状态报文在接收新命令、执行本周期运动控制和错误处理之前发送。因此本周期稍后发生的错误不会进入本周期已发出的状态报文。
+4. 错误处理分支调用停止相关函数、`stopMove()`和`resetMotion()`，随后无条件清除`l_bError=false`、清理命令与通信状态，并重置Socket。若重置Socket再次失败则重新置位。源码没有显示持久故障锁存或要求操作员明确重新授权的完整状态机。
+5. 由此，`in_error`更接近任务内部瞬态诊断标志，而不是可依赖的安全故障锁存。特别是运动更新函数本周期置错、同周期错误处理清零后，后续状态报文可能看不到该错误；需要用状态发送/错误发生的精确时序测试确认所有分支。
+
+### C. 位置控制函数确实有软件门控，但边界有限
+
+- `updateJointPositionControl.pgx`每次调用首先检查传入的`x_robotState.bMotionPossible`。若为false，则尝试停止位置控制、置`x_bError=true`并返回；随后检查命令有效性和类型，再进行关节范围检查，最后才调用`$movejSync()`。
+- 这意味着位置控制执行路径存在基于VAL3当前周期状态快照的命令门控；应修正任何“VAL3端完全没有运动可能性检查”的概括。
+- 但`bMotionPossible`本身仍由`isPowered()`和`esStatus()`派生，未纳入HOLD状态条件；它不是独立安全输入或安全认证状态。状态采集与命令执行之间仍有程序周期/执行时序，且没有证明CS9安全链失效时该软件门控仍可靠。
+- 位置目标“离当前姿态足够近”的检查仍为TODO；关节范围检查存在，但不能替代速度、加速度、工作空间、奇异点、碰撞、工具/工件和工艺安全约束。
+- `movejSyncState()==1`的命令未及时刷新分支仍只有注释；`==2`（因eStop、moveHold、stopMove等运动停止而锁命令）也未明确置错或采取额外动作。不得将其解释为明确的安全确认。
+- 速度控制函数同样检查`bMotionPossible`，但安全限制检查是TODO，实际速度命令仍未实现；不能把该分支视为可用的速度控制实现。
+
+### D. controlTask中的显式未完成项与停止/恢复问题
+
+1. `controlTask.pgx`在状态发送前有三个明确TODO：机器人不应运动却在运动时执行hard stop、急停按下时的告警处理、运行时错误处理。
+2. 命令staleness/lost packet检查仍是TODO；超时判断目前主要基于序号延迟阈值，而非墙钟命令年龄。
+3. 位置控制调用遇到`bMotionPossible=false`会返回错误，随后控制任务进入通用错误处理；但通用错误处理会清错误标志并重置通信，且重启等待延迟仍是TODO。
+4. 通用错误路径调用`stopMove()`和`resetMotion()`不等于独立安全停止或停止完成确认；这一点与§9.3.23、§9.3.24保持一致。
+5. 本轮未证明所有错误分支均能在目标CS9上可靠停止，也未证明清Socket后是否存在自动重新接收命令、轨迹恢复或不需要操作员确认的路径；需要实际控制器版本和配置验证。
+
+### E. 新增错误与门控验证矩阵
+
+| ID | 场景 | 验收要求 | 当前状态 |
+|---|---|---|---|
+| ER-01 | 位置命令执行中出现安全状态，导致motion_possible=false | VAL3命令路径阻断后续movejSync刷新；停止行为与CS9安全链协调 | 源码有门控；未运行验证 |
+| ER-02 | updateJointPositionControl本周期置bInError | 同周期及后续RobotState报文应可观测错误，不得被同周期清零吞掉 | 发现状态先发送、错误后处理；待时序测试 |
+| ER-03 | 错误处理清除l_bError并重置Socket | 证明错误锁存、重连、重新授权和恢复动作均有明确策略 | 当前无持久锁存；重启延迟TODO |
+| ER-04 | E-stop/SS1/SS2变化且机器人非预期运动 | 由目标CS9独立安全链完成风险分析要求的停止；软件诊断正确报告 | hard-stop相关处理为TODO；未故障注入 |
+| ER-05 | movejSyncState=1或2 | 定义命令未刷新/运动被锁时的超时、停止和恢复策略 | 关键动作仍为注释 |
+| ER-06 | 位置目标远离当前姿态或逼近约束边界 | 目标增量、速度/加速度、工作空间、奇异点与碰撞约束均有验证 | 目标接近性检查TODO；本轮未评估全部规划约束 |
+| ER-07 | ROS/UDP断连、丢包、旧命令残留后重新连接 | 不接受旧会话命令，必须完成STOP确认和新会话授权 | staleness/lost packet与重新授权仍需专门验证 |
+| ER-08 | velocity控制接口被请求 | 明确拒绝未实现路径，不得向用户/系统宣称可用速度控制 | 源码分支未实现；与README声明一致 |
+
+### F. 结论与边界
+
+本轮发现应作双向、准确表述：VAL3位置控制函数确实逐次检查`bMotionPossible`，在其为false时停止位置控制并返回错误；因此不是完全缺少VAL3软件门控。但该门控依赖软件计算的状态快照，且上游`controlTask`明确把非预期运动hard-stop、急停告警、运行时错误处理留作TODO。内部`l_bError`在状态发送后才可能置位，并在同周期错误处理后清零，存在故障状态未被ROS状态报文观察到的时序风险；源码没有证明它是持久故障锁存或重新授权机制。
+
+未执行VAL3编译/仿真、ROS构建/单测、CS9受控安全状态注入、HIL或实机停止测试。不能将本轮静态发现解释为已发生事故或证明安全链失效，也不能替代风险评估、功能安全验证或Stäubli书面确认。
