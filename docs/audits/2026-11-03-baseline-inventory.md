@@ -2976,3 +2976,8 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 ### Stäubli停止包装程序与生命周期缺口增量（2026-11-07）
 
 固定上游commit显示stopJointPositionControl调用movejSyncEnd后无条件x_bError=false，无停止后状态验证；controlTask错误处理清除l_bError并重置socket，未见人工复位锁存；ROS on_cleanup直接断连，on_shutdown不等待STOP确认，on_error忽略STOP结果。原生VAL3停止函数的物理语义、安全等级和停止时间未知。新增来源#1568–#1570，详见专项审计§9.3.16。未运行VAL3仿真、CS9 HIL/实机、构建或测试。
+
+
+### Stäubli ICube状态反馈新鲜度与ROS 2错误生命周期增量（2026-11-07）
+
+固定上游commit显示RobotDriver默认100 ms状态报文年龄阈值；read_robot_state检查消息有效性与staleness。subscriber对每个成功解析的数据报刷新接收时间戳，结合既有重复序号接受问题，重复/重放帧可能刷新接收年龄但不保证状态序号进展。ROS 2 Jazzy框架read/write ERROR触发on_error，SUCCESS后组件转UNCONFIGURED并停用关联控制器；ICube on_error忽略STOP发送bool且不显式disconnect，框架状态转换不能证明机器人端STOP已送达或静止。新增来源#1571–#1578，详见专项审计§9.3.17。未运行ROS构建/集成测试、UDP注入、TSan/ASan、VAL3仿真或CS9 HIL/实机。
