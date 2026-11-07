@@ -1524,3 +1524,81 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 | #1652 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | VAL3 isInRange、目标接近性TODO、movejSync刷新状态 |
 | #1653 | [decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 运动float字段解码及有效位设置 |
 | #1654 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 当前测试覆盖接口导出和常规mock write，缺少NaN/Inf/边界/跳变测试 |
+
+
+## 9.3.34 轨迹执行状态、运动完成判定与反馈一致性审查（2026-11-07）
+
+### A. 审查基线
+
+- 上游固定commit：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 核对VAL3 `updateState.pgx`、`RobotState.dtx`、`updateJointPositionControl.pgx`、`controlTask.pgx`，C++ `RobotDriver`、`StaubliHardwareInterface`、消息结构与单元测试，以及bringup的JointTrajectoryController配置、MoveIt控制器映射和官方示例文档。
+- 来源#1655–#1664。仅固定源码、配置和文档静态审查；未运行ROS构建/测试、MoveIt执行、VAL3编译/SRS仿真、CS9 HIL或实机轨迹。
+
+### B. VAL3状态字段的真实语义
+
+1. `updateState.pgx`以`bInMotion = !isSettled()`生成全局运动标志；关节位置由`herej()`取得。代码没有将当前目标位置逐轴与`herej()`比较，也没有把某条ROS轨迹/目标ID写入RobotState。
+2. `jointVelocities`来自`$getJntSpeedCmd()`，源码注释称其为速度“approximation”；不能将它直接等同于独立、经精度验证的编码器速度测量。关节力矩来自`getJointForce()`，源码明确声明无精度承诺。
+3. `bValidPosition`、`bValidVelocity`、`bValidTorque`在`updateState`中被无条件设为true，随后`bIsValid`也设true；没有看到对herej/getJntSpeedCmd/getJointForce返回值、范围、有限性或采样质量的逐字段失败判定。
+4. RobotState协议携带当前位置、速度、全局`in_motion`、控制模式、错误/安全标志及序号延迟，但不携带目标位置、轨迹ID、命令接受结果、movejSync状态或到位容差结果。C++ RobotDriver读取并校验消息类型/新鲜度后更新缓存；其返回true只说明读到符合这些条件的状态帧，不代表某个命令执行完成。
+
+### C. VAL3 movejSync状态与完成确认缺口
+
+1. `updateJointPositionControl.pgx`对`$movejSyncState()`的注释定义：-2错误停止、-1未启动、0运行无错误、1运行但上次命令未及时刷新、2因急停/hold/stopMove等运动停止而锁定命令。这些状态不是逐目标完成回执。
+2. 程序将每个有效位置命令传给`$movejSync()`，随后读取状态；只对-2执行明确错误停止，状态1/2对应的告警和错误置位代码被注释。没有发现目标完成事件、目标ID确认或等待指定目标达到稳定状态的逻辑。
+3. `stopJointPositionControl`调用`$movejSyncEnd()`后无条件返回`x_bError=false`，不等待或验证机器人已停止；该停止确认缺口已在前序章节记录，本节不重复展开。
+4. `controlTask`每周期先采集并发布RobotState，再接收/处理当前命令。因此当周期发布的状态不能作为该周期后续处理命令的ACK。模式状态与序号延迟只能反映控制模式/通信往返代理，不能关联到具体目标的接受、执行或完成。
+5. `bInMotion=false`仅反映VAL3的`isSettled()`结果；没有发现其与当前目标一致、达到目标位置容差、保持一定稳定时间三者的联合判断。不能把全局settled标志单独当作“本次轨迹成功”。
+
+### D. ROS 2 JointTrajectoryController与MoveIt配置
+
+1. bringup的`controllers.yaml`以250Hz运行ControllerManager，JointTrajectoryController使用position command、position/velocity state接口，`action_monitor_rate=20Hz`，`allow_partial_joints_goal=false`，`interpolate_from_desired_state=true`，`allow_nonzero_velocity_at_trajectory_end=true`，`stopped_velocity_tolerance=0.01`，`goal_time=0.0`。
+2. Jazzy版ros2_control文档定义`interpolate_from_desired_state=true`时，新轨迹从上一条期望/命令状态插值起步，并忽略HardwareInterface状态接口作为该插值起点；这不等于关闭整个控制器的反馈/Action监视，但意味着轨迹衔接起点可能不是当前机器人真实状态。该参数应在真实机器人跟踪偏差、急停后偏差、轨迹抢占和控制器重激活场景重点验证。
+3. 配置允许轨迹末端非零速度；同时设置`stopped_velocity_tolerance=0.01`，需要通过当前Jazzy实际控制器版本确认该停止阈值在允许非零末速度配置下的适用路径，不能仅凭参数同时存在就推断最终必须静止。
+4. 配置显式设置`goal_time=0.0`，Jazzy文档将其定义为不允许额外到达宽限时间；但未显式设置每个关节的trajectory/goal位置容差。应检查MoveIt发送的FollowJointTrajectory目标是否携带显式容差，以及当前控制器版本的默认容差解析结果，不能假设默认值已形成有效位置验收。
+5. MoveIt映射到`joint_trajectory_controller/follow_joint_trajectory` Action。ros2_control官方文档指出Action是推荐的可监控接口，支持path/goal tolerances；topic接口则是fire-and-forget，不能向发送方报告目标容差失败。当前示例使用Action映射，但必须动态确认Action服务活跃、成功/取消/中止结果均能正确传回MoveIt。
+6. 上游`interpolate_from_desired_state=true`与VAL3速度反馈仅为近似值的组合，是需要特别验证的闭环一致性风险：新轨迹起点可能基于旧命令状态，而Action跟踪误差和完成判断仍依赖状态接口。不能将RViz中规划/执行显示正常当作真实机械臂到位证据。
+
+### E. 新增验收矩阵
+
+| ID | 场景 | 通过条件 | 当前状态 |
+|---|---|---|---|
+| TRJ-01 | 目标位置与herej逐轴对照 | 目标、实际位置、误差、单位、时间戳同帧可追踪；到位判断使用经确认的逐轴容差 | 未实现/未执行 |
+| TRJ-02 | isSettled抖动、短暂停顿、低速爬行 | 明确VAL3 settled语义、滞回/稳定窗口和速度阈值；不把瞬时false→true当作轨迹成功 | 未实现/未执行 |
+| TRJ-03 | movejSync状态-2/-1/0/1/2逐状态注入 | 每种状态有定义明确的ROS可见状态、错误/停止策略和恢复规则 | 未实现/未执行 |
+| TRJ-04 | Action目标接受、执行、成功、拒绝、取消、超时、抢占 | MoveIt收到正确的GoalStatus/result；成功必须对应实际状态容差，失败不能被误报成功 | 未实现/未执行 |
+| TRJ-05 | 缺省/显式path_tolerance、goal_tolerance、goal_time_tolerance | 记录MoveIt实际发送目标和JTC解析后的有效值；位置与速度容差均有明确工程依据 | 未实现/未执行 |
+| TRJ-06 | goal_time=0、正宽限时间、执行延迟 | 验证按Jazzy版本实际超时行为；超时结果与机器人停止/保持策略一致 | 未实现/未执行 |
+| TRJ-07 | allow_nonzero_velocity_at_trajectory_end开/关及末端非零速度 | 末端速度要求、停止判定和Action成功语义无冲突；测量实际末端速度 | 未实现/未执行 |
+| TRJ-08 | interpolate_from_desired_state开/关、跟踪偏差后新轨迹 | 比较插值起点、实际herej和JTC desired/actual/error；抢占/重启无隐藏位置跳变 | 未实现/未执行 |
+| TRJ-09 | VAL3 herej/getJntSpeedCmd/isSettled数据质量 | 对每个字段验证来源、更新周期、量纲、误差/噪声、无效值与故障传播；速度近似值不得被误称实测值 | 未实现/未执行 |
+| TRJ-10 | UDP状态重复/延迟/乱序/断流与轨迹末端到位 | 重复帧不能刷新“完成”确认；状态新鲜度、序号推进、目标ID/会话关联均满足要求 | 未实现/未执行 |
+| TRJ-11 | 轨迹成功后继续漂移、外力扰动、刹车/HOLD | 到位成功需规定稳定保持窗口和扰动后撤销/失效语义；明确非安全级监测边界 | 未实现/未执行 |
+| TRJ-12 | 250Hz JTC、20Hz Action monitor与4ms VAL3周期的端到端时序 | 记录命令/状态时间戳、反馈延迟、完成确认延迟及P50/P95/P99/P99.9/max | 未实现/未执行 |
+
+### F. 结论与优先建议
+
+当前公开实现存在清晰的状态语义断层：VAL3提供全局`isSettled()`运动标志和`herej()`当前关节位置，但未形成目标ID关联的到位确认；movejSync状态仅描述执行器运行/错误/锁定状态；C++状态读取成功只说明有效类型和未过期报文已读到；ROS Action理论上可根据实际状态和容差返回结果，但配置未显式给出逐轴path/goal容差，且轨迹插值起点配置为上一条期望命令状态。
+
+优先建议：定义端到端轨迹状态机（RECEIVED/ACCEPTED/EXECUTING/SETTLING/SUCCEEDED/ABORTED/CANCELED/STALE），为每个轨迹/命令分配可回显的ID和会话epoch；在VAL3或ROS监督层实现目标位置逐轴误差、速度阈值、稳定保持时间、状态新鲜度联合判定；明确JTC path/goal容差与goal_time参数，检查MoveIt真实Action目标；评估将`interpolate_from_desired_state`改为false是否更符合当前硬件闭环语义，任何变更需在仿真/HIL中比较，不能直接在实机启用；修正速度反馈来源/命名并为无效状态提供显式标志。
+
+ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS1/SS2、STO、制动器和安全PLC仍须由经认证的独立安全链承担。未执行ROS构建/测试、MoveIt轨迹、VAL3编译/SRS仿真、CS9 HIL或实机测试；未修改ICube上游代码。
+
+### 本节来源记录（#1655–#1664）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1655 | [updateState.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | isSettled、herej、getJntSpeedCmd及状态有效位 |
+| #1656 | [RobotState.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx) | RobotState字段不含目标/轨迹ID及movejSync状态 |
+| #1657 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync状态语义、刷新异常处理和缺少目标完成回执 |
+| #1658 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 先发布状态后处理命令、模式状态和错误/停止流程 |
+| #1659 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | 状态读取成功语义、消息新鲜度和序号更新 |
+| #1660 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ROS state/read/write和in_motion/关节反馈映射 |
+| #1661 | [messages.hpp/messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication) | RobotState协议字段和C++状态反序列化 |
+| #1662 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | JTC周期、末端速度、插值和goal_time参数 |
+| #1663 | [moveit_controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml)；[MoveIt demo @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/moveit2.rst) | FollowJointTrajectory Action映射及执行说明 |
+| #1664 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp)；[troubleshooting.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | 测试覆盖仅普通mock read/write；文档故障排查不构成轨迹到位验收 |
+
+### 相关ROS 2控制器规范
+
+- [Jazzy JointTrajectoryController用户文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html)：Action接口、path/goal容差与topic fire-and-forget区别。
+- [Jazzy JointTrajectoryController参数文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html)：`goal_time`、`stopped_velocity_tolerance`及`interpolate_from_desired_state`语义。
