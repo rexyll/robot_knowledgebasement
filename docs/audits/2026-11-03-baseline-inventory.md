@@ -2884,6 +2884,7 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 
 - 新增ICube C++诊断消息解析器Header顺序问题：DiagnosticDataMessage::deserialize先用对象构造默认Header（type=DIAGNOSTIC_DATA、payload=66）校验，随后读取当前数据报Header却未复核payload_size；subscriber每个数据报创建新消息实例，正常接收路径使用的是默认值而非上一包Header。74字节以上、但payload_size声明错误的诊断包仍缺少当前字段一致性校验；短包有最小长度保护。read_diagnostic_data调用后另检查type/staleness，connect仍未接通诊断readiness。合法诊断消息round-trip测试未覆盖畸形Header；未确认真实CS9诊断发送链路或运行测试。来源#1511–#1515。
 
+- Stäubli诊断链路端到端复核发现：随附VAL3 userapp在sio.cfx中定义diagnostics UDP socket（11001），但ros2_server.dtx没有绑定该socket的变量，ros2_server.pjx没有DiagnosticData消息类型/编码程序，start.pgx将supervision/diagnostics task留作TODO，controlTask.pgx仅通过control socket发送RobotState。C++ mock/test harness自行合成诊断数据；RobotDriver::connect只检查socket/subscriber readiness并将diag_interface_ready硬编码true，未等待首个诊断报文。结论限于公开仓库随附VAL3应用，不排除集成方自定义程序；未运行VAL3或连接真实CS9。来源#1516–#1524。
 ## 129. Universal Robots（UR）软件与 ROS 2 生态静态审查（2026-11-06）
 
 - 驱动仓库UniversalRobots/Universal_Robots_ROS2_Driver固定main HEAD e55b899066caffbceda80662d63b61c80f56719a（2026-11-06 08:30 UTC），新增g-series launch支持；ur_robot_driver package.xml为7.2.0/BSD-3-Clause，main晚于7.2.0 release commit。README列Humble/Jazzy/Kilted/Lyrical/Rolling分支和EOL分支，Linux为驱动要求。来源#1422。
