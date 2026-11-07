@@ -491,3 +491,6 @@
 | 2026-11-07 | 00-01 | 对Stäubli ICube运动命令输入边界、模型限位与VAL3目标检查进行固定commit静态审查：ROS write仅拒绝NaN，未见Inf/目标增量本地校验；固定6元素数组检查使用num_joints_边界；TX2-60L限位经Xacro进入URDF，ros2_control JointLimiter是否启用需运行时核验；MoveIt缩放与执行侧保护分层；VAL3 isInRange检查关节软件范围，但目标接近性为TODO。新增专项审计§9.3.33、来源#1648–#1654、JNT-01–JNT-10，并同步厂商档案、兼容矩阵和索引。未执行构建/单测、MoveIt轨迹、VAL3/SRS或CS9 HIL/实机验证；00-01继续进行中。 | ICube固定commit ROS/URDF/Xacro/VAL3/测试源码；来源#1648–#1654；专项审计§9.3.33 |
 
 | 2026-11-07 | 00-01 | 对Stäubli轨迹完成语义开展固定commit静态审查：VAL3全局bInMotion来自!isSettled，关节位置来自herej、速度来自$getJntSpeedCmd近似值；RobotState没有轨迹ID/目标位置/接受/完成字段，movejSyncState仅表示运行/错误/锁定，且controlTask先发状态再处理当前命令；ROS JTC启用interpolate_from_desired_state，允许末端非零速度，goal_time=0且未显式设置逐轴path/goal容差。新增专项审计§9.3.34、来源#1655–#1664及TRJ-01–TRJ-12，并同步厂商档案、兼容矩阵、索引。未执行ROS/MoveIt/VAL3/SRS/CS9 HIL或实机验证；00-01继续进行中。 | ICube固定commit VAL3/C++/JTC/MoveIt/测试源码；来源#1655–#1664；专项审计§9.3.34 |
+
+
+| 2026-11-07 | 00-01 | 对Stäubli轨迹取消/抢占/停止链开展固定commit与Jazzy文档静态审查：确认JTC未配置decelerate_on_cancel，Action cancel默认hold当前位置；新Action抢占abort旧goal并替换轨迹；HardwareInterface不会因Action cancel自动切换STOP；VAL3 movejSyncEnd无停止等待，controlTask缓存有效命令staleness为TODO。新增专项审计§9.3.35、来源#1665–#1673及CXL-01–CXL-12，更新厂商档案、兼容矩阵、审计索引和任务计划。未执行ROS/Action测试、UDP故障注入、VAL3/SRS、CS9 HIL或实机停止验证；00-01继续进行中。 | ICube固定commit ROS/VAL3源码与ROS 2 Jazzy JTC文档；来源#1665–#1673；专项报告§9.3.35 |
