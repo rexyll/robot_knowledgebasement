@@ -469,3 +469,6 @@
 | 2026-11-07 | 00-01 | 对三类ICube消息serializer/deserializer与单元测试做Header健壮性差异审查：RobotState的Header校验注释下无实际字段验证；RobotCommand有部分校验；DiagnosticData serializer在写Header后才校验，deserializer在读取输入Header前校验对象旧Header且读取后未复核输入字段。现有test_message_serialization.cpp覆盖同实现round-trip和小buffer，未发现逐字节golden fixture及三类Header负向矩阵。新增专项报告§9.3.9、来源#1535–#1537，并制定独立fixture、错误type/payload/version/magic、短/长帧、float边界测试规格。仅静态审查，未运行测试或构建；00-01继续进行中。 | ICube固定commit messages.cpp/messages.hpp/test_message_serialization.cpp；来源#1535–#1537；专项报告§9.3.9 |
 
 | 2026-11-07 | 00-01 | 对ICube协议Header审查补做FrameHeader通用实现核验：固定commit的FrameHeader::deserialize仅检查magic，serialize仅检查8字节缓冲区并原样写入字段；两者均不校验protocol_version，type/payload_size依赖消息层；三类消息API按最小buffer长度工作，超长实际datagram尾随字节策略未定义。测试fixture使用1024字节buffer做round-trip，不能据此认定测试验证了1024字节网络帧；仅有10字节RobotState小buffer负向断言。新增来源#1538–#1540及专项报告§9.3.10，明确实际datagram长度、版本矩阵和失败原子性测试要求。未运行测试/构建/故障注入，00-01继续进行中。 | ICube固定commit protocol.cpp/protocol.hpp/test_message_serialization.cpp；来源#1538–#1540；Stäubli专项报告§9.3.9–§9.3.10 |
+
+
+| 2026-11-07 | 00-01/Stäubli专题审查的测试证据分层补充 | 在固定上游commit上对照VAL3控制任务与C++测试，明确ROS mock状态反馈staleness、缓存读取和普通序号丢包测试不能证明VAL3命令新鲜度、故障锁存、重新授权、跨语言互操作或CS9停止；新增审计§9.3.27及OBS-01–OBS-08验收规格。当前仍为源码/测试静态审查，未运行测试或实机验证。 | Stäubli专项审计§9.3.27；来源#1625–#1628 |
