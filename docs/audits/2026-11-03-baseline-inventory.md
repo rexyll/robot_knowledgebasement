@@ -2971,3 +2971,8 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 ### Stäubli ICube ROS 2—VAL3端到端命令与停止链增量（2026-11-07）
 
 固定上游commit静态核对HardwareInterface模式切换/write、RobotDriver命令发送/状态读取、VAL3控制循环与安全状态映射。ROS侧只在位置模式切换时检查缓存motion_possible；write不逐周期检查motion_possible/estop_pressed/wait_for_ack。VAL3每轮先发送状态再读取执行命令，未见命令级STOP ACK或停止完成确认；STOP发送bool不证明机器人停止。stopMove/resetMotion物理语义、sioGet队列行为及真实失联停止响应须取得CS9/VAL3受控资料并实测。新增来源#1562–#1567；详见专项报告§9.3.15。未运行构建、测试、网络注入、VAL3仿真或CS9实机验证。
+
+
+### Stäubli停止包装程序与生命周期缺口增量（2026-11-07）
+
+固定上游commit显示stopJointPositionControl调用movejSyncEnd后无条件x_bError=false，无停止后状态验证；controlTask错误处理清除l_bError并重置socket，未见人工复位锁存；ROS on_cleanup直接断连，on_shutdown不等待STOP确认，on_error忽略STOP结果。原生VAL3停止函数的物理语义、安全等级和停止时间未知。新增来源#1568–#1570，详见专项审计§9.3.16。未运行VAL3仿真、CS9 HIL/实机、构建或测试。
