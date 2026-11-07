@@ -472,3 +472,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli UDP发送错误传播、异步接收错误与线程生命周期 | 固定ICube上游commit审查UDP发送/接收实现、subscriber/interface和现有通信单测：发现would_block丢包仍返回true；接收error仍调用业务回调并可能重挂接；stop_receive_thread只停止io_service并join、未显式cancel挂起接收；peer地址/端口校验仍为TODO；receive_once连续回调存在promise重复完成风险。现有测试仅覆盖常规loopback、重连、receive_once正常路径、双start/stop及缓存/跳号。新增专项审计§9.3.30、来源#1634–#1637、UDP-01–UDP-09及SUB-01–SUB-02。未运行ROS构建/单测、错误注入、压力测试、TSan/ASan、VAL3仿真或CS9 HIL/实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1634–#1637；Stäubli专项审计§9.3.30；《主要厂商》§128.13 |
+
+
+| 2026-11-07 | 21-02/Stäubli ros2_control生命周期与停止责任审查 | 固定commit审查HardwareInterface生命周期回调、模式切换及测试：无自定义on_deactivate；activate只设置本地STOP；cleanup直接disconnect且忽略结果；shutdown按缓存control_state条件性发STOP并忽略STOP/disconnect结果；on_error忽略STOP返回值仍SUCCESS；STOP模式切换依赖后续write发送。现有LifecycleTransitions仅覆盖init/configure/activate/read/write。新增专项审计§9.3.31、来源#1638–#1640和LIFE-01–LIFE-08。未运行ROS构建/单测、生命周期故障注入、VAL3仿真或CS9 HIL/实机；21-02继续进行中，Stäubli未验收。 | 来源#1638–#1640；Stäubli专项审计§9.3.31；《主要厂商》§128.14 |
