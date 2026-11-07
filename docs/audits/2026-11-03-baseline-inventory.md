@@ -2958,3 +2958,11 @@ NMPA官方数据说明明确了产品注册信息现行结果与历次变更的�
 - RealTimeSocketInterface复用成员data_out_，send_message未见并发保护；UDP send与disconnect访问同一socket对象，只有连接标志为atomic。若多线程并发发送或发送与断开，存在数据竞争/对象生命周期风险候选。RobotDriver没有对象级同步契约，接口指针、状态快照和消息序号均需按调用线程约束核验。来源#1550–#1552、#1554。
 - ros2_control插件没有覆写on_deactivate；on_cleanup直接disconnect，on_shutdown条件性尝试STOP，on_error忽略STOP发送结果。deactivate停止后续硬件读写不能证明机器人端已收到STOP；必须验证VAL3命令超时/失联策略，补齐生命周期停止和ACK/状态确认。来源#1553。
 - 静态审查未运行TSan/ASan、构建、测试、生命周期实验、网络故障注入或CS9实机验证；并发风险未被动态复现，Stäubli仍未验收。专项报告：docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md §9.3.13。
+
+
+## 128.13 Stäubli VAL3命令新鲜度与故障恢复审计（2026-11-07）
+
+- VAL3控制任务以4ms周期执行，先发送状态再接收命令；readData最多读取两次。staleness检测仍为TODO；序号差阈值在运动时>5、静止时>25触发错误。movejSync状态1（命令刷新超时）处理被注释。来源#1556–#1558、#1560–#1561。
+- 错误路径执行stopMove/resetMotion后清除错误标志并重置socket；恢复前延迟TODO，未建立源码级人工确认锁存。通信恢复后重新接受命令为静态设计风险，不代表实机已发生自动恢复运动。来源#1556。
+- bMotionPossible未纳入工作模式，bEStopped把所有非零安全状态映射为true，可能混淆急停/SS1/SS2/等待重启状态。来源#1559。
+- 未运行VAL3/CS9仿真、测试、网络注入、周期测量或实机验证；不能将VAL3 stopMove/resetMotion等同安全额定停止。专项报告§9.3.14。
