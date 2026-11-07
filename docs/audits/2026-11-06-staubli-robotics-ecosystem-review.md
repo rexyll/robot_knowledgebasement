@@ -660,3 +660,47 @@ CD AB 01 03 34 12 42 00 02 01 02 03 00 10 01 10
 ### E. 验证边界
 
 本节仅核对固定commit源码、Xacro和测试夹具；未修改ICube上游代码，未运行构建/单元测试、端口边界注入、socket绑定实验或CS9实机连接。默认Xacro端口仍为11000/11001；本节识别的是自定义HardwareInfo输入缺少严格解析和范围约束。Stäubli仍为静态审查未验收。
+
+
+## 9.3.20 ROS 2 Lifecycle停用、清理与断开连接的停止语义（2026-11-07）
+
+本节固定ICube上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`，逐项核对HardwareInterface头文件声明、生命周期回调实现，以及RobotDriver STOP发送与disconnect顺序。结论聚焦主机侧生命周期转换的显式停止保障，不推断CS9在失联后的实际物理停止时间。
+
+### A. 生命周期回调覆盖
+
+1. `StaubliHardwareInterface`头文件声明并实现`on_configure`、`on_activate`、`on_cleanup`、`on_shutdown`、`on_error`，没有声明或实现`on_deactivate`覆盖。因而组件从ACTIVE转INACTIVE时，该类没有自定义的显式STOP动作；具体基类默认回调语义需按所用ros2_control版本确认。来源#1590。
+2. `on_cleanup()`仅调用`robot_driver_->disconnect()`，不先调用`send_stop_all_command()`，也不检查当前控制模式或机器人是否仍在运动。若生命周期流程进入cleanup时驱动仍连接，主机侧直接拆除通信资源。来源#1591。
+3. `on_shutdown()`只有在`state_msg_.control_state != STOP`时才调用STOP，然后立即disconnect；该条件使用最近一次缓存的状态快照，且没有检查STOP发送返回值。若快照已过期或控制状态未正确刷新，可能跳过STOP；即使发送返回false，也继续断开连接。来源#1591–#1592。
+4. `on_error()`在连接状态为true时调用STOP，但同样忽略`send_stop_all_command()`的bool返回值，随后无进一步验证便返回SUCCESS。来源#1591–#1592。
+5. `RobotDriver::send_stop_all_command()`本身能返回false，且分别在准备STOP消息失败或send_message失败时报告失败；因此调用方忽略返回值会丢失可观测的STOP发送失败结果。该函数返回true只证明消息序列化并交给socket发送路径成功，不证明CS9已接收、执行或机器人已静止。来源#1592。
+
+### B. 风险与限制
+
+- **P1｜ACTIVE→INACTIVE没有驱动层显式停止保证。** 类本身没有on_deactivate override；停止行为可能依赖上层controller停止写入、VAL3命令超时/序列延迟保护和控制器自身行为。尚未在目标ros2_control版本或CS9上验证基类默认回调、控制器停用顺序以及真实停止响应。
+- **P1｜cleanup先断链、不发STOP。** 如果cleanup在运动期间被调用，主机侧没有明确的STOP-before-disconnect顺序。不能仅凭disconnect完成推断机器人已停止。
+- **P1｜shutdown/error吞掉STOP发送失败。** 调用方未检查bool结果，导致生命周期回调可能返回SUCCESS或继续断开，而STOP数据报实际未成功发送。UDP send成功本身也不是机器人停止确认。
+- **状态快照条件风险：** shutdown仅在缓存control_state非STOP时发STOP；建议安全退出路径采用幂等、无条件的STOP请求（连接可用时），并对状态回读和停止确认设置独立超时。不要以旧缓存状态作为是否尝试STOP的唯一门槛。
+- **边界：** 本节不是安全功能认证，也不替代CS9安全回路、急停或安全PLC；通信STOP不得被视为安全额定停止功能。
+
+### C. 修复与验收要求
+
+1. 实现明确的`on_deactivate()`，当连接仍可用时先发STOP，再等待受限时间内的状态回读/停止确认，然后释放活动控制资源；回调必须报告STOP请求失败或停止未确认。
+2. 将`on_cleanup`、`on_shutdown`、`on_error`统一到幂等的安全退出辅助函数：记录触发原因、尝试STOP、检查返回值、按超时策略等待状态反馈，再disconnect；即使STOP失败也必须显式报告并保留故障原因，不得返回虚假的成功。
+3. 对停止确认定义可测量条件（例如连续状态帧显示不在运动、控制模式STOP、状态新鲜度在阈值内），区分“命令已发送”“控制器已确认”“机器人已静止”三个层级。
+4. 明确disconnect的职责只包括通信资源释放，不把它作为停止动作；若链路已失效，依赖控制器侧独立通信看门狗/安全机制，并在产品安全案例中单独验证。
+5. 为生命周期回调加入mock与HIL测试，覆盖STOP发送成功/失败、状态快照过期、cleanup期间运动、重复调用、网络断开和控制器不响应。
+
+### D. 新增可执行验收矩阵
+
+| ID | 场景 | 必须结果 | 当前证据/缺口 |
+|---|---|---|---|
+| LC-01 | ACTIVE状态执行deactivate | 显式发STOP；记录请求结果；等待有界停止确认后转INACTIVE | 当前类无on_deactivate override；未执行 |
+| LC-02 | 运动中直接执行cleanup | 先STOP并尝试确认，再释放socket；STOP失败需可见 | 当前cleanup只disconnect；未执行 |
+| LC-03 | shutdown时缓存control_state误报STOP | 仍执行幂等STOP尝试，不因旧快照跳过 | 当前有状态条件；未模拟过期快照 |
+| LC-04 | STOP发送接口返回false | lifecycle回调不能静默返回SUCCESS；记录故障并进入定义的降级路径 | 当前shutdown/error忽略返回值；未注入发送失败 |
+| LC-05 | STOP数据报发送成功但机器人仍运动/状态未更新 | 区分发送成功与停止确认，超时告警/锁存 | 当前无显式等待确认；未HIL |
+| LC-06 | 已断网时执行deactivate/cleanup/shutdown | 明确报告无法通过ROS链路STOP，验证CS9独立watchdog/安全策略 | 未执行断网HIL或CS9验证 |
+
+### E. 验证边界
+
+证据为固定commit的`staubli_hardware_interface.hpp/.cpp`与`robot_driver.hpp/.cpp`静态审查。未构建驱动，未验证ros2_control具体版本的默认on_deactivate行为，未运行lifecycle集成测试、UDP发送失败注入、CS9状态回读或真实机器人停止响应测量。不能宣称已经证明机器人会在cleanup/deactivate后继续运动；本节确认的是软件没有在这些路径上建立可审计的显式STOP与停止确认契约。Stäubli仍为静态审查未验收。
