@@ -5,8 +5,8 @@
 本目录记录 Robot Knowledge Basement 的仓库资产、内容质量、来源和公开发布审查。
 
 ## 当前记录
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube commit静态审查至§9.3.27，覆盖协议/端序/Header、UDP信任边界与线程生命周期、VAL3 4ms循环/命令新鲜度/错误恢复、CS9独立安全链、ROS安全状态映射及测试证据分层；新增OBS-01–OBS-08。未运行上游测试、VAL3编译/SRS仿真、CS9 HIL/实机或安全验证。
 
-- [2026-11-06 Stäubli Robotics软件与ROS生态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：固定ICube ROS 2 Jazzy/CS9 prototype上游提交的静态源码与生态审查；覆盖协议帧、序号、诊断链路、Header校验及测试缺口，未执行上游测试、VAL3编译或CS9实机验证。
 - [2026-11-06 FANUC ROS 2 Driver / Stream Motion 1 ms与数据包可靠性增量审计](2026-11-06-fanuc-ros2-stream-motion-reliability-review.md)：对照FANUC Open Platform 1 ms宣传与实际ROS 2控制器/选件/URDF矩阵；静态核对v2.4.0 main Stream Motion序列处理、open Issue #67乱序UDP状态包、轨迹加速度/jerk约束、position-only command接口和ros2_control API迁移风险；未构建、未运行网络注入或连接实机。
 
 - [2026-11-06 Techman Robot TMflow/ROS 2/EIH Camera生态静态审查](2026-11-06-techman-robot-software-ros2-ecosystem-review.md)：区分传统TM与S系列驱动、Humble/Jazzy、Ethernet Slave/Listen Node、MoveIt/Gazebo模型、EIH gRPC客户端及S系列安全/网络安全声明；未构建、未连接实机或执行安全/HIL/FAT/SAT验证。
@@ -15,7 +15,6 @@
 
 - [2026-11-06 Universal Robots PolyScope/URCap/ROS 2生态静态审查](2026-11-06-universal-robots-software-ros2-ecosystem-review.md)：区分PolyScope X内置ROS 2、外部ur_robot_driver、ur_client_library和URCapX；记录g-series主分支支持、PSX 10.7/Humble与10.15/Jazzy、运动控制器和安全责任边界；未构建或连接实机。
 
-- [2026-11-06 Stäubli Robotics CS9/VAL 3/uniVAL/ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：更正ICube驱动Release记录并补充CI/SRS/VAL Blocks；审查UDP发送/来源校验、诊断/协议头、6轴/Inf输入、16位序号回绕/乱序/重复帧，以及VAL3 RobotState payload_size被sequence覆盖、命令解码Header校验时序缺口和随附VAL3诊断发布链路未实现（#1516–#1524）、诊断读取端未拒绝重复序号帧（#1525–#1527）；新增三类消息Header校验不对称和golden fixture测试缺口（§9.3.9、#1535–#1537）；补充三类消息固定偏移/小端与float32线格式、DiagnosticData分组字段顺序及源码派生74字节参考向量（§9.3.8、#1528–#1534）；补充FrameHeader通用校验（§9.3.9–§9.3.10）、UDP 1024字节接收缓冲区/错误回调传播风险（§9.3.11、#1541–#1545），以及would_block丢包误报成功、接收线程stop/restart和callback生命周期风险（§9.3.12、#1546–#1549）；共享发送缓冲区并发与ros2_control生命周期（§9.3.13、#1550–#1555）；VAL3命令新鲜度/故障恢复锁存（§9.3.14、#1556–#1561）；ROS 2—VAL3端到端命令门控、STOP确认和故障矩阵（§9.3.15、#1562–#1567）。明确该向量不是VAL3生成或实机抓包，未运行测试/编译/实机，也未执行HIL/FAT/SAT。
 
 - [2026-11-06 Epson Robotics RC+ 8.0/RTMC/ROS 2生态审查](2026-11-06-epson-robotics-ecosystem-review.md)：核对RC+ 8.0/SPEL+、RC800 RTMC、官方ROS 2 Humble驱动、AX6/AX Portal独立栈、Lifecycle自动重启风险、1 kHz/2 ms时基与buffer默认值差异，以及安全功能型号/固件矩阵；仅静态审查，未构建或连接实机。
 
@@ -62,6 +61,4 @@
 
 清单中的未审文件不代表质量不合格，只表示尚无验收证据。抽样不能替代逐篇审查；文件存在、标题完整、链接数量或文章长度均不能单独作为完成证明。审计完成状态以根目录 TaskPlan 的 00-01 任务验收为准。
 
-- [Stäubli Robotics软件与ROS生态静态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：持续追踪CS9/VAL3/ICube ROS 2驱动；当前专项增量至§9.3.17，覆盖协议序列化、UDP收发错误与线程生命周期、共享发送缓冲区并发、RobotDriver同步契约、ros2_control生命周期、VAL3命令新鲜度/故障恢复锁存，以及ROS 2—VAL3端到端命令门控、STOP确认与故障矩阵、VAL3停止包装与错误恢复锁存及ROS 2生命周期停止契约；RobotState默认100 ms新鲜度检查、重复帧刷新接收时间戳的活性缺口、ROS 2 Jazzy read/write ERROR生命周期与控制器停用、on_error忽略STOP结果及资源保留问题。当前均为公开资料/源码静态审查，未完成目标硬件验收。
 
-- [2026-11-06 Stäubli Robotics软件与ROS生态审查](2026-11-06-staubli-robotics-ecosystem-review.md)：续增§9.3.27，核对VAL3状态先发后处理错误的可观测性，以及ReadRobotStateTest/RTSocketSubscriberTest/round-trip测试的真实覆盖边界；新增OBS-01–OBS-08测试规格。未运行测试、VAL3编译、SRS仿真或CS9 HIL/实机验证。
