@@ -991,3 +991,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v8.14 | 00-01/21-02继续Stäubli VAL3服务端命令接收、超时保护与模式切换审查：固定ICube VAL3 controlTask、位置/速度控制函数、命令解码、UDP接收与sequence delay。确认位置模式使用movejSync，速度控制函数明确未实现并返回错误；POSITION↔VELOCITY直接切换必须经过STOP；STOP→运动依赖bInMotion反馈；无新UDP包时上一条valid命令仍保留且staleness为TODO；序号差仅用于延迟估算，不构成严格重复/乱序防重放；模式值4通过范围检查后落入未知模式错误分支。新增专项审计§9.3.46、来源#1743–#1750、SERVO-81–SERVO-90，并同步第21章、厂商档案、兼容矩阵、链接台账和审计索引。未执行VAL3编译、故障注入、SIL/HIL、CS9实机模式切换或超时停止验收；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.46；来源#1743–#1750；《主要厂商》§128.29 |
+
+
+| 2026-11-07 | v8.14 | 00-01/21-02继续Stäubli VAL3服务端命令接收、超时保护与运动模式切换审查：固定ICube bd658e2的controlTask、命令/header反序列化、UDP读取、位置/速度控制及停止函数。确认位置/速度模式不能直接切换，必须经过STOP并等待bInMotion=false；velocity分支存在但$setVelCmd未实现、安全限幅TODO，与README仅支持position一致。命令解析具备magic/version/type/长度校验，但无严格重复/乱序sequence拒绝、显式deadline和无包staleness保护；错误恢复冷却/重新授权仍TODO。新增专项审计§9.3.46、来源#1743–#1750、SERVO-81–SERVO-90，并同步第21章、厂商档案、兼容矩阵、链接台账和审计索引。未执行VAL3编译/运行、CS9、故障注入、SIL/HIL或实机停止测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.46；来源#1743–#1750；《主要厂商》§128.29 |
