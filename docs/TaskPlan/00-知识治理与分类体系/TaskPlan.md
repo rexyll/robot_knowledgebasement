@@ -494,3 +494,6 @@
 
 
 | 2026-11-07 | 00-01 | 对Stäubli轨迹取消/抢占/停止链开展固定commit与Jazzy文档静态审查：确认JTC未配置decelerate_on_cancel，Action cancel默认hold当前位置；新Action抢占abort旧goal并替换轨迹；HardwareInterface不会因Action cancel自动切换STOP；VAL3 movejSyncEnd无停止等待，controlTask缓存有效命令staleness为TODO。新增专项审计§9.3.35、来源#1665–#1673及CXL-01–CXL-12，更新厂商档案、兼容矩阵、审计索引和任务计划。未执行ROS/Action测试、UDP故障注入、VAL3/SRS、CS9 HIL或实机停止验证；00-01继续进行中。 | ICube固定commit ROS/VAL3源码与ROS 2 Jazzy JTC文档；来源#1665–#1673；专项报告§9.3.35 |
+
+
+| 2026-11-07 | 00-01 | 对MoveIt取消传播和结果一致性开展固定MoveIt Jazzy commit静态审查：区分MoveGroup与ExecuteTrajectory Action取消路径；发现ExecuteTrajectory cancel callback仅ACCEPT且未接线到已定义的TEM stop函数，PREEMPTED终态走abort；TEM忽略cancelExecution返回值并先标记PREEMPTED，ActionBasedControllerHandle未验证Cancel response是否实际取消当前goal，waitForRobotToStop失败被忽略且取消路径不等待静止。新增专项审计§9.3.36、来源#1674–#1681及MEX-01–MEX-14，并同步厂商档案、兼容矩阵、索引和任务计划。未执行MoveIt/ROS构建、Action集成/故障注入、VAL3/SRS、CS9 HIL或实机验证；00-01继续进行中。 | MoveIt Jazzy固定commit 6ed6372；Stäubli固定commit bd658e2；来源#1674–#1681；专项报告§9.3.36 |
