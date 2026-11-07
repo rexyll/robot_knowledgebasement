@@ -100,3 +100,5 @@
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.50；新增VAL3 clearBuffer的Socket生命周期语义：Ethernet socket上的clearBuffer会停用/关闭socket，inactive时返回-1，后续读写尝试激活。start与controlTask启动路径连续调用clearBuffer且忽略返回值，stop也关闭socket；任务退出时序与重启首帧行为待SRS/CS9验证（SERVO-119–SERVO-125）。未执行HIL或实机验证。
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.51；新增VAL3 sioSet短写/超时处理、手册要求剩余数据续写与当前实现差异、controlTask发送失败STOP/reset路径，以及C++ Boost.Asio send_to忽略字节数、would_block丢包仍返回true的跨端不对称（SERVO-126–SERVO-136）。未执行SRS/CS9网络注入、VAL3编译、HIL或实机验证。
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.52；新增VAL3单任务先发送状态后读取命令、非阻塞最多两次读取、ROS异步最新状态快照、ControllerManager 250Hz与VAL3 delay(0)未显式固定周期之间的时间基准耦合分析（SERVO-137–SERVO-147）。周期抖动、双向拥塞与CS9/HIL验证均未执行。
