@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v7.99  
+> 版本：v8.00  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -951,5 +951,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-07 | v7.97 | 00-01/21-02继续Stäubli网络配置审查：确认HardwareInterface对四个UDP端口使用stoi解析后直接static_cast<uint16_t>，缺少窄化前范围/远端非零校验，且未检查stoi完整字符串消费；新增专项审计§9.3.29、来源#1632–#1633及PORT-01–PORT-05边界测试规格。未运行编译、参数注入、socket绑定或CS9连接测试；00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.29；来源#1632–#1633；《主要厂商》§128.12 |
 | 2026-11-07 | v7.98 | 00-01/21-02继续Stäubli ICube UDP可靠性与接收线程生命周期审查：固定上游commit确认UDP send遇到would_block并丢包仍返回true；异步接收error仍进入回调并可能重挂接；stop_receive_thread未显式cancel挂起接收，stop/start旧handler残留与并发停止待动态验证；发送方peer校验仍为TODO；receive_once连续回调存在promise重复完成风险。新增专项审计§9.3.30、来源#1634–#1637、UDP-01–UDP-09和SUB-01–SUB-02，并同步第21章、厂商档案和兼容矩阵。未运行ROS构建/单测、网络错误注入、压力测试、TSan/ASan、VAL3编译/SRS仿真或CS9 HIL/实机验证；00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.30；来源#1634–#1637；《主要厂商》§128.13 |
 | 2026-11-07 | v7.99 | 00-01/21-02继续Stäubli ros2_control生命周期与停止责任审查：确认HardwareInterface无自定义on_deactivate；activate仅设置本地STOP；cleanup直接disconnect并忽略结果；shutdown按缓存control_state条件性发送STOP且忽略发送/断开结果；on_error忽略STOP发送bool仍返回SUCCESS；STOP模式切换依赖后续write周期。现有LifecycleTransitions未覆盖deactivate/cleanup/shutdown/error。新增专项审计§9.3.31、来源#1638–#1640及LIFE-01–LIFE-08。未运行ROS构建/单测、生命周期故障注入、VAL3仿真或CS9 HIL/实机；00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.31；来源#1638–#1640；《主要厂商》§128.14 |
+| 2026-11-07 | v8.00 | 00-01/21-02继续Stäubli ROS2—UDP—VAL3实时控制链审查：固定commit确认VAL3 controlTask配置4ms但overrun仅日志/计数；ROS read忽略period，write传controller_period而VAL3仅解码未见控制逻辑消费；subscriber重复序号仍刷新接收时间，RobotDriver忽略new_message；命令序号回显最近状态序号，VAL3以序号差作延迟代理并先发状态后处理命令；无新命令staleness为TODO，movejSyncState==1处理未形成明确错误动作。新增专项审计§9.3.32、来源#1641–#1647及RT-09–RT-17，并同步第21章、厂商档案、兼容矩阵和索引。未运行构建/单测、4ms实时测量、VAL3编译/SRS仿真、UDP注入、CS9 HIL/实机或安全验收；00-01/21-02继续进行中，Stäubli未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.32；来源#1641–#1647；《主要厂商》§128.15 |
+
 
 
