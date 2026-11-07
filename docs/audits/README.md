@@ -87,3 +87,6 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.45；新增UDP本地connect不构成应用握手、诊断帧未验证却标记ready、无自动重连监督器、VAL3 uint16序号复位无session epoch、错误恢复缺少冷却/授权门控，以及UDP would_block丢包仍返回true等发现（SERVO-70–SERVO-80）。现有mock测试仅覆盖同一会话内staleness恢复；未执行跨重启/重连、旧命令重放、SIL/HIL或CS9实机测试。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.46；新增VAL3服务端命令接收、STOP/POSITION/VELOCITY模式切换、速度模式未实现、无新包时旧命令缓存与staleness TODO、序号差仅用于延迟估算及重复/乱序命令缺少严格拒绝（SERVO-81–SERVO-90）。未执行VAL3编译、故障注入、SIL/HIL或CS9实机模式切换/超时停止验证。
