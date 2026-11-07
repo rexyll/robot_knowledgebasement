@@ -469,3 +469,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli HardwareInterface UDP端口参数校验 | 检查on_configure端口字符串解析与UDP socket传递：stoi后直接窄化为uint16_t，无完整消费/范围校验；建议严格拒绝负数、超65535及远端0，并定义本地0策略。新增专项审计§9.3.29、来源#1632–#1633、PORT-01–PORT-05。未运行构建、参数注入、socket绑定或控制器测试；21-02继续进行中。 | 来源#1632–#1633；Stäubli专项审计§9.3.29；《主要厂商》§128.12 |
+
+
+| 2026-11-07 | 21-02/Stäubli UDP发送错误传播、异步接收错误与线程生命周期 | 固定ICube上游commit审查UDP发送/接收实现、subscriber/interface和现有通信单测：发现would_block丢包仍返回true；接收error仍调用业务回调并可能重挂接；stop_receive_thread只停止io_service并join、未显式cancel挂起接收；peer地址/端口校验仍为TODO；receive_once连续回调存在promise重复完成风险。现有测试仅覆盖常规loopback、重连、receive_once正常路径、双start/stop及缓存/跳号。新增专项审计§9.3.30、来源#1634–#1637、UDP-01–UDP-09及SUB-01–SUB-02。未运行ROS构建/单测、错误注入、压力测试、TSan/ASan、VAL3仿真或CS9 HIL/实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1634–#1637；Stäubli专项审计§9.3.30；《主要厂商》§128.13 |
