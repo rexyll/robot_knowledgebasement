@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.10  
+> 版本：v8.11  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.42。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.43。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -981,3 +981,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-07 | v8.10 | 00-01/21-02继续Stäubli Servo DDS QoS、队列积压和命令新鲜度审查：固定Jazzy RMW源码确认SystemDefaultsQoS不等同于rmw_qos_profile_default的KEEP_LAST(10)/Reliable/Volatile；ForwardController经RealtimeThreadSafeBox单槽位覆盖中间命令，try_get失败沿用旧joint_commands_；未配置显式Deadline/Lifespan/Liveliness事件处理，且这些QoS机制不清理已缓存应用命令。新增专项审计§9.3.42、来源#1721–#1725、SERVO-37–SERVO-46，并同步第21章、厂商档案、兼容矩阵、链接台账和审计索引。未执行目标RMW/DDS测量、网络故障注入、QoS事件、box竞争、VAL3/SRS或CS9 HIL/实机测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.42；来源#1721–#1725；《主要厂商》§128.25 |
+
+
+| 2026-11-07 | v8.11 | 00-01/21-02继续Stäubli多发布者竞争与命令授权隔离审查：固定MoveIt Servo输入latest回调与ForwardController命令callback，确认Servo输入topic可多publisher竞争、ForwardController无publisher身份检查且多个publisher按到达顺序覆盖单槽缓存。ROS 2默认不启用DDS-Security；SROS2可提供enclave身份和topic/service/action ACL，但需Enforce、独立身份密钥，且不提供业务控制租约/防重放/功能安全停止。新增专项审计§9.3.43、来源#1726–#1730、SERVO-47–SERVO-57，并同步第21章、厂商档案、兼容矩阵、链接台账和审计索引。未部署SROS2/ACL，未执行多发布者、权限、密钥生命周期、VAL3/SRS或CS9 HIL/实机测试；Stäubli仍静态审查未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.43；来源#1726–#1730；《主要厂商》§128.26 |
