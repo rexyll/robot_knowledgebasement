@@ -81,3 +81,6 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.43；新增Servo输入/输出多发布者竞争、ForwardController无publisher身份校验、SROS2默认关闭/Enforce/独立enclave/topic-service ACL能力边界及业务控制租约不足（SERVO-47–SERVO-57）。未部署keystore/ACL，未执行双publisher、越权、remapping绕过、密钥生命周期或HIL/实机验证。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.44；新增ros2_control Jazzy硬件read/write ERROR、controller update ERROR、controller chain/fallback与hardware lifecycle恢复路径；核对ICube read反馈超龄检测、UDP本地连接状态、on_error STOP发送未检查返回值及STOP不等于机械/安全停止。新增SERVO-58–SERVO-69。未执行故障注入、SIL/HIL、CS9实机或端到端停止时间验收。
