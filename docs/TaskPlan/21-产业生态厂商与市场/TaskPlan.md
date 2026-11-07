@@ -457,3 +457,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli ROS/VAL3安全状态语义与HOLD运动授权审查 | 固定上游commit静态追踪updateState、RobotState消息编码/解码及HardwareInterface状态导出/模式切换/write：确认安全状态1/2/3/4含Safety Restart、SS1、SS2、WMS Restart；bEStopped把所有非零状态折叠，bWaitAck只覆盖状态1；bMotionPossible未纳入HOLD状态（status条件被注释）；ROS位置模式切换只对operation_mode_status非0告警，write不逐周期复核完整安全状态。新增审计§9.3.25、来源#1617–#1620和SI-01–SI-08矩阵。未执行VAL3编译、ROS构建/单测、CS9仿真/HIL或实机安全故障注入；21-02继续进行中，Stäubli未验收。 | 来源#1617–#1620；Stäubli专项审计§9.3.25 |
+
+
+| 2026-11-07 | 21-02/Stäubli VAL3错误标志生命周期与位置命令门控审查 | 固定上游commit追踪controlTask、updateState、位置/速度控制函数和RobotState编码：确认位置控制每次调用会检查bMotionPossible，false时停止位置控制并返回错误；但controlTask将非预期运动hard-stop、急停告警、runtime error处理留为TODO；bInError来自局部l_bError，状态先发送后处理本周期命令错误，错误分支清标志并重置Socket，存在诊断可观测性和故障锁存缺口；位置目标接近性检查、staleness/lost packet、恢复延迟仍为TODO。新增审计§9.3.26、来源#1621–#1624、ER-01–ER-08。未执行VAL3编译/仿真、ROS构建/单测、CS9/HIL/实机测试，21-02继续进行中。 | 来源#1621–#1624；Stäubli专项审计§9.3.26 |
