@@ -475,3 +475,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli ros2_control生命周期与停止责任审查 | 固定commit审查HardwareInterface生命周期回调、模式切换及测试：无自定义on_deactivate；activate只设置本地STOP；cleanup直接disconnect且忽略结果；shutdown按缓存control_state条件性发STOP并忽略STOP/disconnect结果；on_error忽略STOP返回值仍SUCCESS；STOP模式切换依赖后续write发送。现有LifecycleTransitions仅覆盖init/configure/activate/read/write。新增专项审计§9.3.31、来源#1638–#1640和LIFE-01–LIFE-08。未运行ROS构建/单测、生命周期故障注入、VAL3仿真或CS9 HIL/实机；21-02继续进行中，Stäubli未验收。 | 来源#1638–#1640；Stäubli专项审计§9.3.31；《主要厂商》§128.14 |
+
+
+| 2026-11-07 | 21-02/Stäubli ROS2—UDP—VAL3实时控制时序审查 | 固定commit跨栈审查4ms任务配置、ROS read/write、RobotDriver/subscriber、VAL3状态/命令顺序和序号延迟：overrun仅日志/计数；read忽略period、write传递controller_period但VAL3未见消费；重复序号报文刷新本地接收时间且RobotDriver忽略new_message；命令序号回显状态序号；VAL3先发状态后处理命令，无新命令staleness仍TODO，movejSync刷新超时分支未形成明确错误动作。新增审计§9.3.32、来源#1641–#1647、RT-09–RT-17。未执行实时测量、构建/单测、VAL3/SRS仿真、UDP注入或CS9 HIL/实机；21-02继续进行中。 | 来源#1641–#1647；Stäubli专项审计§9.3.32；《主要厂商》§128.15 |
