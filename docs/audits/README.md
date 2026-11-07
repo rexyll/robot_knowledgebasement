@@ -101,4 +101,4 @@
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.51；新增VAL3 sioSet短写/超时处理、手册要求剩余数据续写与当前实现差异、controlTask发送失败STOP/reset路径，以及C++ Boost.Asio send_to忽略字节数、would_block丢包仍返回true的跨端不对称（SERVO-126–SERVO-136）。未执行SRS/CS9网络注入、VAL3编译、HIL或实机验证。
 
-- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.52；新增VAL3单任务先发送状态后读取命令、非阻塞最多两次读取、ROS异步最新状态快照、ControllerManager 250Hz与VAL3 delay(0)未显式固定周期之间的时间基准耦合分析（SERVO-137–SERVO-147）。周期抖动、双向拥塞与CS9/HIL验证均未执行。
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.53；§9.3.52核对VAL3单任务先发状态后收命令、最多两次读取及ROS异步最新状态快照；§9.3.53纠正周期结论，确认start.pgx通过taskCreateSync请求4ms同步任务，CS9同步任务超周期会取消下一周期，但当前controlTask只日志/计数、不直接STOP/ERROR（SERVO-148–SERVO-160）。周期测量、overrun注入、双向拥塞与CS9/HIL验证均未执行。
