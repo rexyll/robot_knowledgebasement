@@ -494,3 +494,6 @@
 
 
 | 2026-11-07 | 21-02/Stäubli MoveIt Servo、JTC与直接关节命令互斥仲裁 | 固定ICube/MoveIt commit审查Servo launch/YAML、MoveIt控制器映射、ros2_control controllers.yaml、URDF position接口、HardwareInterface模式切换和Servo pause/timeout。确认Servo输出指向未配置的forward_position_controller；package.xml缺moveit_servo exec_depend；SimpleControllerManager只映射JTC；资源claim能防止两个正确配置控制器同时占用同一position接口，但不管理多topic发布者；硬件切换不等待物理静止/重新授权；Servo pause不发送STOP。新增§9.3.38、来源#1693–#1704、SERVO-01–SERVO-14。未执行Servo/JTC集成、controller switching、pause/timeout/崩溃、UDP恢复、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1693–#1704；Stäubli专项审计§9.3.38；《主要厂商》§128.21 |
+
+
+| 2026-11-07 | 21-02/Stäubli Servo超时与ForwardCommandController命令缓存语义 | 固定MoveIt Jazzy与ros2_controllers源码审查Servo Header stamp超时、smoothHalt发布结束条件、pause分支及ForwardControllersBase订阅/实时缓存/update/lifecycle：确认Servo超时停止完成后不再发布；ForwardCommandController无命令年龄/watchdog，ACTIVE期间会持续将最后缓存有限值写入command interfaces；activate/deactivate重置NaN；pause不触发smoothHalt。新增专项审计§9.3.39、来源#1705–#1710、SERVO-15–SERVO-24。未执行ROS构建/集成、fake hardware、时间跳变/断流/多发布者注入、VAL3/SRS、CS9 HIL或实机测试；21-02继续进行中，Stäubli未验收。
