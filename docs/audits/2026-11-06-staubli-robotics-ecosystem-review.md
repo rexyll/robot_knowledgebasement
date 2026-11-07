@@ -2373,3 +2373,73 @@ ROS轨迹完成状态仅作为应用层监督，不是安全功能；急停、SS
 | #1729 | [ROS 2 Access Control Policies] (`https://design.ros2.org/articles/ros2_access_control_policies.html`) | topic publish/subscribe及service/action权限策略 |
 | #1730 | [ROS 2 Security deployment guidelines Jazzy] (`https://docs.ros.org/en/jazzy/Tutorials/Advanced/Security/Deployment.html`) | 安全部署、keystore/证书/权限策略生命周期与运行配置 |
 
+
+
+## 9.3.44 硬件接口故障、Controller 错误传播与停止行为（2026-11-07）
+
+### A. 审查基线与边界
+
+本节固定 ICube Stäubli driver commit `bd658e2d266e315d2ee35f985fb352ea88306b79`，ROS 2 Jazzy ros2_control 分支源码，以及 Jazzy 官方错误处理文档。ICube 项目自身声明面向 CS9、仅支持 position control、仍属 prototype；因此以下是源码级失效路径审查，不是 Stäubli 安全功能认证或控制器手册解释。来源 #1731–#1736。
+
+### B. ros2_control 的真实错误传播
+
+1. **硬件 read()/write() 返回 ERROR：** ResourceManager 将失败硬件组件名称和错误结果返回 ControllerManager。Jazzy ControllerManager 在 read 或 write 路径中查找使用该硬件 command/state interfaces 的控制器，执行硬件 command mode change 并 deactivate 相关控制器；read 与 write 的硬件错误路径均有相应处理。硬件组件的错误处理遵循 lifecycle，调用硬件 `on_error(previous_state)`。成功恢复回调使硬件回到 UNCONFIGURED；若 on_error 返回 ERROR/FAILURE，组件进入 FINALIZED，ControllerManager 当前没有完整 plugin reload 服务。不能把“控制器被停用”理解成“硬件已重新配置并恢复”。来源 #1732、#1733。
+2. **Controller update() 返回 ERROR：** ControllerManager 将出错控制器及其 controller chain group 加入停用列表；对配置的 fallback controller 计算所需接口，执行 command mode change、deactivate 故障链，再尝试按 STRICT 激活 fallback。fallback 未配置、接口不可用或激活失败时，不存在自动生成的安全控制器。该路径不同于硬件 read/write ERROR，不应混为同一种恢复状态。来源 #1732。
+3. **异常：** Jazzy 默认 `handle_exceptions=true` 会捕获控制器/硬件异常并按错误路径处理；关闭后异常可能向上传播并导致 ControllerManager 退出。捕获异常不是故障安全保证。来源 #1732、#1734。
+4. **停用/重启与命令缓存：** controller deactivate 释放资源并触发控制器自身 lifecycle；重新 activate 的命令初值、缓存清理和是否发出安全命令取决于具体 controller/plugin。硬件组件错误后需按 lifecycle 重新 configure/activate；不能只重新启动 controller 就假设硬件接口已恢复。必须针对所用 controller 和硬件插件实测重激活语义。来源 #1733。
+
+### C. ICube Stäubli HardwareInterface 与通信失效路径
+
+1. **read() 错误传播：** `StaubliHardwareInterface::read()` 在 RobotDriver 不存在/未连接、`read_robot_state()` 失败或 `update_state()` 失败时返回 `hardware_interface::return_type::ERROR`。RobotDriver 对状态消息执行协议有效性与 staleness timeout 检查；超龄消息返回失败，因而触发硬件 ERROR，而不是把旧位置当作新反馈继续使用。
+2. **状态冻结：** `RealTimeSocketSubscriber::read_message()` 在没有新消息时会返回先前缓存消息并将 `new_message=false`；RobotDriver 随后通过接收时间检查 staleness。只要超过 state staleness timeout，read_robot_state 返回 false，HardwareInterface::read 返回 ERROR。故状态冻结不是无限期静默沿用，但停止检测时间受 timeout、调度周期和错误传播延迟影响；必须测量实际阈值和最坏延迟。
+3. **UDP 连接状态边界：** 当前 RobotDriver 使用 UDP control/diagnostics socket；`is_connected()` 检查 socket connected 和接收线程 ready，并不等于 CS9 端到端仍在响应。网络中断、VAL3 server 停止或控制器故障可能先表现为状态包超龄，而不是本地 socket 立即报告断开。控制器诊断数据读取在当前连接路径中仍是 TODO，不能声称已经闭合 CS9 完整诊断通道。
+4. **write() 错误传播：** socket 未连接、机器人状态 error/INVALID、NaN command、unsupported mode 或 `send_robot_command()` 失败时返回 ERROR。对 robot error 和 NaN 分支，代码先调用 `send_stop_all_command()`；但发送失败分支本身不再保证额外 STOP。UDP send 成功只代表本机发送调用成功，不证明 CS9 已收到、接受或完成停止。
+5. **on_error() 的实际停止尝试：** 若 RobotDriver 仍报告 connected，`on_error()` 调用 `send_stop_all_command()`，但没有检查该函数的 bool 返回值，随后无条件返回 CallbackReturn::SUCCESS；若 driver 不 connected，则返回 ERROR。由此可确认“尝试发送 STOP”，不能确认“STOP 已送达/机器人已停止”。on_error 成功也只意味着 lifecycle 错误回调成功，不等于安全停止完成。
+6. **生命周期重启：** on_configure 建立控制与诊断 UDP socket，并等待首批有效状态消息；on_activate 将 current_control_mode_ 设为 STOP；on_cleanup 断开连接；on_shutdown 在仍连接且控制状态非 STOP 时尝试发送 STOP 后断开。当前静态源码未显示运行中自动重连/自动重建会话、停止确认、控制权重新授权和旧命令清除的完整闭环。
+7. **缓存/反馈语义：** read 错误前最后一次有效状态仍留在内部缓存，但错误传播应使相关控制器停用；在重新 configure/activate 前不得把缓存视为有效当前反馈。重新 activate 时控制模式设 STOP，但必须进一步验证命令接口值、VAL3 server会话和控制器状态是否同步复位。
+
+### D. Controller 停用不等于机器人停止
+
+- ros2_control deactivate 是软件生命周期/资源接口动作；它不会单独证明机器人机械臂已完成减速、停止或保持。
+- ICube on_error 发送的是驱动协议层 STOP 命令，且发送结果未被检查；若 UDP 路径已失效，该命令可能无法抵达控制器。
+- 当前源码不能证明该 STOP 对应某个经认证的安全停止类别、性能等级或安全完整性等级；也不能推断 CS9 安全控制器、驱动软件、机器人制动器和外部安全回路的响应时间。
+- 因此必须把软件控制停止、控制器侧运行/保持/错误状态、驱动器/制动器行为、独立急停/防护停止和风险评估所要求的停止功能分别验证。安全停止能力应以目标机器人/CS9配置的受控安全手册、风险评估和验证报告为依据，不以 ROS 日志或 STOP 数据包替代。
+
+### E. 故障注入与端到端停止验收矩阵
+
+以下是待执行验收项，不是已通过测试。时间指标必须由项目风险评估/停止时间测量计划给出，不能在静态审查中臆造统一毫秒阈值。
+
+| ID | 故障注入/场景 | 预期软件行为 | 必须测量/留存的证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-58 | read() 收到 ERROR / 状态消息超龄 | ResourceManager触发on_error；相关控制器停用；硬件进入预期lifecycle状态 | 错误时间戳、控制器状态、硬件状态、STOP发送结果 | 未执行 |
+| SERVO-59 | write() UDP发送失败 | write返回ERROR；相关控制器停用；不得假定STOP已送达 | socket错误、ControllerManager日志、CS9实际状态 | 未执行 |
+| SERVO-60 | 断开控制UDP链路但保留本地socket对象 | 状态超龄最终触发read ERROR；控制器停用；安全回路独立有效 | 检测延迟、包龄、控制器停用延迟、机械停止时间 | 未执行 |
+| SERVO-61 | VAL3 server停止/CS9重启 | 状态反馈失效触发错误；不沿用旧反馈作为有效值 | 断流到ERROR延迟、重启状态、旧会话拒绝 | 未执行 |
+| SERVO-62 | 反馈冻结但网络接口仍存在 | staleness timeout触发ERROR；不得继续报告有效新状态 | 注入冻结时间、timeout配置、最坏检测延迟 | 未执行 |
+| SERVO-63 | on_error时STOP发送成功/失败双分支 | 成功分支记录送出；失败分支显式告警并保持故障锁定，不宣称停止完成 | send_stop_all_command返回值、CS9确认/实际停止状态 | 未执行 |
+| SERVO-64 | controller update() 返回ERROR | 仅故障controller/chain按配置停用；fallback按STRICT尝试，失败时保持安全状态 | controller chain、fallback激活结果、接口claim | 未执行 |
+| SERVO-65 | fallback缺失/激活失败 | 不自动假定有替代控制；系统进入预定义故障锁定状态 | lifecycle、命令输出、操作员告警 | 未执行 |
+| SERVO-66 | 控制器 deactivate后重新activate | 验证缓存、命令接口、控制模式和硬件状态全部重置；旧命令不能恢复运动 | 前后缓存值、接口值、会话epoch、首个输出命令 | 未执行 |
+| SERVO-67 | read/write ERROR后硬件 lifecycle恢复 | 按UNCONFIGURED→configure→activate流程恢复；若FINALIZED则禁止假装自动恢复 | lifecycle转换记录、接口重新导出、恢复准入检查 | 未执行 |
+| SERVO-68 | STOP数据包发出但丢包/CS9不响应 | ROS侧不得以send成功作为停止完成；独立安全停止有效 | 网络抓包、CS9状态、独立安全回路和机械停止测量 | 未执行 |
+| SERVO-69 | 端到端停止时间 | 从故障发生到风险评估定义的停止状态，测量多个负载/速度/姿态/工具条件 | 同步采集故障触发、命令、CS9状态、关节速度/位移、停止时间 | 未执行 |
+
+### F. 整改建议
+
+1. 在 HardwareInterface 中对 STOP 发送结果进行显式处理；增加停止确认/状态闭环。若通信已经不可用，进入锁存故障状态并依赖独立安全功能，而不是继续尝试普通 UDP 命令后报告成功。
+2. 明确区分“socket本地可用”“收到新鲜有效状态”“CS9应用层在线”“机器人可运动”“机器人已停止”五种状态；状态机必须包含反馈年龄、sequence、连接会话和控制器故障。
+3. 为 read/write ERROR、on_error失败、硬件FINALIZED、controller fallback失败和重新激活失败定义统一故障锁存与人工复位/重新授权流程。
+4. 为所有控制器建立明确的 deactivate/activate 缓存语义测试；禁止未验证的旧轨迹、旧命令或旧控制权在重启后恢复。
+5. 建立 fake hardware/SIL故障注入；通过后再在受控CS9 HIL验证UDP丢包、反馈冻结、VAL3 server退出、CS9重启、STOP确认和重新握手。实机验证需风险评估、低速/限区、现场监护及独立急停可用。
+6. 对端到端停止时间按机器人型号、负载、速度、姿态、工具和安全配置测量；按风险评估及受控厂商安全资料判定，不把ROS update周期或网络往返时间当作机械停止时间。
+
+### G. 本节来源记录（#1731–#1736）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1731 | [ICube Stäubli HardwareInterface @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp`) | read/write/on_error、生命周期、STOP调用与状态缓存 |
+| #1732 | [ros2_control Jazzy ControllerManager源码] (`https://github.com/ros-controls/ros2_control/blob/jazzy/controller_manager/src/controller_manager.cpp`) | read/write硬件错误停用关联控制器、update ERROR停用chain及fallback尝试 |
+| #1733 | [ros2_control Jazzy read/write错误处理文档] (`https://control.ros.org/jazzy/doc/ros2_control/hardware_interface/doc/handling_errors_during_read_write.html`) | on_error生命周期与FINALIZED恢复边界 |
+| #1734 | [ros2_control Jazzy ResourceManager源码] (`https://github.com/ros-controls/ros2_control/blob/jazzy/hardware_interface/src/resource_manager.cpp`) | 硬件read/write错误结果与组件生命周期处理 |
+| #1735 | [ICube RobotDriver/Subscriber @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp`) | UDP socket ready、状态包age检查、STOP数据包发送与连接判定 |
+| #1736 | [ICube RealTimeSocketSubscriber @ bd658e2] (`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp`) | 缓存消息复用、new_message与接收时间戳/staleness语义 |
