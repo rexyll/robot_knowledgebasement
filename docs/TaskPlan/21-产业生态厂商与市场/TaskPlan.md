@@ -572,3 +572,5 @@
 
 | 2026-11-08 | 21-02/Stäubli远端连接健康、UDP恢复、控制器重启与陈旧命令隔离 | 固定ICube bd658e2审查UDPSocketImpl、RealTimeSocketSubscriber、RobotDriver、HardwareInterface与协议帧头：本地socket/receive thread ready不等于远端活性；is_connected不检查状态新鲜度，read有年龄门控但write没有独立年龄/session门控；无运行期自动重连握手；reset_data只清主机缓存；16位sequence无boot ID/session epoch，重启序号复位与自然回绕/乱序/重放不可区分；无恢复后显式重新使能和STOP ACK。新增§9.3.67、SERVO-303–SERVO-312、来源#1857–#1864。断网/重启/延迟旧包、TSAN、CS9仿真、HIL/实机验证均未执行。 | 来源#1857–#1864；专项审计§9.3.67 |
 
+
+| 2026-11-08 | 21-02/Stäubli VAL3命令接收窗口、重复/乱序/延迟命令拒绝与运动状态一致性 | 固定ICube bd658e2审查controlTask/readData/readDataOnce/computeSequenceDelay/decode/position control：每周期最多读两次；无新数据时旧bIsValid命令仍被使用，staleness为TODO；序号差只作16位回绕修正，无严格重复/乱序/超前/过期窗口；错误恢复只清SIO缓冲，缺少冷却/握手/重新授权；状态先发布后执行命令，缺少命令ACK/执行关联；movejSyncState 1/2未升级错误。新增§9.3.68、SERVO-313–SERVO-322、来源#1865–#1872。VAL3编译、CS9仿真、网络故障注入、状态一致性/HIL/实机验证未执行。 | 来源#1865–#1872；专项审计§9.3.68 |
