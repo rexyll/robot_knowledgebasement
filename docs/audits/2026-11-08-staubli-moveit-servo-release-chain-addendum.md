@@ -1229,3 +1229,31 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+
+
+### §9.3.135 PR #3907 Actions workflow失败状态的独立复核（2026-11-08）
+
+#### 1. PR状态与修复范围
+
+- 重新读取 [moveit/moveit2#3907](https://github.com/moveit/moveit2/pull/3907)：PR仍为Open，base为`main`，head为`Yuhx141:fix/planning-scene-contracts`，当前head commit `821818f4ffeaa7564459faed2cbddbfb604f9dcb`。PR声明Fixes #3897，包含双subscriber分别reset的修复和topic-list回归测试。
+- PR页面的描述列出Ubuntu 24.04/ROS Jazzy四项测试为作者自报结果；本专项不将其视为本项目独立复测。
+
+#### 2. GitHub Actions直接证据
+
+- 通过GitHub连接器按head SHA读取PR workflow runs，得到两个workflow：Formatting (pre-commit) run `36755746603`、CI run `36755746261`；两者均为`status=completed`、`conclusion=failure`。
+- 随后分别查询两个run的jobs，连接器均返回空jobs数组。当前证据因此可以确认workflow级失败，但不能确定失败job、失败step、失败原因或是否属于代码问题；不把空数组解释为“无job运行”或“全部测试失败”。
+- 重新查询PR reviews，返回空列表；尚无提交review记录。PR页面仍显示Open。辅助WIP/Mergify/CodeRabbit状态不覆盖这两个workflow失败，也不构成维护者approval。
+
+#### 3. 影响与判定
+
+- PR #3907仍不能作为已合并修复；当前不能将#3897标记为上游已修复。
+- SERVO-724维持“正在进行中”：下一步需等待PR更新或补充可读Actions job/step日志、修复Formatting/CI失败、取得维护者review/approval及合并证据；随后继续追踪Jazzy backport和正式二进制。
+- SERVO-721、SERVO-723、SERVO-725的目标环境动态测试仍未执行；SERVO-722仍因缺少Stäubli/ICube现场源码、launch/YAML和实际调用链证据而阻塞。
+- 未修改MoveIt或ICube上游，未应用PR补丁；未执行Ubuntu 24.04目标安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证。Stäubli工程级验收仍未通过，TODO-EXT-001仍未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- https://api.github.com/repos/moveit/moveit2/actions/runs/36755746603/jobs
+- https://api.github.com/repos/moveit/moveit2/actions/runs/36755746261/jobs
+- https://api.github.com/repos/moveit/moveit2/pulls/3907/reviews
