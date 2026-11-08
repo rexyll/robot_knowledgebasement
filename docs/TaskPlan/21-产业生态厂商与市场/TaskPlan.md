@@ -1503,7 +1503,7 @@ SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启�
 | SERVO-721 | 直接stop及双topic回调计数、topic graph测试 | 未执行 |
 | SERVO-722 | Stäubli/ICube目标版本、launch/YAML、monitor实例与全部start/stop调用点 | 未执行/阻塞（现场证据缺失） |
 | SERVO-723 | PR #3907合并或目标修复版本的回归验证 | 未执行 |
-| SERVO-724 | 跟踪PR #3907审查/CI/合并、Jazzy backport和正式deb | 正在进行中 |
+| SERVO-724 | 跟踪PR #3907审查/CI/合并、Jazzy backport和正式deb | 正在进行中（PR open/behind；Formatting与CI失败，jobs明细缺失；无review approval及Jazzy backport证据） |
 | SERVO-725 | 双topic启动后，stop或restart为单topic/双空/新topic配置的生命周期矩阵，验证旧topic回调停止和新topic集合准确 | 正在进行中（已完成固定源码静态推导；目标环境实验未执行） |
 
 固定MoveIt 2.12.4源码（Blob SHA `fd07db53761d533f2f6e7f33189063a18000c9a9`）显示`startWorldGeometryMonitor()`开头会调用stop；stop仍以if/else if只释放一个subscriber。故原先两个topic同时启用时，若随后重启并把`planning_scene_world_topic`设为空，旧PlanningSceneWorld subscriber可能未被新配置覆盖，导致monitor对象仍存活时继续订阅旧topic。若新world topic非空，旧成员在新subscriber赋值时被替换；对象析构时剩余成员也随对象销毁。因此风险不应被扩大描述为析构后永久订阅泄漏。
@@ -1515,3 +1515,11 @@ SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启�
 - https://github.com/moveit/moveit2/pull/3907
 - https://github.com/moveit/moveit2/issues/3897
 - 专项追加件§9.3.133。
+
+
+### Stäubli专项审查新增记录（§9.3.134，SERVO-724候选修复PR审查状态）
+
+- PR #3907仍open、未合并，base main，head `821818f4ffeaa7564459faed2cbddbfb604f9dcb`，mergeable_state=behind，最后更新时间2026-09-30；diff分别reset两个subscriber并新增topic-list回归测试。
+- PR作者自报Ubuntu 24.04/Jazzy测试通过，但Formatting与CI workflow均failure，jobs API当前返回空列表；reviews为空，无维护者approval。Mergify/WIP/CodeRabbit辅助状态不代表required CI通过。
+- base:jazzy相关搜索未发现#3907回移PR；issue #3887仍open且其可见backport清单未列#3907。ROS Jazzy官方状态页B/T/M与生产main pool仍显示2.12.4-1旧Main构建，未证明修复进入Jazzy正式包。
+- SERVO-724持续进行中；SERVO-721/723/725仍未执行，SERVO-722现场部署证据仍缺。未修改上游、未应用补丁。详见专项追加件§9.3.134。
