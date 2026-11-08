@@ -1235,3 +1235,16 @@
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - 专项追加件§9.3.115。
+### Stäubli专项审查新增记录（§9.3.116，状态页与binary pool精确文件核对）
+
+- ROS Jazzy amd64状态页生成时间更新至2026-11-08 04:36:03 -0800，moveit_servo B/T均为2.12.4-1noble.20261105.184638、M为2.12.4-1noble.20261006.040508；arm64页面04:23:04 -0800，B/T均为2.12.4-1noble.20261106.111556、M为2.12.4-1noble.20261006.043301。
+- building pool列出amd64 deb 2.12.4-1noble.20261105.184638，673,950 bytes；arm64 deb 2.12.4-1noble.20261106.111556，617,952 bytes。production main pool仍仅列10月6日旧deb：amd64 674,492 bytes、arm64 615,538 bytes。
+- 点击四个deb条目后读取通道均因application/octet-stream不支持而无法读取二进制；未读取DEBIAN/control、未计算SHA256、未验证APT签名/Packages stanza。testing pool目录未取得直接可读响应，testing状态以官方status page T列为证。
+- SERVO-713仍部分取证但未完成；SERVO-710/714未完成。未执行apt/rosdep/colcon/Servo smoke test、VAL3编译、CS9/SRS/HIL/FAT/SAT或实机验证；Stäubli工程验收仍未通过。
+
+本节来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/building/pool/main/r/ros-jazzy-moveit-servo/
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- 专项追加件§9.3.116。
