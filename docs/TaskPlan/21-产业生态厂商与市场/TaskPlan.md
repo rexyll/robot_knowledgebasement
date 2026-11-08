@@ -1441,3 +1441,16 @@
 
 
 - 厂商档案`knowledge/ecosystem/主要厂商.md`新增§128.79后，资产清单对应行刷新为Blob SHA `b639f21d4f6403dbe1bc791cd85e379071fa91fd`、UTF-8大小524,243 bytes；仅刷新单一资产Git元数据，不代表claim-level审查完成或整库清单重算。
+
+
+### Stäubli专项审查新增记录（§9.3.129，ROS Jazzy双架构状态页与生产main pool复核）
+
+- ROS Jazzy官方amd64/arm64状态页生成时间刷新至05:56:04/05:43:04（2026-11-08，UTC−8）；`moveit_servo`两架构Building/Testing版本分别仍为`2.12.4-1noble.20261105.184638`、`2.12.4-1noble.20261106.111556`，Main分别仍为`2.12.4-1noble.20261006.040508`、`2.12.4-1noble.20261006.043301`。相较§9.3.128仅页面生成时间更新，版本字段未变。
+- 生产main pool目录仍只列出2026-10-06 amd64/arm64 deb（674,492/615,538 bytes），没有观察到11月5/6日构建进入main目录。目录列表没有提供完整APT索引、验签、deb内部control或SHA256证据。
+- 本轮只刷新状态快照，不更改任务验收状态：SERVO-718已完成，SERVO-719部分取证，SERVO-716/713部分取证，SERVO-710/714未完成。未执行Ubuntu 24.04安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证；21-02继续进行中，Stäubli工程级验收未通过。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- 专项追加件§9.3.129。
