@@ -137,3 +137,13 @@ README已同步说明：2026-11-08对同一资产行随§128.62–§128.64两轮
 在§128.65写入后，已将knowledge/ecosystem/主要厂商.md对应资产行再次刷新为Git Blob SHA 03ff74bcb3fd064529137fbd2407e7eeac85ceb8、UTF-8大小505,182 bytes、metadata_reconciled_date=2026-11-08。该动作只更新此单一资产的Git元数据，不代表142项资产的全库元数据重算，也不改变该文档P1 claim-level review未完成状态。
 
 本轮文档同步状态：根TaskPlan v8.87记录§9.3.114/§128.65；专项追加件新增§9.3.114；厂商档案新增§128.65；审计README、00-01与21-02章节日志已同步；资产清单对应行已刷新。SERVO-710/714仍未完成，SERVO-713仍部分取证；没有取得Jenkins直接构建日志、APT签名/完整Packages stanza/deb control/SHA256，也没有执行APT安装、ROS运行、VAL3/CS9/HIL/实机验收。
+
+## 13. Build Farm命名与状态页复核后的载体同步（2026-11-08追加）
+
+本轮新增专项审计追加件§9.3.115，直接核对ros_buildfarm/common.py中的source/binary job命名函数，并推导Jazzy/Noble的source、amd64 binary、arm64 binary三个候选job名。候选名称仍未由Jenkins页面/API直接确认；三个/api/json端点均未能由本轮读取通道访问，未取得build number、result、source revision或console log。
+
+ROS官方Jazzy状态页仍显示：amd64页面生成时间2026-11-08 03:56:07 -0800，moveit_servo B/T为2.12.4-1noble.20261105.184638、M为2.12.4-1noble.20261006.040508；arm64页面生成时间04:23:04 -0800，B/T为2.12.4-1noble.20261106.111556、M为2.12.4-1noble.20261006.043301。未发现main晋级。
+
+同步载体：专项追加件§9.3.115；厂商档案§128.66；审计README；根TaskPlan后续更新。厂商档案更新后，资产清单对应行已刷新为Blob SHA f5b00f49ec86b448a6cbf653b25ad13af938c61c、UTF-8大小506,424 bytes、metadata_reconciled_date=2026-11-08。该动作只刷新单一文件Git元数据，不代表claim-level验收或全库元数据重算。
+
+SERVO-713仍部分取证、未完成；SERVO-710/714仍未完成。APT签名、Packages完整记录、deb control/SHA256、Jazzy目标环境安装运行、VAL3/CS9/SRS/HIL/实机验证仍未完成。00-01/21-02保持进行中，Stäubli未通过工程验收，TODO-EXT-001仍未授权合并。
