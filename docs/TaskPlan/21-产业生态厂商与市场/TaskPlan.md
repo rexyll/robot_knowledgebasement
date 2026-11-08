@@ -604,3 +604,21 @@
 
 
 | 2026-11-08 | 21-02/Stäubli控制任务故障恢复、STOP确认与运动重新授权 | 固定ICube bd658e2审查VAL3 controlTask/start/stop/位置与速度控制子程序、C++ UDPSocketImpl/RealTimeSocketInterface/RobotDriver/StaubliHardwareInterface及troubleshooting文档。发现命令staleness和错误后重新接收命令等待仍为TODO；错误处理清除l_bError并重置socket，没有独立故障锁存/人工重新授权；overrun仅计数；stop.pgx没有显式终止controlTask；UDPSocketImpl::send遇到would_block丢包却返回true，使STOP/普通命令可能被误报成功；on_cleanup直接断开且生命周期没有等待停止反馈。新增§9.3.81、SERVO-443–SERVO-452、来源#1975–#1983。未执行UDP故障注入、VAL3/CS9、HIL或实机停机验证。 |
+
+
+| 2026-11-08 | 21-02/Stäubli C++状态接收序号、重复帧新鲜度与回放隔离 | 固定ICube bd658e2审查RealTimeSocketSubscriber、RobotDriver、HardwareInterface、UDP socket接收端和subscriber单元测试。发现成功解码的每帧均刷新reception_timestamp并覆盖单槽缓存；同序号仅标记new_message=false但read_message仍返回true，RobotDriver不检查new_message/lost_packages而只看接收时间；乱序旧帧仍覆盖缓存并更新last_valid_sequence_id；uint16回绕丢包公式65535→0多计1包；命令序号回显最新状态序号而非独立command ID。来源端校验TODO与§9.3.66交叉引用。新增§9.3.82、SERVO-453–SERVO-462、来源#1984–#1991。未执行重复/乱序/回绕/重启故障注入、CS9/HIL或实机验收。 |
+
+### Stäubli专项审查新增验收任务（§9.3.82，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-453 | C++状态帧序号准入与模序前进窗口 | 未执行 |
+| SERVO-454 | 重复帧与状态新鲜度隔离 | 未执行 |
+| SERVO-455 | 乱序状态帧隔离及状态单调性 | 未执行 |
+| SERVO-456 | uint16回绕丢包计数及黄金向量 | 未执行 |
+| SERVO-457 | Controller boot/session epoch与重启握手 | 未执行 |
+| SERVO-458 | 独立命令ID、deadline与分阶段ACK | 未执行 |
+| SERVO-459 | UDP发送端身份校验及网络隔离验证 | 未执行 |
+| SERVO-460 | 回放、乱序、重启和回绕单元测试 | 未执行 |
+| SERVO-461 | RobotDriver基于序号进展和会话的新鲜度门控 | 未执行 |
+| SERVO-462 | CS9/HIL抗回放和旧帧拒绝验收 | 未执行 |
