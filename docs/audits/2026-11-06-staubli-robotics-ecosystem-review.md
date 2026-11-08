@@ -6085,3 +6085,102 @@ C++ `StaubliHardwareInterface::write()`将`period.seconds()*1e3`写入`RobotComm
 | #2062 | [troubleshooting.rst](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | 250Hz/4ms与20ms延迟阈值的文档假设 |
 
 **验证边界：** 本节为固定提交静态源码、VAL3项目和文档检索。没有编译VAL3项目，没有在CS9/SRS仿真或实机测量4ms任务周期、任务抖动、监控速度变化、overrun或停止响应；没有验证`controller_period`在任何外部定制VAL3程序中的消费情况。符号检索表明固定仓库项目内该字段仅声明、初始化和解码，未发现逻辑消费点。SERVO-566–SERVO-574全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+---
+
+## 9.3.93 VAL3位置目标刷新、MoveJSync状态、HOLD恢复与停止路径审查
+
+**审查基线：** 上游仓库 `ICube-Robotics/staubli_driver_ros2`，固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节是对§9.3.90–§9.3.92命令边界、反馈时序与控制周期结论的下游运动控制执行链补充，不重复把静态分析表述成实机性能结论。
+
+### 审查范围
+
+沿以下链路核查：
+- ROS 2 `StaubliHardwareInterface::write()`生成关节位置目标和消息序列号；
+- VAL3 `readData()/readDataOnce()`读取UDP数据，`controlTask.pgx`保留/处理有效命令；
+- `updateJointPositionControl.pgx`调用`$movejSyncBegin()`、`$movejSync()`并读取`$movejSyncState()`；
+- `updateState.pgx`将工作模式、机器人状态、安全状态和运动许可映射到RobotState；
+- 位置/速度模式停止函数及controlTask统一STOP、错误恢复路径。
+
+### 发现与证据
+
+**发现一：位置控制每轮将当前有效目标再次送入MoveJSync；没有新UDP包时，上一条有效命令不会在读取路径自动失效。**
+
+`controlTask.pgx`每轮先尝试`readData()`。若本轮没有新消息而`robot_command_msg.robotCommand.bIsValid`仍为true，代码进入“检查旧消息陈旧性”的TODO分支，但没有在该分支使命令失效。随后仍根据当前有效命令计算序列延迟并决定控制模式。在没有触发延迟/错误STOP之前，位置模式每轮都会调用`updateJointPositionControl()`。
+
+`readData.pgx`最多调用两次`readDataOnce()`；新数据会覆盖传入缓冲区，若已读到新数据而下一次未读到数据则返回。若未读到新数据，程序不会清除上一次的RobotCommand内容或`bIsValid`。`updateJointPositionControl.pgx`每次均从该缓存命令提取六轴位置，并调用`$movejSync(l_jJointPositionCmd)`。因此，**静态代码证明存在按旧目标重复刷新MoveJSync的路径**；其持续时间受现有序列延迟门槛及错误路径影响，并非无限期保证。
+
+这不是“机器人必然继续运动”的充分证据。MoveJSync在目标不变、网络丢包、任务超期等条件下的内部缓冲、锁定和实际执行语义仍需在目标控制器上验证。
+
+**发现二：位置目标仅有位置范围校验，目标变化幅度/变化率及目标与当前关节位置的接近性没有在该函数中落实。**
+
+`updateJointPositionControl.pgx`将六个float命令值组成`jointRx`目标，并执行`isInRange()`位置范围检查；紧接着明确保留“Check target is close enough to current position”的`TODO`，没有看到最大单周期关节增量、最大目标变化率、目标跳变拒绝、连续性判定或按轨迹采样时间戳检查。函数随后直接调用`$movejSync()`。
+
+因此可以确认该VAL3封装层没有实现上述显式目标连续性检查；不能由此断言Stäubli运动内核完全没有速度/加速度约束或轨迹平滑，因为底层MoveJSync及机器人配置的行为不在静态仓库代码中可证范围内。
+
+**发现三：MoveJSync状态1（刷新不及时）没有启用告警/故障处理；状态2（运动停止导致指令锁定）同样没有启用故障闭环。**
+
+`updateJointPositionControl.pgx`注释定义MoveJSync状态：
+- `-2`：MoveJSync因无效命令进入错误；
+- `-1`：未启动；
+- `0`：运行且无错误；
+- `1`：上条命令未及时刷新；
+- `2`：因运动停止（注释举例包括eStop、moveHold、stopMove）而锁定命令。
+
+实际处理只对`-2`明确调用`stopJointPositionControl()`并置错误。状态1对应的warning被注释掉；状态2对应的日志和`x_bError=true`也被注释掉。状态1/2并不会仅凭此分支触发该函数自己的STOP/故障上报。这一事实与§9.3.92的周期/overrun问题相关，但本节重点是MoveJSync执行状态没有转化为明确应用状态机。
+
+**发现四：机器人HOLD状态未纳入`bMotionPossible`定义，也未在位置控制函数中形成独立目标门控。**
+
+`updateState.pgx`设置`nRobotMode=workingMode(nRobotStatus)`，注释指出自动模式下`nRobotStatus==2`代表Hold；但`bMotionPossible`只按`bDrivePowered && !bEStopped`计算，未将Hold状态纳入该布尔量。位置控制函数首先检查`bMotionPossible`，并读取MoveJSync状态2，但后者处理代码已注释。
+
+由此可确认：在源码模型中，Hold不是通过`bMotionPossible=false`统一表达的；位置更新封装也没有对Hold/锁定状态执行明确的命令失效、目标清除或恢复授权流程。若控制器在Hold释放后仍保留MoveJSync目标，或者缓存命令在Hold期间被持续刷新，则可能出现旧/当前缓存目标继续生效的风险；**实际是否续动、是否需要重发目标、MoveJSync在恢复时如何解锁，必须通过CS9状态机与实机行为验证，不能由注释推定。**
+
+**发现五：位置与速度专用停止函数语义不对称，但controlTask还会在公共停止路径再次调用stopMove/resetMotion。**
+
+`stopJointPositionControl.pgx`在MoveJSync状态不为`-1`时调用`$movejSyncEnd()`，然后将`x_bError=false`；`stopJointVelocityControl.pgx`只调用`resetMotion()`，没有对应MoveJSync结束操作。`controlTask.pgx`进入STOP/ERROR分支后还会调用公共`stopMove()`及`resetMotion()`；应用的`stop.pgx`退出路径同样执行`stopMove()/resetMotion()`。因此不能只比较两个helper就断言完整STOP路径必然不同，但必须验证各状态、调用顺序、返回状态及重复调用的效果是否满足同一停止契约。
+
+另外，固定版本的`updateJointVelocityControl.pgx`仍将安全限值和速度命令执行保留为TODO，并明确返回“not yet implemented”错误；ROS 2硬件接口的`prepare_command_mode_switch()`也拒绝JOINT_VELOCITY模式。因此正常硬件接口路径当前不应宣称具有已实现的速度控制闭环；VAL3速度分支作为未完成占位逻辑仍需防止被其他客户端或未来协议路径误用。
+
+**发现六：没有在VAL3应用层计算目标—实测关节位置误差或轨迹跟踪质量。**
+
+`updateState.pgx`提供`herej()`位置和由`$getJntSpeedCmd()`取得的近似关节速度；`updateJointPositionControl.pgx`接收状态参数，但当前只用其运动许可标志，并将目标接近性检查留为TODO。未发现此控制封装中按同一命令目标计算关节跟踪误差、误差持续时间、超限锁存或将跟踪误差关联到命令完成事件的实现。上层控制器/机器人内部是否另有等效监控不在本次证据范围内。
+
+### 工程影响与验证要求
+
+1. 应明确命令是“每周期位置设定值流”还是“稀疏目标点”；当新包缺失时，须定义保持、限时保持、斜坡停止或目标失效策略，并给出与周期/消息年龄绑定的门槛。
+2. MoveJSync状态1和状态2必须成为显式、可观测的控制状态；需定义锁定/刷新失败时的停止动作、错误锁存、上报与恢复条件。
+3. 将Hold、SS1/SS2、急停、驱动掉电、任务重启等状态分别建模；Hold释放不得隐式等同于运动授权。恢复前应检查目标新鲜度，并明确是否要求人工确认或重新下发目标。
+4. 对轨迹样本定义每轴最大位置增量、速度/加速度约束、时间戳/序列连续性、丢点/重放/突跳行为；需说明由ROS 2控制器、硬件插件、VAL3应用还是Stäubli运动内核负责约束，避免责任空缺或重复限制。
+5. 以实测位置/速度与目标进行跟踪误差监控，定义告警、软停止、硬停止和恢复条件；不能仅以`isInRange()`替代动态跟踪质量检查。
+6. 在CS9/SRS与受控实机测试中分别验证正常连续更新、单包/多包丢失、连续延迟、目标阶跃、目标往返、Hold进入/释放、急停解除、程序重启、STOP重复调用及停止期间新命令到达等场景。记录命令目标、MoveJSync状态、机器人状态、实际周期、关节实测值、停止时间和是否发生自动续动。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-575 | MoveJSync刷新超时状态1 | 触发刷新迟到/内部状态1，验证限时告警、锁存、停止和状态上报 | 未执行 |
+| SERVO-576 | MoveJSync锁定状态2 | 分别由Hold、急停、stopMove触发状态2，验证应用层处理及锁定解除条件 | 未执行 |
+| SERVO-577 | Hold与motion_possible映射 | 核对workingMode/nRobotStatus/bMotionPossible语义，确保Hold不被误判为运动许可 | 未执行 |
+| SERVO-578 | 缓存目标年龄与失效策略 | 停止发送新UDP包，测量旧目标继续刷新的时长并验证超时后目标失效/停止 | 未执行 |
+| SERVO-579 | 目标位置跳变与变化率限制 | 注入单轴/多轴阶跃、反向跳变和不连续样本，验证增量、速度、加速度及拒绝策略 | 未执行 |
+| SERVO-580 | 目标—实测位置跟踪误差 | 建立误差、持续时间、告警/停止阈值与控制状态关联，完成边界测试 | 未执行 |
+| SERVO-581 | STOP函数与统一停止契约 | 对比MoveJSyncEnd、resetMotion、stopMove调用顺序/重复调用/返回状态和停止时间 | 未执行 |
+| SERVO-582 | Hold/急停恢复后的重新授权 | 验证旧目标是否被清除、是否续动、是否要求新命令及人工/安全授权 | 未执行 |
+| SERVO-583 | 速度控制模式实现一致性 | 在ROS 2接口、协议和VAL3各层证明速度模式持续拒绝或完成实现，禁止占位路径被误启用 | 未执行 |
+| SERVO-584 | 轨迹采样连续性与丢点行为 | 联合测试JTC采样、UDP到达、VAL3循环刷新和MoveJSync执行，定义丢点/重排/延迟后的策略 | 未执行 |
+| SERVO-585 | Hold/STOP/恢复动态验收 | 在CS9/SRS和受控实机覆盖Hold、急停、STOP、重启、恢复与新命令并发，测量停止/再启动行为 | 未执行 |
+
+### 本节来源记录（#2063–#2071）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2063 | [Control/updateJointPositionControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | MoveJSync启动/刷新、状态1/2/-2分支、位置限位和目标接近性TODO |
+| #2064 | [Control/updateJointVelocityControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx) | 速度执行占位、限值TODO和错误返回 |
+| #2065 | [Control/stopJointPositionControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx)与[stopJointVelocityControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointVelocityControl.pgx) | 模式专用停止函数行为 |
+| #2066 | [controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 每轮读写顺序、缓存命令继续调用、模式切换及公共STOP/ERROR路径 |
+| #2067 | [updateState.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | Hold状态映射、motion_possible定义、herej和关节速度反馈 |
+| #2068 | [RobotState.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx)与[encodeRobotStateMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | 状态数据结构与网络状态字段 |
+| #2069 | [Comm/readData.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx)与[readDataOnce.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx) | 每轮最多两次UDP读取、无新包时不清除缓存命令 |
+| #2070 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ROS 2 write发送当前position命令；硬件接口拒绝velocity模式 |
+| #2071 | [ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | 核对上述控制/停止程序均属于固定VAL3项目文件清单 |
+
+**验证边界：** 本节仅完成固定提交源码、VAL3项目文件和调用链静态检查；未编译或下载VAL3项目，未在CS9/SRS测量MoveJSync状态变化、目标刷新期限、目标跳变、Hold释放、实际运动轨迹、跟踪误差、停止距离或停止时间；未进行HIL/实机故障注入。有关Hold释放后缓存目标是否续动、MoveJSync状态2的内部解锁/恢复语义、运动内核是否实施额外平滑或限幅，均保留为待验证问题。SERVO-575–SERVO-585全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
