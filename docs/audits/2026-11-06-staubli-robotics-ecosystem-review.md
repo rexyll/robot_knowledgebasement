@@ -6184,3 +6184,88 @@ C++ `StaubliHardwareInterface::write()`将`period.seconds()*1e3`写入`RobotComm
 | #2071 | [ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | 核对上述控制/停止程序均属于固定VAL3项目文件清单 |
 
 **验证边界：** 本节仅完成固定提交源码、VAL3项目文件和调用链静态检查；未编译或下载VAL3项目，未在CS9/SRS测量MoveJSync状态变化、目标刷新期限、目标跳变、Hold释放、实际运动轨迹、跟踪误差、停止距离或停止时间；未进行HIL/实机故障注入。有关Hold释放后缓存目标是否续动、MoveJSync状态2的内部解锁/恢复语义、运动内核是否实施额外平滑或限幅，均保留为待验证问题。SERVO-575–SERVO-585全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+---
+
+## 9.3.94 ROS 2 JTC轨迹采样、期望状态插补与VAL3位置目标时间语义审查
+
+**审查基线：** `ICube-Robotics/staubli_driver_ros2` 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。仓库README与CI声明目标发行版为ROS 2 Jazzy；JTC参数语义以ROS 2 Control Jazzy文档为参考。此处不将当前在线Rolling/master文档的新参数或行为直接回推到该固定提交。
+
+### 端到端链路
+
+MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨迹；JTC按轨迹时间插补并在controller_manager更新循环中输出position命令；`StaubliHardwareInterface::write()`把六轴position命令转换为度并序列化为RobotCommand UDP消息；VAL3 `controlTask`接收、解码命令并将六轴位置交给`updateJointPositionControl()`，后者逐周期调用`$movejSync()`。
+
+仓库控制器管理器配置为250Hz，名义周期4ms；VAL3 `start.pgx`亦以0.004s配置同步控制任务。但周期数值相同不等于时钟同步或样本时间契约：ROS 2的`controller_period`虽随命令发送，VAL3解码后只写入`nRemoteCtrlPeriod`，未用于调度、插补或目标超时；VAL3任务仍独立运行。§9.3.92已记录该字段未消费，本节重点审查轨迹时间信息是否穿过协议边界。
+
+### 发现与证据
+
+**发现一：ROS 2 JTC的轨迹时间语义在ROS 2侧完成采样，VAL3协议只收到每次采样的position值，没有原始轨迹点时间戳或time_from_start。**
+
+`controllers.yaml`将controller_manager的`update_rate`设为250Hz，JTC命令接口仅配置`position`，状态接口为`position`和`velocity`。MoveIt控制器映射将`joint_trajectory_controller/follow_joint_trajectory`声明为FollowJointTrajectory；MoveIt演示文档要求通过Plan/Execute执行轨迹。硬件`write()`将当前六轴position命令转为角度并放入RobotCommandMessage；该消息字段包括controller_period、command_type、六轴command_reference和IO，没有轨迹点索引、`time_from_start`、源时间戳、目标速度或目标加速度字段。VAL3解码器解析period和六轴float目标，但period没有被后续消费。
+
+因此，下游VAL3收到的是**按UDP到达节奏刷新的离散位置设定值流**，而不是带原始轨迹时间轴的完整轨迹。轨迹点间的插补、时间基准和采样必须在ROS 2 JTC侧完成；网络抖动/丢包后的补偿并未通过显式时间戳传给VAL3。不能仅因两端都配置250Hz就认定每个目标都按4ms准时到达。
+
+**发现二：JTC启用`interpolate_from_desired_state=true`，新轨迹从上一条期望命令插补，而非从最新硬件反馈位置插补。**
+
+固定配置明确启用该参数。ROS 2 Control Jazzy官方参数文档说明：启用后，控制器接收新轨迹时忽略hardware interface提供的状态值，以最近的command interface值作为插补起点；在激活时若命令接口具有有效数值，也可能优先采用该值。项目硬件接口提供实测position/velocity状态，但这并不意味着新轨迹重规划起点一定使用实测position。
+
+该选项适合连续分段/MPC式参考轨迹，但若机器人因负载、限速、Hold、跟踪误差或网络异常而落后于期望命令，新轨迹可能从旧期望状态延续，形成“期望轨迹连续、实际状态不连续/有偏差”的风险。JTC的状态反馈和action tolerance机制与插补起点是不同机制；本次静态审查不能证明实际偏差会否被action正确检测或及时中止，需在目标Jazzy版本中验证。
+
+**发现三：轨迹插补策略未在项目配置中显式冻结，输入waypoint字段不同会改变采样曲线的连续性。**
+
+项目没有显式设置`interpolation_method`；ROS 2 Control Jazzy文档将默认值列为`splines`。Jazzy JTC轨迹文档说明，spline策略按waypoint字段选择：仅position使用线性插补，保证位置连续但速度在waypoint处不连续；position+velocity使用三次插补，保证速度连续；position+velocity+acceleration使用五次插补，保证加速度连续。项目MoveIt配置/bringup未在本次检查中冻结所有实际下发轨迹是否始终含有velocity和acceleration字段，也没有positions-only轨迹专项验收。因此不能把“JTC使用spline”笼统等同于每种输入都具有速度/加速度连续性。
+
+同时，JTC配置只向硬件申请position命令接口；即使JTC内部计算出期望velocity/acceleration，这些量也不会作为独立硬件命令接口传给该VAL3协议。VAL3侧收到位置采样并由MoveJSync解释执行。ROS 2插补连续性不自动证明VAL3实际轨迹连续性，尤其需要测量waypoint处速度/加速度和MoveJSync状态。
+
+**发现四：JTC允许非零终点速度，且goal_time设为0；action结束条件与机器人运动停止不是同一个契约。**
+
+项目显式设置`allow_nonzero_velocity_at_trajectory_end=true`，意味着控制器不强制最后一个轨迹点的velocity为零。另一方面，硬件命令接口只有position，VAL3协议也只接收position目标，未提供独立终点速度设定值。是否能正确表达、执行并结束非零终点速度轨迹，取决于JTC位置采样与MoveJSync/机器人运动内核之间的组合行为，需联合测试。
+
+配置中的`constraints.goal_time=0.0`。ROS 2 Control Jazzy官方参数文档说明，零值允许控制器等待任意长时间（可能无限等待）以达到目标；`cmd_timeout`未配置，Jazzy文档默认值为0（禁用输入命令超时）。`action_monitor_rate=20.0`是FollowJointTrajectory action状态监测频率，不是250Hz的轨迹采样/硬件命令频率。项目未显式配置每关节trajectory/goal tolerance。由此需要区分：轨迹最后一个时间点到达、JTC认为goal成功、实测关节速度低于停止阈值、VAL3 MoveJSync结束、机器人安全静止，这些不是同一个事件。
+
+**发现五：现有测试覆盖通信和单次硬件读写，但未覆盖JTC/MoveIt到VAL3的轨迹时序闭环。**
+
+固定提交中的硬件接口测试检查接口导出、生命周期以及一次4ms period下的read/write；RobotDriver测试使用4ms周期mock状态流验证UDP通信、状态读取与陈旧检测。仓库测试树中未找到对FollowJointTrajectory action、JTC轨迹插补、waypoint采样、重规划、轨迹取消/抢占、终点非零速度、命令丢包/抖动或MoveJSync轨迹响应的集成测试。mock server不执行VAL3 MoveJSync，也不模拟CS9轨迹插补和机械臂动力学。因此已有单元测试通过（即使通过）也不能证明端到端轨迹控制正确。
+
+### 工程影响与建议
+
+1. 冻结JTC与controller_manager的实际二进制版本/补丁版本，不能只以ROS发行版名称作为唯一版本证据；对照该版本核实参数默认值、插补器实现和action结束条件。
+2. 明确上游轨迹waypoint字段契约：每个关节必须提供哪些position/velocity/acceleration字段；若允许positions-only输入，需接受线性插补速度不连续的风险，或在经验证的版本中启用合适的上采样/三次插补策略。
+3. 对`interpolate_from_desired_state=true`定义使用边界：普通新目标、连续分段MPC、轨迹重规划、Hold/急停恢复、机器人跟踪误差超限时，分别规定起点采用期望状态还是实测状态，以及切换前的误差/授权条件。
+4. 冻结终点速度策略。若系统要求每条自动轨迹必须停止，应拒绝非零终点速度或在MoveIt/JTC端明确生成减速段；若允许非零终点速度，需证明位置型硬件接口与MoveJSync能够安全承接并正确报告action状态。
+5. 为FollowJointTrajectory设置有限的goal_time、合理的每关节trajectory/goal tolerance和经过验证的命令超时；定义action成功、停止完成和安全静止的独立判据。
+6. 对ROS 2/JTC采样时间、write周期、UDP发包/到达时间、VAL3任务周期、MoveJSync状态、实测关节position/velocity建立统一时钟或可关联的时间戳日志；仅有16位序列号和controller_period不足以重建端到端轨迹时间线。
+7. 建立分层验收：JTC单元/launch测试、mock UDP采样/丢包/延迟测试、VAL3离线/仿真测试、CS9/SRS受控测试、HIL和实机测试分别记录，不得跨层替代。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-586 | ROS 2/JTC依赖版本冻结 | 记录Jazzy下controller_manager、joint_trajectory_controller及MoveIt实际版本/补丁，并与参数/实现文档对应 | 未执行 |
+| SERVO-587 | JTC waypoint字段与插补策略 | 分别输入position-only、position+velocity、position+velocity+acceleration轨迹，验证实际插补类型及位置/速度/加速度连续性 | 未执行 |
+| SERVO-588 | interpolate_from_desired_state重规划起点 | 制造期望/实测状态偏差后发送新轨迹，比较插补起点与实测状态并验证偏差门控 | 未执行 |
+| SERVO-589 | Hold/暂停/恢复后轨迹重锚定 | 在轨迹中Hold、暂停、恢复和重新规划，验证旧期望状态是否被沿用及是否要求新起点 | 未执行 |
+| SERVO-590 | JTC 250Hz采样与VAL3 4ms任务同步 | 同步记录controller update、write、UDP到达、VAL3任务周期和MoveJSync刷新时间，统计抖动/丢样 | 未执行 |
+| SERVO-591 | UDP丢包/延迟/乱序对轨迹采样影响 | 注入单包、多包丢失、延迟和乱序，验证序列延迟、旧目标保持时长、停止响应与恢复 | 未执行 |
+| SERVO-592 | 非零终点速度与位置型硬件接口 | 分别提交零/非零终点速度轨迹，核对JTC action状态、VAL3 MoveJSync、实测末端速度及停止语义 | 未执行 |
+| SERVO-593 | action结束、轨迹结束与实际静止一致性 | 验证goal_time、goal/trajectory tolerance、stopped_velocity_tolerance和MoveJSync结束状态的关系 | 未执行 |
+| SERVO-594 | action取消/抢占/重规划行为 | 覆盖cancel、preempt、新轨迹替换和取消时停止策略，确认VAL3收到的目标序列与实际停止过程 | 未执行 |
+| SERVO-595 | 端到端轨迹时间戳与日志关联 | 建立ROS 2/JTC、UDP、VAL3、MoveJSync和实测关节状态可关联时间基准，证明轨迹样本时序可追溯 | 未执行 |
+| SERVO-596 | 端到端轨迹跟踪误差与验收闭环 | 量测期望/实测位置速度误差，定义轨迹中/终点阈值、超限中止和安全恢复条件 | 未执行 |
+
+### 本节来源记录（#2072–#2081）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2072 | [staubli_bringup/config/controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | 250Hz controller_manager、JTC position命令接口、position/velocity状态接口及轨迹参数 |
+| #2073 | [staubli_moveit_config/config/moveit_controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml)与[MoveIt演示文档](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/moveit2.rst) | FollowJointTrajectory映射及Plan/Execute入口 |
+| #2074 | [staubli_robot_driver/src/staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write周期字段、position命令转换及UDP发送入口 |
+| #2075 | [RobotCommandMessage定义](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp)与[消息序列化](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | 协议字段范围：period、command type、六轴目标和IO，无轨迹点时间戳/导数数组 |
+| #2076 | [VAL3 controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 接收新命令、缓存旧命令、序列延迟检查和每周期控制调用 |
+| #2077 | [VAL3 updateJointPositionControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | 每周期MoveJSync位置目标刷新 |
+| #2078 | [VAL3 decodeRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx)、[readDataOnce.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx)与[computeSequenceDelay.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | period解析、UDP接收与序列差计算 |
+| #2079 | [ROS 2 Control Jazzy JTC参数文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html) | interpolate_from_desired_state、action_monitor_rate、goal_time、cmd_timeout及终点速度参数语义 |
+| #2080 | [ROS 2 Control Jazzy JTC用户文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html)与[轨迹插补文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/trajectory.html) | JTC时间插补、position命令转发、waypoint字段与线性/三次/五次插补连续性 |
+| #2081 | [项目README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md)、[Jazzy CI workflow](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/.github/workflows/ci.yml)、[硬件接口测试](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp)与[RobotDriver测试](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | 固定发行版声明、prototype边界和现有测试覆盖范围 |
+
+**验证边界：** 本节完成固定提交的配置、消息结构、C++/VAL3调用链及仓库测试树静态审查，并参考ROS 2 Control Jazzy官方文档解释JTC参数。未安装/冻结目标机器实际二进制包版本，未运行Jazzy构建或JTC/MoveIt action测试，未进行UDP轨迹采样注入、VAL3编译、CS9/SRS、HIL或实机轨迹测试。JTC重规划偏差、waypoint字段实际分布、非零终点速度的MoveJSync表现、action成功与机器人静止的一致性均为待验证项。SERVO-586–SERVO-596全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
