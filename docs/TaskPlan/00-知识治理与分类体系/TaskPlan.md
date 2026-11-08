@@ -515,3 +515,6 @@
 | 2026-11-08 | 00-01 | 刷新ROS Jazzy官方状态页快照：Noble amd64页面2026-11-08 03:56:07 -0800显示building/testing为`2.12.4-1noble.20261105.184638`、main为`2.12.4-1noble.20261006.040508`；Noble arm64页面04:23:04 -0800显示building/testing为`2.12.4-1noble.20261106.111556`、main为`2.12.4-1noble.20261006.043301`。生产main pool仍只列10月6日工件。新增专项审计§9.3.113、厂商档案§128.64，更新审计README与差异同步报告。Jenkins job/build number/source revision/console log、APT签名/Packages/deb control/SHA仍未取得；SERVO-713部分取证，SERVO-710/714未完成。未执行APT安装、Jazzy运行、VAL3/CS9/HIL/实机验证，00-01保持进行中。 | ROS Jazzy status page default/unv8；repo.ros2.org main pool；专项审计§9.3.113 |
 
 | 2026-11-08 | 00-01 | 因厂商档案新增§128.64，第二次刷新资产清单中`knowledge/ecosystem/主要厂商.md`对应行：当前Blob SHA为`74a7c8851d2d9a4ff0c89f4428bbecc3eb5d7c16`、UTF-8大小503,010 bytes；同步更新README与审计差异报告。仅刷新该资产Git元数据，不改变P1 claim-level审查未验收状态，也不代表其余141项已复核。 | 当前main文件Blob SHA；资产清单CSV；README；同步核查报告 |
+
+
+| 2026-11-08 | 00-01 | 对MoveIt Servo Jazzy APT索引目录执行独立快照复核：ros2-testing Noble amd64索引更新于2026-11-06 13:15、arm64更新于2026-11-07 11:29；生产ros2 main amd64/arm64索引仍为2026-10-06。尝试读取Packages/InRelease原文时网页读取器不支持application/octet-stream，未取得完整moveit_servo stanza/签名/deb元数据，不把读取器限制解释为源文件或签名故障。新增专项审计§9.3.114、厂商档案§128.65并更新索引/同步核查；SERVO-710/714未完成、SERVO-713部分取证，00-01继续进行中。 | ROS官方testing/production lists目录；专项审计§9.3.114；厂商档案§128.65 |
