@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.41  
+> 版本：v8.42  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.73；新增审查ROS 250Hz与VAL3 4ms同步周期、controller_period字段实际使用情况、轨迹协议时间信息、UDP队列管理、movejSync刷新状态处理、JTC终点速度/容差策略及mock测试覆盖边界；同步厂商档案§128.56、知识生态兼容矩阵和审计索引。新增SERVO-363–SERVO-372均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.74；新增审查FollowJointTrajectory逐轴路径/目标容差、goal_time超时、Action取消/抢占、MoveIt Action路由、硬件接口错误/STOP行为及机器人静止确认缺口；同步厂商档案§128.57、知识生态兼容矩阵和审计索引。新增SERVO-373–SERVO-382均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -1059,3 +1059,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v8.40 | 00-01/21-02继续Stäubli运动学/动力学/关节限位与控制器执行参数一致性审查：固定ICube bd658e2发现TX2-60L与MED共用运动学/动力学/关节限值；动力学六连杆均为1kg、零质心、惯量对角0.1且无制造商/辨识来源；joint_limits关闭effort limit，URDF effort写0；MoveIt独立限值更保守但无自动一致性检查；messages.hpp单位注释称rad而hardware_interface在wire边界转换deg/rad；VAL3位置控制只做isInRange，目标增量约束TODO；速度控制安全限制TODO且not implemented。新增§9.3.72、来源#1898–#1908及SERVO-353–SERVO-362。Xacro/URDF/MoveIt/VAL3/零位校准/低速轨迹/实机验证未执行；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.72；来源#1898–#1908；《主要厂商》§128.55 |
 
 | 2026-11-08 | v8.41 | 00-01/21-02继续Stäubli轨迹规划/插补与VAL3 movejSync时序审查：固定ICube bd658e2发现controller_manager 250Hz与VAL3 4ms同步任务仅名义周期相同；controller_period传入nRemoteCtrlPeriod但控制任务未使用；协议只带六轴目标，无轨迹ID/点时间戳/deadline/执行ACK；VAL3状态先发后收命令，每周期最多读取两次UDP；movejSyncState=1/2处理不完整；JTC允许终点非零速度、goal_time=0；mock测试未覆盖真实轨迹action/取消/抖动/跟随误差。新增§9.3.73、来源#1909–#1917及SERVO-363–SERVO-372。实时周期、端到端时延、CS9仿真和实机轨迹均未验证；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.73；来源#1909–#1917；《主要厂商》§128.56 |
+
+| 2026-11-08 | v8.42 | 00-01/21-02继续Stäubli FollowJointTrajectory容差/超时/取消/抢占审查：固定ICube bd658e2发现JTC配置仅显式设置stopped_velocity_tolerance=0.01与goal_time=0.0，未显式配置逐关节path_tolerance/goal_tolerance；MoveIt仅映射FollowJointTrajectory action；仓库无自定义Action goal/cancel/preemption处理；HardwareInterface只周期读写关节命令/状态，ERROR/on_error只发STOP请求，不等待STOP ACK/静止确认；终点非零速度允许，mock测试不覆盖Action。新增§9.3.74、来源#1918–#1926及SERVO-373–SERVO-382。Action运行时容差语义、取消/抢占、CS9/HIL/实机均未验证；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.74；来源#1918–#1926；《主要厂商》§128.57 |
