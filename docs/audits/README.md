@@ -111,4 +111,4 @@
 
 - [2026-11-08 Stäubli专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)：记录首轮发现的根计划、专项报告、厂商档案、审计索引与00章日志进度差异及各载体SHA；后续已同步专项追加件至§9.3.112、厂商档案至§128.63、审计README及00-01日志。附带记录Build Farm/生产APT证据边界；文档同步不代表Stäubli工程验收完成，也不改变00-01进行中状态。
 
-- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：补齐主报告后续§9.3.102–§9.3.112；除Jazzy发行记录、release tag/源码子树与Bloom/rosdistro历史外，新增ROS Jazzy status page和repo.ros2.org building/main pool证据，确认Noble amd64/arm64新deb版本在building/testing一致、main仍是2026-10-06旧工件。按ros_buildfarm流程推断两架构产物已导入并同步testing，但Jenkins build number/source revision/console log、生产APT签名/Packages/deb元数据及main晋级仍待完成。
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：补齐主报告后续§9.3.102–§9.3.113；新增2026-11-08最新ROS Jazzy状态页复核，确认Noble amd64/arm64新deb仍在building/testing、生产main仍为2026-10-06旧工件，未发生main晋级。Jenkins build number/source revision/console log、生产APT签名/Packages/deb元数据及安装运行验证仍待完成。
