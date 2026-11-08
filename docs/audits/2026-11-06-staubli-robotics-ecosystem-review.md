@@ -4035,3 +4035,77 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1854 | [robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | send_robot_command、STOP发送、连接与状态读取语义 |
 | #1855 | [test_rt_socket_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | loopback功能测试、100ms/1s sleep、丢包计数测试范围 |
 | #1856 | [ROS 2 Real-Time Programming](https://github.com/ros2/ros2_documentation/blob/rolling/source/Capabilities/Motion-planning/Real-Time-Programming.rst)、[ROS 2 Executors](https://docs.ros.org/en/rolling/Concepts/Intermediate/About-Executors.html)、[Stäubli CS9 Real Time Val3/Fieldbus TSS.000.014.04-A](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 周期deadline/jitter、executor线程调度与CS9同步任务时序背景 |
+
+## 9.3.67 远端连接健康、UDP恢复、控制器重启与陈旧命令隔离（2026-11-08）
+
+### A. 审查基线与范围
+
+- 上游固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`（ICube-Robotics/staubli_driver_ros2）。
+- 审查范围：`UDPSocketImpl`、`RealTimeSocketSubscriber`、`RobotDriver`、`StaubliHardwareInterface`、协议帧头及VAL3端序号门控；重点区分本地socket状态、远端状态新鲜度、控制器启动代际和运动授权。
+- 本节为静态源码审查与风险推导，不代表断链/重启故障注入、CS9仿真或实机验证。
+
+### B. 静态源码发现
+
+1. **连接标志不是远端健康检测。** `UDPSocketImpl::connect()`在本地open/bind并解析远端endpoint后即置`is_connected_=true`；UDP没有连接握手。其`is_connected()`仅读取本地原子标志。上层`RobotDriver::is_connected()`再检查两路socket标志及subscriber的`is_ready()`，后者只检查socket connected和receive thread running。头文件注释甚至明确写明“不检查message staleness”。因此控制器掉电、网线断开或远端进程退出时，本地is_connected仍可能为true。
+2. **远端活性只在读取状态时以新鲜度间接判断。** `read_robot_state()`检查最近状态消息、message type和本机接收时间年龄（默认100ms阈值）；`StaubliHardwareInterface::read()`失败则返回ERROR。但write入口先检查的是`is_connected()`，之后没有独立调用状态新鲜度校验，而是基于`state_msg_`及本地控制模式构造命令。因此如果read/write调用之间出现链路中断，write侧的远端活性依赖控制循环是否已先观察到read错误，不能视为独立的失联门控。
+3. **没有运行期自动重连状态机。** 静态路径提供connect/disconnect，未见独立的断链检测器、退避重试、重连次数限制、链路恢复握手或恢复后的运动重新授权状态机。read发现状态过期会返回false并使hardware read返回ERROR；后续on_error发送STOP请求，但未形成可证明的“隔离旧会话—重新握手—重新验证控制器—显式重新使能”流程。
+4. **重连会重置部分主机状态，但不建立会话代际。** `RobotDriver::disconnect()`最终调用`reset_data()`，把`last_valid_sequence_id_`清零，并将缓存消息类型标记INVALID；重新connect会创建新的control interface/subscriber。该清理有助于丢弃主机侧旧快照，但协议头没有boot ID/session epoch，主机也没有将连接代际编码到命令中。清缓存不等于远端和网络中旧datagram已清空。
+5. **协议序号仅16位，不能识别控制器重启。** `FrameHeader::sequence_number`是uint16_t；Subscriber按数值增大、相等或回绕估算丢包。若控制器重启后序号从较小值重新开始，现有比较逻辑会把它解释为正常回绕/序号变化，不能区分自然回绕、重启、乱序或重放。协议没有controller boot counter、随机session nonce或握手generation。
+6. **控制命令序号复用最近状态序号。** `RobotDriver::get_current_message_sequence()`返回最近有效状态帧序号；hardware write及STOP构造路径将该值写入command header。该字段不是独立命令计数器，也没有发送时间/有效期/会话ID。控制器端已有sequence delay检查，但既有§9.3.64已指出重复序列、重放及重启代际策略不完整；当前协议无法仅凭16位序号证明命令属于当前控制器启动会话。
+7. **没有应用层陈旧命令队列，但也没有端到端过期保证。** 主机发送路径序列化后直接调用UDP send，没有应用层待发送队列或恢复后批量重放逻辑；这是有利边界。但UDP数据报可能在内核/网络路径中延迟、乱序或在短暂链路恢复后到达，命令本身没有绝对deadline、session epoch或控制器挑战值。不能据此断言一定会重放旧命令，也不能证明旧命令一定会被拒绝。
+8. **控制器重启后的状态接受缺少启动身份校验。** 主机接收端只验证消息反序列化、message type及接收新鲜度；没有与此前controller boot ID比较。新启动控制器发出的新鲜状态帧可能被当作同一连续会话的状态。主机侧sequence降低会进入wrap-around估算分支，而非触发“控制器重启待重新握手”状态。
+9. **STOP请求不构成已停止证明。** `on_error()`在本地driver仍connected时调用`send_stop_all_command()`，但STOP构造使用缓存状态序号，发送结果仍受§9.3.66的UDP would_block误报true问题影响；没有STOP ACK或控制器停止状态确认。若链路已断，调用本地send成功也不能证明控制器收到STOP。必须将软件STOP请求、控制器确认和独立安全回路分开。
+10. **恢复期间缺少明确运动许可闸门。** `on_activate()`仅将本地`current_control_mode_`设为STOP；没有重新读取并验证新鲜状态、控制器启动代际、操作模式/安全状态或显式使能握手。既有生命周期审查§9.3.61已记录缺少完整deactivate门控；本节进一步确认网络恢复和controller reboot没有专用重新授权协议。
+11. **诊断通道不能充当可靠的控制器重启检测。** connect阶段诊断读取仍是TODO，`diag_interface_ready`硬编码true（§9.3.58/60）；运行期也未见周期性调用`read_diagnostic_data()`。诊断消息虽含固件版本字段，但当前代码没有利用诊断序列、固件变化或控制器类型建立boot/session身份。
+12. **生命周期ERROR处理存在恢复语义边界。** ros2_control官方文档规定read/write返回ERROR会进入硬件错误处理流程；控制器管理器可停止使用该硬件接口的控制器。此机制可用于故障隔离，但不能替代驱动层的会话epoch、旧命令拒绝、重连握手和明确的重新激活条件。
+
+### C. 风险判断（静态推导，尚未复现）
+
+- **高优先级：远端失联时本地连接仍可能显示正常。** 若read尚未观察到staleness，或write在read错误传播前被调用，单靠`is_connected()`无法阻止命令路径继续尝试发送。
+- **高优先级：控制器重启与16位序号回绕不可区分。** 新旧会话可能共享序号空间；协议没有generation，无法严格拒绝旧会话数据报或旧命令。
+- **高优先级：链路恢复后没有显式重新授权闭环。** 目前没有证据证明旧命令会被VAL3执行，但也没有足够协议机制证明所有旧datagram都必然失效。
+- **STOP不具备传输确认和停止确认；断链时不能依赖普通UDP STOP替代硬件安全功能。
+- **重连时主机清缓存只能隔离主机快照，不能清除网络中已发出的UDP数据报，也不能确认控制器端任务已复位。
+- **诊断固件版本不参与运行期会话识别，无法作为控制器重启的可靠观测源。
+
+### D. 整改建议
+
+1. 拆分状态接口：`transport_configured`、`rx_thread_running`、`remote_alive`、`state_fresh`、`session_valid`、`motion_permitted`不得共用一个connected布尔值。远端活性由状态/心跳deadline判定，并提供最后有效帧年龄、丢包/序号异常和状态机原因。
+2. 将read新鲜度门控同步应用到write：write开始前必须确认当前状态快照仍在期限内、会话有效且运动许可已建立；状态过期、序号异常、epoch变化或socket错误立即进入禁止运动状态。
+3. 引入协议会话握手：控制器启动时生成不可预测或单调持久化的boot ID；连接握手协商session nonce/epoch、协议版本、控制器身份和能力。所有状态/命令/ACK携带epoch，epoch不匹配的包直接丢弃。
+4. 命令加入独立command sequence、有效期/deadline和会话epoch；VAL3端验证epoch、严格拒绝过期/重复/乱序命令。对于运动命令采用fail-closed策略，序号回绕必须在同一epoch内明确定义。
+5. 链路恢复必须先进入RECOVERING/INHIBITED：清理主机缓存和待处理任务、重新握手、验证新boot ID与协议/固件能力、等待连续若干帧新鲜且序号单调的状态、检查安全/操作模式，最后通过独立显式enable动作恢复运动。禁止自动恢复上次运动命令。
+6. 重连采用有界退避、连接generation和单一所有者状态机；异步回调必须捕获generation，旧generation回调不得更新新会话缓存。connect/disconnect/析构与read/write并发需锁或串行化，和§9.3.59并行处理。
+7. 诊断通道必须真正读取并校验；若诊断协议支持boot ID/固件版本/控制器类型，将其纳入握手和重启检测，不得以硬编码ready替代。
+8. 对STOP设计独立优先级和确认：控制器回传STOP accepted及停止状态；确认超时则上报故障并依赖独立安全回路。不得把UDP send返回true、ros2_control ERROR或普通VAL3变量当作安全停止证明。
+9. 建立故障注入矩阵：拔网线、交换机丢包、单向链路、控制器掉电/重启、ROS进程重启、主机重启、乱序/重复/延迟旧datagram、序号回绕、重连竞争；验证旧epoch包/命令全部拒绝，恢复前不能发运动命令。
+10. 记录状态转换审计日志：旧/新epoch、握手结果、最后有效状态序号/年龄、命令拒绝原因、enable授权人/来源、STOP请求与控制器确认。日志时间使用单调时钟，并与§9.3.66端到端追踪对齐。
+
+### E. 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-303 | 连接状态与远端健康语义 | 本地socket/线程正常但远端无状态时，remote_alive与state_fresh在deadline内转为false | 远端断电/拔线故障注入及状态机日志 | 未执行 |
+| SERVO-304 | write侧状态新鲜度门控 | read/write交错、read失败后write均不能继续提交运动命令 | ros2_control周期级故障注入 | 未执行 |
+| SERVO-305 | 控制器boot ID/session epoch | 控制器重启产生新epoch，旧epoch状态/命令/ACK全部拒绝 | VAL3协议实现与重启测试 | 未执行 |
+| SERVO-306 | 命令序号与有效期 | 独立command sequence、deadline、重复/乱序/过期拒绝规则可验证 | 协议黄金向量和延迟/重放注入 | 未执行 |
+| SERVO-307 | UDP恢复旧datagram隔离 | 恢复后旧会话数据报不能更新状态或触发运动 | 延迟包/乱序/单向链路故障注入 | 未执行 |
+| SERVO-308 | 重连状态机与generation隔离 | 退避、取消、并发connect/disconnect和旧回调隔离正确 | TSAN、压力重连和generation日志 | 未执行 |
+| SERVO-309 | 恢复后重新握手与运动授权 | 连续新鲜状态、安全状态检查及显式enable前，运动命令全部拒绝 | CS9仿真及HIL授权流程记录 | 未执行 |
+| SERVO-310 | 诊断通道重启识别 | 诊断首帧真实校验，boot/固件变化可检测且不硬编码ready | 双通道故障注入与诊断协议测试 | 未执行 |
+| SERVO-311 | STOP请求/确认与安全停止分离 | STOP accepted/停止状态有确认，链路断开时独立安全回路覆盖 | CS9安全验证、STOP ACK及安全回路记录 | 未执行 |
+| SERVO-312 | 断链/重启/延迟包综合验收 | 多种故障组合下旧命令不执行、恢复不自动运动、错误可追踪 | 自动故障注入报告、HIL及实机验收 | 未执行 |
+
+### F. 本节来源记录（#1857–#1864）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1857 | [udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | 本地connected标志、UDP bind/endpoint、无远端握手、接收线程状态 |
+| #1858 | [real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) 与 [header](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | is_ready语义、状态新鲜度与16位序号回绕估算 |
+| #1859 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) 与 [header](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | is_connected不检查staleness、reset_data、状态序号作为命令序号、无运行期重连状态机 |
+| #1860 | [protocol.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp) 与 [protocol.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/protocol.cpp) | 帧头仅含16位sequence，无boot/session epoch |
+| #1861 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read/write门控、on_activate、on_error STOP请求路径 |
+| #1862 | [messages.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) 与 [messages.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | 状态/诊断消息结构和字段，未见boot/session标识 |
+| #1863 | [VAL3 sequence/reconnect logic @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/search?q=sequence&type=code) | 与§9.3.64的控制器端sequence-delay、重放及重启门控发现交叉核对 |
+| #1864 | [ros2_control Hardware Components lifecycle](https://control.ros.org/humble/doc/ros2_control/hardware_interface/doc/hardware_components_userdoc.html) 与 [Controller Manager](https://control.ros.org/master/doc/ros2_control/controller_manager/doc/userdoc.html) | read/write ERROR生命周期处理、控制器停止及硬件重启需重新走生命周期的框架语义 |
+
