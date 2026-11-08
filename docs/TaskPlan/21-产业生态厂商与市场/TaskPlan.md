@@ -1624,3 +1624,10 @@ SERVO-727静态审查已完成，U11-U15未执行；SERVO-726动态插件生命�
 已检查PR作者维护的外部公开复现仓库`Yuhx141/ros2-upstream-issue-reproducers`固定commit `9630a900f2d323b3b45c1976df8fe722b809f7a7`。PROVENANCE记录MoveIt 2.12.4 runtime；两个OccupancyMap场景目录通过CMake find_package链接安装的MoveIt occupancy-map-monitor包。两个目录复用同一份`occupancy_init_probe.cpp`（Blob SHA `4a5dd5b5ffb1cc30da67c55a0c037e5eeea63a60`），其中FakeMiddleware仍以旧`void initializeOccupancyMapUpdater(...) override`实现公共接口。切换至PR #3909的新bool接口时，该fixture需迁移override并传播初始化结果。
 
 这是作者维护的公开复现fixture，而非独立商业下游或Stäubli/ICube现场代码。U11已获得具体旧签名迁移样例；独立C++17最小override探针已复现conflicting return type；但未运行ROS/MoveIt完整工作区，也未迁移构建该fixture，ABI状态仍未知。详见审计追加件§9.3.142。
+
+
+#### SERVO-727补充审查（§9.3.143：失败对象析构覆盖）
+
+PR #3909的\`RejectsUpdaterWhenInitializationFails\`测试在局部变量中保留\`shared_ptr<RecordingUpdater>\`，Mock又把同一shared_ptr返回给monitor。即使monitor因initialize失败continue跳过登记，测试函数仍持有强引用，因此该测试没有触发/证明updater析构，也没有检查资源清理。它只证明未调用setParams/start。RecordingUpdater不创建subscription/timer，且setParams固定返回true，因此initialize(false)部分资源回收和setParams(false)资源回收均未覆盖。
+
+此项是测试覆盖缺口，不是已证实泄漏。U13/U14需增加weak_ptr/析构计数、可观察ROS资源、旧topic回调静默及并发安全验证。当前PR head仍保留initialize先于setParams；作者称其已修复先前顺序回归，但#3901的公开契约问题仍未解决。详见审计追加件§9.3.143。
