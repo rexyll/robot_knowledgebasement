@@ -976,3 +976,37 @@ HTTP 410只说明当前GitHub日志下载接口已无法提供这些job日志；
 - https://github.com/moveit/moveit2/actions/runs/19975338729
 - https://github.com/moveit/moveit2/actions/runs/19975338846
 - §9.3.126–§9.3.127。
+
+
+### 9.3.129 ROS Jazzy双架构状态页刷新与生产pool目录复核（2026-11-08）
+
+#### 1. 官方状态页快照
+
+重新直接打开ROS官方Jazzy Noble amd64与arm64规范状态页，并按`moveit_servo`精确定位行：
+
+| 架构 | 状态页生成时间（UTC−8） | Building | Testing | Main |
+|---|---|---|---|---|
+| amd64 | 2026-11-08 05:56:04 | `2.12.4-1noble.20261105.184638` | `2.12.4-1noble.20261105.184638` | `2.12.4-1noble.20261006.040508` |
+| arm64 | 2026-11-08 05:43:04 | `2.12.4-1noble.20261106.111556` | `2.12.4-1noble.20261106.111556` | `2.12.4-1noble.20261006.043301` |
+
+与§9.3.128记录相比，amd64页面时间从04:56:18刷新至05:56:04，arm64页面时间从04:43:04刷新至05:43:04；两个架构的B/T/M版本字段均未变化。页面刷新只代表状态页生成时间更新，不代表重新构建、重新测试或版本晋级。本轮未观察到moveit_servo进入Main的新版本。
+
+#### 2. 生产main pool目录
+
+直接打开`ros-jazzy-moveit-servo`生产main pool目录，仍只列出与状态页Main列对应的2026-10-06 amd64/arm64二进制文件，目录大小分别为674,492 bytes和615,538 bytes；另列出2025-12-06的`.dsc`、`.debian.tar.xz`和`.orig.tar.gz`，其中`.orig.tar.gz`为65,705 bytes。未见2026-11-05/06新构建进入该生产目录。
+
+该目录列表只能证明读取时目录列出的文件名、时间和字节大小；没有取得APT InRelease/Packages正文、签名校验结果、deb包内`DEBIAN/control`或SHA256，不能据此验收APT索引完整性、包依赖闭包或二进制内容。Building/Testing状态页也不是实际job日志或测试报告。
+
+#### 3. 任务状态与后续取证边界
+
+- SERVO-718保持已完成；SERVO-719保持部分取证：同SHA工作流/job状态已分层，但三个Servo测试入口逐项colcon结果、XML和console log仍未取得。
+- SERVO-716保持部分取证、SERVO-713保持部分取证；具体Jenkins job实例、build number、source revision、console log和artifact fingerprint仍缺。
+- SERVO-710仍未完成Bloom执行输入源码revision/源归档校验值闭环；SERVO-714仍未完成APT InRelease验签、完整Packages stanza、实际deb control/SHA256及依赖闭包验证。
+- 未执行Ubuntu 24.04目标环境APT安装、rosdep解析、MoveIt Servo运行；未执行VAL3编译/SRS仿真、CS9、HIL/FAT/SAT或实机验证。Stäubli工程级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未获授权合并。
+
+#### 4. 来源
+
+- ROS Jazzy amd64状态页：https://repo.ros2.org/status_page/ros_jazzy_default.html （页面生成时间05:56:04 -0800，`moveit_servo`第1175行）
+- ROS Jazzy arm64状态页：https://repo.ros2.org/status_page/ros_jazzy_unv8.html （页面生成时间05:43:04 -0800，`moveit_servo`第1175行）
+- ROS生产main pool目录：https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- §9.3.128及此前MoveIt Servo发布链追加记录。
