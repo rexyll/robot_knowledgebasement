@@ -4684,3 +4684,82 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1944 | [robot_model.yaml TX2-60L @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/robot_model.yaml) | 普通I/O数量及tool0静态偏置配置 |
 | 
 **验证边界：** 本节仅为固定提交静态源码/配置审查。ROS侧GPIO接口和UDP字段存在，但VAL3侧数字/模拟输出应用及输入采集/编码留有TODO，因此不能宣称真实I/O端到端可用。普通STOP帧与helper STOP清I/O行为不同；工具帧只定义几何变换，不代表夹爪/吸盘可控。未执行ROS构建、VAL3编译/加载、CS9仿真、I/O模块/接线核验、HIL或实机逐点测试。SERVO-393–SERVO-402全部未执行；普通GPIO不构成安全I/O；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.77 C++—VAL3通信协议、帧头、负载长度、序列化字段与版本兼容一致性（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+审查固定提交中的C++ protocol.hpp/protocol.cpp、messages.hpp/messages.cpp、serialization.hpp、VAL3 decodeHeader/encodeHeader/decodeRobotCommandMsg/encodeRobotStateMsg，以及消息序列化单元测试。发现一个高优先级的VAL3状态帧头编码缺陷：encodeHeader.pgx将nMsgSequenceNumber连续写入sequence_number和payload_size两个字段，第二次应写payload长度。C++帧头布局为8字节，RobotState负载124字节、整帧132字节；RobotCommand负载47字节、整帧55字节。若VAL3按该程序编码状态帧，帧头payload_size将与实际124字节负载不符，C++当前RobotStateMessage::deserialize虽忽略payload_size，可能仍按固定132字节解析，但协议契约已不一致，其他接收端/未来严格校验端可能拒绝。此项为静态源码缺陷，尚未通过VAL3编译和网络抓包复现。
+
+另发现C++ FrameHeader::deserialize只验证magic number，不验证protocol_version、message_type或payload_size；RobotStateMessage::deserialize的“Validate header fields”段为空，未检查message type/version/payload size；RobotCommand虽验证message type和payload size，但仍未验证protocol version。DiagnosticDataMessage::deserialize在解析帧头之前就读取header.payload_size和header.message_type，使用的是对象原有/默认header字段，校验顺序错误。VAL3 decodeRobotCommandMsg的初始buffer-size mismatch错误标志会被随后decodeHeader调用覆盖，存在错误标志丢失窗口。VAL3状态编码还将F/T传感器第4–6分量的写入注释掉，却仍推进偏移，和C++固定6分量格式不一致。
+
+### 协议布局与静态核对
+
+1. C++ FrameHeader定义8字节：magic uint16、protocol_version uint8、message_type uint8、sequence_number uint16、payload_size uint16。magic=0xABCD，protocol version=1；C++序列化使用little-endian主机内存拷贝，serialization.hpp编译期强制little-endian；VAL3注释和fromBinary/toBinary格式使用2l、4.0l little-endian，字节序意图一致。
+2. C++ RobotStateMessage固定132字节，header 8字节，payload 124字节。字段顺序：sequence_delay(2)、control_state(1)、safety_status(1)、operation_mode(1)、operation_mode_status(1)、status_flags(2)、valid_fields_flags(2)、joint positions 6×float32(24)、joint velocities 6×float32(24)、joint torques 6×float32(24)、F/T 6×float32(24)、digital inputs mask(2)、analog inputs 4×float32(16)。合计payload 124。
+3. C++ RobotCommandMessage固定55字节，header 8字节，payload 47字节。字段顺序controller_period float32(4)、command_type uint8(1)、joint command 6×float32(24)、digital outputs mask uint16(2)、analog outputs 4×float32(16)，合计47。
+4. C++ double通过serialize_type转换成float后写入4字节；VAL3对应使用4.0l单精度浮点格式。协议有效精度实际为float32，而不是C++接口中double的64位精度；数值舍入/溢出/NaN/Inf策略未在协议层统一约束。
+5. C++序列化模板数组函数注明不检查buffer size，安全性依赖上层消息serialize先验证固定整帧大小。当前消息类按固定消息大小检查，但该模板不应被其他调用者当作自带边界保护。
+6. C++消息反序列化大多采用buffer_size >= fixed message size，允许比固定帧更长的buffer；RobotState没有校验header.payload_size与实际数据长度一致。RobotCommand验证payload_size等于47，但也未要求buffer_size严格等于55，可能接受附加尾随字节。需要区分UDP单帧datagram长度和消息对象buffer容量，严格按实际datagram length验证。
+7. C++ FrameHeader::deserialize验证buffer至少8字节和magic number，但没有验证protocol_version、message_type范围、payload_size合法性或header与datagram长度关系。调用者必须自行校验；当前不同消息类校验不一致。
+8. RobotStateMessage::deserialize在解析header后保留空的“Validate header fields”区域，直接按固定偏移解析payload；未验证header.message_type为ROBOT_STATE、protocol_version为1或payload_size为124。
+9. RobotCommandMessage::deserialize会验证payload_size为47和message_type为ROBOT_COMMAND，但未验证protocol_version；未知command_type数值直接static_cast为CommandType，未在协议解析层拒绝未知枚举。
+10. DiagnosticDataMessage::deserialize先读取header.payload_size和header.message_type并做检查，然后才调用header.deserialize(buffer, buffer_size)。因此这些检查不是针对当前datagram刚解析出的header；新构造对象可能用默认值，复用对象可能用上一次帧头值。当前校验顺序不能可靠验证输入帧头，需先解析header再做类型/长度校验。
+11. VAL3 decodeHeader先检查至少8字节，再解码magic/version/type/sequence/payload_size，校验magic=43981和protocol version=1；未自行限制message type范围，也没有直接检查payload size与datagram大小一致，依赖消息专用decoder。
+12. VAL3 decodeRobotCommandMsg先检查serialized data长度是否等于header size+payload size并置错误标志，然后调用decodeHeader；decodeHeader成功时会把x_bError置false，因此可能覆盖前面的长度不一致错误。后续偏移最终长度检查能捕获多数实际截断/超长情况，但如果datagram长度正确而payload_size字段错误，可能因该标志覆盖而接受不一致帧头。建议使用独立错误变量或检查顺序：先解析header，再比较精确datagram长度，再解析消息类型与payload。
+13. VAL3 decodeRobotCommandMsg检查message type=2，错误时将运动命令设置STOP；字段读取controller period、command type、6个float32、数字输出mask、4个模拟输出float32，固定偏移总计47字节，与C++ RobotCommand布局字段顺序一致。数字输出mask映射仍为注释代码（已在§9.3.76记录），本节只审查协议字段。
+14. VAL3 encodeHeader正确写magic、version、message type和sequence，但最后payload size写入语句错误地再次写入nMsgSequenceNumber，而不是消息payload长度变量。header 8字节偏移仍可对齐，但帧头最后2字节语义错误。状态消息调用encodeHeader，因此VAL3发出的RobotState帧存在该静态缺陷；必须修正后通过抓包验证sequence和payload_size字段分别正确。
+15. VAL3 encodeRobotStateMsg按C++定义生成status/valid flags和固定字段偏移，joint positions/velocities/torques均写6个float32；F/T传感器只实际toBinary写入nFtSensorValues[0..2]，第3..5分量的toBinary调用被注释，但偏移仍前进24字节。C++协议固定包含6个F/T float，因此后三分量可能保持初始化值或缓冲残留，具体取决于VAL3消息缓冲初始化；不能认为6轴F/T状态完整有效。
+16. VAL3状态编码中的digital input mask写入被注释、analog input四路toBinary仍TODO（已在§9.3.76记录）；valid flags仍可能标记字段有效与实际编码不一致，需通过同一协议测试统一验证。
+17. C++ RobotState序列化始终写出所有字段数组，即使valid flag为false也会写入对应数组内容；协议注释要求无效字段填零，但serialize实现没有根据valid flag强制清零。调用方若在无效状态下保留旧测量值，帧内可能携带旧值，同时valid flag为false。接收端必须严格尊重valid flags并避免把无效数据当作新鲜数据。
+18. 当前test_message_serialization.cpp主要测试C++消息自序列化/反序列化往返；FrameHeader roundtrip、RobotState/RobotCommand/DiagnosticData roundtrip及buffer too small。没有VAL3与C++共享黄金帧向量、字节逐位比较、跨语言roundtrip、payload错值、版本不匹配、未知message type/enum、尾随字节、截断、NaN/Inf、边界序号回绕等覆盖。
+19. 现有C++ roundtrip测试在同一实现中编码再解码，无法证明C++与VAL3双方的独立实现字节一致；浮点近似比较也无法验证完整wire image的字节序/字段偏移/规范化行为。
+20. 本轮未执行VAL3项目编译、CS9程序加载、UDP抓包、跨语言golden vector测试、ROS构建或实机验证。encodeHeader字段错误、状态F/T后三分量未写入、校验顺序/遗漏均为静态源码结论；实际运行表现仍待复现。
+
+### 风险与整改要求
+
+- 立即修正VAL3 encodeHeader：payload_size必须由消息专用payload长度写入，不得复用sequence_number；添加帧头黄金字节测试，RobotState必须写124、RobotCommand必须写47。
+- 统一协议规范为机器可读单一来源：字段顺序、长度、字节序、float32、枚举、有效标志、版本、最大帧长、序号回绕规则，并生成C++/VAL3常量或校验测试。
+- C++ FrameHeader解析后统一校验magic、version、message type、payload size和实际UDP datagram长度；各消息类不得重复实现不一致的头校验。
+- 修复RobotState deserialize缺失的type/version/payload校验；RobotCommand增加version和command_type合法性校验；DiagnosticData必须先解析header再验证type/payload。
+- 修复VAL3 decodeRobotCommandMsg错误标志覆盖：解析header与长度校验分阶段，错误状态不得被后续成功子程序清除；所有失败必须使消息无效并将运动命令安全降级。
+- 修复VAL3 F/T六分量编码，确保每个固定字段都写入；未安装传感器时按协议明确填零并清valid flag，禁止未初始化/残留buffer数据进入网络。
+- 对无效字段采用一致策略：valid=false时payload清零或定义为不可信，接收端不得刷新状态；增加每字段sample age/sequence可更好识别陈旧数据。
+- 统一浮点范围与非有限值策略：发送前拒绝NaN/Inf、超float32范围和非法周期/关节数值；定义舍入误差、单位、饱和/拒绝规则。
+- 增加协议版本协商/能力位和向后兼容策略；遇到未知版本或未知关键消息类型必须默认拒绝，不可静默按旧布局解析。
+- 构建共享golden vectors：C++产生固定字节帧由VAL3解码，VAL3产生状态帧由C++解码；逐字节比较header/payload、字段边界、float、mask、最大/最小值、序号0/65535/回绕。
+- 增加恶意/损坏帧测试：短帧、超长帧、payload length过小/过大、magic错、version错、type错、未知enum、重复/乱序、尾随字节、随机字节、NaN/Inf；验证无越界读写且错误时不执行旧命令。
+- 完成VAL3编译、CS9仿真和真实网络抓包，验证状态帧payload_size、command帧解析、丢包/重连、固件版本混配及控制器重启场景。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-403 | VAL3状态帧头payload size | 修正encodeHeader并抓包确认RobotState payload_size=124、sequence独立正确 | 未执行 |
+| SERVO-404 | C++帧头统一校验 | 对magic/version/type/payload/datagram长度建立统一拒绝策略 | 未执行 |
+| SERVO-405 | RobotState消息校验 | 强制验证ROBOT_STATE、协议版本、124字节payload和精确帧长度 | 未执行 |
+| SERVO-406 | RobotCommand消息校验 | 增加protocol version、command enum、payload与datagram精确长度校验 | 未执行 |
+| SERVO-407 | DiagnosticData头解析顺序 | 先deserialize header再校验type/payload，覆盖对象复用测试 | 未执行 |
+| SERVO-408 | VAL3命令帧错误标志 | 修复decodeHeader覆盖长度错误标志，错误帧必须invalid并STOP | 未执行 |
+| SERVO-409 | F/T六分量编码 | VAL3写入六个float32并与C++黄金向量逐字节一致 | 未执行 |
+| SERVO-410 | float32数值策略 | NaN/Inf/溢出/精度舍入/单位边界跨语言一致 | 未执行 |
+| SERVO-411 | 跨语言golden vectors | C++与VAL3双向共享帧向量，覆盖全部消息类型与字段 | 未执行 |
+| SERVO-412 | 协议鲁棒性与版本兼容 | 截断/超长/错误版本/错误长度/未知枚举/序号回绕/固件混配验证 | 未执行 |
+
+### 本节来源记录（#1945–#1953）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1945 | [protocol.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp) | 8字节帧头布局、magic、version和payload字段 |
+| #1946 | [protocol.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/protocol.cpp) | 帧头序列化/反序列化只检查magic |
+| #1947 | [serialization.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp) | little-endian限制、double转float32、数组函数不检查buffer长度 |
+| #1948 | [messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | RobotState/Command/Diagnostic布局与校验缺口 |
+| #1949 | [messages.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | 消息字段顺序、固定数组长度和协议注释 |
+| #1950 | [VAL3 encodeHeader.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeHeader.pgx) | payload_size错误地重复写sequence_number |
+| #1951 | [VAL3 decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 负载长度错误标志可能被decodeHeader清除；命令字段偏移 |
+| #1952 | [VAL3 encodeRobotStateMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | 状态帧F/T后三分量写入被注释、GPIO字段未完成 |
+| #1953 | [test_message_serialization.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp) | C++内部roundtrip测试，缺少跨语言golden vectors和异常帧覆盖 |
+
+**验证边界：** 本节仅为固定提交静态源码审查。已定位VAL3 encodeHeader重复写sequence字段的payload_size缺陷、C++头字段校验遗漏、DiagnosticData校验顺序错误、VAL3长度错误标志覆盖风险和F/T后三分量未写入。尚未通过VAL3编译、CS9运行或网络抓包复现。C++单元测试源码已审阅但本轮未执行；无跨语言黄金帧、HIL或实机证据。SERVO-403–SERVO-412全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
