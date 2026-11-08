@@ -238,3 +238,14 @@ SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进�
 ## 21.1 厂商档案资产清单单行元数据刷新
 
 因§128.74更新厂商档案后，已将资产清单中 knowledge/ecosystem/主要厂商.md 对应行刷新为Blob SHA 403007ce8e50dab4b3a2af3ddceebd7e63e5364a、UTF-8大小516,870 bytes。该操作仅刷新单一资产的Git元数据，不代表claim-level复核完成，也不代表其余资产行已重新计算。
+
+
+## 22. 2026-11-08 MoveIt Servo Debian包装依赖映射与测试门控（§9.3.124）
+
+新增静态核验：release repository的debian/jazzy/noble/moveit_servo分支HEAD为04da341a35a97633b11a95ac1600b1995bcbacc3（2025-12-05 20:45:20 UTC，unsigned）。debian/control的binary Depends模板与package.xml的25项depend/exec_depend逐项映射无缺项，另含ros-jazzy-ros-workspace和未展开的shlibs/misc占位符。debian/rules可在DEB_BUILD_OPTIONS=nocheck时关闭测试，且dh_auto_test || true会容忍测试失败继续打包；故状态页Binary Build/Testing不能作为测试通过证据。新增SERVO-715（静态映射已完成）和SERVO-716（真实job环境与日志未取得）。
+
+该结果不等于实际deb内DEBIAN/control、签名/SHA256已验证，也不证明某次构建设置了nocheck或测试失败。Jenkins具体job/build number/result/source revision/console log仍缺；SERVO-710/713/714仍未完成或部分取证。未执行Ubuntu 24.04安装运行及VAL3/CS9/HIL/实机验证；Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/ros2-gbp/moveit2-release/commit/04da341a35a97633b11a95ac1600b1995bcbacc3
+- Debian control/rules/changelog/gbp.conf与package.xml：专项追加件§9.3.124。
