@@ -1132,3 +1132,34 @@
 - `ros2-gbp/moveit2-release` 当前默认分支及提交 `ca9b116837bd3ed6b2de19772aeef8d5c2a82e95`。
 - MoveIt Jazzy 2.12.4-1发布日志（当前README，原始Bloom时间2025-12-05）。
 - GitHub commit search结果；仅作为检索过程记录，不作为历史不存在的证据。
+
+
+### Stäubli专项审查新增记录（§9.3.109，Jazzy Bloom track 配置与 rosdistro 合并记录闭环）
+
+本轮继续SERVO-704–708，重点补齐Bloom release配置与ROS发行版索引之间的可审计关系：
+
+- `ros2-gbp/moveit2-release/tracks.yaml` 当前 `jazzy` track 明确配置：`devel_branch: jazzy`、`last_version: 2.12.4`、`name: upstream`、`release_tag: :{version}`、`vcs_type: git`、`vcs_uri: https://github.com/moveit/moveit2.git`、`version: :{auto}`，release repository URL 指向 `https://github.com/ros2-gbp/moveit2-release.git`。这确认了Jazzy track的上游源仓库、分支、自动版本与release tag模板，但不能单凭当前track配置证明2025-12-05那次Bloom执行时的配置快照完全相同，也不能把release tag模板误当成已验证的tag对象/commit SHA。
+- 在 `ros/rosdistro#48887` 中找到与Bloom日志相匹配的Jazzy发行PR：标题为 `moveit: 2.12.4-1 in 'jazzy/distribution.yaml' [bloom]`；PR创建于2025-12-05 21:08:45 UTC，2025-12-06 16:02:16 UTC合并。PR正文明确写明upstream repository为 `https://github.com/moveit/moveit2.git`、release repository为 `https://github.com/ros2-gbp/moveit2-release.git`、distro file为 `jazzy/distribution.yaml`、Bloom版本0.13.0、previous version 2.12.3-1。合并diff将该distribution条目的版本从2.12.3-1改为2.12.4-1。
+- PR合并提交为 `91a0881369007a49a1df1cd8702183265bd3ac06`；PR head为 `e9691f69defd3e685caa9230d936cb359f2de7d2`。distribution条目保留release tag模板 `release/jazzy/{package}/{version}`，并将repository URL指向moveit2-release。由此可将README中2025-12-05 Bloom发布记录与rosdistro 2025-12-06合并记录对应起来。
+- 结合当前tracks.yaml与已核对的MoveIt上游2.12.4源码标签，可以确认静态配置层的版本链：MoveIt上游仓库 `moveit/moveit2` / Jazzy track → release tag模板 `release/jazzy/{package}/{version}` → rosdistro Jazzy distribution版本2.12.4-1 → moveit2-release仓库。此处是配置与PR记录的静态对应，不代表已经取得各package实际tag对象、tag peeled commit、Bloom导出源归档SHA或构建Farm source revision。
+- PR的自动审查意见说明发行包需在ROS buildfarm支持的平台/架构上构建，但该意见不是具体构建成功证据。本轮没有取得Jazzy/Noble amd64、arm64的job ID、job URL、构建状态、source revision或binary build log；此前pool目录中2026-10-06的deb文件名仍只证明工件目录列出对应文件，不证明其与该PR/特定源码revision一一对应。
+- 证据边界：SERVO-705已完成（静态PR与merge commit核对）；SERVO-706已完成（当前Bloom track配置与上游2.12.4版本链静态核对）。SERVO-704仍未定位README首次引入该条目的release-repository commit；SERVO-707/708仍未完成。未验证实际Git tag对象、构建Farm、APT Packages stanza/deb control/SHA256/InRelease签名，也未执行apt/rosdep/servo_node运行。未修改ICube上游。
+
+### Stäubli专项审查新增验收任务（§9.3.109）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 未执行 |
+| SERVO-705 | 将Bloom发布日志与rosdistro/distribution仓库中Jazzy moveit release tag/version记录对应，保存PR及merge commit | 已完成（静态PR/merge记录核对；未验证实际tag对象） |
+| SERVO-706 | 核对MoveIt上游2.12.4源代码tag与release仓库track配置、Bloom生成tag/源包版本之间的映射 | 已完成（静态track配置/版本映射；未验证Bloom执行时快照与tag peeled SHA） |
+| SERVO-707 | 追踪ROS build-farm对应Jazzy/Noble amd64与arm64构建任务、job URL、source revision及二进制构建修订 | 未执行 |
+| SERVO-708 | 将release README、Bloom输入、rosdistro merge、build-farm任务和APT二进制包组成可审计的供应链证据图；无法对应的边明确标记缺失 | 未执行 |
+| SERVO-709 | 在moveit2-release中解析release/jazzy下MoveIt及moveit_servo的实际tag对象、tag类型、peeled commit与创建时间 | 未执行 |
+| SERVO-710 | 获取2025-12-05 Bloom执行时上游moveit2源码revision/归档校验值，并与2.12.4标签对象及rosdistro PR内容交叉核验 | 未执行 |
+| SERVO-711 | 获取对应Jazzy/Noble amd64与arm64 ROS Build Farm job记录，验证构建状态、源码revision、构建时间和二进制工件对应关系 | 未执行 |
+
+本节来源：
+- `ros2-gbp/moveit2-release/tracks.yaml`：Jazzy track配置（当前master快照）。
+- `ros/rosdistro#48887`：https://github.com/ros/rosdistro/pull/48887，2025-12-06合并。
+- rosdistro合并提交：`91a0881369007a49a1df1cd8702183265bd3ac06`。
+- Bloom发布日志：`ros2-gbp/moveit2-release/README.md` 中 `moveit (jazzy) - 2.12.4-1` 条目，发布时间2025-12-05。
