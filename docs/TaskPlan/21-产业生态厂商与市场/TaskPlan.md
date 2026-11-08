@@ -569,3 +569,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli ROS 2—UDP—VAL3端到端时延、发送结果语义与通信线程实时性 | 固定ICube bd658e2核对hardware write→RobotDriver→RealTimeSocketInterface→Boost.Asio UDP send及UDP async receive→Subscriber→hardware read链路。发现would_block时UDP数据报已丢弃但send仍返回true，可能使hardware write误报OK；send_message文档称blocking但实际MSG_DONTWAIT；发送结果仅本机内核语义，无VAL3命令ACK；receive thread实时优先级/CPU affinity为TODO；接收错误仍回调并重挂接；sender endpoint校验注释掉；latest-value缓存覆盖中间帧，统计不覆盖发送端丢弃；现有loopback测试仅功能性sleep，无deadline/jitter/端到端时延数据。新增§9.3.66、SERVO-293–SERVO-302、来源#1850–#1856。所有buffer-full、线程调度、sender注入、burst、端到端性能与HIL/实机测试未执行。 | 来源#1850–#1856；专项审计§9.3.66 |
+
+| 2026-11-08 | 21-02/Stäubli远端连接健康、UDP恢复、控制器重启与陈旧命令隔离 | 固定ICube bd658e2审查UDPSocketImpl、RealTimeSocketSubscriber、RobotDriver、HardwareInterface与协议帧头：本地socket/receive thread ready不等于远端活性；is_connected不检查状态新鲜度，read有年龄门控但write没有独立年龄/session门控；无运行期自动重连握手；reset_data只清主机缓存；16位sequence无boot ID/session epoch，重启序号复位与自然回绕/乱序/重放不可区分；无恢复后显式重新使能和STOP ACK。新增§9.3.67、SERVO-303–SERVO-312、来源#1857–#1864。断网/重启/延迟旧包、TSAN、CS9仿真、HIL/实机验证均未执行。 | 来源#1857–#1864；专项审计§9.3.67 |
+
