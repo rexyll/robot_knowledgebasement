@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.58  
+> 版本：v8.59  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.89。§9.3.87已完成协议v2规范自洽性复核，指出所有u64 ID/时间戳/tick的VAL3无损表示、时间同步准入阈值和ROBOT_STATE/DIAGNOSTIC_DATA/SETPOINT_STREAM/STOP_REQUEST schema仍未冻结；SERVO-513–SERVO-522全部未执行。§9.3.88静态审查固定上游FTP管理与VAL3部署：普通ftplib.FTP无应用层TLS/证书验证，用户名/密码为普通ROS参数且默认字符串均为default；应用上传先删目标目录再逐项上传、忽略删除失败且无staging/校验/回滚；SIO配置默认开启覆盖，随包端点硬编码192.168.0.1；脚本失败不fail-fast且无明确退出状态/try-finally。新增SERVO-523–SERVO-535全部未执行；没有真实CS9 FTP/配置生效/回滚验证，未达到工业级验收。§9.3.89静态审查bringup启动编排：spawner/ready进程OnProcessExit未检查退出码、ready无超时且只检查topic首次到达、joint_states的TRANSIENT_LOCAL请求存在QoS兼容风险、ready不等于硬件ACTIVE或运动许可、use_sim_time传播不一致、脚本直接依赖未在package.xml声明；新增SERVO-536–SERVO-544，全部未执行，未运行ROS 2/Jazzy集成测试。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
