@@ -1261,3 +1261,17 @@
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - 专项追加件§9.3.117。
+### Stäubli专项审查新增记录（§9.3.118，Jazzy状态页与Build Farm阶段语义）
+
+- 直接读取ROS Jazzy规范状态页：amd64页面生成于2026-11-08 04:36:03，arm64页面生成于2026-11-08 04:23:04（-0800）。moveit_servo amd64 B/T均为2.12.4-1noble.20261105.184638，M为2.12.4-1noble.20261006.040508；arm64 B/T均为2.12.4-1noble.20261106.111556，M为2.12.4-1noble.20261006.043301。
+- 带?q=RED的搜索索引结果时间为11月7日18:03:03，早于11月8日规范页面；其网页展开结果为2025年旧缓存，不得作为新快照证据。
+- ros_buildfarm官方文档描述source job由rosdistro版本变化触发，binary job由source job触发，全部job完成且满足sync criteria后才从building同步testing；不能替代具体Jenkins job、build number、result、revision和console log。
+- 本轮Jenkins API/页面及APT InRelease/Packages正文读取失败；未验证签名、包stanza、deb control/SHA256。Production main pool仍为10月6日旧deb。
+- SERVO-710/714未完成；SERVO-713部分取证但未完成。未执行目标安装运行、VAL3、CS9/SRS、HIL或实机验证。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- 专项追加件§9.3.118。
