@@ -5912,3 +5912,91 @@ Servo配置输出Float64MultiArray位置命令，硬件插件确实导出positio
 | #2049 | [staubli_moveit.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/launch/staubli_moveit.launch.py) | Servo可选启动路径与参数加载 |
 
 **验证边界：** 本节仅为固定提交静态源码和配置审查。没有运行MoveIt规划、Servo、ForwardCommandController、JTC或ros2_control限幅器；没有执行NaN/Inf/越界命令注入、控制器资源切换、型号限值实测、CS9参数核对、HIL或实机测试。MoveIt比型号限值保守的差异不是已证实的超速缺陷；Servo输出端缺少仓库内对应控制器配置证据，不代表外部工作区绝无同名控制器；硬件write没有本地限幅也不证明上游controller_manager没有施加限幅。SERVO-545–SERVO-555全部未执行，Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.91 实时状态反馈、控制周期与UDP时序完整性审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围
+
+沿固定提交 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`追踪CS9状态反馈与命令发送链：
+- `staubli_robot_driver/src/communication/udp_socket_impl.hpp`
+- `staubli_robot_driver/src/real_time_socket_subscriber.cpp`
+- `staubli_robot_driver/src/real_time_socket_interface.cpp`
+- `staubli_robot_driver/src/robot_driver.cpp`
+- `staubli_robot_driver/src/staubli_hardware_interface.cpp`
+- `staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp`
+- `staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp`
+
+### 发现与结论
+
+**发现一：反馈丢包只统计、不形成明确的控制降级或故障策略。**
+
+`RealTimeSocketSubscriber::read_message()`根据16位sequence_number计算丢包数并写入`MessageStatus.lost_packages`。但`RobotDriver::read_robot_state()`中丢包警告代码被注释，仅检查状态是否超过100ms陈旧阈值；`StaubliHardwareInterface::read()`只依据read_robot_state成功与否返回OK/ERROR。当前实现没有可由源码证明的丢包率窗口、连续丢包阈值、乱序/重复包告警锁存或丢包触发的受控降级状态。UDP偶发丢包不必然意味着立即停止，但必须有按风险分析批准的连续性与质量策略。
+
+**发现二：状态陈旧时间基于本机接收时间，而不是机器人采样时间。**
+
+`RealTimeSocketSubscriber::update_message()`在数据包到达并完成反序列化后才执行`msg.reception_timestamp = rclcpp::Clock().now()`；`read_message()`计算本地当前时间减该接收时间；`RobotDriver`默认100ms状态陈旧阈值。协议`RobotStateMessage`虽包含`sequence_delay`，但该字段不是可与本机时钟直接比较的源端采样时间戳，协议帧未携带明确的机器人采样时刻/时钟域信息。因此该检查可识别“本机多久没有收到新包”，不能证明“本次状态在机器人端采样后多久到达”，也不能单独界定网络排队/传输延迟。若数据包在网络中延迟后才到达，接收时间会被刷新。建议在协议版本升级中加入源端单调时间戳或经过同步验证的采样时刻，并保留本地steady_clock接收时刻用于独立超时。
+
+**发现三：read_robot_state可重复返回缓存状态，new_message并非必须为true。**
+
+`read_message()`在没有新包但此前已有有效缓存时仍返回true，并通过`status.new_message=false`表示复用旧样本；`RobotDriver::read_robot_state()`不检查`status.new_message`，只检查缓存样本陈旧时间。于是控制循环可以在同一份反馈样本上连续多个周期返回成功。100ms超时最终限制缓存复用时长，但在该窗口内反馈更新停顿不会立即反映为read失败。必须明确允许的最大重复样本周期数/时长、命令策略和停止阈值，不能把read成功误解为本周期收到了新反馈。
+
+**发现四：控制周期period未经本地边界校验就编码到命令协议。**
+
+`StaubliHardwareInterface::write()`将`period.seconds()*1e3`写入`RobotCommandMessage.controller_period`并发送。该函数未对period的正值、有限性、合理上下限、周期跳变或deadline miss进行校验，也未在驱动侧建立周期超限计数和锁存策略。ROS控制管理器可能提供正常period，但系统仍需处理调度抖动、暂停恢复、时间源变化和异常调用；VAL3端如何消费controller_period、异常值是否拒绝以及与其内部控制周期的关系，均需协议/控制器实测确认。
+
+**发现五：UDP接收回调未验证发送方地址，源码明确留下未完成TODO。**
+
+`UDPSocketImpl::handle_data_received()`收到数据后直接调用用户reception_callback；发送方地址校验代码被注释，并明确写有“validate sender before processing”的TODO。套接字虽然设置了remote_endpoint用于发送，但接收使用`async_receive_from`并填充独立的`sender_endpoint_`。因此当前源码没有证明收到的状态/诊断数据只来自配置的机器人端点。若网络中存在可达的非预期发送方，伪造状态帧可能进入反序列化、序列号和状态缓存流程。建议在数据处理前验证源IP及源端口，结合网络隔离、ACL和协议认证/完整性保护；IP过滤不能替代密码学认证。
+
+**发现六：序列号统计没有构成完整的乱序、重复与重放拒绝策略。**
+
+`read_message()`在读取缓存消息时用简单的大小比较和MAX_FRAME_SEQUENCE_NUMBER处理回绕，计算lost_packages；相同序列号被标记为非新消息，但旧序列号/乱序包没有在`update_message()`接收路径被明确拒绝，接收线程会将成功反序列化的消息写入最新消息缓存。较旧数据包若后到达，可能覆盖较新缓存；读取端的回绕计算也需要针对跨回绕乱序、长时间离线、重复及重启序列重置进行专项验证。16位序列号自身不能作为防重放认证机制。
+
+**发现七：接收错误仍进入用户回调，后续失败传播依赖解析与超时。**
+
+`UDPSocketImpl::handle_data_received()`记录error后仍调用reception_callback_(recv_buffer_, bytes_transferred)，之后只要receiving_仍为true便继续发起下一次接收。若错误对应0字节或不完整数据，后续反序列化通常会失败并记录错误；但本回调没有将socket接收错误直接传递为一个可观察、锁存的通信故障状态。系统主要依靠最后有效消息逐渐达到陈旧阈值发现通信中断。应定义错误分类、连续错误阈值、恢复条件和停止确认，避免日志记录等同于安全故障处理。
+
+**发现八：发送成功语义仍需与实际UDP发送结果严格区分。**
+
+同一固定提交的`UDPSocketImpl::send()`对`would_block`记录“Packet dropped”，但最终仍返回true；`RealTimeSocketInterface::send_message()`及`RobotDriver::send_robot_command()`据此可能返回成功。该问题与此前UDP发送路径审查存在重叠，本节将其纳入端到端时序闭环，不重复作为全新独立缺陷计数。必须在后续修复/验收中把“本机内核接受数据报”“数据报实际发出”“机器人端接收”“控制器接受命令”和“机器人执行命令”区分为不同确认层级。
+
+### 影响与建议
+
+1. 把状态质量建模为独立状态：有效新样本、缓存复用、丢包、乱序、重复、源端不可信、接收错误、超时；对每类状态定义允许的最大持续时间和故障策略。
+2. 以steady_clock建立单调接收时钟；协议增加源端采样时间/周期计数和时钟域标识，明确时钟同步误差预算、时间回退、重启和序列回绕规则。
+3. 在接收路径拒绝非预期源端点和不符合协议版本/长度/类型/序列窗口的数据包；将网络ACL、隔离网段和消息认证纳入威胁模型。
+4. 对sequence_number使用明确的模数比较与滑动接收窗口，拒绝旧包，区分丢包、重复和乱序；设置可审计的阈值及恢复机制。
+5. 对period做finite、positive、min/max、变化率和deadline检查；将超周期、跳周期、控制线程调度延迟和UDP发送失败纳入实时性指标。
+6. 规定反馈样本复用的最大年龄与最大连续周期；超限后进入故障锁存并调用经验证的停止路径，恢复须重新授权。
+7. 接收错误不得仅靠日志传播；设计可观测的通信状态机和STOP发送/控制器确认/停止状态确认链。
+8. 使用可控网络故障注入（延迟、抖动、丢包、乱序、重复、伪造源、突发拥塞）进行SIL/HIL验证，记录端到端分位延迟、最大延迟、丢包率、反馈年龄、周期超限和停止响应。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-556 | 反馈丢包质量策略 | 注入随机/突发/连续丢包，验证丢包率窗口、阈值、降级、锁存和恢复 | 未执行 |
+| SERVO-557 | 源端采样时间与本地接收时间 | 定义并验证源端时间戳、steady_clock接收时刻、时钟同步误差及最大数据年龄 | 未执行 |
+| SERVO-558 | 缓存样本复用边界 | 验证new_message=false时最大复用周期/时长和超限停止行为 | 未执行 |
+| SERVO-559 | 控制周期输入边界 | 对period=0、负值、NaN、Inf、极大值、跳变及deadline miss注入，验证拒绝/锁存 | 未执行 |
+| SERVO-560 | UDP发送方端点校验 | 从正确/错误IP与端口发送状态帧，验证仅批准端点能更新状态缓存 | 未执行 |
+| SERVO-561 | 序列号乱序/重复/回绕窗口 | 验证旧包拒绝、重复识别、乱序窗口、16位回绕和机器人重启复位 | 未执行 |
+| SERVO-562 | UDP接收错误传播 | 注入socket错误、零字节、截断包和连续接收错误，验证通信故障状态与停止闭环 | 未执行 |
+| SERVO-563 | 实时周期与反馈年龄联合测试 | 注入线程抖动、CPU负载、网络延迟和暂停恢复，统计端到端时序指标 | 未执行 |
+| SERVO-564 | 命令发送确认语义 | 区分本机发送、网络送达、控制器接受、执行与停止确认，完成协议与运行时验收 | 未执行 |
+| SERVO-565 | 网络威胁与状态完整性 | 验证源端伪造、重放、序列回退及网络隔离/认证策略 | 未执行 |
+
+### 本节来源记录（#2050–#2056）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2050 | [real_time_socket_subscriber.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 接收时间戳、缓存更新、序列号丢包统计、重复样本标识 |
+| #2051 | [robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | 100ms陈旧阈值、丢包状态处理、read_robot_state有效性与连接逻辑 |
+| #2052 | [robot_driver.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | 默认状态陈旧阈值与接口语义 |
+| #2053 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read失败传播、period转毫秒、命令发送路径 |
+| #2054 | [udp_socket_impl.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | UDP异步接收错误处理、发送方地址TODO、would_block发送语义 |
+| #2055 | [real_time_socket_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp) | 序列化与socket发送成功语义 |
+| #2056 | [protocol.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp) | 16位序列号、接收时间戳字段及协议头定义 |
+
+**验证边界：** 本节为固定提交静态源码审查。没有运行ROS 2控制循环、VAL3控制任务或CS9；没有注入网络抖动、乱序、重放、伪造发送方、UDP拥塞或线程调度延迟；没有测量端到端时延、最坏周期抖动、反馈真实采样年龄或停止响应时间。源码中100ms阈值仅是本机接收后陈旧阈值，不应作为网络端到端延迟指标。SERVO-556–SERVO-565全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
