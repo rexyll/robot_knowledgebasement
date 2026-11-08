@@ -6627,3 +6627,62 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2133 | [MoveIt 2 Jazzy MoveGroup Move action](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp) | replan/replan_attempts/replan_delay来自请求，PlanExecution调用 |
 
 **验证边界：** 已完成ICube固定提交与MoveIt 2 Jazzy源码静态核对；没有执行ROS运行时主题图、规划场景服务/对象更新、MoveGroup/Servo碰撞场景一致性、路径失效停止、状态起点容差、CS9/HIL或实机测试。SERVO-644–SERVO-655全部未执行。
+
+
+## §9.3.100 Servo距离阈值碰撞缩放算法、停止语义与参数生效边界
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。项目配置按原文核对；MoveIt Servo算法细节使用公开上游源码作为实现参考。目标部署的MoveIt二进制版本/补丁集尚未冻结，因此上游main/Humble源码仅用于明确需要对目标版本复核的行为，不把跨版本源码当作目标现场已验证事实。
+
+### 9.3.100.1 配置算法选择与参数实际含义
+
+- 固定提交的 `staubli_moveit_config/config/staubli_servo.yaml` 明确设置 `check_collisions=true`、`collision_check_rate=5.0`、`collision_check_type=threshold_distance`、`self_collision_proximity_threshold=0.01m`、`scene_collision_proximity_threshold=0.02m`。命令发布周期为4ms，故配置层的碰撞检测名义周期为200ms，发布与检测频率比为50:1；这只是参数算术，不是实测周期或最坏延迟。
+- 同一YAML还保留 `collision_distance_safety_factor=1000.0` 与 `min_allowable_collision_distance=0.01m`，注释明确将其归入 `stop_distance` 算法参数；但当前选择值是 `threshold_distance`。因此不能把1000倍安全因子或10mm最小距离宣称为当前算法正在使用的停止距离判据。
+- 这带来一个重要的配置审查要求：目标MoveIt版本是否识别 `collision_check_type`、两个算法参数是否均被声明、未选算法参数是否被忽略/警告/拒绝，必须在运行时读取参数描述和最终值。仅凭YAML同时出现两组参数，无法证明Stop-distance算法生效。
+- **静态结论：** 该配置选择的是阈值距离缩放，而不是已证明的制动距离约束算法。SERVO-641对10/20mm阈值的工程论证仍需独立完成；本节不把参数名或注释升级为安全保证。
+
+### 9.3.100.2 阈值距离缩放的上游算法参考
+
+- MoveIt Servo公开上游CollisionMonitor实现以配置频率循环，从PlanningSceneMonitor取得只读场景快照，刷新RobotState碰撞变换，分别执行机器人对环境碰撞检查与机器人自碰撞检查，并使用Planning Scene的Allowed Collision Matrix。来源#2134。
+- 该上游实现的阈值距离缩放采用指数函数：距离等于阈值时速度缩放为1；距离趋近0但尚未报告实际碰撞时，缩放趋近0.001；一旦碰撞检测结果的collision标志为true，则缩放直接设为0。自碰撞和场景碰撞分别计算缩放，最终取较小值，即限制更严格的一侧。来源#2134。
+- 上游Servo计算路径随后将碰撞缩放因子乘到本周期关节增量上；缩放处于(0,1)时状态码标记为 `DECELERATE_FOR_COLLISION`，为0时标记为 `HALT_FOR_COLLISION`。在已核对的上游实现中，零缩放首先表达的是Servo计算层不再产生新的关节增量，并不等同于发出机器人控制柜的专用STOP指令或触发CS9安全功能。来源#2135。
+- 对Stäubli当前10mm/20mm阈值而言，只有在目标版本确实采用同一算法、碰撞距离计算和状态输出路径的前提下，才可套用上述曲线。特别是“检测到collision才置零”与“距离逐渐接近阈值而缩放至接近0.001”是不同触发条件，不应把阈值本身描述为碰撞即停距离。
+- **版本边界：** 本次能直接确认的是项目YAML选择值；公开上游main/Humble实现只用于解释算法参考。实际部署是否与该实现一致，必须以SERVO-656目标二进制源码/包版本复核和运行时测试为准。
+
+### 9.3.100.3 从碰撞状态到机器人停止的链路边界
+
+- 即使目标版本在碰撞时将Servo增量缩放为0，也仍需验证Servo状态码、输出消息、下游控制器输入、Stäubli HardwareInterface、UDP命令和VAL3控制任务的实际行为是否形成一致的停动过程。
+- 本项目Servo输出类型为 `std_msgs/Float64MultiArray`，并发布位置数组；其输出topic为 `/forward_position_controller/commands`。此前§9.3.90已记录bringup控制器清单没有声明对应ForwardCommandController，因而碰撞监测算法即使在Servo进程中运行，也不能在缺少已验证输出接线时推断为机器人获得了相应命令。本节不重复登记该接口缺陷。
+- 若碰撞检查线程在两个检测周期之间才看到新障碍，Servo可能在下一次检测前继续按旧缩放值处理命令；配置上的200ms名义周期并未给出最坏触发时延。之后还有ROS调度、控制器接收、硬件接口write、UDP传输、VAL3执行周期及机械制动时间。完整停止时间必须端到端测量，不能从5Hz或4ms单独推导。
+- Servo的状态码/速度缩放、JTC Hold、硬件STOP命令、VAL3 stopMove/resetMotion、CS9安全停止和物理静止确认是不同层级。必须分别记录各层事件时间戳和确认信号，不能把 `HALT_FOR_COLLISION` 或速度缩放为0作为停止完成证据。
+- **静态结论：** 阈值碰撞算法最多提供规划/控制层命令缩放机制；当前仓库和公开配置尚未建立“碰撞被检测→Servo输出停止态→控制器接收→VAL3停止→机器人静止”的可验证闭环。
+
+### 9.3.100.4 验收范围与验证边界
+
+- **静态完成：** 固定提交的Servo YAML确认选择threshold_distance并同时保留stop_distance参数；对照公开上游CollisionMonitor与Servo计算源码，厘清指数速度缩放、实际碰撞置零、状态码与增量缩放的算法参考语义。
+- **未完成：** 未冻结目标MoveIt Servo包版本/补丁；未验证目标版本参数声明与参数生效值；未测量5Hz碰撞线程周期抖动、Planning Scene锁竞争、碰撞计算耗时和检测最坏时延；未对距离边界/实际碰撞/障碍瞬时出现与消失做运行测试；未验证Servo状态码与控制器/UDP/VAL3停止链路；未测量CS9/HIL/实机停止时间和制动距离。
+- **安全边界：** threshold_distance的10mm/20mm参数是软件碰撞距离阈值，不是安全距离认证值。公开源码中的零缩放/停止状态码也不等同于独立安全功能。人员防护必须由目标单元风险评估及经验证的安全回路承担。
+- **本节新增任务全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。**
+
+### 9.3.100.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-656 | 冻结目标MoveIt Servo包版本、源码commit、二进制构建选项与补丁集 | 未执行 |
+| SERVO-657 | 读取目标版本collision_check_type及全部碰撞参数的声明、默认值、最终值和启动日志 | 未执行 |
+| SERVO-658 | 验证threshold_distance/stop_distance参数选择、未选参数处理和配置错误闭锁 | 未执行 |
+| SERVO-659 | 对自碰撞/场景碰撞距离跨越阈值、趋近零和实际碰撞进行缩放曲线边界测试 | 未执行 |
+| SERVO-660 | 验证collision结果、距离结果、Allowed Collision Matrix及padding模型的一致性 | 未执行 |
+| SERVO-661 | 碰撞监测线程与Servo计算线程并发时的缩放更新原子性、旧值保持与调度抖动测试 | 未执行 |
+| SERVO-662 | 碰撞发生后HALT_FOR_COLLISION状态、输出位置数组和下游控制器接收行为测试 | 未执行 |
+| SERVO-663 | 碰撞状态与JTC hold、硬件STOP、VAL3 stopMove/resetMotion之间的映射及禁止自动续动验证 | 未执行 |
+| SERVO-664 | 障碍在两个检测周期之间出现/消失、场景锁竞争和弱网条件下的最坏检测时延测试 | 未执行 |
+| SERVO-665 | Servo碰撞检测到CS9/HIL/实机物理静止的时间戳链、停止距离和安全功能独立性验收 | 未执行 |
+
+### 本节来源记录（#2134–#2135）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2134 | [MoveIt Servo CollisionMonitor公开上游实现](https://moveit.picknik.ai/main/api/html/collision__monitor_8cpp_source.html) | 只读Planning Scene、环境/自碰撞检查、阈值指数缩放及collision置零的实现参考；不是目标部署版本证明 |
+| #2135 | [MoveIt Servo servo_calcs.cpp公开上游实现](https://moveit.picknik.ai/humble/api/html/servo__calcs_8cpp_source.html) | collision_velocity_scale应用到关节增量、DECELERATE/HALT状态码的实现参考；不是目标部署版本证明 |
+
+**验证边界：** 已完成固定ICube提交的Servo配置静态核对和公开上游算法参考核对。未对目标部署MoveIt二进制作版本/补丁比对，未运行碰撞算法边界、ROS调度、控制器输出、UDP/VAL3停止、CS9/HIL或实机停止测试；SERVO-656–SERVO-665全部未执行。
