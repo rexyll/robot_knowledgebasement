@@ -114,4 +114,3 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计已推进至§9.3.117；新增Build Farm候选job命名算法、building/main deb文件清单，以及ROS官方与OSUOSL镜像的testing APT索引目录元数据双源交叉核验。testing双架构索引为11月6/7日快照，production main索引仍为10月6日；Jenkins真实job/build日志、APT索引正文与签名、完整Packages/deb元数据及目标安装运行验证仍待完成。
 
 
-- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计已推进至§9.3.117；新增Build Farm候选job命名算法、building/main deb文件清单，以及ROS官方与OSUOSL镜像的testing APT索引目录元数据双源交叉核验。testing双架构索引为11月6/7日快照，production main索引仍为10月6日；Jenkins真实job/build日志、APT索引正文与签名、完整Packages/deb元数据及目标安装运行验证仍待完成。
