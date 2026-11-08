@@ -5756,3 +5756,73 @@ STOP_REQUEST可以在普通协议层具有最高调度优先级，并要求控�
 | #2035 | [ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx)与[README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md) | VAL3工程目标版本标识、应用清单及项目当前仍属POC/非工业就绪的上游自述 |
 
 **验证边界：** 本节为固定提交静态源码/文档审查。没有连接任何真实Stäubli控制器，没有抓取FTP登录/数据报文，没有验证CS9是否支持FTPS/TLS、FTP服务端角色权限、虚拟根目录映射、文件rename原子性、上传配置生效/重载条件或现场回滚；没有执行mock FTP测试、Python测试、VAL3编译、CS9仿真、HIL或实机操作。当前源码显示普通FTP、默认凭据字符串和破坏性先删后传/SIO覆盖流程，但不能据此断言真实现场FTP服务接受默认凭据或网络一定明文可被第三方访问。SERVO-523–SERVO-535全部未执行；Stäubli仍为静态审查，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.89 ROS 2 bringup启动编排、就绪门控与失败传播审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节审查固定提交 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79` 的 `launch_robot_control.launch.py`、`launch_moveit.launch.py`、`wait_for_robot_ready.py`、bringup包清单与安装规则。重点检查启动依赖、进程退出语义、topic就绪判定、QoS兼容、仿真时钟传播及运行依赖声明。
+
+**结论一：控制器spawner退出后无条件触发后续激活命令，未检查退出码。** `launch_robot_control.launch.py`使用`OnProcessExit(target_action=load_node, on_exit=[...])`；只要spawner进程退出，后续`ros2 control set_controller_state ... active`就会在`start_controller`匹配时执行。事件处理没有按spawner成功/失败退出码分支。因此，控制器加载失败、服务不可用或spawner异常退出时，launch仍会尝试激活；后续命令失败不会形成明确的bringup失败状态，也没有撤销已启动节点的统一失败策略。这里确认的是启动编排缺少成功条件门控，不代表每次启动必然失败。
+
+**结论二：MoveIt就绪辅助进程的退出事件被直接当成“机器人已就绪”。** `launch_moveit.launch.py`将`wait_for_robot_ready.py`作为独立Node，并通过`OnProcessExit`启动MoveIt。辅助程序正常完成时代表它收到两个topic；但异常退出、被外部终止或崩溃同样会触发OnProcessExit，MoveIt仍会启动。事件处理未检查退出码，也没有单独发布成功/失败状态。
+
+**结论三：就绪辅助程序没有超时/取消路径。** `WaitForRoboReady`使用两个Future等待`robot_description`和`joint_states`，随后`spin_until_future_complete`；代码没有总超时、单topic超时、取消信号处理或失败返回码。任一topic长期缺失时进程会持续等待，launch无法区分“设备未启动”“DDS/QoS不兼容”“话题名称配置错误”和“硬件初始化失败”。
+
+**结论四：joint_states订阅请求TRANSIENT_LOCAL，存在与VOLATILE发布端不兼容的风险。** 辅助程序为`robot_description`和`joint_states`两种消息统一使用`QoSDurabilityPolicy.TRANSIENT_LOCAL`。ROS 2 QoS请求/提供兼容性要求订阅端请求的durability不能高于发布端提供值；若`joint_states`发布端使用VOLATILE，则该订阅不会匹配，Future不会完成。固定仓库没有锁定joint_state_broadcaster实际发布QoS的实现版本，也没有QoS集成测试，因此本项登记为需核验的兼容性风险，而不是断言目标运行环境必然不兼容。建议对两个topic分别设置QoS，并在目标Jazzy依赖版本下验证。
+
+**结论五：两个topic首次到达不等于机器人控制系统具备运动许可。** 当前ready条件只检查收到一条robot_description和一条joint_states；没有检查controller_manager服务可用、joint_state_broadcaster处于ACTIVE、硬件组件处于ACTIVE、真实硬件连接、状态时间戳新鲜度、控制器故障状态、安全状态或运动许可。因而该信号只能解释为“基础描述与关节状态topic曾经出现”，不能命名或使用为“机器人安全就绪/可运动”的证明。
+
+**结论六：use_sim_time参数没有一致传播。** `launch_robot_control.launch.py`声明`use_sim_time`，但传给`ros2_control_node`的是硬编码`{"use_sim_time": False}`；robot_state_publisher没有接收该参数。MoveIt总launch将`use_sim_time`传给下游MoveIt launch，但ready辅助节点没有接收该参数。该不一致会使仿真时钟、节点时间和消息时间戳语义难以统一；是否实际造成故障取决于具体仿真与节点配置，必须通过仿真集成测试确认。
+
+**结论七：wait_for_robot_ready.py的直接运行依赖未在bringup package.xml显式声明。** 脚本直接导入`rclpy`、`sensor_msgs`、`std_msgs`，但`staubli_bringup/package.xml`未声明这些exec_depend。它们可能由其他ROS包间接带入当前工作区，但依赖闭包不完整，单独安装bringup包或裁剪安装环境时存在缺包风险。应声明直接运行依赖并通过rosdep/干净环境安装验证。
+
+### 关键证据与影响
+
+| 检查项 | 固定源码证据 | 结论 |
+|---|---|---|
+| 控制器加载/激活 | `launch_robot_control.launch.py`对spawner使用OnProcessExit，未读取returncode | spawner失败仍触发激活尝试 |
+| MoveIt启动门控 | `launch_moveit.launch.py`对ready进程使用OnProcessExit，未检查成功状态 | ready异常退出也可能启动MoveIt |
+| Ready判定 | `wait_for_robot_ready.py`仅等待robot_description与joint_states各一条消息 | 未证明硬件ACTIVE、安全状态新鲜或运动许可 |
+| 等待边界 | 两个Future及spin_until_future_complete无timeout | topic缺失时无界等待 |
+| QoS | 两个订阅统一使用TRANSIENT_LOCAL | joint_states若由VOLATILE发布则不兼容；需目标版本验证 |
+| 仿真时间 | launch声明use_sim_time，但ros2_control_node硬编码False、RSP未传播 | 时间源设置不一致 |
+| 包依赖 | Python脚本导入rclpy/sensor_msgs/std_msgs，package.xml未显式声明 | 运行依赖元数据不完整 |
+| 测试证据 | bringup CMakeLists仅显示安装launch/config/rviz/scripts/test目录及安装脚本 | 本次静态审查未发现可证明上述事件退出码、QoS和仿真时间行为的集成验收证据；不据此推断仓库完全没有测试 |
+
+### 建议的启动状态模型
+
+1. 将进程生命周期状态与业务就绪状态分开：`STARTING`、`READY_FOR_OBSERVATION`、`HARDWARE_ACTIVE`、`MOTION_PERMITTED`、`FAILED`、`TIMED_OUT`。
+2. spawner只有退出码为0且通过controller_manager查询确认目标控制器状态后，才允许进入下一阶段；失败时显式停止后续激活流程并返回非零结果。
+3. ready辅助程序应有总超时、分项超时、明确成功/失败退出码和可取消路径；MoveIt事件处理仅在成功码时启动。
+4. 对robot_description与joint_states分别配置QoS；在实际Jazzy依赖锁定版本上检查publisher/subscriber compatibility、可靠性、durability及消息更新频率。
+5. 将topic首次出现、状态新鲜度、硬件生命周期ACTIVE、控制器ACTIVE、控制器无故障和独立安全许可分层；任何单一ROS topic均不得替代安全回路或停止确认。
+6. use_sim_time应作为统一launch参数传给所有相关节点，并增加仿真时间/系统时间切换测试；实机运行应显式确认使用系统时钟。
+7. bringup package.xml声明脚本直接运行依赖；通过干净ROS Jazzy环境执行rosdep、colcon build/test和launch integration tests。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-536 | spawner退出码门控 | 注入spawner成功/失败/超时，证明仅成功路径执行激活 | 未执行 |
+| SERVO-537 | 控制器状态确认 | 激活后查询controller_manager，核实目标控制器确为ACTIVE | 未执行 |
+| SERVO-538 | MoveIt ready成功门控 | ready成功、异常退出、信号终止分别验证MoveIt只在成功路径启动 | 未执行 |
+| SERVO-539 | Ready超时与取消 | 对两个topic分别注入缺失/延迟，验证超时、取消和非零退出码 | 未执行 |
+| SERVO-540 | Topic QoS兼容性 | 锁定Jazzy依赖版本，验证robot_description与joint_states实际QoS匹配 | 未执行 |
+| SERVO-541 | Ready与运动许可分层 | 验证topic到达但硬件/控制器Inactive、状态stale或安全状态异常时禁止宣称可运动 | 未执行 |
+| SERVO-542 | use_sim_time一致性 | 仿真时钟与系统时钟两种模式验证所有节点参数和时间戳一致 | 未执行 |
+| SERVO-543 | Bringup直接运行依赖 | 补齐rclpy/sensor_msgs/std_msgs依赖声明并在干净环境rosdep安装 | 未执行 |
+| SERVO-544 | Bringup启动故障注入 | 覆盖controller_manager未启动、spawner失败、DDS断连、topic QoS不兼容和节点崩溃 | 未执行 |
+
+### 本节来源记录（#2036–#2040）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2036 | [launch_robot_control.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_robot_control.launch.py) | spawner OnProcessExit、控制器激活命令、use_sim_time硬编码及启动节点编排 |
+| #2037 | [launch_moveit.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_moveit.launch.py) | MoveIt包含启动与ready进程退出事件门控 |
+| #2038 | [wait_for_robot_ready.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/scripts/wait_for_robot_ready.py) | Future等待、topic类型、TRANSIENT_LOCAL QoS、无超时及ready条件 |
+| #2039 | [staubli_bringup/CMakeLists.txt](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/CMakeLists.txt) | launch/script/test目录安装规则与脚本安装入口 |
+| #2040 | [staubli_bringup/package.xml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/package.xml) | bringup声明依赖与脚本直接运行依赖对照 |
+
+**验证边界：** 本节为固定提交静态源码/包清单审查。没有运行ROS 2 launch、spawner、MoveIt或joint_state_broadcaster；没有检查目标Jazzy安装中的实际DDS QoS、controller_manager服务时序、launch事件returncode、仿真时钟或干净环境依赖解析；没有执行colcon build/test、CS9仿真、HIL或实机操作。TRANSIENT_LOCAL与VOLATILE的兼容风险需在锁定依赖版本后验证；“topic曾到达”不构成安全或运动许可证明。SERVO-536–SERVO-544全部未执行；Stäubli仍为静态审查，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
