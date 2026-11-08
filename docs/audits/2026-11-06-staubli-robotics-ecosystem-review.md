@@ -6478,3 +6478,77 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2111 | [ROS 2 Control Jazzy Controller Manager文档](https://control.ros.org/jazzy/doc/ros2_control/controller_manager/doc/userdoc.html) | 控制器切换策略、strictness与控制器管理行为 |
 
 **验证边界：** 仅静态审查固定上游提交与Jazzy API；没有执行ROS 2切换测试、VAL3编译、CS9/SRS、PLC现场盘点、HIL或实机测试。SERVO-620–SERVO-631全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## §9.3.98 MoveIt自碰撞矩阵、规划场景输入与Servo碰撞监测边界审查
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节仅审查公开配置、Xacro/SRDF模板和测试定义；MoveIt/Servo运行时参数默认值以目标安装包版本为准，当前未冻结实际二进制版本。
+
+### 9.3.98.1 SRDF自碰撞矩阵与碰撞几何边界
+
+- `staubli_moveit_config/srdf/staubli_macro.srdf.xacro`定义`arm`组为从模型基座连杆到末端执行器帧的chain，并在宏中直接写入11组`disable_collisions`：6组标记为`Adjacent`，5组标记为`Never`。其中`Never`关系包括link_1–link_3、link_2–link_4、link_2–link_5、link_3–link_5及link_3–link_6。该矩阵是源码中固定声明的关系，不是在目标机器人配置加载时根据完整关节空间重新计算的结果。来源#2115–#2116。
+- MoveIt官方URDF/SRDF教程说明，Setup Assistant的默认自碰撞矩阵生成器通过多组随机机器人姿态样本判断可禁用的连杆对；采样密度越低，错误禁用本应检查的连杆对的概率越高。因此，SRDF中写入`Never`不应被当作无需证据的几何真理，至少应留存矩阵生成/人工审核依据、采样范围、模型版本及复核记录。来源#2120。
+- 当前`staubli_robot_description/config/tx2_60l/meshes.yaml`为base_link及link_1至link_6分别指定STL collision mesh；但静态配置不能证明这些网格与目标实体机器人的外形、安装附件、护罩、线缆、工具、工件和现场工装一致，也不能证明网格偏差已被纳入碰撞间隙预算。来源#2119。
+- SRDF宏读取robot_model配置并采用默认link/joint命名，再将同一组硬编码连杆碰撞关系用于该模板生成的语义模型。现有测试只显式参数化`tx2_60l`，没有证据证明其他Stäubli型号、不同碰撞网格、不同工具或附加传感器组合均已复核该矩阵。来源#2116–#2117。
+- 现有`test_default_srdf.py`虽然测试目标名含SRDF，但实际执行的是`staubli_robot_description/urdf/staubli.urdf.xacro`展开与`check_urdf`，并未展开`staubli_moveit_config/srdf/staubli.srdf.xacro`，也没有解析SRDF XML、验证group链路、检查disable-collision关系或运行自碰撞样本。CMakeLists仅注册该项pytest；未发现SRDF碰撞矩阵或Servo碰撞监测测试。来源#2117–#2118。
+- **静态结论：** 目前可以确认存在六轴机械臂语义组和硬编码自碰撞排除关系，但不能确认5组`Never`关系对整个可达关节空间、所有型号配置、全部允许工具和附件均成立；也没有测试证明碰撞网格和SRDF矩阵与实际机器人/工位一致。
+
+### 9.3.98.2 Planning Scene权威来源与环境障碍输入
+
+- `staubli_moveit.launch.py`同时启动MoveGroup和RViz；Servo节点是条件启动。MoveIt配置调用`planning_scene_monitor(publish_robot_description_semantic=...)`，但该launch片段未展示传感器Occupancy Map Updater、PointCloud/Depth输入、Octomap配置或外部工件/夹具碰撞对象注入流程。来源#2113。
+- Servo配置将`is_primary_planning_scene_monitor=false`，并在注释中说明当MoveGroup负责primary Planning Scene时应采用该设置；MoveGroup确实由同一launch启动。因此，Servo的场景权威设计意图是依赖MoveGroup，而不是由Servo独立维护一套权威场景。该设置本身并非缺陷，但必须验证MoveGroup场景是否持续收到现场障碍、工件、夹具和动态对象更新，以及Servo副本是否及时获得这些更新。来源#2112–#2113。
+- 对固定仓库进行`PointCloud2`、`DepthImageOccupancyMapUpdater`、`sensors_3d`、`octomap`、`CollisionObject`和`ApplyPlanningScene`代码搜索，未发现仓库内显式配置或发布这些环境场景数据的实现。该检索结果只代表当前仓库可检索源码，不能排除部署工程或外部ROS节点在仓库之外注入Planning Scene。来源#2113及#2121。
+- MoveIt官方Planning Scene Monitor文档说明，Planning Scene同时维护机器人自身状态与周围世界；世界几何可由机器人传感器（如LiDAR、深度相机）或用户输入建立，3D占据地图通过PointCloud或Depth updater进入Octomap。因而，仅启动MoveGroup/Servo或打开RViz的Planning Scene显示，不足以证明真实环境障碍已经进入碰撞检查。来源#2121。
+- `staubli_servo.yaml`没有显式声明`check_octomap_collisions`，而`check_collisions=true`只明确表明启用Servo碰撞检查开关；不能据此推断Octomap检查已启用。该参数最终有效值依赖目标MoveIt Servo发行版/二进制的参数声明和默认值，需在目标环境读取并保存运行时参数。来源#2112。
+- **静态结论：** 当前仓库能证明MoveGroup是预期的primary Planning Scene实例，Servo被配置为非primary；但无法从仓库证据建立“传感器/人工障碍输入→MoveGroup世界模型→Servo场景副本→碰撞检测”的完整数据闭环。场景碰撞阈值在缺少及时且可信的环境几何时，不构成对真实障碍物的保护。
+
+### 9.3.98.3 Servo碰撞检查周期、阈值与启动条件
+
+- `staubli_servo.yaml`设置`check_collisions=true`、`collision_check_rate=5.0 Hz`、`collision_check_type=threshold_distance`、`self_collision_proximity_threshold=0.01 m`及`scene_collision_proximity_threshold=0.02 m`；Servo输出周期`publish_period=0.004 s`，即配置名义上每4ms输出一次命令，而碰撞检查配置为每200ms一次，频率比为50:1。该比值是配置值的算术关系，不是实测调度/检测时延。来源#2112。
+- 使用`threshold_distance`意味着这里设置的是靠近自碰撞/场景碰撞时开始减速的距离阈值；不能将10mm/20mm直接理解为机器人在该距离内一定能停止，也不能将其视作安全保护距离。停止效果还依赖真实速度、加速度/减速度、控制链延迟、场景更新时间、碰撞网格误差、采样和执行抖动。MoveIt Servo官方文档描述其碰撞检查用于在接近碰撞时缩放速度；这类软件功能不能替代经风险评估和验证的独立安全功能。来源#2122。
+- 5Hz碰撞检查与4ms命令发布之间存在明显配置频率差，但仅凭配置不能得出实际漏检概率或最大停止距离。必须在目标CPU、ROS发行版、碰撞场景复杂度、目标机器人速度/负载和网络条件下测量检查周期抖动、场景锁等待、碰撞计算耗时、最坏场景更新时间及从碰撞触发到机器人实际停止的完整时延。
+- 两个launch层级都将`launch_servo`默认设为`false`：外层bringup仅转发参数，内层MoveIt launch再通过条件决定是否创建`servo_node`。所以默认启动时，即便YAML中`check_collisions=true`，Servo碰撞检查功能也不会运行；只有显式启用Servo并完成其命令输出控制器接线后才有意义。来源#2113–#2114。
+- Servo配置仍把命令输出指向`/forward_position_controller/commands`且消息类型为`std_msgs/Float64MultiArray`；仓库bringup控制器清单只声明JTC和joint_state_broadcaster。该接口不匹配已在§9.3.90记录，本节不重复计算缺陷，只强调Servo碰撞监测配置与实际可运行控制路径必须作为同一个启用门进行验收。来源#2112–#2114及§9.3.90。
+- **静态结论：** Servo碰撞检查配置存在，但默认不启动；即使启用，5Hz检查、10/20mm阈值、场景输入和输出控制器连接都没有目标系统实测证据。不能将其表述为连续碰撞监测、可靠避障或功能安全停止。
+
+### 9.3.98.4 验收范围与验证边界
+
+- **静态完成：** 固定提交的Servo配置、MoveIt/bringup launch、SRDF Xacro宏、TX2-60L碰撞网格映射、测试定义及官方MoveIt文档语义已完成静态核对。
+- **未完成：** 未运行Xacro生成SRDF、未对SRDF XML做结构/连杆引用校验、未执行自碰撞采样、未核对collision mesh与制造商CAD/实物、未运行MoveGroup/Servo、未读取Servo有效参数、未注入Planning Scene对象、未测试传感器/Octomap更新、未测量碰撞检查抖动/最坏耗时/停止距离。
+- **安全边界：** MoveIt SRDF排除关系和Servo proximity collision check均属于规划/控制软件模型与算法配置，不是CS9安全回路、安全PLC、STO、SS1/SS2或安全认证证据。真实人员防护和危险运动停止必须由目标单元风险评估、经验证的独立安全功能和现场验证支撑。
+- **本节全部新增验收任务保持未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。**
+
+### 9.3.98.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-632 | 冻结目标MoveIt/Servo发行版、包版本及运行时有效参数快照 | 未执行 |
+| SERVO-633 | 为每个支持型号/前缀生成并解析SRDF，验证group链路和link引用 | 未执行 |
+| SERVO-634 | 自碰撞矩阵生成/人工审核依据、采样密度和可复现配置 | 未执行 |
+| SERVO-635 | 五组Never排除连杆对的全关节空间/边界姿态复核 | 未执行 |
+| SERVO-636 | Collision mesh与制造商CAD、实物、工具/附件及工装的几何差异验证 | 未执行 |
+| SERVO-637 | MoveGroup primary PSM与Servo非primary场景同步、更新延迟和断连恢复 | 未执行 |
+| SERVO-638 | 环境障碍输入源、坐标系、时间戳、过滤、自体剔除与场景移除策略 | 未执行 |
+| SERVO-639 | check_octomap_collisions有效值、Octomap updater和地图覆盖范围核验 | 未执行 |
+| SERVO-640 | 5Hz碰撞检测与4ms命令发布的周期抖动、CPU负载和最坏检测时延测试 | 未执行 |
+| SERVO-641 | 10mm/20mm阈值与实际速度、制动性能、端到端延迟的工程论证 | 未执行 |
+| SERVO-642 | launch_servo启用门、Servo输出控制器接线及故障时闭锁/暂停行为 | 未执行 |
+| SERVO-643 | SRDF自碰撞、场景障碍、场景陈旧/丢失及真实停止行为的CS9/HIL/实机验收 | 未执行 |
+
+### 本节来源记录（#2112–#2122）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2112 | [staubli_servo.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/staubli_servo.yaml) | Servo碰撞检查周期、阈值、场景主从、启动与输出Topic配置 |
+| #2113 | [staubli_moveit.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/launch/staubli_moveit.launch.py) | MoveGroup/Servo/RViz节点、PSM配置和launch_servo条件 |
+| #2114 | [launch_moveit.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_moveit.launch.py) | bringup传递launch_servo参数及默认值 |
+| #2115 | [staubli_macro.srdf.xacro](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/srdf/staubli_macro.srdf.xacro) | arm group和硬编码disable_collisions矩阵 |
+| #2116 | [staubli.srdf.xacro](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/srdf/staubli.srdf.xacro) | SRDF模板加载模型参数及调用碰撞矩阵宏 |
+| #2117 | [test_default_srdf.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/test/test_default_srdf.py) | 现有测试实际仅展开URDF并执行check_urdf |
+| #2118 | [staubli_moveit_config/CMakeLists.txt](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/CMakeLists.txt) | MoveIt配置包测试注册范围 |
+| #2119 | [TX2-60L meshes.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/meshes.yaml) | 各连杆visual/collision mesh映射 |
+| #2120 | [MoveIt URDF/SRDF Tutorial — Self-Collisions](https://moveit.picknik.ai/main/doc/examples/urdf_srdf/urdf_srdf_tutorial.html) | 自碰撞矩阵随机采样生成机制和采样密度影响 |
+| #2121 | [MoveIt Planning Scene Monitor](https://moveit.picknik.ai/main/doc/concepts/planning_scene_monitor.html) | Planning Scene状态、世界几何、传感器和Octomap输入 |
+| #2122 | [MoveIt Realtime Servo Tutorial](https://moveit.picknik.ai/main/doc/examples/realtime_servo/realtime_servo_tutorial.html) | Servo碰撞检查和速度缩放功能边界 |
+
+**验证边界：** 已完成固定上游提交的公开源码/配置/测试树静态审查，并参考MoveIt官方文档解释SRDF自碰撞矩阵和Planning Scene/Servo功能。官方在线文档当前为main/Rolling文档，未替代目标部署版本的Jazzy包级核验。没有运行MoveIt、Servo、Xacro、CS9/SRS、HIL或实机碰撞/停止测试；SERVO-632–SERVO-643全部未执行。
