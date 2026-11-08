@@ -1122,7 +1122,7 @@
 
 | 任务 | 验收对象 | 状态 |
 |---|---|---|
-| SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 未执行 |
+| SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 已完成（commit、父版本README和diff三方核验） |
 | SERVO-705 | 将Bloom发布日志与rosdistro/distribution仓库中Jazzy moveit release tag/version记录对应，保存PR及merge commit | 未执行 |
 | SERVO-706 | 核对MoveIt上游2.12.4源代码tag与release仓库track配置、Bloom生成tag/源包版本之间的映射 | 未执行 |
 | SERVO-707 | 追踪ROS build-farm对应Jazzy/Noble amd64与arm64构建任务、job URL、source revision及二进制构建修订 | 未执行 |
@@ -1154,7 +1154,7 @@
 | SERVO-706 | 核对MoveIt上游2.12.4源代码tag与release仓库track配置、Bloom生成tag/源包版本之间的映射 | 已完成（静态track配置/版本映射；未验证Bloom执行时快照与tag peeled SHA） |
 | SERVO-707 | 追踪ROS build-farm对应Jazzy/Noble amd64与arm64构建任务、job URL、source revision及二进制构建修订 | 未执行 |
 | SERVO-708 | 将release README、Bloom输入、rosdistro merge、build-farm任务和APT二进制包组成可审计的供应链证据图；无法对应的边明确标记缺失 | 未执行 |
-| SERVO-709 | 在moveit2-release中解析release/jazzy下MoveIt及moveit_servo的实际tag对象、tag类型、peeled commit与创建时间 | 未执行 |
+| SERVO-709 | 在moveit2-release中解析release/jazzy下MoveIt及moveit_servo的实际tag对象、tag类型、peeled commit与创建时间 | 已完成（Git refs直接指向commit，属于轻量tag；已解析commit SHA和时间） |
 | SERVO-710 | 获取2025-12-05 Bloom执行时上游moveit2源码revision/归档校验值，并与2.12.4标签对象及rosdistro PR内容交叉核验 | 未执行 |
 | SERVO-711 | 获取对应Jazzy/Noble amd64与arm64 ROS Build Farm job记录，验证构建状态、源码revision、构建时间和二进制工件对应关系 | 未执行 |
 
@@ -1163,3 +1163,32 @@
 - `ros/rosdistro#48887`：https://github.com/ros/rosdistro/pull/48887，2025-12-06合并。
 - rosdistro合并提交：`91a0881369007a49a1df1cd8702183265bd3ac06`。
 - Bloom发布日志：`ros2-gbp/moveit2-release/README.md` 中 `moveit (jazzy) - 2.12.4-1` 条目，发布时间2025-12-05。
+
+### Stäubli专项审查新增记录（§9.3.110，README首次引入提交与Jazzy release tag对象核验）
+
+本轮完成SERVO-704，并继续推进SERVO-709；同时从Debian生成分支取得MoveIt Servo包级Bloom/Git-buildpackage元数据：
+
+- 通过GitHub REST提交历史接口读取 `ros2-gbp/moveit2-release` 的 `README.md` 全部74条文件历史记录（当前可返回的完整历史页覆盖2020-12-07至2026-09-16）。在2025-12-05记录中定位到首次引入Jazzy条目的提交 `458a522d267a5bf75d324030a90ebe85154aa444`，提交时间2025-12-05 20:54:12 UTC，父提交为 `f1eff8fa0ccc288de2d334b796ffb7dbb3e15b89`。该提交diff在README顶部新增 `moveit (jazzy) - 2.12.4-1` 区块，Bloom命令记录时间为20:54:11 UTC，列出41个release package并包含 `moveit_servo`，同时记录upstream/release repository、rosdistro previous version 2.12.3-1、old version 2.12.2-1、new version 2.12.4-1及Bloom 0.13.0等工具版本。
+- 对父提交版本读取README，确认其不包含 `moveit (jazzy) - 2.12.4-1` 条目；与提交diff及时间元数据交叉核对，故SERVO-704完成。该README提交的GitHub verification为 `verified=false / unsigned`，不能将其描述为已签名或身份认证提交。
+- 通过Git refs API直接读取两个Jazzy release tag：`refs/tags/release/jazzy/moveit_servo/2.12.4-1` 指向对象SHA `517bafc0d687bd0863fb82ca53fdf792ecd3fc28`，对象类型为 `commit`；`refs/tags/release/jazzy/moveit/2.12.4-1` 指向 `3e353f0257928fe59d133a031395dfeb0fd3bc0d`，对象类型同为 `commit`。Git refs直接指向commit，故这是轻量tag，不存在可供核验的annotated-tag对象/签名。MoveIt Servo release tag commit时间为2025-12-05 20:43:21 UTC，提交说明 `Trimmed the branch to only the moveit_ros/moveit_servo sub directory`；MoveIt package release tag commit时间为20:40:42 UTC，提交说明为trimmed moveit sub directory。
+- MoveIt Servo release tag解析后的package根目录 `package.xml`、`CMakeLists.txt`、`src/servo.cpp`、`config/servo_parameters.yaml` 的Git blob SHA分别为 `0f00c9ec3b85b0322b96124cd714cf9d280473fb`、`6ec080d195798ba22e319def3da08c2e36a7d54f`、`22917e7bb59c9d060c9552bea92e050851955818`、`b16fc6bf0c31fea680529b797c9101827ac6024f`；与MoveIt上游仓库 `moveit/moveit2` 的 `2.12.4` tag下相应路径（`moveit_ros/moveit_servo/...`）逐文件SHA完全一致。由此证明该release tag包含的Servo关键文件与上游2.12.4源码tag对应文件逐文件一致；但抽样文件一致不能替代完整目录tree递归比对或Bloom输入归档SHA验证。
+- 上游 `moveit/moveit2` 的 `2.12.4` tag解析到commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`（2025-12-05 20:37:16 UTC）；MoveIt Servo release轻量tag解析commit在20:43:21 UTC生成。两个commit SHA不同是Bloom生成的子目录裁剪提交所致，不应把裁剪commit SHA误当成上游源码commit SHA。
+- release仓库分支 `debian/jazzy/noble/moveit_servo` 当前指向生成Debian文件的commit `04da341a35a97633b11a95ac1600b1995bcbacc3`。该分支 `debian/gbp.conf`（blob `6cb989121b7dffb6295ef3632449059daadeee2d`）明确配置 `upstream-tag=release/jazzy/moveit_servo/2.12.4-1`、`upstream-tree=tag`；`debian/changelog`（blob `9f8356f7fa8fcc077349b5a65f923c8a5a6d33b6`）记录包版本 `2.12.4-1noble`，条目日期2025-12-04，并注明Servo class_loader warning修复。`debian/control`（blob `18376b30cd01762eeb8902dd1f9ec885f332fe62`）还列出二进制包构建/运行依赖。该分支元数据把Noble Debian packaging与release tag明确连接起来，但分支当前HEAD不等于2025-12-05 Build Farm成功构建记录，也不能单凭changelog证明实际上传的deb字节与该分支构建产物一致。
+- 证据状态：SERVO-704已完成；SERVO-709已完成（release refs解析、轻量tag类型、commit SHA/时间已核验）。SERVO-710仍未完成：当前已取得上游tag commit、release tag commit、package级Git blob一致性和Debian `gbp.conf`映射，但未取得Bloom执行日志中不可变的输入revision/完整源归档SHA，也未完成package目录完整tree等价验证。SERVO-707/708/711仍未完成。APT签名、Packages完整stanza、deb SHA256/control、目标系统apt候选及安装运行仍未验证；未修改ICube上游。
+
+### Stäubli专项审查新增验收任务（§9.3.110）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 已完成（commit、父版本README和diff三方核验） |
+| SERVO-709 | 解析MoveIt与moveit_servo的Jazzy release tag ref、对象类型、peeled commit和创建时间 | 已完成（轻量tag，ref直接指向commit；annotated tag签名不适用） |
+| SERVO-710 | 取得Bloom执行时上游源码不可变revision/归档校验值，并完成release tag包目录与上游2.12.4源码包目录的完整tree比对 | 未执行 |
+| SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 未执行 |
+| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 未执行 |
+| SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
+
+本节来源：
+- README首次引入提交：`https://github.com/ros2-gbp/moveit2-release/commit/458a522d267a5bf75d324030a90ebe85154aa444`；父提交 `f1eff8fa0ccc288de2d334b796ffb7dbb3e15b89`。
+- Release refs：`refs/tags/release/jazzy/moveit_servo/2.12.4-1` → `517bafc0d687bd0863fb82ca53fdf792ecd3fc28`；`refs/tags/release/jazzy/moveit/2.12.4-1` → `3e353f0257928fe59d133a031395dfeb0fd3bc0d`。
+- 上游MoveIt tag：`moveit/moveit2@2.12.4` → `1ade0e9dcf50dbbbc3a984b995c786cf12736235`。
+- Noble Debian packaging branch：`debian/jazzy/noble/moveit_servo`，HEAD `04da341a35a97633b11a95ac1600b1995bcbacc3`。
