@@ -4405,3 +4405,69 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1908 | [updateJointVelocityControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx) | 速度控制安全限制TODO和未实现状态 |
 
 **验证边界：** 本节仅为固定提交静态源码/配置审查。未执行Xacro展开、URDF解析、MoveIt规划、参数辨识、控制器限值读取、零位/方向校准、VAL3编译、低速轨迹或实机测试。重复动力学参数缺少来源，不等于已经证明其数值错误，但在获得证据前不得用于真实动力学/安全结论。SERVO-353–SERVO-362全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.73 ROS 2轨迹规划/插补、4 ms控制循环与VAL3 movejSync时序一致性（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节审查ros2_control 250 Hz更新、joint_trajectory_controller参数、HardwareInterface的周期/命令写入、UDP协议字段、VAL3 4 ms同步控制任务、readData接收窗口和movejSync刷新状态。结论：上游将ROS控制器更新率与VAL3任务周期都配置为250 Hz/4 ms，但两者只是各自配置周期相同；仓库没有端到端时钟同步、轨迹点deadline、发送/执行ACK或轨迹跟随误差闭环证据。VAL3控制循环每轮发送状态、接收命令、调用运动更新；命令协议仅携带控制周期和六轴目标值，没有轨迹点时间戳/轨迹ID/点序号/执行时间。movejSync刷新超时状态未形成明确错误处理，陈旧命令分支仍有TODO。故不能认定ROS轨迹时间参数被控制器严格执行，也不能认定4 ms端到端实时性已验证。
+
+### 静态源码事实
+
+1. `staubli_bringup/config/controllers.yaml`将controller_manager update_rate设为250 Hz；VAL3 `start.pgx`设置`l_nCtrlPeriod=0.004`并通过`taskCreateSync "controlTask"`创建同步任务。二者均为4 ms名义周期，但ROS主机与CS9控制器各自调度，代码未提供跨主机时钟同步、周期相位锁定或端到端deadline保证。
+2. HardwareInterface::write将ros2_control传入的period.seconds()乘1000，写入RobotCommandMessage.controller_period（毫秒）。VAL3 decodeRobotCommandMsg将其反序列化为RobotCommand.nRemoteCtrlPeriod；RobotCommand数据结构也保留该字段。但在固定提交中，controlTask、updateJointPositionControl及相关运动控制程序未读取该字段用于插补步长、速度/加速度参数或超时判断。故该字段目前是传输元数据，不是已证实的执行周期控制输入。
+3. RobotCommand协议的运动负载是motion command type加六个float32目标值，未携带ROS JointTrajectoryPoint的time_from_start、轨迹ID、点索引、目标执行时间、显式插补段参数或每点速度/加速度/jerk。轨迹时间语义主要由ROS joint_trajectory_controller在主机侧生成周期目标；VAL3侧收到的是周期目标流，而不是原始带时间戳轨迹。
+4. controllers.yaml将joint_trajectory_controller配置为position command interface，state interfaces为position/velocity；action_monitor_rate=20 Hz；allow_nonzero_velocity_at_trajectory_end=true；allow_partial_joints_goal=false；interpolate_from_desired_state=true；stopped_velocity_tolerance=0.01；goal_time=0.0。配置没有展示目标轨迹终点必须静止的约束，且允许终点非零速度。该设置可能适用于连续轨迹衔接，但必须明确上层应用是否要求终点停稳；若要求停稳，应显式配置并验证终点速度/停止判定。action_monitor_rate是动作监控频率，不是硬件伺服周期。
+5. MoveIt控制器映射使用FollowJointTrajectory action，控制器名joint_trajectory_controller，覆盖joint_1至joint_6；launch默认不启动轨迹控制器，只有start_controller指定后才激活。映射文件证明接口配置，不证明真实action goal、取消、路径容差、终点容差或多段轨迹在实机成功。
+6. VAL3 controlTask每轮顺序为：更新并发送RobotState、读取命令、计算序号延迟、检查模式、调用updateJointPositionControl等运动更新。状态消息在本轮命令接收和运动更新前发出，因此状态帧不能证明本轮命令已经被控制器接受或应用；反馈存在至少一个控制循环的流水线时序差，实际延迟还取决于网络和任务调度。
+7. VAL3 readData每周期最多调用readDataOnce两次；readDataOnce每次调用sioGet读取一条完整消息。没有持续排空队列至最新命令的循环，也没有基于命令时间戳丢弃队列中陈旧目标的机制。高发送速率/队列积压时，控制器可能按顺序消费旧目标，实际运动目标相对ROS当前期望状态滞后。
+8. controlTask按序号差进行粗粒度延迟监测：机器人运动时sequence delay大于5个周期进入错误/STOP；静止时大于25周期进入错误/STOP。它不是轨迹点deadline、墙钟延迟或位置跟随误差阈值；sequence仅反映消息序号相对控制循环的差，无法单独量化跨主机真实时间。
+9. updateJointPositionControl每轮将六个目标赋值给jointRx并调用`$movejSync(l_jJointPositionCmd)`。movejSyncState=1表示上一条命令未及时刷新，但相应警告被注释；状态2表示运动停止导致命令锁定，相关错误置位代码也被注释。仅状态−2会明确调用stopJointPositionControl并报错。未发现把movejSync状态与ROS FollowJointTrajectory goal状态、path/goal tolerance或实际关节跟随误差统一关联的闭环。
+10. stopJointPositionControl在movejSyncState不为−1时调用movejSyncEnd；controlTask进入STOP/ERROR分支后调用停止程序、stopMove和resetMotion。但代码没有证据表明ROS action cancel/abort与VAL3停止完成、机器人静止确认、停止时间/距离测量之间存在事务式确认；普通停止命令不等同安全停止功能。
+11. HardwareInterface::read忽略传入time/period，读取最新RobotState；write使用传入period生成命令周期字段。write只检查连接、缓存错误状态、命令NaN等；没有根据period异常变化（过大/过小/跳变）拒绝轨迹目标，也没有显式对位置目标差分计算速度/加速度/jerk并做端到端轨迹跟随误差判定。
+12. 上游单元测试的硬件生命周期测试使用mock robot按4 ms sleep发送状态，调用一次read和一次write；测试没有运行真实joint_trajectory_controller action server，也没有对多点轨迹、非均匀time_from_start、丢包/乱序、控制循环抖动、动作取消、终点容差、跟随误差或movejSync超时做集成测试。该mock测试不是CS9实时性能或实机轨迹验收。
+13. 本轮未运行ROS构建、JTC action测试、VAL3编译/仿真、CS9轨迹执行或实机测量。不能从250 Hz配置推断真实控制周期稳定达到4 ms，也不能推断轨迹跟随精度、最大速度/加速度、停止距离或工业安全性能。
+
+### 风险与整改要求
+
+- 明确轨迹执行架构：ROS 2 JTC负责时间参数化/插补，HardwareInterface按固定周期采样；VAL3负责最新目标的同步刷新。记录每层周期、时钟域、排队策略、最大允许传输延迟和丢帧策略。
+- 明确RobotCommand协议时间语义：如果VAL3确实不使用nRemoteCtrlPeriod，应删除或标记为诊断字段；若需要控制器按该周期执行，必须实现范围校验、单调性/超时校验并测试。增加command ID、轨迹ID、目标时间戳/截止时间和控制器接收/应用/完成ACK。
+- VAL3接收端应持续排空队列并保留最新有效命令，按序号/会话/年龄拒绝旧目标；不得将“读取两次”视为足够的队列管理。
+- 对movejSyncState=1/2制定明确状态机：超时连续次数、最大连续丢帧、是否允许保持上次目标、触发何种停止/错误锁存、如何恢复；将控制器状态和ROS action结果关联。
+- 建立JTC参数策略：确认终点必须静止还是允许连续运动；对allow_nonzero_velocity_at_trajectory_end、goal_time、stopped_velocity_tolerance、path/goal tolerance给出场景级说明与测试。禁止把action_monitor_rate=20Hz误认为250Hz控制反馈。
+- 对period异常、ROS主机过载、UDP延迟/丢包/乱序、控制器任务overrun、状态缓存滞后进行注入测试，记录p50/p95/p99/p99.9/max周期、命令端到端延迟、跟随误差和停止响应。
+- 增加从FollowJointTrajectory action goal到VAL3 movejSync调用再到实测关节状态的端到端追踪，验证非均匀轨迹时间点、连续段、取消/抢占、超时、部分关节目标拒绝、终点非零速度与静止容差。
+- 将mock 4 ms测试与实时系统验证分开报告；在CS9/目标机器人上完成低速、受控区域、风险评估后的轨迹和故障注入验证前，不得声明工业级实时轨迹执行已验收。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-363 | ROS/VAL3周期一致性 | 测量两端实际周期、相位、抖动和跨主机时钟偏差 | 未执行 |
+| SERVO-364 | controller_period语义 | 明确nRemoteCtrlPeriod是否参与控制；未使用则标注/移除，使用则实现并验证 | 未执行 |
+| SERVO-365 | 轨迹协议时间信息 | 增加轨迹ID、点ID、目标时间戳/deadline及接收/应用ACK | 未执行 |
+| SERVO-366 | VAL3 UDP队列管理 | 持续排空队列、按序号/年龄拒绝陈旧目标并验证积压恢复 | 未执行 |
+| SERVO-367 | movejSync状态机 | 明确处理状态1/2、刷新超时、连续丢帧及恢复条件 | 未执行 |
+| SERVO-368 | JTC终点与容差策略 | 验证终点非零速度、goal_time=0、stopped_velocity_tolerance及应用停稳要求 | 未执行 |
+| SERVO-369 | action取消/抢占闭环 | FollowJointTrajectory取消/抢占与VAL3停止、静止反馈、action结果一致 | 未执行 |
+| SERVO-370 | 轨迹跟随误差监测 | 实测期望/反馈位置误差、速度误差及path/goal tolerance处理 | 未执行 |
+| SERVO-371 | 实时故障注入与性能统计 | 注入CPU负载、丢包、延迟、乱序、overrun，统计周期和端到端时延分位数 | 未执行 |
+| SERVO-372 | 端到端轨迹验收 | 在CS9/目标型号完成多段/非均匀时间轨迹、终点和取消实机验收 | 未执行 |
+
+### 本节来源记录（#1909–#1917）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1909 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | controller_manager 250Hz、JTC轨迹/终点参数 |
+| #1910 | [launch_robot_control.launch.py @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_robot_control.launch.py) | 控制器加载、启动与激活流程 |
+| #1911 | [start.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | VAL3 4ms同步任务配置 |
+| #1912 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 状态发布、命令接收、序号延迟和运动更新顺序 |
+| #1913 | [readData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx) | 每周期最多两次UDP读取 |
+| #1914 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync目标刷新与状态处理 |
+| #1915 | [RobotCommand.dtx / decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server) | 控制周期字段及六轴目标数据协议 |
+| #1916 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read/write周期传递、位置目标采样和发送 |
+| #1917 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | mock 4ms状态与单次read/write测试边界 |
+
+**验证边界：** 本节仅为固定提交静态源码/配置审查。未运行ROS构建、JTC action集成测试、VAL3编译/仿真、CS9实时测量或实机轨迹。250Hz/4ms均为配置值，不是测量结果；协议字段存在不代表VAL3实际使用；movejSync状态1/2的处理缺口为源码静态发现。SERVO-363–SERVO-372全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
