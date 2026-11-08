@@ -1046,3 +1046,28 @@ SERVO-720仅完成静态核验。SERVO-721/722/723未执行；未修改ICube上�
 - 固定tag commit：https://github.com/moveit/moveit2/commit/1ade0e9dcf50dbbbc3a984b995c786cf12736235
 - Jazzy后续发布跟踪Issue #3887：https://github.com/moveit/moveit2/issues/3887
 - 关联既有审查：§9.3.98、§9.3.99、§9.3.129。
+
+
+### §9.3.131 Stäubli现场调用链适用性核查与仓库证据边界（2026-11-08）
+
+#### 核查对象与结果
+
+- 重新读取本知识库`main`分支最新树（HEAD核查前为`7691b92edeb200c97feabcba0b9eaa4174b9df38`），对全树路径执行`staubli|icube|moveit|servo`关键词筛查。命中的是三份审计/同步文档；未发现ICube源代码、ROS launch/参数文件、Stäubli MoveIt集成包、部署清单或运行日志。
+- 因此，本仓库只能证明已记录上游MoveIt 2.12.4缺陷，不能证明Stäubli实际部署的MoveIt版本、PlanningSceneMonitor实例数量、`collision_objects_topic`与`planning_scene_world_topic`是否同时非空，也不能证明现场`startWorldGeometryMonitor()`/`stopWorldGeometryMonitor()`的调用次数和生命周期路径。
+- 额外读取MoveIt上游当前`main`分支的`planning_scene_monitor.cpp`：`stopWorldGeometryMonitor()`仍采用`if (collision_object_subscriber_) reset(); else if (planning_scene_world_subscriber_) reset();`，未看到该缺陷在当前上游main中被修复。该观察仅说明当前main文件仍存在该结构，不等于确认Jazzy发布分支或Stäubli实际安装包状态。
+- 对上游issue #3897重新读取元数据及评论接口：issue仍为open，创建于2026-09-29，评论列表为空。未找到该issue对应的已合并修复证据；不以其他无关PR或后续版本讨论替代修复证明。
+
+#### 适用性判断
+
+SERVO-722更新为**部分取证**：已完成知识库仓库范围/证据缺口静态盘点，并确认上游main当前仍保留问题结构；但Stäubli现场调用链与配置未取得，核心触发条件仍未确认。不得将其标记为已完成，也不得推断现场一定触发。
+
+下一步需要Stäubli目标部署的ICube/ROS工作区源码或可审查的提交SHA、launch/YAML参数、MoveIt安装包版本，以及所有PlanningSceneMonitor构造与start/stop调用点。若无法提供源码，应至少取得部署配置导出、topic graph、节点日志和生命周期操作记录。取得证据后逐实例核对两个topic是否同时启用、start/stop是否成对、单次stop后PlanningSceneWorld回调是否仍发生。
+
+SERVO-721目标环境动态复现仍未执行；SERVO-723修复回归仍未执行。未修改ICube或MoveIt上游，未应用补丁。
+
+#### 来源
+
+- 知识库当前main树：https://github.com/rexyll/robot_knowledgebasement/tree/main
+- MoveIt上游当前main源码：https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- 上游issue #3897：https://github.com/moveit/moveit2/issues/3897
+- 固定2.12.4源码：https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
