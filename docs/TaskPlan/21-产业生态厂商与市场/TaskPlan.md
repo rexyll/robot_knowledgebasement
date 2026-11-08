@@ -1034,3 +1034,22 @@
 | SERVO-688 | 下载并校验SERVO-686对应deb的SHA256与包控制元数据，确认包架构、文件清单、servo_node可执行文件路径和运行时依赖 | 未执行 |
 | SERVO-689 | 将APT Packages元数据、rosdistro发行记录、deb构建修订号与moveit2-release仓库版本对应，形成可追溯的软件供应链记录 | 未执行 |
 | SERVO-690 | 对照搜索索引、目录缓存、状态页快照和APT实际索引，记录数据时间戳与来源差异，禁止以搜索摘要替代安装候选证据 | 未执行 |
+
+
+### Stäubli专项审查新增记录（§9.3.105，Noble APT索引目录与架构工件交叉核对）
+
+本轮继续SERVO-686，交叉核对ROS仓库的Noble二进制索引目录和pool文件列表：
+
+- `repo.ros2.org/ubuntu/main/dists/noble/main/binary-amd64/`目录列出 `Packages` 8,262,097 bytes、`Packages.gz` 2,111,788 bytes，目录时间2026-10-06 08:59；arm64目录列出 `Packages` 8,201,091 bytes、`Packages.gz` 2,097,915 bytes，目录时间2026-10-06 09:00。说明Noble两个架构均有对应main仓库二进制包索引文件。
+- `repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/`目录列出对应deb工件：amd64构建文件时间2026-10-06 04:18、大小674,492 bytes；arm64构建文件时间2026-10-06 04:45、大小615,538 bytes。OSUOSL镜像目录给出完整文件名，分别为 `ros-jazzy-moveit-servo_2.12.4-1noble.20261006.040508_amd64.deb` 与 `ros-jazzy-moveit-servo_2.12.4-1noble.20261006.043301_arm64.deb`，并显示约659KB/601KB。
+- 官方包仓库网页能够列出Packages文件，但网页读取器将Packages/Packages.gz识别为二进制内容而拒绝展开；packages.ros.org对应端点读取超时。本轮运行环境也未能直接联网下载deb。因此，未提取具体包条目，未取得完整Version/Architecture/Filename/Size/SHA256/Depends字段，未核验InRelease签名链，也没有执行apt/apt-cache/apt install/dpkg-deb/rosdep命令。
+- 证据边界：目前可交叉确认2026-10-06 Noble amd64与arm64的索引目录及对应deb工件文件存在；这不是签名校验完成、Packages stanza核验完成、APT候选可见或目标环境安装成功。SERVO-686、SERVO-687、SERVO-688、SERVO-690仍未执行，不得标记完成。
+- 固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79` 的 `staubli_moveit_config/package.xml` 缺少 `moveit_servo` 显式运行依赖的静态结论不变；未修改ICube上游。
+
+### Stäubli专项审查新增验收任务（§9.3.105，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-691 | 从Noble amd64/arm64各自的InRelease签名元数据中提取并验证Packages/Packages.gz的SHA256与文件大小，确认索引内容属于已验证的ROS仓库快照 | 未执行 |
+| SERVO-692 | 取得SERVO-686对应的完整APT包记录，分别保存amd64与arm64的Version、Architecture、Filename、Size、SHA256、Depends及索引快照时间 | 未执行 |
+| SERVO-693 | 对APT包记录中的deb下载后执行SHA256校验和 `dpkg-deb -f` 元数据核对，确认控制字段与索引一致，并归档文件清单 | 未执行 |
