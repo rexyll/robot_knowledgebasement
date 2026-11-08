@@ -3488,3 +3488,66 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1809 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | on_init调用connect并传入5000ms timeout |
 | #1810 | [ROS 2 design: Clock and Time](https://github.com/ros2/design/blob/gh-pages/articles/130_ros_time.md) | Steady Time适用于硬件超时；System/ROS time与steady time用途不同 |
 | #1811 | [ICube RobotDriver API/header](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | connect timeout及控制/诊断状态接口定义的交叉核对入口 |
+
+
+## 9.3.59 连接、断开与重连线程生命周期、资源释放及并发竞态
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节为静态源码控制流审查；没有执行并发压力测试、线程消毒器、网络故障注入或CS9实机测试。
+
+### A. 源码事实
+
+1. `RobotDriver::connect()`按控制socket连接、创建控制接口、诊断socket连接、创建诊断subscriber的顺序建立资源。诊断socket连接失败等后续显式错误路径会调用`disconnect()`；但控制socket首次连接失败直接返回，且subscriber构造/线程创建抛出异常的路径没有在connect层统一捕获并回滚。普通的`make_shared`分配失败也不在该函数内转化为受控连接失败。
+2. `RealTimeSocketSubscriber::init_communication()`将捕获裸`this`的lambda注册给socket接收线程。subscriber析构函数直接调用`socket_->stop_receive_thread()`；当前实现依赖析构时同步join，保证正常完成的回调不再访问subscriber后才释放对象。
+3. `UDPSocketImpl::start_receive_thread()`先写入`reception_callback_`，调用`io_service_.reset()`、启动一次`async_receive_from`，再把`receiving_`置true并创建线程执行`io_service_.run()`。线程状态标志为atomic，但`receive_thread_`、`reception_callback_`、Asio socket、接收buffer及endpoint没有共同的状态互斥锁。
+4. `stop_receive_thread()`只调用`io_service_.stop()`、`receive_thread_.join()`，随后把`receiving_`置false；该函数没有显式调用socket.cancel，也没有在停止阶段排空/消费取消完成回调。Boost.Asio文档说明`io_context::stop()`使run尽快返回并放弃未完成操作的分发；这不等同于关闭socket或完成socket级取消。
+5. `disconnect()`先reset控制interface和诊断subscriber（析构间接停止接收线程），然后在socket仍connected时调用disconnect/close，最后reset_data。UDP实现的`disconnect()`若检测到receiving仍为true，会再次调用stop_receive_thread；随后close socket。该路径正常顺序上先join再close，但取消/关闭的完成处理器如何跨下一次`io_service_.reset()`处理，没有显式隔离连接代际。
+6. `handle_data_received(error, bytes_transferred)`在error非零时只记录日志，仍然调用当前`reception_callback_`，并在`is_receiving()`为true时再次提交接收操作。没有对`operation_aborted`、持续性socket错误、零字节或关闭状态建立不同分支。
+7. `RobotDriver`的`control_interface_`、`diagnostics_subscriber_`等shared_ptr成员在connect/disconnect中直接赋值/reset；read/write/is_connected路径也直接读取这些成员。头文件没有为这些成员声明生命周期互斥锁，类中也没有连接状态机/操作代际字段。atomic socket标志不保护同一个shared_ptr成员的并发读写。
+8. `StaubliHardwareInterface`在`on_cleanup()`和析构函数调用disconnect；`on_shutdown()`只在`is_connected()`为true时尝试STOP并disconnect；`on_activate()`仅设置控制模式为STOP。本实现没有显式覆盖`on_deactivate()`。因此代码没有在deactivate回调中明确停止/释放通信资源；是否由上层生命周期顺序先停止控制循环，必须在ros2_control集成层确认，不能从此文件推断。
+9. `RobotDriver::~RobotDriver()`为空函数体，底层socket析构函数会在仍connected时调用disconnect；硬件接口析构函数另行调用RobotDriver::disconnect。顺序析构时多次清理大体依赖各层的状态判断实现幂等；并发调用disconnect则没有同等保证。
+
+### B. 风险分析（静态推导，尚非已复现故障）
+
+- **高优先级：控制循环与disconnect并发访问成员指针。** 若read/write/is_connected与disconnect/connect并发，可能对同一shared_ptr成员发生无同步读写，形成C++数据竞争；即使底层socket的connected/receiving是atomic，也不能保证接口对象不会在调用期间被reset和析构。风险成立的前提是调用方没有在生命周期外部串行化这些API；当前RobotDriver本身没有建立该契约或防护。
+- **高优先级：并发stop/disconnect/start不具备完整串行化。** atomic布尔值只保护标志，不保护对同一个std::thread执行多次join、callback替换、io_service reset/stop及socket close/open的复合操作。两个线程同时stop，或stop与start/connect交叠，可能造成线程对象并发操作、状态错配或未定义行为。
+- **中高优先级：socket错误处理可能形成重试风暴。** 持续性接收错误时，handler仍调用业务callback并重新提交async_receive_from；如果错误立即完成且receiving仍为true，可能反复触发错误回调并消耗CPU/日志资源。是否出现紧密循环取决于具体错误和Asio平台行为，需故障注入测量。
+- **中高优先级：停止/关闭/重连之间缺少连接代际隔离。** stop只停止io_context事件循环，disconnect随后close socket，下一次start会reset同一io_service并覆盖callback。旧操作的取消完成、重新启动后处理器的行为需要在目标Boost版本上验证；当前代码没有generation token或显式取消完成屏障，不能证明旧代回调绝不会污染新代接收状态。
+- **中优先级：异常安全回滚不完整。** subscriber构造或线程创建异常可能在诊断socket已连接后逃出connect；thread创建异常还可能发生在receiving置true之后。需以RAII和统一rollback保证所有部分初始化路径都回到可重试状态。
+- **中优先级：deactivate资源策略不明确。** 当前硬件接口没有显式on_deactivate；若产品期望deactivate即停收/断链，现实现缺少对应逻辑。若设计选择保持链路，仅停止控制命令，则必须以需求明确，并验证状态数据不会在inactive阶段被错误使用。
+- **安全边界：** 上述分析不证明机器人已发生意外运动、STOP失效或真实现场线程崩溃；也不证明ROS 2生命周期管理器必然与read/write并发。它指出类内缺少并发安全契约，需由调用方串行化证据或代码内同步机制证明。
+
+### C. 整改建议
+
+1. 为RobotDriver建立单一生命周期状态机（Disconnected/Connecting/Connected/Disconnecting/Failed），用互斥锁或专用strand串行化connect/disconnect及接口对象替换；不要只依赖atomic标志。
+2. 读写路径使用受控的对象生命周期策略：在锁内取得稳定的局部shared_ptr快照，或让所有操作通过同一strand/生命周期门闩；disconnect先禁止新操作，再等待在途操作退出，最后销毁接口和socket。
+3. 将UDP接收线程的start/stop/close封装为可重复且线程安全的状态转换；禁止两个线程同时join同一个thread对象；对self-join、未join的joinable线程、线程创建失败分别处理。
+4. 停止时先禁止重新arm，再cancel/close异步socket操作，等待取消完成处理器退出并确认没有未完成操作；重连时创建新io_context/socket或使用generation token隔离旧回调。明确处理`operation_aborted`，禁止错误回调继续重启接收。
+5. 接收handler遇到非零error时按错误类别处理；只有成功接收且长度/来源/协议有效时才调用业务回调。对可恢复错误采用有界退避、计数和状态转移，禁止无界立即重试。
+6. connect使用scope guard/RAII分阶段登记资源，所有失败和异常统一rollback；线程启动成功后再发布Connected状态，且失败路径保证socket、subscriber、thread全部回到可重试基线。
+7. 明确on_deactivate、on_cleanup、on_shutdown、on_error各自的资源语义；deactivate是否断链由产品需求决定，但必须先停命令生产者、等待控制循环退出，再释放或保留接收链路。
+8. 对外提供连接代际ID、线程退出状态、未完成异步操作数、最后错误码、连接/断开耗时和资源计数，支持长期重连观测。
+
+### D. 新增验收任务（SERVO-223–SERVO-232）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-223 | read/write与disconnect并发 | ThreadSanitizer无shared_ptr/对象生命周期数据竞争；断开后无悬空访问 | TSAN压力测试 | 未执行 |
+| SERVO-224 | connect/disconnect并发串行化 | 多线程重复调用只产生合法状态迁移，无重复join/双重close | 并发单测 | 未执行 |
+| SERVO-225 | stop/cancel/close顺序 | 所有异步操作均完成取消并退出，join返回后无旧handler访问旧subscriber | Asio handler跟踪/单测 | 未执行 |
+| SERVO-226 | 错误回调停止重试 | operation_aborted不调用业务回调；持续错误触发有界退避/故障状态 | 网络故障注入 | 未执行 |
+| SERVO-227 | stop与start交叠 | 同一thread对象不被并发join/重建；状态机无非法跃迁 | TSAN/并发单测 | 未执行 |
+| SERVO-228 | 断开后立即重连 | 多轮重连无旧代回调、双重接收、端口占用或残留线程 | 1000轮循环测试 | 未执行 |
+| SERVO-229 | 连接中途异常回滚 | socket已连接后subscriber/线程构造失败，所有资源回到Disconnected | 故障注入/异常单测 | 未执行 |
+| SERVO-230 | deactivate语义 | deactivate后命令生产者停止；资源保留/释放行为与需求一致且可重复activate | ros2_control生命周期集成测试 | 未执行 |
+| SERVO-231 | shutdown/error清理 | STOP发送失败、socket断开、重复shutdown等路径有明确结果和资源状态 | 生命周期故障注入 | 未执行 |
+| SERVO-232 | 长期连接抖动恢复 | 断网/恢复、CS9重启、ROS节点重启后无资源泄漏、线程泄漏或旧命令复用 | HIL/长稳测试 | 未执行 |
+
+### E. 本节来源记录（#1812–#1816）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1812 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect/disconnect资源顺序、shared_ptr reset、空析构函数 |
+| #1813 | [ICube real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 裸this回调、subscriber析构stop、接收回调入口 |
+| #1814 | [ICube udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | io_service stop/reset、thread join、socket close、错误回调重arm |
+| #1815 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | on_activate/on_cleanup/on_shutdown/on_error及未显式覆盖on_deactivate |
+| #1816 | [Boost.Asio io_context reference](https://www.boost.org/doc/libs/1_84_0/doc/html/boost_asio/reference/io_context.html) | stop使run退出并放弃未完成操作的分发；stop不等同于socket close/cancel |
