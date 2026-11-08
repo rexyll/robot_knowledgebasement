@@ -890,3 +890,23 @@
 | SERVO-617 | action失败、STOP、静止确认与安全状态闭环 | 未执行 |
 | SERVO-618 | 故障分类、恢复状态机与人工重新授权 | 未执行 |
 | SERVO-619 | 机器人型号/负载/工具工况的误差阈值工程论证 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli控制权管理、控制模式切换与多控制源互斥审查 | 固定ICube bd658e2静态审查发现HardwareInterface模式解析按start_interfaces首个匹配项选模式，未验证stop_interfaces、混合position/velocity及六轴成组启停；acceleration接口可能因遍历顺序被解析为INVALID/STOP；perform忽略传入接口列表，仅消费缓存pending_mode，未准备时回退STOP，切换后实际命令要等后续write发送；进入position模式时HOLD仅告警且不检查状态新鲜度。VAL3 controlTask要求非STOP模式切换先经STOP、机器人仍运动时拒绝从STOP启动，但没有控制源身份/租约/授权；仓库仅含ROS2 server程序，不能据此排除现场PLC/其他VAL3应用。新增§9.3.97、SERVO-620–SERVO-631、来源#2103–#2111。全部未执行；未运行controller_manager切换集成、VAL3/CS9/SRS、PLC互斥、HIL或实机交接测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.97，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-620 | start/stop接口集合与当前模式一致性校验 | 未执行 |
+| SERVO-621 | position/velocity混合接口拒绝及顺序无关性 | 未执行 |
+| SERVO-622 | acceleration limiter接口过滤与解析顺序 | 未执行 |
+| SERVO-623 | 六轴接口完整成组启停与部分关节请求 | 未执行 |
+| SERVO-624 | prepare/perform参数一致性与异常调用序列 | 未执行 |
+| SERVO-625 | perform提交模式后write发送失败及回滚 | 未执行 |
+| SERVO-626 | STOP命令送达、VAL3模式确认与静止确认 | 未执行 |
+| SERVO-627 | HOLD/反馈陈旧/运动中进入position模式的准入 | 未执行 |
+| SERVO-628 | 多ROS控制器跨position/velocity资源互斥 | 未执行 |
+| SERVO-629 | 现场PLC/uniVAL plc/uniVAL drive控制入口盘点 | 未执行 |
+| SERVO-630 | ROS与PLC控制权交接、租约及失联闭锁 | 未执行 |
+| SERVO-631 | 多控制源并发、切换失败与恢复的CS9/HIL/实机验收 | 未执行 |
