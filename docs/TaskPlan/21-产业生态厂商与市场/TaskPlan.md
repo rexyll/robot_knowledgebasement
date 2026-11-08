@@ -1607,8 +1607,8 @@ OccupancyMapMonitor的start/stop逐个委托插件，析构会再次stop；插�
 |---|---|---|
 | U11 | 旧void与新bool MiddlewareHandle派生类、下游Mock/fixture源码编译迁移 | 已确认公共接口源兼容性变化；作者维护的2.12.4旧void fixture已找到；独立C++17最小探针确认旧override编译报conflicting return type；完整fixture迁移构建未执行 |
 | U12 | 旧/新头文件与二进制库ABI兼容性 | 未执行；ABI状态未知 |
-| U13 | updater在initialize中部分创建subscription/timer/callback后返回false | 未执行 |
-| U14 | initialize成功后setParams返回false的资源回收 | 未执行 |
+| U13 | updater在initialize中部分创建subscription/timer/callback后返回false | weak_ptr/析构计数单测设计完成；ROS资源/回调测试未执行 |
+| U14 | initialize成功后setParams返回false的资源回收 | weak_ptr/析构计数单测设计完成；ROS资源/回调测试未执行 |
 | U15 | 初始化失败、参数配置失败与成功插件混合加载 | 未执行 |
 | 迁移适用性 | 自定义MiddlewareHandle消费者、ROS Rolling与Jazzy分支边界 | public API源码破坏性变更已确认；下游清单与目标分支迁移范围未核实 |
 
@@ -1616,7 +1616,7 @@ PR #3909把public纯虚接口 `OccupancyMapMonitor::MiddlewareHandle::initialize
 
 失败回收方面，PR在initialize返回false时continue跳过setParams/addUpdater，局部updater句柄随循环迭代结束而销毁，但没有统一stop/rollback契约。第三方插件若在initialize中创建资源后返回false，或initialize成功而setParams失败，是否安全依赖插件自身析构和资源所有权。PR新增fake测试没有创建订阅、定时器或在途回调，不能证明这些路径已清理。此处登记为测试覆盖/契约缺口，不认定为已证实泄漏。
 
-SERVO-727静态审查已完成，U11-U15未执行；SERVO-726动态插件生命周期验证也未执行。详见专项追加件§9.3.141。
+SERVO-727静态审查已完成；U11完整fixture迁移构建与U12 ABI未执行；U13/U14 weak_ptr/析构计数单测设计完成但尚未执行，真实ROS资源/回调静默测试未执行；U15混合插件测试未执行。SERVO-726动态插件生命周期验证也未执行。详见专项追加件§9.3.141–§9.3.144。
 
 
 #### SERVO-727补充证据（§9.3.142）
