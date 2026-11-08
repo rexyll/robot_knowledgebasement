@@ -1188,7 +1188,7 @@
 | SERVO-716 | 取得amd64/arm64具体Jenkins job XML/console log与构建工件关联，核验单次构建的实际参数及日志 | 部分取证（实际部署配置已确认两架构run_package_tests=false；具体job实例和console log仍缺） |
 | SERVO-717 | 将实际部署的Jazzy default/unv8配置、release_job.py、binarydeb_job.py与MoveIt Servo 2.12.4的BUILD_TESTING测试目标形成可追溯静态证据链 | 已完成（静态配置/代码链核验；不替代job实例日志或其它CI结果） |
 | SERVO-718 | 核对MoveIt上游2.12.4 GitHub Actions/industrial_ci默认测试路径，并关联Servo三个BUILD_TESTING测试入口及相同源码SHA的workflow运行 | 已完成（workflow、runner默认行为、test registration和同SHA run静态/元数据证据） |
-| SERVO-719 | 取得同SHA上游CI run的三个Servo测试入口独立colcon test结果、XML/console log | 部分取证（run及两个job均success，逐测试报告/日志未取得） |
+| SERVO-719 | 取得同SHA上游CI run的三个Servo测试入口独立colcon test结果、XML/console log | 部分取证（已梳理同SHA 5个workflow run及job结论；两个CI job成功，但日志下载HTTP 410、steps/artifacts不可用，逐测试结果仍缺） |
 
 本节来源：
 - README首次引入提交：`https://github.com/ros2-gbp/moveit2-release/commit/458a522d267a5bf75d324030a90ebe85154aa444`；父提交 `f1eff8fa0ccc288de2d334b796ffb7dbb3e15b89`。
@@ -1420,3 +1420,21 @@
 
 
 - 本轮更新`knowledge/ecosystem/主要厂商.md`后，资产清单对应行已刷新为Blob SHA `e613a2320a10a3e5224f2a5334962c8e988fa593`、UTF-8大小522,813 bytes；仅刷新该单一资产的Git元数据，不代表claim-level审查完成或整库清单重算。
+
+
+### Stäubli专项审查新增记录（§9.3.128）
+
+- 针对MoveIt上游commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`检索全部Actions运行：CI run `19975338753`整体success且两个industrial_ci矩阵job success；`19975338722`整体failure，但`ci (jazzy)`、`source (jazzy)` job success、`release (jazzy)` job failure；tutorial-source、Format、Dockerfile lint三个run分别success。不得混淆workflow整体与单个job结论。
+- 下载`19975338753`两个CI job日志（57290019178/57290019180）均HTTP 410，steps接口空，artifacts列表空。继续下载source/tutoral-source/ci/release四个同SHA job日志（57290439384/57290019177/57290019108/57290019125）也均HTTP 410，steps空。
+- 410仅表示当前接口无法取回日志；不证明测试没有执行或失败。SERVO-719仍部分取证：同SHA workflow/job元数据已取得，Servo三个测试入口独立colcon结果/XML/console log仍缺。SERVO-718已完成；SERVO-716部分取证；SERVO-710/714未完成、SERVO-713部分取证。21-02继续进行中，Stäubli工程级验收未通过。
+- 资产清单行将在厂商档案新增§128.79后单独刷新Git Blob SHA和UTF-8大小；仅元数据刷新，不代表claim-level复核或全库重算。
+
+来源：
+- https://github.com/moveit/moveit2/actions/runs/19975338753
+- https://github.com/moveit/moveit2/actions/runs/19975338722
+- https://github.com/moveit/moveit2/actions/runs/19975338758
+- https://github.com/moveit/moveit2/actions/runs/19975338729
+- https://github.com/moveit/moveit2/actions/runs/19975338846
+- 专项追加件§9.3.128。
+
+- §9.3.128补充：同SHA共检索到5个Actions run；release job失败与CI矩阵成功分别记录，不互相推断。两个CI job和source/tutorial/ci/release四个相关job的日志下载均HTTP 410，steps接口为空、Run artifacts列表为空。SERVO-719维持部分取证，不将workflow/job整体结论写成三个Servo测试逐项通过。
