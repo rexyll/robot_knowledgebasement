@@ -1462,7 +1462,7 @@
 |---|---|---|
 | SERVO-720 | 固定MoveIt 2.12.4源码并核对上游issue #3897复现描述与stop/start实现 | 已完成（issue元数据/复现描述与固定源码if/else if结构静态对应；本项目未实测） |
 | SERVO-721 | 目标Ubuntu 24.04/Jazzy二进制环境单次stop、double-stop、restart/stop重复调用测试，记录topic graph与回调计数 | 未执行 |
-| SERVO-722 | 核对Stäubli实际启动参数、PlanningSceneMonitor实例及所有start/stop调用点，确认触发条件是否成立 | 未执行 |
+| SERVO-722 | 核对Stäubli实际启动参数、PlanningSceneMonitor实例及所有start/stop调用点，确认触发条件是否成立 | 部分取证（知识库树未包含ICube源码/部署参数；现场调用链未确认） |
 | SERVO-723 | 对修复版本或经审查补丁增加双订阅停止、重复stop、restart、空topic与octomap停止回归测试 | 未执行 |
 
 本轮证据与边界：上游`moveit/moveit2#3897`（2026-09-29创建，open）报告ROS Jazzy/Ubuntu 24.04/MoveIt binary 2.12.4/FastRTPS下同时启用CollisionObject与PlanningSceneWorld后，一次stop只释放前者；issue作者报告单次stop 3/3复现、double-stop 3/3通过。固定MoveIt 2.12.4源码commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`的`startWorldGeometryMonitor()`默认创建两个subscriber，`stopWorldGeometryMonitor()`使用if/else if依次reset，静态代码与报告一致。本项目未独立复现，尚未确认Stäubli现场调用链满足触发条件；不推断必然碰撞或CS9安全失效。未修改ICube/MoveIt上游，未应用补丁。详见专项追加件§9.3.130与厂商档案§128.81。
@@ -1494,3 +1494,11 @@ SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启�
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - 专项追加件§9.3.131。
+
+
+### Stäubli专项审查新增记录（§9.3.131，SERVO-722现场适用性证据盘点）
+
+- 对本仓库main完整Git树筛查`staubli|icube|moveit|servo`相关路径，命中项仅为审计/同步文档，未发现ICube源码、集成包、launch/YAML、部署清单或运行日志。不能从本知识库确认现场MoveIt版本、双topic是否同时启用、PlanningSceneMonitor实例及start/stop调用次数。
+- 读取MoveIt上游当前main的`stopWorldGeometryMonitor()`，仍见if/else if依次释放两个subscriber的结构；issue #3897仍open且无评论。当前main状态不能替代Stäubli实际部署版本证据。
+- SERVO-722由未执行更新为部分取证：完成仓库范围与上游main静态盘点，现场触发条件仍未知。下一步需目标部署源码/提交SHA、launch/YAML或部署配置导出、topic graph、节点日志和生命周期操作记录。
+- SERVO-721目标Jazzy动态复现、SERVO-723修复回归仍未执行。未修改ICube/MoveIt上游、未应用补丁。详见专项追加件§9.3.131。
