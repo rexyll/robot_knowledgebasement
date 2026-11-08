@@ -300,3 +300,8 @@ SERVO-718静态测试路径核验已完成；SERVO-719部分取证（同SHA run�
 - https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/tests/source_tests.sh
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
 - 专项追加件§9.3.127。
+
+
+## 25.1 厂商档案资产清单单行元数据刷新
+
+因厂商档案新增§128.78，已将`knowledge/ecosystem/主要厂商.md`资产行刷新为Blob SHA `e613a2320a10a3e5224f2a5334962c8e988fa593`、UTF-8大小522,813 bytes。该操作仅刷新单一资产Git元数据，不代表claim-level审查完成或全库资产清单重算。
