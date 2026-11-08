@@ -130,3 +130,10 @@ README已同步说明：2026-11-08对同一资产行随§128.62–§128.64两轮
 尝试读取Packages/InRelease原文时，网页读取器返回不支持application/octet-stream，故未取得moveit_servo完整Packages stanza、SHA256/Depends，也未验证InRelease签名；没有读取deb control或执行Ubuntu 24.04 APT安装。读取通道错误不等于源文件损坏或签名失败。
 
 本轮新增专项追加件§9.3.114、厂商档案§128.65，并更新审计README。厂商档案修改后资产清单需再次刷新该文件单行Blob SHA/UTF-8大小；这仍只是元数据维护，不是claim-level验收。SERVO-710/714未完成，SERVO-713仍部分取证；00-01/21-02继续进行中。
+
+
+## 12. 厂商资产元数据最终刷新与载体同步（2026-11-08追加）
+
+在§128.65写入后，已将knowledge/ecosystem/主要厂商.md对应资产行再次刷新为Git Blob SHA 03ff74bcb3fd064529137fbd2407e7eeac85ceb8、UTF-8大小505,182 bytes、metadata_reconciled_date=2026-11-08。该动作只更新此单一资产的Git元数据，不代表142项资产的全库元数据重算，也不改变该文档P1 claim-level review未完成状态。
+
+本轮文档同步状态：根TaskPlan v8.87记录§9.3.114/§128.65；专项追加件新增§9.3.114；厂商档案新增§128.65；审计README、00-01与21-02章节日志已同步；资产清单对应行已刷新。SERVO-710/714仍未完成，SERVO-713仍部分取证；没有取得Jenkins直接构建日志、APT签名/完整Packages stanza/deb control/SHA256，也没有执行APT安装、ROS运行、VAL3/CS9/HIL/实机验收。
