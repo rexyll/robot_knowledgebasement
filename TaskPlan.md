@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.04  
+> 版本：v9.05  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.131，厂商档案新增§128.82。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721实验规程已整理但未执行，SERVO-723未执行，新增SERVO-724跟踪上游修复。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.131，厂商档案新增§128.82。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮发现上游PR #3907明确Fixes #3897，但PR open/未合并、Formatting与CI workflow均failure且job明细不可读；Jazzy正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1191,3 +1191,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v9.04 | 00-01/21-02继续Stäubli审查至§9.3.131：核对MoveIt当前main的MoveItCpp::initialize()在PlanningScene配置成功后调用startWorldGeometryMonitor()，而stopWorldGeometryMonitor()仍使用if/else if依次释放subscriber；当前可见PR列表未找到可确认修复#3897的PR。该通用调用路径不是Stäubli现场证据；仓库缺少ICube应用源码、启动launch/YAML、PlanningSceneMonitor实例和stop调用点，SERVO-722维持未执行/阻塞。补充SERVO-721双订阅回调计数、单次stop/double-stop/restart/空topic/octomap测试规程但未执行；新增SERVO-724跟踪上游修复、Jazzy backport及正式发行二进制。新增专项§9.3.131、厂商档案§128.82、同步报告§29、README与第21章验收记录。未修改ICube/MoveIt上游、未应用补丁；未执行VAL3/CS9/SRS/HIL/FAT/SAT/实机验证，Stäubli工程级验收仍未通过，TODO-EXT-001未授权合并。 | MoveIt main source/PR list; issue #3897; 专项追加件§9.3.131 |
 
 | 2026-11-08 | v9.04 | 00-01/21-02继续Stäubli PlanningSceneMonitor缺陷适用性审查至§9.3.131：核查知识库main完整树，未发现ICube源码、Stäubli集成包、launch/YAML部署参数或运行日志；故无法确认现场MoveIt版本、双topic启用状态及start/stop调用链。复核MoveIt上游当前main，stopWorldGeometryMonitor仍使用if/else if依次reset两个subscriber；issue #3897仍open且无评论。SERVO-722维持未执行/阻塞（仅完成外围仓库与上游main静态盘点，现场调用链未取得）；SERVO-721动态复现、SERVO-723修复回归未执行。新增专项§9.3.131、厂商档案§128.82、同步报告§29及README索引；未修改ICube/MoveIt上游，未应用补丁。APT签名/Packages/deb校验和及Jenkins具体日志仍缺；VAL3/CS9/SRS/HIL/FAT/SAT/实机验证未执行，Stäubli工程级验收未通过，TODO-EXT-001仍未授权合并。 | 知识库main Git tree；MoveIt upstream main source；moveit/moveit2#3897；专项追加件§9.3.131 |
+
+
+| 2026-11-08 | v9.05 | 00-01/21-02继续Stäubli审查至§9.3.132：发现MoveIt上游PR #3907明确声明Fixes #3897，diff将stopWorldGeometryMonitor改为一次调用同时reset两个subscriber，并添加topic-list回归测试；PR当前open、未合并、目标main，head SHA 821818f4ffeaa7564459faed2cbddbfb604f9dcb。PR作者自报Ubuntu 24.04/Jazzy测试通过，但其Formatting与CI workflow run均failure，jobs接口无明细且无review approval；不将作者记录当作required CI通过。当前上游main源文件仍保留if/else if，Jazzy正式main deb仍为2.12.4-1，未证明修复进入main/backport/发行。发现PR后更正此前“未找到PR”的阶段性结论。新增专项§9.3.132、厂商档案§128.83、同步报告§30、README索引与本轮任务状态；SERVO-724持续跟踪，SERVO-721/723未执行，SERVO-722现场证据仍缺/阻塞。未修改ICube/MoveIt上游，未应用补丁；未执行VAL3/CS9/SRS/HIL/FAT/SAT/实机验证，Stäubli工程级验收未通过，TODO-EXT-001仍未授权合并。 | moveit/moveit2#3907/#3897/#3887；ROS Jazzy官方状态页与production main pool；专项追加件§9.3.132 |
