@@ -1438,3 +1438,6 @@
 - 专项追加件§9.3.128。
 
 - §9.3.128补充：同SHA共检索到5个Actions run；release job失败与CI矩阵成功分别记录，不互相推断。两个CI job和source/tutorial/ci/release四个相关job的日志下载均HTTP 410，steps接口为空、Run artifacts列表为空。SERVO-719维持部分取证，不将workflow/job整体结论写成三个Servo测试逐项通过。
+
+
+- 厂商档案`knowledge/ecosystem/主要厂商.md`新增§128.79后，资产清单对应行刷新为Blob SHA `b639f21d4f6403dbe1bc791cd85e379071fa91fd`、UTF-8大小524,243 bytes；仅刷新单一资产Git元数据，不代表claim-level审查完成或整库清单重算。
