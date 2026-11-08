@@ -3551,3 +3551,65 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1814 | [ICube udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | io_service stop/reset、thread join、socket close、错误回调重arm |
 | #1815 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | on_activate/on_cleanup/on_shutdown/on_error及未显式覆盖on_deactivate |
 | #1816 | [Boost.Asio io_context reference](https://www.boost.org/doc/libs/1_84_0/doc/html/boost_asio/reference/io_context.html) | stop使run退出并放弃未完成操作的分发；stop不等同于socket close/cancel |
+
+
+## 9.3.60 控制状态与诊断状态的一致性、有效性及时间关联
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节为静态源码审查；未执行双通道抓包、协议仿真、网络延迟/乱序注入或CS9实机验证。
+
+### A. 源码事实
+
+1. `RobotDriver::connect()`同时建立控制与诊断UDP socket，并启动各自subscriber；但首帧等待阶段只调用`read_robot_state()`。诊断读取仍是TODO，`diag_interface_ready`被直接赋值true，因此连接成功条件实际上只证明控制状态读取成功，并不证明诊断通道收到过有效数据。
+2. 连接后的协议版本检查只针对`current_robot_state_.header.protocol_version`。控制器类型CS9检查代码被整段注释；固件版本仅从`current_diagnostic_data_.robot_firmware_version`打印，且没有先调用`read_diagnostic_data()`来填充和验证该缓存，也没有实现VAL3固件版本兼容性检查（保留TODO）。因此日志中的固件字段不能视为已验证的诊断信息，CS9兼容性也没有由当前连接路径证明。
+3. `read_diagnostic_data()`实现了诊断消息类型校验、接收驻留时间检查和丢包计数，但本固定提交中connect等待处的唯一调用被注释；硬件接口的周期性`read()`只调用`read_robot_state()`，`write()`也不读取诊断数据。由此可见，诊断数据读取API存在，但没有接入正常硬件读写周期或连接成功门槛。
+4. 控制和诊断分别使用不同的`RealTimeSocketSubscriber<MessageType>`实例、不同的message buffer、各自的`last_read_sequence_number_`和`first_read_`状态。每个通道各自计算丢包与接收年龄；代码没有跨通道sequence比较、共同采样周期ID、配对时间窗或一致性快照机制。
+5. 两类消息的本机接收时间均在各自subscriber的`update_message()`中独立写入`rclcpp::Clock().now()`；各自`read_message()`独立计算`time_since_received`。这只能表明两路数据在本机的接收驻留时间，不能证明控制与诊断样本来自同一机器人采样周期，也不能直接测得机器人端生成时间或两路网络传输延迟差。
+6. `read_robot_state()`和`read_diagnostic_data()`分别只验证各自消息类型与各自staleness timeout；没有比较两路序列号、关联ID、机器人端时间戳或相互最大允许时间差。两路各自新鲜并不等于两路彼此同步。
+7. `reset_data()`将两个缓存的message_type设为INVALID、sequence_number清零，但没有在可见代码中建立连接代际标识，也没有为两个通道维护一对“已验证首帧”的联合状态。subscriber自己的first_read/last sequence生命周期需要结合每次subscriber重新构造确认；RobotDriver层没有暴露联合代际证据。
+8. 公开的`get_current_message_sequence()`只返回控制状态最后一次有效读取的序列号；硬件接口在发送命令时用该控制序列号填入命令头。诊断序列号没有参与命令授权、状态/诊断关联或控制数据完整性门禁。
+9. 硬件接口周期性read把控制状态中的operation_mode、safety_status、in_error、estop_pressed、brakes_released等字段映射到supervision接口；诊断数据没有相应的周期性状态映射。因此上层看到控制状态可用，并不能推导诊断通道健康。
+
+### B. 风险分析（静态推导，尚非已复现故障）
+
+- **高优先级：连接成功会掩盖诊断通道未验证。** connect把诊断ready硬编码true，后续CS9类型检查又被注释；在控制状态有效但诊断数据缺失/无效时，连接仍可能返回成功。若系统或运维人员将“connected”解释为控制器身份、固件兼容性和诊断健康均已验证，会形成错误健康认知。
+- **高优先级：控制/诊断两路独立新鲜不等于同一时刻状态。** 例如控制状态刚更新而诊断状态仍是此前缓存，或者诊断状态更新而控制状态延迟；两个独立的100ms类驻留时间门槛即使分别通过，也不能证明两者属于同一控制周期。对涉及安全状态、故障原因和运动许可的判断，不能把两路数据无条件拼成原子快照。
+- **中高优先级：诊断链路失效无法通过周期read及时暴露。** 当前硬件周期read/write不调用diagnostic读取API，诊断socket接收线程即使停止、数据过期或诊断报文无效，也没有从这两个周期入口形成持续的诊断健康状态。具体外部监控是否补足此能力，需检查集成部署，不能从当前driver源码推断。
+- **中优先级：连接阶段固件信息可能不是本次连接的新数据。** connect在reset缓存后未读取诊断帧便打印固件版本；当前缓存内容没有通过本次连接的有效性和新鲜度检查。不得把该日志当成固件版本识别/兼容性验收证据。
+- **中优先级：各通道序列号不能直接相互比较。** 两个subscriber独立维护序列统计，代码没有证明协议定义的两个sequence共享计数域、复位点和采样时刻。直接比较数字可能错误地把正常独立计数解释为丢帧或配对成功。
+- **边界：** 目前证据不能断言VAL3端两类报文是否天然同周期产生，也不能断言诊断包中是否有未被当前客户端解析的设备时间戳/采样计数。需要核对VAL3服务端协议定义和抓包；本节只确认ROS2客户端没有实现跨通道关联门禁。
+
+### C. 整改建议
+
+1. 明确诊断能力等级：若诊断属于连接硬门槛，必须等待真实诊断首帧并校验消息类型、控制器类型、固件版本白名单和新鲜度；若诊断允许降级，则显式发布`diagnostics_degraded/unavailable`，不得伪报ready。
+2. 将连接结果拆成`control_connected`、`control_state_valid`、`diagnostics_transport_ready`、`diagnostics_sample_valid`、`controller_identity_verified`、`firmware_compatible`等独立状态；总体状态按产品安全需求明确组合，日志不能把传输层ready混为应用层ready。
+3. 周期性读取诊断数据，并提供独立的诊断健康状态/错误码/最后有效接收时间；诊断缺失时按安全需求决定降级、ERROR或禁止运动，不能悄悄沿用旧缓存。
+4. 若需控制/诊断联合判断，优先在VAL3协议中提供共同的机器人端采样计数/时间戳/连接epoch；两路消息均携带同一关联ID。ROS2端验证ID一致、单调性、最大允许时间差和丢包/重启复位规则。
+5. 若上游协议无法提供共同ID，明确承认只能做“时间窗近似关联”：使用统一steady-clock接收时间，设定最大接收时间差，输出关联质量/不确定度，不得声称原子一致性；安全关键判断不得仅依赖这种近似配对。
+6. 对每一路分别保存最近有效消息、最近接收时间、最近有效序列、数据源/连接代际、错误计数；无效新包不得覆盖最后有效数据，但必须更新健康状态，避免旧值继续被误当作当前值。
+7. 补齐CS9类型与VAL3固件兼容性策略；未知控制器/固件必须明确拒绝或进入受限降级，不能只打印未验证的缓存字段。
+8. 对连接重建清空两个通道的配对状态和有效性历史；新代连接必须重新完成控制首帧与诊断首帧校验，旧代数据不能满足新代就绪。
+
+### D. 新增验收任务（SERVO-233–SERVO-242）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-233 | 诊断首帧真实门槛 | 诊断缺失时连接结果按需求拒绝或明确降级，不再硬编码ready | 双UDP通道故障注入 | 未执行 |
+| SERVO-234 | CS9控制器身份验证 | 非CS9/未知类型按兼容策略拒绝或受限运行 | 协议模拟与CS9 HIL | 未执行 |
+| SERVO-235 | VAL3固件版本校验 | 支持版本通过，未知/不兼容版本明确拒绝或降级 | 版本矩阵测试 | 未执行 |
+| SERVO-236 | 诊断周期读取与过期 | 诊断断流/无效/过期能在规定期限内进入明确健康状态 | 周期集成测试 | 未执行 |
+| SERVO-237 | 双通道错位注入 | 控制新、诊断旧及反向错位均被识别，不产生伪一致快照 | 延迟/乱序注入 | 未执行 |
+| SERVO-238 | 共同采样ID关联 | 若协议支持共同ID，跨通道配对、丢失、回绕、重启规则正确 | 协议仿真/抓包 | 未执行 |
+| SERVO-239 | 时间窗近似关联边界 | 无共同ID时最大接收差、时钟误差与不确定度有明确定义 | 时间偏移/延迟测试 | 未执行 |
+| SERVO-240 | 连接代际隔离 | 重连后旧诊断/控制缓存不能满足新连接ready或配对 | 重连故障注入 | 未执行 |
+| SERVO-241 | 诊断降级对上层传播 | diagnostics unavailable/degraded被明确暴露，上层策略符合安全需求 | ros2_control集成测试 | 未执行 |
+| SERVO-242 | 状态/诊断联合故障矩阵 | 两路断流、单路重启、序列回绕、无效包、固件不兼容均有确定结果 | HIL与长期故障注入 | 未执行 |
+
+### E. 本节来源记录（#1817–#1821）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1817 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | 诊断首帧TODO/ready硬编码、协议/CS9/固件检查、两路读取与新鲜度 |
+| #1818 | [ICube real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 两个subscriber独立接收时间、序列丢包跟踪 |
+| #1819 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 周期read/write只读取控制状态及supervision映射 |
+| #1820 | [ICube robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | 独立状态缓存、timeout和控制序列接口 |
+| #1821 | [ROS 2 diagnostic_msgs/DiagnosticArray](https://github.com/ros2/common_interfaces/blob/rolling/diagnostic_msgs/msg/DiagnosticArray.msg) | 诊断数据表达应包含明确header时间语义的通用参考；不代表Stäubli协议已采用该消息 |
