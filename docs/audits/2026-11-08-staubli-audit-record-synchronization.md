@@ -180,3 +180,10 @@ SERVO-710/714未完成；SERVO-713部分取证但未完成。目标APT安装运�
 新增专项追加件§9.3.119、厂商档案§128.70。读取ros/rosdistro当前master的jazzy/distribution.yaml，moveit release stanza声明release仓库ros2-gbp/moveit2-release、版本2.12.4-1、包清单含moveit_servo、tag模板release/jazzy/{package}/{version}；source仓库为moveit/moveit2、source version main。按模板展开的release ref release/jazzy/moveit_servo/2.12.4-1可读取。上游moveit/moveit2 tag 2.12.4中的moveit_ros/moveit_servo/package.xml与release ref根package.xml Blob SHA均为0f00c9ec3b85b0322b96124cd714cf9d280473fb，文件完全相同，包版本字段为2.12.4；发行修订号-1属于release版本号。release ref下debian/changelog和debian/control读取返回404，未取得Debian packaging内容。该文件级匹配不等于完整source package或binary package一致，也不证明Build Farm具体job成功。
 
 SERVO-713新增rosdistro/release ref/package.xml关联证据，但仍部分取证、未完成；Jenkins job/build number/result/source revision/console log仍缺。SERVO-710/714未完成；APT索引正文、签名、完整Packages stanza、deb control/SHA256仍缺。未执行Ubuntu 24.04安装运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工业级验收仍未通过。
+
+
+## 18. Jazzy状态页生成时间与production main pool目录复核（2026-11-08追加）
+
+新增专项追加件§9.3.120、厂商档案§128.71。ROS Jazzy amd64状态页生成时间04:36:03 -0800，arm64本轮页面生成时间04:43:04 -0800；moveit_servo B/T分别保持11月5日与11月6日构建，M仍分别为10月6日旧构建。arm64页面生成时间变化不代表包版本变化。ROS production main pool目录直接列出的amd64/arm64 deb分别为674,492/615,538 bytes，构建标识与状态页M列相符；目录还列出2025-12-06的dsc、debian.tar.xz和orig.tar.gz源包文件及其大小。官方deb/dsc与OSUOSL dsc均未能展开，容器下载失败，因此没有取得SHA256、Debian control/changelog或签名验证。testing pool本轮未成功读取，不能据main目录缺项推断testing文件不存在。
+
+SERVO-710/714未完成；SERVO-713部分取证、未完成。目标Ubuntu 24.04安装运行、VAL3、CS9/SRS、HIL/FAT/SAT和实机验证均未执行。Stäubli工业级验收仍未通过。
