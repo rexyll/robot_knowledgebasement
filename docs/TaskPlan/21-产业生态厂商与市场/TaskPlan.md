@@ -1631,3 +1631,12 @@ SERVO-727静态审查已完成，U11-U15未执行；SERVO-726动态插件生命�
 PR #3909的\`RejectsUpdaterWhenInitializationFails\`测试在局部变量中保留\`shared_ptr<RecordingUpdater>\`，Mock又把同一shared_ptr返回给monitor。即使monitor因initialize失败continue跳过登记，测试函数仍持有强引用，因此该测试没有触发/证明updater析构，也没有检查资源清理。它只证明未调用setParams/start。RecordingUpdater不创建subscription/timer，且setParams固定返回true，因此initialize(false)部分资源回收和setParams(false)资源回收均未覆盖。
 
 此项是测试覆盖缺口，不是已证实泄漏。U13/U14需增加weak_ptr/析构计数、可观察ROS资源、旧topic回调静默及并发安全验证。当前PR head仍保留initialize先于setParams；作者称其已修复先前顺序回归，但#3901的公开契约问题仍未解决。详见审计追加件§9.3.143。
+
+
+#### SERVO-727补充审查（§9.3.144：失败路径测试夹具所有权）
+
+PR #3909的测试除局部\`updater\`变量外，还把该shared_ptr交给GMock的\`Return(updater)\`动作，可能由mock期望对象继续保活。因此删除局部变量仍不够。推荐改为GMock\`Invoke\`在load调用时临时创建updater，只把weak_ptr与析构计数保存在测试侧；monitor构造后断言weak_ptr expired和析构计数为1。U14的setParams(false)测试使用同样的所有权设计。
+
+新增分层验收：L1 weak_ptr/析构计数；L2 RAII资源token；L3 ROS graph实体；L4 executor运行时旧topic回调静默；L5 ASan/TSan。L1/L2不能替代L3-L5。真实ROS测试必须传入有效Node和实际executor，PR当前initialize(nullptr) mock不具备此能力。
+
+上游契约建议明确initialize(false)/setParams(false)失败原子性，或定义可在部分初始化状态调用的幂等rollback/stop接口及回调退出等待语义。该建议尚未实现。详见专项审计§9.3.144。
