@@ -1552,3 +1552,13 @@ SERVO-724继续跟踪PR更新、失败原因/日志、修复后CI、review/merge
 - 该测试没有发布消息并观察回调计数，也没有覆盖重复stop、restart、单topic/空topic配置切换或octomap monitor停止。因此不能替代SERVO-721/725的完整动态矩阵，也不能将测试源码存在等同于测试运行通过。
 - SERVO-724继续进行中（PR仍Open，Formatting/CI workflow failure，jobs与reviews当前无可读详情）；SERVO-721/723/725未执行，SERVO-722现场调用链仍阻塞。未修改上游/ICube或应用补丁。
 - 详见专项追加件§9.3.136。
+
+
+### Stäubli专项审查新增记录（§9.3.137，PR #3907最新评论与上游main复核）
+
+- PR #3907仍open且未更新（issue元数据updated_at仍为2026-09-30）；#3897仍open。Issue #3897报告的原始复现是双topic收到消息后单次stop仍有PlanningSceneWorld更新，单次stop 3/3失败、double-stop对照3/3通过；这是报告者证据，不是本项目复测。
+- PR评论新增CodeRabbit自动review评论，针对head `821818f4ffeaa7564459faed2cbddbfb604f9dcb`未生成actionable comments；预合并提示4项通过、1项Docstring Coverage warning（5.56%，阈值80%，18个函数/9个文件）。这是辅助机器人评论，不是正式维护者review/approval。reviews与inline threads仍为空；Formatting和CI两个Actions workflow仍completed/failure，jobs数据不可读。
+- #3887 Jazzy 2.12.5+发布跟踪issue仍open，其当前可见backport清单已扩展至#3949但未列#3907；精确base:jazzy搜索仍未找到#3907相关回移PR。
+- 重新读取MoveIt main源码：`planning_scene_monitor.cpp` Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`仍以if/else if释放单个subscriber；`moveit_cpp.cpp` Blob SHA `abc683745c60e8c12af1955bbd5dbe80f27518fb`仍从MoveItCpp初始化调用`startWorldGeometryMonitor()`。静态缺陷仍在main。
+- SERVO-724继续进行中；SERVO-721/723/725动态验证未执行；SERVO-722现场调用链缺证据/阻塞。未修改上游/ICube、未应用补丁或执行工业验收。
+- 详见专项追加件§9.3.137。
