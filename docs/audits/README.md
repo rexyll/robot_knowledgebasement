@@ -111,6 +111,6 @@
 
 - [2026-11-08 Stäubli专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)：记录首轮发现的根计划、专项报告、厂商档案、审计索引与00章日志进度差异及各载体SHA；后续已同步专项追加件至§9.3.114、厂商档案至§128.65、审计README及00-01日志，并记录厂商资产清单元数据的两轮单行刷新。附带记录Build Farm/生产APT证据边界；文档同步不代表Stäubli工程验收完成，也不改变00-01进行中状态。
 
-- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计已推进至§9.3.117；新增Build Farm候选job命名算法、building/main deb文件清单，以及ROS官方与OSUOSL镜像的testing APT索引目录元数据双源交叉核验。testing双架构索引为11月6/7日快照，production main索引仍为10月6日；Jenkins真实job/build日志、APT索引正文与签名、完整Packages/deb元数据及目标安装运行验证仍待完成。
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计已推进至§9.3.118；新增ROS Jazzy规范状态页时间顺序复核及ros_buildfarm官方release阶段语义说明。amd64/arm64 B/T仍为11月5/6日版本，M仍为10月6日版本；具体Jenkins job运行记录、APT索引正文/签名、DEB内部元数据与目标安装验证仍待取得。
 
 
