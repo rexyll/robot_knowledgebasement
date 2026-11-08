@@ -1209,7 +1209,6 @@
 | 任务 | 验收对象 | 状态 |
 |---|---|---|
 | SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 已完成（43个blob逐项一致；路径/mode/type/blob SHA零差异） |
-| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 部分取证（状态页B/T与building/main pool文件清单已核对；Jenkins直接job/build元数据与日志未取得，任务未完成） |
 | SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
 
 本节来源：
@@ -1248,3 +1247,17 @@
 - https://repo.ros2.org/ubuntu/building/pool/main/r/ros-jazzy-moveit-servo/
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - 专项追加件§9.3.116。
+### Stäubli专项审查新增记录（§9.3.117，testing/main APT索引目录双源交叉核验）
+
+- ROS官方testing lists与OSUOSL rsync镜像目录均显示：Jazzy Noble amd64 InRelease/Packages于2026-11-06 13:15更新，大小4,679/8,406,600 bytes；arm64 InRelease/Packages于2026-11-07 11:29更新，大小4,679/8,381,795 bytes；source InRelease于11月7日11:28，Sources于11月6日13:09，大小10,217,787 bytes。
+- production main lists仍显示amd64索引于10月6日08:57、arm64索引于10月6日08:59更新。testing索引比production main新约31–32天，但这不是main晋级证据。
+- 两份ROS Jazzy status page重新核对后时间戳仍为amd64 04:36:03、arm64 04:23:04（-0800），moveit_servo B/T/M版本未变化。
+- 索引文件正文下载/展开未成功，未取得Packages完整stanza、InRelease签名验证、deb control/SHA256。SERVO-710/714未完成；SERVO-713部分取证但未完成。未执行目标Jazzy安装运行、VAL3、CS9/SRS、HIL或实机验证。
+
+本节来源：
+- https://repo.ros2.org/ubuntu/testing/lists/
+- https://rsync.osuosl.org/pub/ros2-testing/lists/
+- https://packages.ros.org/ros2/ubuntu/lists/
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- 专项追加件§9.3.117。
