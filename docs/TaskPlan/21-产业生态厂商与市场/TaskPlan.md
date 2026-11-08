@@ -590,3 +590,5 @@
 | 2026-11-08 | 21-02/Stäubli多控制器并发与控制权仲裁 | 固定ICube bd658e2审查controllers.yaml、launch加载激活、MoveIt映射、Xacro接口声明、HardwareInterface接口导出和prepare/perform切换。发现默认仅一个运动控制器且inactive加载；模式解析只看start_interfaces首个匹配项，stop_interfaces忽略；混合position/velocity校验TODO；加速度接口仅用于限幅器，速度/力矩模式拒绝；缺少外部命令源owner/session epoch全局仲裁；现有测试无模式切换/claim竞争覆盖。新增§9.3.75、SERVO-383–SERVO-392、来源#1927–#1935。 | 来源#1927–#1935；专项审计§9.3.75 |
 
 | 2026-11-08 | 21-02/Stäubli普通I/O、GPIO与工具末端执行器 | 固定ICube bd658e2审查Xacro GPIO、HardwareInterface读写、UDP消息、VAL3 decode/controlTask/updateState/encode及TX2-60L工具帧配置。发现VAL3数字/模拟输出执行TODO、数字mask映射被注释；输入valid flags固定false且编码TODO；C++无效输入时保留旧值；tool0仅静态坐标变换，无夹爪/吸盘驱动和反馈；普通GPIO不属于安全I/O。新增§9.3.76、SERVO-393–SERVO-402、来源#1936–#1944。 | 来源#1936–#1944；专项审计§9.3.76 |
+
+| 2026-11-08 | 21-02/Stäubli通信协议与跨语言序列化一致性 | 固定ICube bd658e2审查C++ FrameHeader/消息序列化、little-endian/float32策略、VAL3 encode/decode头和RobotState/Command字段。发现VAL3 encodeHeader payload_size重复写sequence；C++ FrameHeader/RobotState校验不足、DiagnosticData先校验旧header；VAL3 command长度错误标志可能被decodeHeader覆盖；VAL3 F/T后三分量写入注释。固定RobotState 132/124、RobotCommand 55/47字节。新增§9.3.77、SERVO-403–SERVO-412、来源#1945–#1953。 | 来源#1945–#1953；专项审计§9.3.77 |
