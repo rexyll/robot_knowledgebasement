@@ -218,6 +218,6 @@ Build Farm release文档说明source job、binary job、building→testing sync 
 - 厂商档案新增§128.73；
 - 审计README更新索引；
 - 第00章、第21章TaskPlan追加执行记录；
-- 厂商档案资产清单行刷新为最新Blob SHA及UTF-8大小（见本轮核验值），仅元数据维护，不代表claim-level验收。
+- 厂商档案资产清单行刷新为Blob SHA `a524a65e286b8127b6375407fc31d4d9a669957a`、UTF-8大小515,845 bytes，仅元数据维护，不代表claim-level验收。
 
 SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进行中。未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工业级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
