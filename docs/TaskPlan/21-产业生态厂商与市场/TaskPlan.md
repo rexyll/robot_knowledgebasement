@@ -542,3 +542,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli ROS 2状态新鲜度计时的时钟源与时间跳变 | 固定ICube bd658e2核对RealTimeSocketSubscriber、RobotDriver与ROS 2 Jazzy Clock API。接收时间戳、状态age和connect timeout均使用默认构造的rclcpp::Clock()，其默认类型为RCL_SYSTEM_TIME而非单调steady clock；墙钟回拨可能延长旧状态被接受的窗口，前跳可能提前触发staleness ERROR。独立Clock不因use_sim_time自动绑定Node TimeSource。新增§9.3.57、来源#1804–#1807及SERVO-203–SERVO-212。该风险为静态推导，未做时间跳变注入、ROS集成、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1804–#1807；专项审计§9.3.57 |
+
+
+| 2026-11-08 | 21-02/Stäubli RobotDriver连接首帧等待与诊断通道旁路 | 固定ICube bd658e2审查RobotDriver::connect：首帧等待while循环即使控制状态有效也无break，固定sleep 500ms，直到timeout退出；默认硬件初始化传入5000ms，导致首帧成功后仍可能等待完整窗口，timeout小于500ms时单次sleep也会超调。诊断就绪变量被硬编码true，read_diagnostic_data调用留在TODO/注释中，不能证明诊断首帧有效。新增§9.3.58、来源#1808–#1811及SERVO-213–SERVO-222。仅静态控制流结论，未做连接延迟测量、UDP首帧故障注入、并发取消、ROS集成、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1808–#1811；专项审计§9.3.58 |
