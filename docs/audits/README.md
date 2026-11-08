@@ -128,3 +128,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.126，核对build.ros2.org实际部署的ros2/ros_buildfarm_config分支，确认Jazzy Noble amd64/arm64 release配置均关闭package tests；追踪到Build Farm `skip_tests`→`nocheck`→`dpkg-buildpackage -Pnocheck`，并确认MoveIt Servo 2.12.4的三个CMake测试目标由BUILD_TESTING控制。具体job XML/console log及上游其他CI结果仍缺。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.127，区分ROS Build Farm正式release binary禁测配置与MoveIt上游GitHub Actions/industrial_ci测试路径；记录2.12.4精确源码SHA对应CI run 19975338753整体成功、两个CI矩阵job成功，但逐测试XML未归档。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.128，记录2.12.4同SHA的5个Actions run与关键job状态；两个industrial_ci CI job及4个其他相关job的日志下载接口均HTTP 410，steps/artifacts不可用，三个Servo测试独立结果仍未取得。
