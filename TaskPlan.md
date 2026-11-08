@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.17  
+> 版本：v9.18  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.143，厂商档案新增§128.94。MoveIt PR #3907仍Open/未合并，当前main双订阅stop缺陷仍在；PR #3909仍Open/未合并，head 3fc0594保留initialize后setParams，作者称已修复此前顺序回归；#3901公开契约仍未解决。PR #3909失败初始化单测保留updater shared_ptr强引用，只验证未调用setParams/start，不能证明对象析构/资源清理；fake updater不创建ROS资源，setParams(false)路径未覆盖。新增§9.3.143与U13/U14清理验证要求，标记为测试覆盖缺口，不认定为已证实泄漏。#3909 CI/Formatting仍为已知failure且jobs/artifacts无可读明细，reviews/threads为空；本轮未发现Jazzy backport。SERVO-727 U11源兼容性变化已确认、最小C++探针完成，完整fixture迁移编译与ABI未执行；U13/U14/U15动态验证未执行。SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.144，厂商档案新增§128.95。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。进一步核对PR #3909失败测试发现局部shared_ptr及GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；新增Invoke临时创建、weak_ptr/析构计数的U13/U14测试草案，并建立对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。该缺口是测试覆盖问题，不是已证实泄漏。当前main仍未包含PR #3909；其OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-727 U11源兼容性已确认、最小C++探针完成，完整fixture迁移构建与ABI未执行；U13/U14测试草案完成，真实ROS资源/回调验证未执行；U15未执行。SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
