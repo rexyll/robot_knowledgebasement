@@ -5188,3 +5188,94 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #2001 | [robot_driver_helpers.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp)与[robot_driver.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | STOP辅助函数与get_current_message_sequence复用最近状态序号，不是独立命令ID |
 
 **验证边界：** 本节为固定提交bd658e2静态源码/测试源码审查；未执行C++构建、VAL3编译、真实CS9命令/ACK抓包、控制器执行时序测量、轨迹终态、STOP确认、HIL/FAT/SAT或实机测试。状态先发送后接收命令、协议缺少命令ID/结果字段、write只按本地发送返回值给出OK、movejSync状态1/2未升级错误、测试未核验命令接收与执行均可由固定源码核对。实际运动响应、控制器命令应用时延和物理完成判据仍需在受控设备验证。SERVO-463–SERVO-472全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.84 命令事务状态机与协议升级设计基线审查（固定上游提交 bd658e2，2026-11-08）
+
+### 目标与结论
+
+本节将§9.3.81–§9.3.83的UDP发送语义、状态帧回放、命令确认缺失等问题整合为可实施的协议升级基线。审查对象仍为ICube固定提交 bd658e2d266e315d2ee35f985fb352ea88306b79。**本节是设计审查和需求基线，不代表上游代码已实现协议v2，也不代表VAL3/CS9已验证支持这些字段。**
+
+固定代码的FrameHeader为8字节：magic(16)、protocol_version(8)、message_type(8)、sequence_number(16)、payload_size(16)；协议版本常量为1，现有消息类型只有ROBOT_STATE=0x01、ROBOT_COMMAND=0x02、DIAGNOSTIC_DATA=0x03。RobotCommand payload只有controller_period、command_type、6轴参考值和IO；VAL3 RobotCommand数据结构只有bIsValid、mode、period、motion command type/data、IO。没有command_id、session/boot epoch、deadline、ACK状态、结果码或幂等去重记录。因此不能把现有16位header序号直接重新解释为command ID，也不能在旧payload尾部静默追加字段。
+
+### 设计约束和协议升级边界
+
+1. **协议版本必须显式升级和协商。** 新增字段会改变固定payload大小和VAL3二进制解析偏移；必须定义独立v2版本、能力协商/握手、双方支持矩阵和拒绝策略。v1与v2不能仅靠猜测payload长度混用；不支持v2时明确降级为只读/禁止远程运动，不能悄悄退回缺少ACK的模式。
+2. **拆分状态序号与命令身份。** 保留state_sequence作为状态样本计数；为命令增加64位或足够宽的command_id，并绑定controller_boot_id/session_id。command_id在一个session内严格单调且不复用；epoch变化即建立新命名空间。响应必须回显原command_id与session_id。16位state_sequence只做遥测排序，不参与命令幂等身份判断。
+3. **会话建立与恢复必须先于运动。** 建议握手包含协议版本、能力位图、controller_boot_id、host_nonce/controller_nonce、session_id、双方时间/周期能力及认证结果。主机重连、控制器重启、sequence异常、认证失败或心跳超时后，进入INHIBITED；丢弃旧session的命令和ACK。重新开放运动必须完成新session握手、状态样本连续前进、操作/安全状态检查和显式重新使能。boot/session标识不能由易重放的单个静态常量代替。
+4. **定义不可混淆的命令事务阶段。** 推荐状态：CREATED→SENT_LOCAL→RECEIVED→VALIDATED→ACCEPTED→APPLIED/STARTED→COMPLETED；终止失败分支为REJECTED、EXPIRED、ABORTED、CANCELED、STOPPED、UNKNOWN_OUTCOME。每个阶段有单调事件编号、控制器单调时钟/周期、reason_code和可选详细诊断。SENT_LOCAL只表示本机传输API成功；RECEIVED表示VAL3应用层校验到完整帧；VALIDATED表示会话、权限、时限、模式、范围均通过；ACCEPTED表示进入控制器调度；APPLIED/STARTED表示运动接口确实接受/刷新；COMPLETED必须满足定义的物理/轨迹容差。不能将这些阶段折叠成一个ACK布尔值。
+5. **ACK采用独立消息/事件通道。** 建议新增COMMAND_EVENT/COMMAND_ACK消息类型，带session_id、command_id、stage、reason_code、controller_tick、active_command_id、event_counter。事件可重复发送；主机按(session_id, command_id, stage, event_counter)去重。RobotState可附带active/last_terminal command摘要用于监控，但不能用周期状态字段替代可靠事务事件。若UDP事件丢失，主机可发QUERY_COMMAND_STATUS查询控制器保留的事务结果。
+6. **定义结果保留与查询窗口。** 控制器应维护有界事务表，至少保存活动命令及最近一段时间的终态结果；明确容量、淘汰策略、断电后是否持久化。超出保留窗口的查询返回RESULT_EXPIRED/UNKNOWN，不得伪造成功。主机同样维护outstanding表、截止时间和事件状态。
+7. **幂等重试与重复命令语义必须明确。** 同session、同command_id、同payload_hash的重复提交返回已有事务状态，不重复启动运动；同ID不同payload必须拒绝并产生ID_CONFLICT。新command_id即使payload相同也视为新命令，除非业务层显式去重。重试仅在同一session、deadline未过且控制器幂等记录有效时允许；不能因ACK超时自动换新ID重发运动命令。
+8. **命令deadline使用可验证的时钟语义。** 推荐session握手测量时钟偏差/往返时间并定义最大偏差；每条命令携带有效期/相对TTL与controller接收deadline。控制器在验证阶段过期即EXPIRED，不进入运动队列。不能单纯依赖ROS主机墙钟和VAL3本地时钟相等。时钟同步不可靠时采用控制器接收后启动的短TTL并保守限制。
+9. **命令调度和抢占策略显式化。** 定义每类命令是否允许队列、是否只保留最新目标、是否可抢占、并发上限、优先级、取消行为和状态转移。STOP应有独立高优先级事务通道或预留资源，不能排在运动队列后面；但软件STOP仍不等于安全急停。普通新目标不能隐式覆盖活动命令而不产生CANCELED/PREEMPTED终态。
+10. **COMPLETED需要工程定义。** 对关节位置命令，至少要求目标误差在各轴容差内、速度低于阈值、连续稳定满足指定时间，并且采样数据新鲜且同一session；轨迹动作还需检查路径/时间容差、控制器执行状态和异常标志。仅凭bInMotion=false、单次位置接近或write返回OK不能宣布完成。完成容差和超时应按机器人/应用配置，不能臆造统一数值。
+11. **STOP分阶段确认。** STOP_RECEIVED、STOP_ACCEPTED、STOP_APPLIED、STOPPED分别表示控制器收到、准入、停止接口执行、状态反馈证实机械静止。STOPPED必须基于连续新鲜速度/运动状态及定义的稳定时间；超时则进入STOP_UNCONFIRMED并触发上层故障策略。安全急停、安全门、保护停止必须仍由认证安全链路负责。
+12. **错误结果码需稳定、可版本化。** 至少区分BAD_FRAME、UNSUPPORTED_VERSION、SESSION_MISMATCH、AUTH_FAILED、DUPLICATE_CONFLICT、EXPIRED、SEQUENCE_WINDOW、MODE_DENIED、SAFETY_INHIBIT、MOTION_NOT_POSSIBLE、LIMIT_VIOLATION、CONTROLLER_BUSY、MOVE_INTERFACE_ERROR、CANCELED、STOP_TIMEOUT、RESULT_EXPIRED。详细VAL3日志可附加诊断码，但上层逻辑不得解析自由文本日志作为唯一判据。
+13. **传输安全与功能安全边界。** UDP checksum、magic和版本字段不是身份认证。需在可信专用网络、ACL/端点绑定基础上评估消息认证码/安全隧道、密钥轮换和重放保护。协议ACK、ROS 2状态接口及软件STOP均不能替代CS9安全控制器、硬件急停、安全I/O或经认证安全功能。
+14. **实时约束要在协议设计阶段预算。** ACK事件不得阻塞VAL3实时控制周期；事件发送采用有界队列、限频和优先级，队列溢出必须可检测且可查询。VAL3控制任务、状态发布、命令接收和事件发送的WCET/周期抖动必须实测。控制周期中禁止无限等待网络ACK。
+15. **滚动升级需防止混合版本误动作。** 先在只读/仿真环境验证v2协商和消息解析，再部署控制器端与ROS 2端配对版本；任一端不匹配进入INHIBITED。需有回滚方案、协议兼容测试和明确固件/应用版本白名单。
+
+### 推荐事务状态机
+
+| 当前状态 | 事件/条件 | 下一状态 | 允许的副作用 |
+|---|---|---|---|
+| CREATED | 主机分配command_id/session/deadline | SENT_LOCAL | 尚未允许运动 |
+| SENT_LOCAL | 控制器应用确认完整帧 | RECEIVED | 只记录收件 |
+| RECEIVED | 帧/会话/权限/时限校验成功 | VALIDATED | 不代表已调度 |
+| VALIDATED | 模式/安全/范围/资源准入通过 | ACCEPTED | 分配执行资源 |
+| ACCEPTED | 运动接口成功启动/刷新 | APPLIED | 允许执行并报告活动ID |
+| APPLIED | 误差、速度、稳定时间等完成条件满足 | COMPLETED | 终态，结果可查询 |
+| 任一准入前阶段 | 校验失败/过期/会话不符 | REJECTED/EXPIRED | 不得开始运动 |
+| ACCEPTED/APPLIED | 取消/抢占/故障/STOP | CANCELED/ABORTED/STOPPED | 明确终态与原因 |
+| 主机超时但控制器结果未知 | 无可靠事件 | UNKNOWN_OUTCOME | 禁止自动重发新ID或假设失败/成功 |
+
+### 分层职责建议
+
+- ROS 2 HardwareInterface：将周期性setpoint接口与事务型动作语义区分；周期setpoint可采用明确的latest-value流式模式，但每个样本有sequence/deadline，状态进展可观测；离散动作/STOP使用事务ID和ACK。write()的OK仅代表本地硬件接口写周期成功，不应承诺机械动作完成。
+- RobotDriver：维护session、command ID分配、outstanding事务表、事件去重、超时、查询、断线清理和UNKNOWN_OUTCOME处理；禁止重连后重放旧session运动命令。
+- UDP/协议层：严格校验帧长度、版本、消息类型、发送端身份、session和认证标签；区分本机发送成功与远端应用确认；实现独立事件类型和状态查询。
+- VAL3通信任务：接收并校验帧，维护有限幂等事务表，生成阶段事件；不得在实时控制循环内阻塞等待网络。
+- VAL3运动控制层：只消费已准入命令；报告接口启动/刷新错误；把实际完成判据和异常终态关联command_id；STOP采用独立高优先级处理。
+- 安全系统：保留安全控制器/安全I/O的独立职责，通信事务状态不参与绕过安全许可。
+
+### 风险与设计决策
+
+- 当前v1协议无法可靠表达单命令事务、重放隔离和执行终态；协议升级属于跨C++/VAL3/测试/部署的破坏性变更，不能只修改单侧。
+- 对4ms类控制周期，逐周期每条setpoint都等待完整事务ACK可能不可行。必须区分“连续设定值流”与“离散动作事务”：前者用有界流序号、deadline和状态进展监控；后者使用完整ACK状态机。不要把每个周期setpoint强行套成阻塞RPC。
+- UDP事件丢失时要能查询事务状态；查询结果未知不能被当作失败后直接重发新命令，否则会造成重复运动。
+- Controller重启后，旧事务状态若未持久化则应返回SESSION_LOST/UNKNOWN并要求显式恢复，不得重放；持久化也必须绑定boot/session身份。
+- 本节设计不构成安全认证、性能预算或CS9兼容性结论；这些都需要控制器平台和厂商资料验证。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-473 | 协议v2兼容性 | 定义版本协商、能力位图、v1/v2混合部署拒绝策略 | 未执行 |
+| SERVO-474 | Session/boot身份 | 握手生成epoch并隔离控制器重启、主机重连和旧包 | 未执行 |
+| SERVO-475 | 独立command ID | 64位或经论证的唯一ID，和state_sequence完全分离 | 未执行 |
+| SERVO-476 | 分阶段事务事件 | RECEIVED/VALIDATED/ACCEPTED/APPLIED/终态与原因码规范化 | 未执行 |
+| SERVO-477 | 幂等去重 | 同ID同payload返回原事务；同ID不同payload拒绝 | 未执行 |
+| SERVO-478 | Deadline/TTL | 定义跨时钟语义、过期拒绝和无同步时保守策略 | 未执行 |
+| SERVO-479 | ACK丢失与状态查询 | 事件重发、查询、保留窗口、UNKNOWN_OUTCOME策略完整 | 未执行 |
+| SERVO-480 | 命令队列/抢占/STOP优先级 | 明确流式setpoint与离散事务、取消和STOP调度策略 | 未执行 |
+| SERVO-481 | COMPLETED工程判据 | 位置误差、速度阈值、稳定时间、轨迹容差可配置可测试 | 未执行 |
+| SERVO-482 | 错误码与安全边界 | 稳定原因码、认证/网络防护及功能安全职责边界 | 未执行 |
+| SERVO-483 | 实时性与事件队列 | 证明ACK机制不阻塞控制周期，队列溢出可检测可恢复 | 未执行 |
+| SERVO-484 | 跨端协议一致性测试 | C++/VAL3黄金帧、版本、边界、乱序、重复、重启互操作 | 未执行 |
+| SERVO-485 | 升级/回滚验收 | 配对部署、版本白名单、失败闭锁和回滚流程通过 | 未执行 |
+
+### 本节来源记录（#2002–#2009）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2002 | [protocol.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp) | v1协议版本、8字节头、16位sequence、现有帧类型定义 |
+| #2003 | [messages.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp)与[messages.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | RobotCommand/RobotState现有字段和固定序列化结构 |
+| #2004 | [RobotCommand.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotCommand/RobotCommand.dtx)、[RobotCommandMsg.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotCommandMsg/RobotCommandMsg.dtx)与[MessageHeader.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/MessageHeader/MessageHeader.dtx) | VAL3端数据结构同样缺少命令身份、会话与事务阶段字段 |
+| #2005 | [decodeRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 解码只设置本地bIsValid，无事务事件回传 |
+| #2006 | [computeSequenceDelay.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | 16位状态/命令序号差值不是ACK事务协议 |
+| #2007 | [controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx)与[updateJointPositionControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | 控制周期顺序、运动刷新状态与ACK实时设计边界 |
+| #2008 | [robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp)、[real_time_socket_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp)与[staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 事务表/ACK/超时机制缺失及write语义基线，承接§9.3.83 |
+| #2009 | [ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | VAL3项目程序/类型清单及跨端协议升级影响面 |
+
+**验证边界：** 本节是基于固定提交v1代码的数据结构/协议边界审查及v2设计基线，不是v2实现。未修改上游ICube仓库，未编写或编译协议v2，未在VAL3仿真/CS9/HIL/实机验证消息长度、WCET、事件队列、认证、事务去重、STOP确认或升级回滚。SERVO-473–SERVO-485全部未执行；所有协议字段、错误码、状态机与部署要求均为建议设计，需经C++/VAL3双方实现、厂商平台能力确认和安全评审。Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
