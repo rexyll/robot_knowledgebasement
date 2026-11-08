@@ -1472,3 +1472,25 @@
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - https://github.com/moveit/moveit2/issues/3887
 - 专项追加件§9.3.130。
+
+
+### Stäubli专项审查新增验收任务（§9.3.131，MoveItCpp调用路径与适用性边界）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-720 | 固定MoveIt 2.12.4源码并核对上游issue #3897复现描述与stop/start实现 | 已完成（静态核验） |
+| SERVO-721 | Ubuntu 24.04/Jazzy目标环境双订阅单次stop、double-stop、restart、单topic/空topic及octomap矩阵测试 | 未执行（实验规程已整理） |
+| SERVO-722 | 获取Stäubli/ICube目标版本、launch/YAML、PlanningSceneMonitor构造及全部start/stop调用点，确认现场触发条件 | 未执行（目标源码与部署配置缺失，阻塞） |
+| SERVO-723 | 对修复版本或审查补丁增加双订阅停止、重复stop、restart、空topic与octomap回归测试 | 未执行（尚无确认修复版本/补丁） |
+| SERVO-724 | 跟踪MoveIt #3897修复PR、Jazzy backport及正式发行二进制版本 | 未完成（持续跟踪） |
+
+本轮上游main静态证据：`MoveItCpp::initialize()`在PlanningScene配置成功后调用`startWorldGeometryMonitor()`；当前main的`stopWorldGeometryMonitor()`仍使用if/else if释放subscriber。MoveIt当前可见PR列表未找到可确认修复#3897的PR。该通用路径不能证明Stäubli应用实际采用MoveItCpp默认初始化。仓库缺少ICube应用源码、启动参数、monitor实例及stop调用点，因此SERVO-722无法判定现场触发条件，维持未执行/阻塞；不得把证据缺失写成现场不受影响。
+
+SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启用两个topic，分别记录消息回调计数；执行单次stop后继续发布，核对CollisionObject与PlanningSceneWorld回调是否停止；独立运行double-stop对照、restart/stop、单topic/空topic配置与octomap停止检查，并保存topic graph、日志、退出码和包版本。修复验收必须证明单次stop可释放两个subscriber，double-stop workaround不能代替修复。
+
+来源：
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/pulls
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- 专项追加件§9.3.131。
