@@ -187,3 +187,19 @@ SERVO-713新增rosdistro/release ref/package.xml关联证据，但仍部分取�
 新增专项追加件§9.3.120、厂商档案§128.71。ROS Jazzy amd64状态页生成时间04:36:03 -0800，arm64本轮页面生成时间04:43:04 -0800；moveit_servo B/T分别保持11月5日与11月6日构建，M仍分别为10月6日旧构建。arm64页面生成时间变化不代表包版本变化。ROS production main pool目录直接列出的amd64/arm64 deb分别为674,492/615,538 bytes，构建标识与状态页M列相符；目录还列出2025-12-06的dsc、debian.tar.xz和orig.tar.gz源包文件及其大小。官方deb/dsc与OSUOSL dsc均未能展开，容器下载失败，因此没有取得SHA256、Debian control/changelog或签名验证。testing pool本轮未成功读取，不能据main目录缺项推断testing文件不存在。
 
 SERVO-710/714未完成；SERVO-713部分取证、未完成。目标Ubuntu 24.04安装运行、VAL3、CS9/SRS、HIL/FAT/SAT和实机验证均未执行。Stäubli工业级验收仍未通过。
+
+
+## 19. MoveIt Servo Debian源包发布证据边界与载体同步（2026-11-08追加）
+
+本轮新增专项追加件§9.3.121、厂商档案§128.72。重新读取ROS Jazzy规范状态页，amd64 04:36:03、arm64 04:43:04（-0800），moveit_servo B/T仍分别为11月5/6日构建、M仍为10月6日构建；未观察到新构建版本或production晋级。状态页目录索引中的HTML文件mtime与页面内生成时间格式不同，未混作版本变化。
+
+`ros2-gbp/moveit2-release` README的Jazzy `moveit 2.12.4-1`发布记录列出`moveit_servo`，与rosdistro release stanza和release ref关联一致。该记录只证明发布批次声明，不是具体Jenkins job/build成功证据。再次尝试读取ROS main、OSUOSL镜像及ROS testing的`.dsc`和testing pool目录，读取通道拒绝或无法访问；未取得源包校验和、debian/control/changelog/rules正文、签名状态、APT完整Packages stanza、deb control/SHA256或真实Jenkins build日志。
+
+载体同步：
+- 专项追加件新增§9.3.121；
+- `knowledge/ecosystem/主要厂商.md`新增§128.72；
+- `docs/audits/README.md`更新追加件索引；
+- 第00章与第21章TaskPlan追加本轮执行记录；
+- 厂商档案资产清单对应行刷新为Blob SHA `52fbf4732b5af143a541cf2f8c493780adda2002`、UTF-8大小514,147 bytes。该刷新仅为Git元数据维护，不构成claim-level验收或全库重算。
+
+SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进行中。未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工业级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
