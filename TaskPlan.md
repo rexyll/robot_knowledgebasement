@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.16  
+> 版本：v9.17  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.142，厂商档案新增§128.93。MoveIt PR #3907仍Open/未合并，当前main双订阅stop缺陷仍在；PR #3909仍Open/未合并，拟修复OccupancyMapUpdater初始化失败传播，但CI run 37457932979与Formatting run 37457933046均completed/failure，jobs/artifacts为空、失败原因未知，reviews/threads为空；本轮按base:jazzy回移检索未发现对应PR。#3909将public纯虚MiddlewareHandle接口从void改为bool，源码兼容性变化已确认；作者维护的MoveIt 2.12.4外部复现fixture含旧void override，并经独立C++17最小探针确认旧override会报conflicting return type；完整ROS/MoveIt fixture迁移编译未执行，该样例不是独立商业下游或Stäubli现场证据。ABI未验证；initialize/setParams失败后的资源回收缺少统一契约，SERVO-727 U11-U15跟踪中。#3901/#3902仍Open。SERVO-721/723/725/726动态验证未执行，SERVO-722现场调用链及Octomap配置缺失/阻塞，SERVO-724持续跟踪两项PR和Jazzy回移/正式发行。SERVO-727静态审查完成，最小C++兼容性探针完成，完整fixture迁移编译、ABI与动态资源测试未执行。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.143，厂商档案新增§128.94。MoveIt PR #3907仍Open/未合并，当前main双订阅stop缺陷仍在；PR #3909仍Open/未合并，head 3fc0594保留initialize后setParams，作者称已修复此前顺序回归；#3901公开契约仍未解决。PR #3909失败初始化单测保留updater shared_ptr强引用，只验证未调用setParams/start，不能证明对象析构/资源清理；fake updater不创建ROS资源，setParams(false)路径未覆盖。新增§9.3.143与U13/U14清理验证要求，标记为测试覆盖缺口，不认定为已证实泄漏。#3909 CI/Formatting仍为已知failure且jobs/artifacts无可读明细，reviews/threads为空；本轮未发现Jazzy backport。SERVO-727 U11源兼容性变化已确认、最小C++探针完成，完整fixture迁移编译与ABI未执行；U13/U14/U15动态验证未执行。SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
