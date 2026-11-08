@@ -6000,3 +6000,88 @@ Servo配置输出Float64MultiArray位置命令，硬件插件确实导出positio
 | #2056 | [protocol.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp) | 16位序列号、接收时间戳字段及协议头定义 |
 
 **验证边界：** 本节为固定提交静态源码审查。没有运行ROS 2控制循环、VAL3控制任务或CS9；没有注入网络抖动、乱序、重放、伪造发送方、UDP拥塞或线程调度延迟；没有测量端到端时延、最坏周期抖动、反馈真实采样年龄或停止响应时间。源码中100ms阈值仅是本机接收后陈旧阈值，不应作为网络端到端延迟指标。SERVO-556–SERVO-565全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.92 ROS 2控制周期字段与VAL3控制任务实际周期一致性审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围
+
+本节聚焦C++向VAL3传递的`controller_period`字段是否真正参与机器人端控制周期、VAL3任务周期的唯一配置来源、序列延迟阈值的时间换算，以及低监控速度/任务超期时的周期有效性。固定上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+
+核对文件：
+- `staubli_robot_driver/src/staubli_hardware_interface.cpp`
+- `staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx`
+- `staubli_robot_driver/val3/userapp/ros2_server/Types/RobotCommand/RobotCommand.dtx`
+- `staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx`
+- `staubli_robot_driver/val3/userapp/ros2_server/start.pgx`
+- `staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`
+- `staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx`
+- `staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst`
+
+### 发现与结论
+
+**发现一：ROS 2每周期发送的controller_period被VAL3解析，但没有被后续控制逻辑消费。**
+
+C++ `StaubliHardwareInterface::write()`将`period.seconds()*1e3`写入`RobotCommandMessage.controller_period`；C++消息序列化把该字段作为float32放入命令payload。VAL3 `decodeRobotCommandMsg.pgx`将该4字节值解析到`robot_command_msg.robotCommand.nRemoteCtrlPeriod`；`RobotCommand.dtx`声明该变量，`initRobotCommandMsg.pgx`将初始值设为-1.0。
+
+对固定提交整个VAL3项目执行符号引用检索后，`nRemoteCtrlPeriod`的代码引用仅出现在类型声明、初始化和解码处，没有在`controlTask.pgx`、位置/速度控制子程序或其他周期/调度程序中被读取或用于校验、控制调度、轨迹插值、超时计算或诊断输出。因此当前字段是“发送并解析”，而非“机器人端按主机period运行”。主机period与VAL3实际周期没有通过该字段建立闭环。除非存在项目外的VAL3扩展逻辑（本审查没有此证据），不能把该字段描述为已生效的远端周期同步机制。
+
+**发现二：VAL3控制任务周期由start.pgx独立固定为4ms。**
+
+`start.pgx`设置`l_nCtrlPeriod = 0.004`，随后调用`taskCreateSync "controlTask", l_nCtrlPeriod, bIsOverrun, controlTask()`。`controlTask.pgx`循环末尾使用`delay(0)`让出/等待任务周期；其本身不根据命令中的`nRemoteCtrlPeriod`调整周期。驱动端`controller_period`变化不会改变该4ms任务周期。
+
+**发现三：序列延迟阈值以控制任务循环次数表达，时间等价依赖4ms周期持续成立。**
+
+`controlTask.pgx`对运动中状态使用`l_nSequenceDelay > 5`触发错误，对静止状态使用`>25`触发错误；注释分别将其解释为约20ms和100ms。故障排查文档进一步将5个控制周期解释为约20ms（250Hz）。这些换算成立的前提是控制任务有效周期保持4ms且每轮序号推进/状态发送正常。若实际周期因监控速度、控制器负载、任务调度或超期而变慢，固定“周期数”对应的真实墙钟时间就会增长；若周期更快，则墙钟容忍时间会缩短。当前阈值并未直接使用单调时间或已验证的实际周期测量值。
+
+**发现四：监控速度低于100%只告警，不阻止控制任务启动。**
+
+`start.pgx`读取`getMonitorSpeed()`；当小于100时仅写入warning，等待逻辑被注释掉，之后仍然执行`taskCreateSync`启动控制任务。说明当前程序没有以监控速度未达标作为运动闭锁条件。官方文档提示低监控速度可能导致控制算法不能正确工作，但源码只提示操作者，没有强制阻止启动或持续监控。
+
+**发现五：任务overrun只计数，没有与实际周期、sequence delay或命令超时统一闭环。**
+
+`controlTask.pgx`检测`bIsOverrun`后写日志、清标志并增加`nOverruns`，未见累计阈值、时间窗口、最大连续overrun、周期超限锁存或将overrun次数上报ROS 2的逻辑。由于序列延迟阈值基于循环次数，overrun可能同时延长墙钟响应时间；当前没有证据表明overrun本身会触发独立的控制降级或停止策略。本发现与§9.3.81的任务存活/overrun故障策略缺口交叉引用，本节新增重点是其对周期字段和时间阈值解释的影响。
+
+### 工程影响
+
+1. ROS 2 control_manager提供的period与VAL3任务周期可能不一致；当前协议字段不会自动使二者同步。任何依赖该字段进行时基补偿、预测、轨迹重采样或deadline计算的上层设计都没有实现依据。
+2. 以sequence差值作为延迟估计时，必须绑定经测量的VAL3实际周期和overrun记录；仅以“5个周期=20ms”表述会掩盖周期漂移与任务过载。
+3. 当监控速度低于100%时，程序继续运行可能使控制任务周期和序列阈值的实际时间意义发生变化。是否允许此运行状态必须由Stäubli平台资料、应用风险分析和实测数据决定。
+4. 将period字段保留为未使用的“supervision data”会造成接口使用者误以为该字段已参与实时控制。应选择删除/重命名为诊断观测字段，或完成端到端消费、校验和明确契约；不能保留模糊语义。
+5. 不能仅凭VAL3项目中配置了0.004秒，就断言CS9实机最坏周期为4ms；需要在目标控制器、目标程序版本和最不利负载下测量实际周期分布、抖动和超期行为。
+
+### 建议
+
+- 冻结唯一周期契约：区分ROS 2 update period、VAL3 task configured period、VAL3 measured execution period、UDP round-trip age和机器人运动控制内部采样周期；单位、时钟域、有效范围和误差预算均需定义。
+- 对`controller_period`决定明确处理方式：如果用于时基/控制逻辑，则在VAL3侧校验finite、positive、上下限及突变，并定义与固定4ms task period之间的关系；如果不消费，则从协议移除或明确标注仅诊断，不得宣称同步。
+- 用实际测得周期或时间戳实现墙钟超时，不要只依赖序号差值换算；若仍使用循环数阈值，必须实时监测周期并按测量周期动态换算。
+- 将监控速度低于准入阈值、连续overrun、周期抖动超限、控制任务异常退出纳入可观察的故障锁存与运动禁止状态；阈值必须经过安全/性能分析批准。
+- 增加VAL3周期探针：记录每轮开始时间、执行时间、周期、overrun、序号、命令接收年龄；导出统计分位数、最大值、连续超期次数和故障触发原因。
+- 在CS9上按不同监控速度、不同任务负载、日志压力、网络负载、ROS 2更新率及CPU负载执行联合测试，验证周期和停止响应上界。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-566 | controller_period端到端消费 | 明确字段是否用于控制逻辑；若保留则证明VAL3真实消费，否则移除/改名并更新协议契约 | 未执行 |
+| SERVO-567 | 主机与机器人周期契约 | 冻结ROS 2 period、VAL3配置周期、实测周期及机器人内部周期的关系和单位 | 未执行 |
+| SERVO-568 | VAL3实际周期测量 | 在目标CS9测量周期分布、抖动、最大执行时间和任务超期，形成可复现报告 | 未执行 |
+| SERVO-569 | 序列延迟墙钟阈值 | 在周期漂移/overrun条件下验证阈值对应真实时间，并确定动态阈值或时间戳方案 | 未执行 |
+| SERVO-570 | 监控速度准入门控 | 验证低于准入速度时是否禁止运动/启动，恢复到准入值是否需人工授权 | 未执行 |
+| SERVO-571 | overrun故障闭环 | 注入连续/突发任务overrun，验证锁存、停止策略、状态上报与恢复条件 | 未执行 |
+| SERVO-572 | period字段异常注入 | 对-1、0、负数、NaN、Inf、过大、跳变和ROS时间源变化验证端到端拒绝/安全行为 | 未执行 |
+| SERVO-573 | 250Hz假设验证 | 核实4ms配置在目标CS9固件/VAL3版本和最不利负载下的实测有效性 | 未执行 |
+| SERVO-574 | 周期与网络时延联合验收 | 联合注入网络延迟/丢包、ROS调度抖动、VAL3 overrun，验证真实墙钟超时与停止响应 | 未执行 |
+
+### 本节来源记录（#2057–#2062）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2057 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write将ROS period转换为毫秒并填入RobotCommandMessage |
+| #2058 | [decodeRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | VAL3将float32 period解析到nRemoteCtrlPeriod |
+| #2059 | [RobotCommand.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotCommand/RobotCommand.dtx)与[initRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx) | period字段定义、初始默认值 |
+| #2060 | [start.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx)与[ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | 4ms任务周期配置及任务启动 |
+| #2061 | [controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx)与[computeSequenceDelay.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | delay(0)循环、5/25周期阈值、overrun仅计数及sequence delay计算 |
+| #2062 | [troubleshooting.rst](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | 250Hz/4ms与20ms延迟阈值的文档假设 |
+
+**验证边界：** 本节为固定提交静态源码、VAL3项目和文档检索。没有编译VAL3项目，没有在CS9/SRS仿真或实机测量4ms任务周期、任务抖动、监控速度变化、overrun或停止响应；没有验证`controller_period`在任何外部定制VAL3程序中的消费情况。符号检索表明固定仓库项目内该字段仅声明、初始化和解码，未发现逻辑消费点。SERVO-566–SERVO-574全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
