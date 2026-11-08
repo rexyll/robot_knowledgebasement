@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.14  
+> 版本：v9.15  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.141，厂商档案新增§128.92。MoveIt PR #3907仍Open/未合并，双订阅stop缺陷仍在当前main；PR #3909也仍Open/未合并，拟修复OccupancyMapUpdater初始化失败传播，但其CI run 37457932979与Formatting run 37457933046均completed/failure，jobs/artifacts接口为空、失败原因未知，reviews/threads为空。PR #3909将public纯虚MiddlewareHandle钩子由void改为bool，外部自定义实现需迁移；源码兼容性变化已确认，ABI未验证；失败路径资源回收缺少统一契约，新增SERVO-727并建立U11-U15矩阵。#3901/#3902仍Open。SERVO-721/723/725/726动态验证未执行，SERVO-722现场调用链与Octomap配置缺失/阻塞，SERVO-724持续跟踪两项PR及Jazzy回移/正式发行。SERVO-727静态审查完成，编译/ABI/动态资源测试未执行。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.142，厂商档案新增§128.93。MoveIt PR #3907仍Open/未合并，当前main双订阅stop缺陷仍在；PR #3909仍Open/未合并，拟修复OccupancyMapUpdater初始化失败传播，但CI run 37457932979与Formatting run 37457933046均completed/failure，jobs/artifacts为空、失败原因未知，reviews/threads为空。#3909将public纯虚MiddlewareHandle接口从void改为bool，源码兼容性变化已确认；作者维护的MoveIt 2.12.4外部复现fixture含旧void override，形成U11具体迁移样例，但不是独立商业下游或Stäubli现场证据。ABI未验证；initialize/setParams失败后的资源回收缺少统一契约，SERVO-727 U11-U15跟踪中。#3901/#3902仍Open。SERVO-721/723/725/726动态验证未执行，SERVO-722现场调用链及Octomap配置缺失/阻塞，SERVO-724持续跟踪两项PR和Jazzy回移/正式发行。SERVO-727静态审查完成，旧fixture迁移编译、ABI与动态资源测试未执行。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1239,3 +1239,8 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 本轮确认PR #3909把public纯虚MiddlewareHandle初始化钩子由void改为bool；外部自定义handle及Mock需要更新，旧void override不能满足新接口。PR迁移说明属于ROS Rolling章节，不能推断变化已进入Jazzy。二进制ABI未经工具验证，保持未知。
 
 PR失败分支continue只跳过后续配置与登记，依赖updater对象析构回收资源，没有统一stop/rollback契约；initialize部分初始化失败和setParams失败后的资源回收尚未通过测试。新增SERVO-727、U11-U15矩阵，静态审查完成，源码迁移编译、ABI与动态资源测试未执行。PR #3909仍Open，CI/Formatting均failure，jobs/artifacts为空，reviews/threads为空。未修改上游、未应用补丁；Stäubli现场是否启用Octomap仍未知。
+
+
+### §9.3.142 作者维护复现fixture的MiddlewareHandle旧签名迁移证据
+
+已审查上游PR作者的公开复现仓库固定commit `9630a900f2d323b3b45c1976df8fe722b809f7a7`。其PROVENANCE记录MoveIt 2.12.4 runtime；两个OccupancyMap场景目录共用一份旧void签名FakeMiddleware fixture，并通过find_package链接安装包。切换至PR #3909新bool接口时需修改override并传播初始化结果。该证据属于作者的复现工程，不是独立商业部署或Stäubli现场证据。U11获得具体迁移样例，迁移编译未执行，ABI未知。详见专项审计§9.3.142。
