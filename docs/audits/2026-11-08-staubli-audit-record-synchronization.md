@@ -277,3 +277,8 @@ SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进�
 - https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/release_job.py
 - https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/binarydeb_job.py
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
+
+
+## 24.1 厂商档案资产清单单行元数据刷新
+
+因厂商档案新增§128.77，资产清单中 knowledge/ecosystem/主要厂商.md 对应行刷新为Blob SHA 2fe0efb498d2aad2651999435792b697b4f1e9be、UTF-8大小521,359 bytes。该操作仅刷新单一文件Git元数据，不代表claim-level复核完成或全库资产清单重新计算。
