@@ -984,3 +984,18 @@
 | SERVO-670 | 目标二进制Servo参数描述、默认值、YAML覆盖值和最终运行值核对 | 未执行 |
 | SERVO-671 | 缺失moveit_servo包、节点启动失败、参数不兼容时的启动失败闭锁与就绪状态验证 | 未执行 |
 | SERVO-672 | MoveGroup-only与MoveGroup+Servo两种部署组合纳入CI矩阵并保存版本/日志证据 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli Servo依赖闭包与CI覆盖边界增量审查 | 固定ICube提交bd658e2进一步核对staubli_moveit_config/package.xml、两层MoveIt launch、bringup manifest、.github/workflows/ci.yml及action-ros-ci流程：moveit_servo仅在staubli_moveit.launch.py的条件节点中以package/executable形式引用，staubli_moveit_config/package.xml仍未声明exec_depend；bringup只转发launch_servo参数且默认false，不构成依赖声明。CI使用ros-tooling/action-ros-ci@0.4.8、Jazzy，action会执行rosdep install、colcon build/test，但workflow未显式设置launch_servo=true，也未发现Servo启动/运行集成测试；因此CI绿灯只证明当前manifest可解析依赖下的构建/测试路径，不证明Servo可选路径可安装/可启动。Dockerfile同样依赖rosdep manifest闭包，未显式apt安装moveit_servo。结论仍是静态依赖缺口和CI覆盖缺口，不声称当前CI必然缺包失败（可能由基础镜像/其他包传递安装），也不声称已运行干净环境复现。新增SERVO-673–SERVO-679，全部未执行；未修改ICube上游。 |
+
+### Stäubli专项审查新增验收任务（§9.3.102，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-673 | 审查所有launch入口对moveit_servo的直接/间接引用，建立运行依赖闭包和包所有权矩阵 | 未执行 |
+| SERVO-674 | 在最小ROS Jazzy基线容器执行rosdep install前后检查moveit_servo是否由显式manifest依赖拉取 | 未执行 |
+| SERVO-675 | 对照CI容器、Dockerfile和开发README记录实际安装包来源，排除基础镜像预装造成的假通过 | 未执行 |
+| SERVO-676 | 增加launch_servo=false/true的CI smoke test，true路径断言servo_node进程成功启动并退出 | 未执行 |
+| SERVO-677 | 为Servo启动测试加入启动超时、进程退出码、参数加载和节点就绪断言，防止只检查launch命令返回 | 未执行 |
+| SERVO-678 | 验证缺少moveit_servo时launch_servo=true明确失败且系统不报告Servo就绪/运动许可 | 未执行 |
+| SERVO-679 | 将MoveGroup-only与MoveGroup+Servo依赖清单、镜像digest、APT版本和测试日志归档为可复现CI证据 | 未执行 |
