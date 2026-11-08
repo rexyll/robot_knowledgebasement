@@ -999,3 +999,17 @@
 | SERVO-677 | 为Servo启动测试加入启动超时、进程退出码、参数加载和节点就绪断言，防止只检查launch命令返回 | 未执行 |
 | SERVO-678 | 验证缺少moveit_servo时launch_servo=true明确失败且系统不报告Servo就绪/运动许可 | 未执行 |
 | SERVO-679 | 将MoveGroup-only与MoveGroup+Servo依赖清单、镜像digest、APT版本和测试日志归档为可复现CI证据 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli MoveIt Servo在ROS Jazzy发行版中的可用性与rosdep前提核对 | 对ROS Jazzy官方包发行状态进行交叉核对：ROS包状态比较页将moveit_servo列为Jazzy已发布包，版本2.12.4-1；MoveIt发行说明解释MoveIt按ROS发行版提交二进制包。结合ROS 2 rosdep规则，包名moveit_servo是应声明的ROS依赖键，运行时launch依赖应放入exec_depend。由此排除“Jazzy根本没有Servo发行包”的猜测；但该状态页不能代替目标Ubuntu Noble/amd64环境实际apt安装、rosdep resolve和launch启动，SERVO-674仍未执行。固定ICube提交package.xml确实缺失该依赖，CI未显式启用Servo启动路径的结论不变。新增SERVO-680–SERVO-685，全部未执行；未运行容器/apt/rosdep/launch测试，未修改ICube上游。 |
+
+### Stäubli专项审查新增验收任务（§9.3.103，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-680 | 在干净Ubuntu 24.04/ROS Jazzy/目标架构执行 rosdep resolve moveit_servo --rosdistro jazzy，保存完整解析输出 | 未执行 |
+| SERVO-681 | 验证ROS Jazzy apt仓库中moveit_servo二进制包的架构、版本、依赖和安装候选，记录apt policy输出 | 未执行 |
+| SERVO-682 | 在最小容器中只按工作区manifest运行rosdep install，确认moveit_servo由staubli_moveit_config的exec_depend拉入，而非基础镜像预装 | 未执行 |
+| SERVO-683 | 分别构建仅MoveGroup和MoveGroup+Servo镜像，比较最终包清单、镜像digest及SBOM | 未执行 |
+| SERVO-684 | 在固定Jazzy二进制版本下启动servo_node，验证可执行文件、参数文件、节点命名空间及退出码 | 未执行 |
+| SERVO-685 | 将Jazzy包版本、rosdep解析结果、APT仓库快照/版本锁与CI日志归档，作为部署可复现性证据 | 未执行 |
