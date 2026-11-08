@@ -414,3 +414,16 @@ SERVO-721/723/725未执行；SERVO-722仍因Stäubli现场部署证据缺失而�
 - https://github.com/moveit/moveit2/pull/3907
 - https://github.com/moveit/moveit2/issues/3897
 - 专项追加件§9.3.133；厂商档案§128.84。
+
+
+## 32. MoveIt PR #3907审查门禁与Jazzy backport状态（2026-11-08追加）
+
+PR #3907明确Fixes #3897，代码diff分别reset两个world geometry subscriber，并新增双topic启动后单次stop、通过`getMonitoredTopics()`确认topic移除的测试。PR仍open/未合并，base main，head SHA `821818f4ffeaa7564459faed2cbddbfb604f9dcb`，mergeable_state=behind，最后更新时间2026-09-30。PR作者自报Ubuntu 24.04/Jazzy四项测试通过，但这不是独立复测。
+
+Actions `Formatting (pre-commit)`与`CI` workflow均completed/failure；jobs接口返回空列表，无法判断具体失败原因。reviews为空；Mergify Summary/WIP/CodeRabbit success不等于required CI通过或维护者review approval。按base:jazzy检索#3897/stopWorldGeometryMonitor回移PR均未命中；issue #3887可见backport清单未列#3907。ROS官方Jazzy状态页amd64/arm64 Main仍分别是2026-10-06的2.12.4-1构建，production main pool仍列旧deb；当前MoveIt main源码仍保留旧if/else if实现。
+
+SERVO-724持续跟踪PR更新、CI、review/merge、Jazzy backport和正式deb。SERVO-721/723/725未执行，SERVO-722现场调用链仍缺失。未修改上游或应用补丁。
+
+厂商档案`knowledge/ecosystem/主要厂商.md`新增§128.85，更新后Blob SHA为`299b808a7a11513153a4521ce21be0a1cfe30d96`，UTF-8大小536180 bytes；该项仅刷新资产元数据，不代表claim-level验收或整库重算。
+
+来源：专项追加件§9.3.134；厂商档案§128.85。
