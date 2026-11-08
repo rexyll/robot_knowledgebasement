@@ -640,3 +640,24 @@
 | SERVO-470 | write OK与底层发送语义整改 | 未执行 |
 | SERVO-471 | Mock命令端到端闭环测试 | 未执行 |
 | SERVO-472 | CS9/HIL命令因果链验收 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli命令事务状态机与协议升级设计基线 | 固定ICube bd658e2确认v1协议只有8字节头、16位通用sequence及state/command/diagnostic消息，C++/VAL3命令结构均缺少command ID、session epoch、deadline、ACK阶段和结果字段。提出协议v2显式协商、boot/session隔离、分阶段ACK、幂等去重、期限、查询、事件队列、STOP优先级、完成判据、稳定错误码、认证和实时预算；明确属于设计建议，未修改上游实现。新增§9.3.84、SERVO-473–SERVO-485、来源#2002–#2009。全部未执行，未做CS9/HIL/实机验证。 |
+
+### Stäubli专项审查新增验收任务（§9.3.84，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-473 | 协议v2兼容性和协商 | 未执行 |
+| SERVO-474 | Controller boot/session身份 | 未执行 |
+| SERVO-475 | 独立command ID | 未执行 |
+| SERVO-476 | 分阶段事务事件与原因码 | 未执行 |
+| SERVO-477 | 幂等去重和ID冲突处理 | 未执行 |
+| SERVO-478 | Deadline/TTL语义 | 未执行 |
+| SERVO-479 | ACK丢失、查询与结果保留 | 未执行 |
+| SERVO-480 | 命令流/离散事务/抢占/STOP优先级 | 未执行 |
+| SERVO-481 | COMPLETED工程判据 | 未执行 |
+| SERVO-482 | 错误码、认证和安全边界 | 未执行 |
+| SERVO-483 | ACK事件实时性和队列容量 | 未执行 |
+| SERVO-484 | C++/VAL3跨端协议一致性测试 | 未执行 |
+| SERVO-485 | 协议升级、配对部署与回滚 | 未执行 |
