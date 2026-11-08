@@ -601,3 +601,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli运行模式、安全状态与监督信号语义映射 | 固定ICube bd658e2核对VAL3 updateState的workingMode码表与安全状态推导、C++ OperationMode/SafetyStatus枚举、wire直传、HardwareInterface映射和overview文档。发现VAL3模式0–4（invalid/manual/test/auto-local/auto-remote）与C++ UNKNOWN/MANUAL/AUTOMATIC/REMOTE枚举不一致，Test被映射为AUTOMATIC、Auto Local映射为REMOTE、Auto Remote数值4超出枚举；VAL3将所有非零SafetyStatus置bEStopped，导致SS1/SS2/等待重启均被导出为estop_pressed；bBrakeReleased直接取isPowered，motion_possible只由power与非E-stop推导。新增§9.3.80、SERVO-433–SERVO-442、来源#1967–#1974。未执行CS9安全状态HIL、跨语言测试或实机安全验证。 |
+
+
+| 2026-11-08 | 21-02/Stäubli控制任务故障恢复、STOP确认与运动重新授权 | 固定ICube bd658e2审查VAL3 controlTask/start/stop/位置与速度控制子程序、C++ UDPSocketImpl/RealTimeSocketInterface/RobotDriver/StaubliHardwareInterface及troubleshooting文档。发现命令staleness和错误后重新接收命令等待仍为TODO；错误处理清除l_bError并重置socket，没有独立故障锁存/人工重新授权；overrun仅计数；stop.pgx没有显式终止controlTask；UDPSocketImpl::send遇到would_block丢包却返回true，使STOP/普通命令可能被误报成功；on_cleanup直接断开且生命周期没有等待停止反馈。新增§9.3.81、SERVO-443–SERVO-452、来源#1975–#1983。未执行UDP故障注入、VAL3/CS9、HIL或实机停机验证。 |
