@@ -1544,3 +1544,11 @@ SERVO-724继续跟踪PR更新、失败原因/日志、修复后CI、review/merge
 - https://api.github.com/repos/moveit/moveit2/actions/runs/36755746603/jobs
 - https://api.github.com/repos/moveit/moveit2/actions/runs/36755746261/jobs
 - 专项追加件§9.3.135。
+
+
+### Stäubli专项审查新增记录（§9.3.136，PR #3907回归测试覆盖边界）
+
+- 已对PR #3907新增`PlanningSceneMonitor.StopWorldGeometryMonitorStopsAllSubscriptions`测试做静态行级审查：双topic启动后用`getMonitoredTopics()`确认初始登记，调用一次stop，再断言两个topic均从监控列表移除。该测试直接针对subscriber登记/释放状态，覆盖#3897的核心资源生命周期回归。
+- 该测试没有发布消息并观察回调计数，也没有覆盖重复stop、restart、单topic/空topic配置切换或octomap monitor停止。因此不能替代SERVO-721/725的完整动态矩阵，也不能将测试源码存在等同于测试运行通过。
+- SERVO-724继续进行中（PR仍Open，Formatting/CI workflow failure，jobs与reviews当前无可读详情）；SERVO-721/723/725未执行，SERVO-722现场调用链仍阻塞。未修改上游/ICube或应用补丁。
+- 详见专项追加件§9.3.136。
