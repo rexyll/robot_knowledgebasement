@@ -329,3 +329,18 @@ SERVO-719仍部分取证：workflow/job元数据已梳理，但三个Servo测试
 ## 26.1 厂商档案资产清单单行元数据刷新
 
 因厂商档案新增§128.79，资产清单中`knowledge/ecosystem/主要厂商.md`对应行刷新为Blob SHA `b639f21d4f6403dbe1bc791cd85e379071fa91fd`、UTF-8大小524,243 bytes。该操作仅刷新单一资产Git元数据，不代表claim-level审查完成或全库资产清单重算。
+
+
+## 27. ROS Jazzy状态页刷新与生产main目录复核（2026-11-08追加）
+
+本轮直接重新打开ROS官方Jazzy amd64/arm64规范状态页：amd64页面生成时间05:56:04 -0800，arm64页面生成时间05:43:04 -0800。`moveit_servo`的B/T版本仍分别为`2.12.4-1noble.20261105.184638`与`2.12.4-1noble.20261106.111556`，M仍分别为`2.12.4-1noble.20261006.040508`与`2.12.4-1noble.20261006.043301`。相较此前§9.3.128快照只有页面生成时间刷新，未观察到Main版本晋级。
+
+生产main pool目录仍列出与2026-10-06 Main版本相匹配的amd64/arm64二进制（674,492/615,538 bytes），以及2025-12-06源包文件元数据；目录没有出现本轮状态页B/T所对应的11月新二进制文件。由此只记录为当前目录快照，不据此推断testing pool完整性、APT索引有效性或构建失败。
+
+尝试通过当前读取通道直接展开Packages/InRelease与deb内容仍受`application/octet-stream`限制，Jenkins具体job API也不可读；本轮没有新增签名、Packages stanza、SHA256、job日志或包内control证据。SERVO-710/714未完成、SERVO-713/716/719部分取证；未执行目标安装运行与VAL3/CS9/HIL/实机验证。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- 专项追加件§9.3.129。
