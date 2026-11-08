@@ -165,3 +165,6 @@
 
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.142，审查PR作者维护的外部MoveIt 2.12.4复现工程，确认两个OccupancyMap场景目录共用同一份旧void签名MiddlewareHandle fixture，并以安装的moveit_ros_occupancy_map_monitor包构建；将其作为U11源码迁移样例，明确不属于独立商业部署或Stäubli现场证据。独立C++17最小override探针已复现conflicting return type；完整fixture迁移编译及ABI测试未执行。
+
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.143，核对PR #3909失败初始化测试的shared_ptr所有权，确认测试函数自身保留强引用，故不能证明updater析构/资源回收；fake updater不创建ROS异步资源，且未覆盖setParams(false)。细化SERVO-727 U13/U14测试要求，明确这是覆盖缺口而非已证实泄漏。
