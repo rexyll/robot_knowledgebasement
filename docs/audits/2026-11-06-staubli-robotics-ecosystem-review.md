@@ -4165,3 +4165,60 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1872 | [上游 troubleshooting.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | 连续5周期未收到命令触发STOP的公开排障说明；作为行为背景而非验收证据 |
 
 **验证边界：** 本节只完成静态源码和上游文档审查。未执行VAL3 Studio编译、CS9仿真、UDP队列/重复/乱序/延迟/突发注入、ROS 2状态关联测试、HIL或实机验证；所有SERVO-313–SERVO-322保持未执行。Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.69 STOP/ERROR处理、故障锁存与ROS 2硬件生命周期一致性（2026-11-08）
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节静态审查VAL3控制任务与ROS 2 SystemInterface生命周期/命令接口，不代表安全功能认证或动态验收。
+
+### 发现
+
+1. **VAL3 ERROR不是持久锁存状态。** `controlTask.pgx`在错误路径执行停止相关程序、`stopMove()`和`resetMotion()`，把命令模式置为0后，随即将`l_bError=false`、命令`bIsValid=false`、控制活动标志清零、序号复位并重置socket；之后立即回到主循环。没有独立的fault-latched状态、故障原因保持、外部确认复位或重新使能握手。源码明确留有“重新接受命令前增加约1000ms delay”的TODO。
+2. **错误路径停止动作没有独立确认。** VAL3内部`stopMove/resetMotion`执行结果不能仅从代码推断为安全停止或机械制动已完成；状态发布在每轮开头，错误处理发生在本轮后段，状态反馈至少有流水线滞后。没有STOP完成ACK、停止距离/静止确认或安全回路反馈证明。
+3. **ROS 2 on_error仅发普通UDP STOP。** `StaubliHardwareInterface::on_error()`在driver connected时调用`send_stop_all_command()`，不检查STOP后的新状态、不等待控制器ACK或静止确认；若driver未连接则返回ERROR。发送成功只代表驱动发送接口报告成功，不能证明VAL3收到或执行STOP。
+4. **on_shutdown条件依赖缓存状态和本地连接。** 只有`robot_driver_->is_connected()`为真时才处理；且只有缓存`state_msg_.control_state != STOP`才发STOP，随后disconnect。若缓存状态陈旧、连接状态只代表本地socket、或机器人仍运动但缓存状态为STOP，可能跳过STOP请求。disconnect不是停止确认。
+5. **on_activate只设置本地STOP模式。** 没有读取最新状态、验证控制器故障已清除、确认安全状态/制动状态、完成会话握手或取得显式使能许可。生命周期激活成功不等于机器人已具备运动条件。
+6. **perform_command_mode_switch使用缓存状态作有限检查。** 切入JOINT_POSITION时检查`state_msg_.error_state`和`motion_possible`；`operation_mode_status`非0只警告“机器人处于HOLD”，仍继续提交本地控制模式。没有在切换瞬间独立确认状态新鲜度、急停、安全门、保护停止复位或控制器故障锁存状态。STOP切换也只是设置本地模式，实际STOP数据报要等后续write周期。
+7. **write的错误检查对STOP模式豁免。** 仅当`current_control_mode_ != STOP`时才检查缓存`error_state`和INVALID控制状态；STOP模式仍继续构造并发送STOP帧。该设计可能利于错误状态下持续发STOP，但也意味着write返回OK不代表故障已经清除；需将“STOP命令通道可用”与“可运动许可”明确分开。
+8. **hardware read/write返回ERROR不是机械停止证据。** read失败或write失败会向ros2_control返回ERROR，但实际控制器管理器如何停止/停用其他控制器、触发hardware on_error、保持STOP流，取决于具体ros2_control版本和配置；本轮没有运行集成测试，不对传播行为作已验证结论。
+9. **缺少统一跨层故障状态机。** VAL3内部l_bError、robot state bInError/control mode、ROS 2硬件生命周期状态、Controller Manager控制器状态和安全系统状态没有发现可证明的一致状态机/事务ID。故障清除与恢复必须区分“故障原因消失”“故障已确认复位”“通信重新建立”“运动许可重新取得”四个阶段。
+
+### 风险与整改
+
+- VAL3错误路径应进入锁存FAULT状态，保存首发错误码/原因/时间/序号；禁止自动清除故障标志并接受新命令。复位必须由授权的外部流程触发，且先确认停止状态、安全输入正常、故障源清除，再建立新session并显式enable。
+- 定义统一状态机：DISCONNECTED → CONNECTING → IDLE_STOPPED → MOTION_ENABLED → RUNNING；任意通信/安全/运动异常进入FAULT_LATCHED/STOPPING。恢复流程需显式经过FAULT_ACKNOWLEDGED、SAFETY_READY、SESSION_ESTABLISHED、MOTION_REARMED，不得从ERROR直接跳回RUNNING。
+- STOP请求分为发送、控制器接收、控制器接受、运动停止确认四个阶段；on_error/on_shutdown应等待有界时间内的状态确认，超时进入不可确认故障并提示独立安全回路处置。UDP STOP不能替代硬接线急停/安全PLC。
+- on_activate与perform_command_mode_switch必须使用有年龄上限的最新状态，验证error、motion_possible、operation mode、E-stop、安全状态和制动状态；HOLD/WAIT_FOR_RESTART不能仅警告后继续切入运动模式。
+- on_shutdown不得仅凭缓存control_state跳过停止确认；需根据设计策略始终请求STOP或使用独立安全停机通道，再确认静止/安全状态，最后断开通信。网络不可用时必须明确报告“停止状态未知”。
+- 在ros2_control集成测试中验证read/write ERROR、on_error回调、hardware lifecycle ERROR/cleanup/shutdown、Controller Manager控制器停用和重启顺序；确认错误恢复后旧控制器命令、command interface缓存和GPIO输出不会重新触发运动。
+- 分别测试VAL3错误、急停、HOLD、保护停止、制动未释放、控制器重启、UDP断链、STOP丢包、STOP ACK丢失、ROS进程崩溃和主机掉电。所有故障路径均需证明不会自动重新运动。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-323 | VAL3 ERROR锁存 | 故障原因与状态保持，未授权不能自动清除 | 未执行 |
+| SERVO-324 | 故障复位授权 | 故障源清除、安全输入正常、显式ACK后才允许复位 | 未执行 |
+| SERVO-325 | STOP分阶段确认 | 发送/接收/接受/静止确认可区分，超时明确报未知 | 未执行 |
+| SERVO-326 | on_error安全处理 | 断链/STOP丢包时有界等待、错误上报及独立安全策略 | 未执行 |
+| SERVO-327 | on_shutdown停机顺序 | 不依赖陈旧缓存跳过STOP，断开前确认安全状态或报告未知 | 未执行 |
+| SERVO-328 | on_activate重新使能门控 | 激活不自动许可运动，必须新鲜状态、安全检查和显式enable | 未执行 |
+| SERVO-329 | command mode switch安全门控 | HOLD/WAIT_FOR_RESTART/急停/制动异常拒绝运动模式切换 | 未执行 |
+| SERVO-330 | read/write ERROR传播 | 验证Controller Manager、硬件生命周期和控制器停用行为 | 未执行 |
+| SERVO-331 | 故障恢复旧命令隔离 | 复位/重连后旧command interface值与GPIO不得自动重放 | 未执行 |
+| SERVO-332 | 跨层故障状态机综合验收 | VAL3/ROS2/Controller Manager/安全系统状态一致，任何故障不自动恢复运动 | 未执行 |
+
+### 本节来源记录（#1873–#1880）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1873 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | l_bError清除、socket/命令重置、恢复延迟TODO、STOP/resetMotion顺序 |
+| #1874 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | on_configure/on_activate/on_error/on_shutdown、read/write、command mode switch状态门控 |
+| #1875 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | is_connected、send_stop_all_command、read_robot_state新鲜度和本地发送语义 |
+| #1876 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync状态与运动命令停止/错误行为 |
+| #1877 | [stopJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx) | 位置控制停止辅助程序 |
+| #1878 | [stopJointVelocityControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointVelocityControl.pgx) | 速度控制停止辅助程序及当前实现状态 |
+| #1879 | [ROS 2 hardware lifecycle documentation](https://control.ros.org/rolling/doc/ros2_control/hardware_interface/doc/hardware_components_userdoc.html) | 生命周期回调语义和硬件组件状态管理参考；不是本仓库动态测试证据 |
+| #1880 | [ros2_control Controller Manager documentation](https://control.ros.org/rolling/doc/ros2_control/controller_manager/doc/userdoc.html) | Controller Manager错误处理/控制器生命周期参考；具体行为须按部署版本验证 |
+
+**验证边界：** 本节为固定提交静态审查。未执行VAL3编译、CS9仿真、ROS 2 lifecycle/Controller Manager集成测试、UDP STOP丢包、急停/HOLD/制动故障注入、HIL或实机测试；SERVO-323–SERVO-332全部未执行。不能据此声称实现具备安全停止或安全复位能力。Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
