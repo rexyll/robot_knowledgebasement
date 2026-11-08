@@ -563,3 +563,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli VAL3命令接收、解码与控制器侧门控 | 固定ICube bd658e2审查CS9/VAL3服务端：55字节固定接收、header magic/version/type校验、float32字段解码、position isInRange、sequence delay门控。发现header声明payload length未在解码后独立核对；解码后无period/运动/analog字段finite和物理范围检查；position目标接近TODO；重复sequence未拒绝、回绕/乱序缺少代际策略，staleness仍有TODO；GPIO mask映射和GPIO输出执行均TODO；velocity分支仅占位并报未实现；错误复位后重连冷却/重新使能门控TODO。新增§9.3.64、SERVO-273–SERVO-282、来源#1837–#1843。全部VAL3编译、CS9仿真、网络注入、HIL/实机验收未执行。 | 来源#1837–#1843；专项审计§9.3.64 |
+
+
+| 2026-11-08 | 21-02/Stäubli同步控制循环周期对齐、movejSync刷新与overrun门控 | 固定ICube bd658e2核对start/controlTask/updateJointPositionControl、controllers.yaml和Servo配置，并对照Stäubli CS9 TSS.000.014.04-A：默认VAL3/ControllerManager/Servo均4ms，但TX2-60L MR文档为1ms采样，当前launch无型号自动周期适配，MR曾测试2ms VAL3但Servo仍4ms；controlTask先发布状态后读命令/执行运动，反馈新模式晚一周期；movejSync state 1/2分支只留注释，不升级错误；overrun只日志/计数，未触发安全门控，跳过周期未计入应用sequence；nOverruns无实时ROS诊断字段；同步任务无WCET/余量测量。新增§9.3.65、SERVO-283–SERVO-292、来源#1844–#1849。所有周期、抖动、movejSync、overrun、生命周期测试未执行。 | 来源#1844–#1849；专项审计§9.3.65 |
