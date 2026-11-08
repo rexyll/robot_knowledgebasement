@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.49  
+> 版本：v8.50  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.81；新增控制任务故障恢复、命令陈旧、overrun处理、UDP would_block静默丢包、STOP确认及运动重新授权审查；新增SERVO-443–SERVO-452均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.82；新增C++状态订阅端重复/回放帧刷新接收时间、乱序帧覆盖缓存、uint16回绕丢包计数偏差及状态序号门控审查；新增SERVO-453–SERVO-462均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -1067,3 +1067,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v8.44 | 00-01/21-02继续Stäubli普通I/O/GPIO/工具末端执行器审查：固定ICube bd658e2发现ROS硬件接口导出GPIO并将输出打包UDP，但VAL3 controlTask写数字/模拟输出仍为TODO，decodeRobotCommandMsg数字mask到布尔数组映射被注释；updateState将数字/模拟输入valid flags固定false，encodeRobotStateMsg输入编码仍TODO；C++无效输入时保留旧缓存值；tool0只配置静态几何偏置，不含夹爪/吸盘控制与反馈；普通GPIO不是安全I/O。新增§9.3.76、来源#1936–#1944及SERVO-393–SERVO-402。未执行VAL3/CS9/HIL/实机逐点验证；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.76；来源#1936–#1944；《主要厂商》§128.59 |
 
 | 2026-11-08 | v8.45 | 00-01/21-02继续Stäubli C++/VAL3协议一致性审查：固定ICube bd658e2发现VAL3 encodeHeader将sequence重复写入payload_size；C++ FrameHeader只校验magic，RobotState未校验type/version/payload，RobotCommand缺version校验，DiagnosticData先校验旧header再解析；VAL3 decode命令长度错误标志可能被decodeHeader清除；VAL3状态F/T第4–6分量写入注释。固定帧长RobotState=132/payload=124，RobotCommand=55/payload=47。新增§9.3.77、来源#1945–#1953及SERVO-403–SERVO-412。未执行VAL3/CS9/抓包/跨语言golden tests；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.77；来源#1945–#1953；《主要厂商》§128.60 |
+
+
+| 2026-11-08 | v8.50 | 00-01/21-02继续Stäubli C++状态接收序号、重复帧新鲜度和回放隔离审查：固定ICube bd658e2发现RealTimeSocketSubscriber对每个成功解码帧刷新reception_timestamp并按到达顺序覆盖单槽缓存；同序号帧只标记status.new_message=false但仍返回true，RobotDriver::read_robot_state不检查new_message/lost_packages，仅按接收时间判断stale，因此重复/回放数据报可能续刷新鲜度；乱序旧帧进入wrap分支计数后仍被接受并回写last_valid_sequence_id；uint16回绕丢包公式65535→0多计1包；命令sequence复用最新状态帧sequence，不是独立命令ID；UDP来源校验TODO与§9.3.66交叉引用。新增§9.3.82、来源#1984–#1991及SERVO-453–SERVO-462。未执行重复/乱序/回绕/重启故障注入、CS9/HIL或实机验收；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.82；来源#1984–#1991；《主要厂商》§128.65 |
