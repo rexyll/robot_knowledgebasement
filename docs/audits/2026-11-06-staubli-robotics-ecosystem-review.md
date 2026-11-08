@@ -4825,3 +4825,69 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1959 | [messages.hpp / messages.cpp / types.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver) | DIAGNOSTIC_DATA类型、74字节消息及字段布局/序列化定义 |
 
 **验证边界：** 本节仅为固定提交静态源码与测试源码审查；未执行C++构建/单元测试、VAL3编译、CS9仿真、真实诊断UDP抓包、控制器型号/固件核验、HIL或实机测试。未检索到VAL3诊断编码/发送实现不等于证明未公开控制器程序中不存在该能力。Mock诊断发送不能证明真实CS9诊断链路。SERVO-413–SERVO-422全部未执行；Stäubli仍处于静态审查阶段，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.79 诊断功能生命周期闭环、VAL3任务调度与ROS 2上层暴露审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节继续§9.3.78，核查诊断功能是否从配置、VAL3任务启动、数据采集/编码、UDP发送、C++接收、ros2_control读取直至ROS 2诊断接口形成完整生命周期。
+
+**结论：固定提交明确显示诊断功能属于规划中/未完成能力，而不是已经实现的端到端功能。VAL3的sio.cfx与安装文档确实定义diagnostics UDP socket（控制器端11001），但start.pgx中“Setup supervision/diagnostics task”仍是TODO；ros2_server.pjx的Program/Types清单没有诊断task、诊断采集程序或诊断消息类型；硬件接口read()只调用read_robot_state()，没有调用read_diagnostic_data()，也没有把诊断错误日志、固件版本、controller type或control_task_status导出为ROS 2 state interface/topic/diagnostic_msgs。官方diagnostics demo只有“Coming soon :)”，README明确称诊断支持将在后续版本加入。结合§9.3.78，诊断C++消息结构和接收subscriber只是协议脚手架，不能视为已交付的机器人诊断功能。**
+
+### 端到端证据
+
+1. VAL3 sio.cfx定义名为diagnostics的UDP socket，目标IP为192.168.0.1、端口11001，描述为“Diagnostic socket to publish diagnostic information”。val3/README.md也列出diagnostics端口11001。这证明网络配置预留了诊断通道，不证明应用层已创建任务或发送数据。
+2. VAL3 start.pgx在清理control socket buffer后写有“Setup supervision/diagnostics task”，下一行仅为TODO注释；实际启动的只有4ms周期的controlTask。没有创建diagnostic/supervision task的taskCreate调用。
+3. VAL3 ros2_server.pjx程序清单包含controlTask、updateState、RobotState/RobotCommand编解码等程序；未列出diagnosticTask、diagnostic采集/编码程序。Types仅包含ThrottleLogMsg、MessageHeader、RobotState、RobotStateMsg、RobotCommand、RobotCommandMsg，没有DiagnosticData/DiagnosticDataMsg VAL3类型。该项目清单与start.pgx的TODO相互印证。
+4. StaubliHardwareInterface::read()先检查RobotDriver连接，然后只调用read_robot_state(state_msg_)并执行update_state(state_msg_)。没有调用read_diagnostic_data()；该接口没有诊断数据周期消费路径。
+5. export_state_interfaces()导出关节状态、由RobotState映射得到的supervision GPIO（operation mode、safety status、sequence delay、brakes released、motion possible、in motion、in error、estop pressed、wait_for_ack）以及普通GPIO输入；没有导出DiagnosticDataMessage中的controller type、firmware version、error log、error timestamp或control_task_status。不能将RobotState中的supervision字段等同于独立诊断UDP通道的诊断功能。
+6. 固定提交代码搜索中，read_diagnostic_data(只命中robot_driver.cpp中的函数定义和robot_driver.hpp声明；connect()中实际调用仍被注释，没有发现硬件接口/周期循环的其他调用点。diagnostic_msgs、DiagnosticStatus和diagnostic_updater均未检索到。
+7. staubli_driver_ros2/sphinx/demo_applications/diagnostics.rst标题为“Show robot diagnostics”，正文只有“Coming soon :)”，没有可运行示例、topic名称、参数、字段定义或故障映射。
+8. 上游README明确说明当前只支持position control，更多控制模式及diagnostics support将在后续版本加入，并说明项目仍是prototype、不是industry-ready software。该项目自述与源码中的TODO/空demo一致。
+9. 测试中直接向Mock/测试UDP socket发送DiagnosticDataMessage，覆盖协议序列化或subscriber socket收包的局部路径；但测试不构成VAL3诊断任务、控制器实际诊断采集、ROS 2上层发布或用户可见诊断界面的证据。
+10. 因此，诊断功能应按“socket配置存在、C++数据结构/接收原语部分存在、VAL3生产任务未实现、硬件接口未消费、ROS 2上层未暴露、官方demo未交付”分层描述。不能将诊断socket配置或C++ roundtrip测试作为功能完成证明。
+11. 与§9.3.78的关系：§9.3.78指出连接握手跳过诊断首帧、型号/固件校验不可依赖；本节进一步定位其系统性原因：VAL3任务编排与工程项目清单缺少诊断生产端，硬件接口和ROS 2公开接口也没有消费/呈现闭环。诊断支持并非单纯修复connect()的一处bug即可完成，而是需要跨VAL3、C++ driver、ros2_control、ROS 2 diagnostics、文档和测试的完整工程任务。
+
+### 风险与整改要求
+
+- 把diagnostics功能状态明确标记为“未实现/规划中”，在补齐端到端证据前不得在产品资料、验收表或连接日志中宣称已支持机器人诊断。
+- 明确诊断信息分层：实时控制状态（RobotState）、设备/控制器诊断（DiagnosticData）、功能安全状态（安全控制器/安全I/O权威来源）必须区分；不能将普通诊断通道作为安全功能或安全停机链路。
+- 完成VAL3诊断任务设计：定义诊断数据来源、采集周期、优先级、非阻塞发送、错误日志快照一致性、时间戳时基/回绕、任务状态位、掉线行为和任务生命周期；在start/stop中可靠创建、停止和监控任务。
+- 将诊断task、诊断消息类型、初始化/编码/发送程序加入VAL3工程项目清单；确认诊断socket缓冲清理、连接和发送失败处理，禁止阻塞4ms控制周期。
+- 明确diagnostics UDP帧的端口、方向、远端/本地绑定、消息周期、帧长度、序号策略和网络隔离；sio.cfx中的socket声明不能代替应用层发送。
+- 在RobotDriver中实现首帧门控与周期读取，暴露有效位、接收时间/age、丢包计数、连接代际和错误状态；不得以socket ready替代数据有效。
+- 在StaubliHardwareInterface或独立ROS 2 diagnostics node中实现数据消费与公开接口。建议用diagnostic_msgs/DiagnosticArray或明确的自定义消息发布controller type、firmware、错误码/时间戳、task status、validity/age；明确QoS、频率、生命周期、命名空间和字段语义。
+- 建立错误码字典、task status bitmask规范、故障等级/恢复建议和控制器固件兼容矩阵；未知码/未知位必须保留原始值并标记unknown，禁止猜测含义。
+- 为断线、无首帧、陈旧、重复/乱序、控制器重启、任务崩溃、日志溢出、UDP拥塞、ROS节点停启、生命周期切换和数据源代际变化建立测试。
+- 完成用户可运行的diagnostics demo：启动命令、topic/interface列表、字段解释、RViz/rqt或CLI查看方式、故障注入示例和预期输出；同步更新README与验收矩阵。
+- 诊断任务调度必须与运动控制任务隔离；进行WCET、CPU负载、网络拥塞、丢包和控制周期抖动测试，证明诊断发送不会影响4ms控制环。任何安全功能仍需独立安全认证和安全链路验证。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-423 | 诊断功能状态声明 | 文档/连接日志/验收矩阵统一声明诊断当前未交付，不误报支持 | 未执行 |
+| SERVO-424 | VAL3诊断任务设计 | 定义诊断数据源、周期、时基、错误日志快照、状态位和生命周期 | 未执行 |
+| SERVO-425 | VAL3任务启动与停止 | 在start/stop中创建/停止诊断task，处理任务故障和重启 | 未执行 |
+| SERVO-426 | VAL3诊断工程对象 | 增加诊断task、类型、初始化/编码/发送程序并通过VAL3工程编译 | 未执行 |
+| SERVO-427 | 诊断UDP生产链路 | 在CS9抓包确认11001端口帧方向、周期、长度、序号和发送失败策略 | 未执行 |
+| SERVO-428 | Driver诊断消费路径 | 实现连接首帧门控和运行期周期读取、age/validity/代际跟踪 | 未执行 |
+| SERVO-429 | ROS 2诊断公开接口 | 发布标准DiagnosticArray或经评审自定义消息，明确QoS和生命周期 | 未执行 |
+| SERVO-430 | 错误码与状态位字典 | 建立版本化错误码、task status bitmask和故障等级/恢复映射 | 未执行 |
+| SERVO-431 | 诊断运行时异常测试 | 覆盖断线、陈旧、乱序、重启、溢出、拥塞、节点停启和代际隔离 | 未执行 |
+| SERVO-432 | 诊断实时性与用户文档验收 | 证明诊断任务不干扰4ms控制环，完成可运行demo和文档 | 未执行 |
+
+### 本节来源记录（#1960–#1966）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1960 | [VAL3 start.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | supervision/diagnostics task明确TODO，实际只启动controlTask |
+| #1961 | [VAL3 ros2_server.pjx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | VAL3 Program/Types清单没有诊断task、程序和数据类型 |
+| #1962 | [StaubliHardwareInterface::read/export_state_interfaces @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read只读RobotState，state interfaces没有暴露DiagnosticData字段 |
+| #1963 | [diagnostics.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/diagnostics.rst) | 官方诊断demo仍为Coming soon |
+| #1964 | [README.md @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md) | 上游声明diagnostics support将在后续版本加入，项目为prototype |
+| #1965 | [sio.cfx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx) | 仅定义diagnostics UDP socket及11001端口，非应用层发送证据 |
+| #1966 | [val3 README @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md) | 安装文档列出diagnostics socket配置，但未提供诊断task运行说明 |
+
+**验证边界：** 本节为固定提交bd658e2静态源码、VAL3工程清单和文档审查；没有执行VAL3编译/CS9加载/任务调度测试、UDP抓包、ROS 2 topic运行检查、诊断故障注入、WCET/4ms实时性测量、HIL或实机测试。源码中存在diagnostic socket配置和C++数据结构，但没有诊断生产、消费及ROS 2公开接口的端到端证据。SERVO-423–SERVO-432全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
