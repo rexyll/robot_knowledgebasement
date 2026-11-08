@@ -1271,3 +1271,37 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://github.com/moveit/moveit2/pull/3907/files
 - https://github.com/moveit/moveit2/pull/3907
 - 专项追加件§9.3.136。
+
+
+### §9.3.137 PR #3907最新讨论、CodeRabbit预合并提示与main分支复核（2026-11-08）
+
+#### 1. PR与Issue最新元数据
+
+- 通过GitHub连接器重新读取PR #3907对应issue：仍为open，`updated_at=2026-09-30T18:09:48Z`，PR描述与测试清单未变；Fixes #3897仍是作者声明，PR未合并。
+- #3897仍为open。其复现描述给出Ubuntu 24.04/Jazzy/MoveIt 2.12.4/FastRTPS：双topic均收到消息后单次stop，CollisionObject不再处理而PlanningSceneWorld仍可替换world；单次stop实验3/3失败，double-stop对照3/3通过。这是issue报告者保存的复现证据，不是本项目复测。
+
+#### 2. 新增CodeRabbit评论的证据等级
+
+- PR评论区新增CodeRabbit自动评论，覆盖head `821818f4ffeaa7564459faed2cbddbfb604f9dcb`，报告未生成actionable comments；其预合并提示列出4项通过、1项warning，其中Docstring Coverage为5.56%，阈值80%，涉及18个函数/9个文件（2项跳过）。
+- 该提示是CodeRabbit评论中的自动化辅助检查，不是GitHub Actions required check，也不是维护者提交的正式review approval；不能用它覆盖此前确认的Formatting (pre-commit)和CI两个workflow均completed/failure。PR reviews接口仍为空，inline review threads也为空。
+- 两个workflow run仍为`36755746603`（Formatting）与`36755746261`（CI），均completed/failure；当前jobs查询无可读job数据，失败job/step/原因未知。
+
+#### 3. Jazzy回移与main源码复核
+
+- #3887（Jazzy 2.12.5+发布跟踪）仍open。维护者可见的backportable PR清单已扩展到#3949等后续PR，但仍未列出#3907；这是当前清单快照，不证明未来不会加入。
+- 精确搜索`base:jazzy`且匹配`3897`/`stopWorldGeometryMonitor`的PR仍为0条。
+- 再次读取MoveIt main：`planning_scene_monitor.cpp` Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`，stop实现仍为if/else if，只释放一个subscriber；`moveit_cpp.cpp` Blob SHA `abc683745c60e8c12af1955bbd5dbe80f27518fb`，MoveItCpp初始化路径仍调用`startWorldGeometryMonitor()`。上游main仍存在该静态缺陷，不能宣称已修复。
+
+#### 4. 任务状态与结论
+
+- SERVO-724继续进行中：PR未合并，Formatting/CI失败，jobs日志不可读，reviews/threads为空；CodeRabbit提示仅为辅助信息。继续跟踪PR head更新、CI失败明细/修复、正式review/merge、Jazzy backport及APT正式包。
+- SERVO-721、SERVO-723、SERVO-725目标环境动态测试未执行；SERVO-722因ICube现场源码/launch/YAML/实际调用链缺失而阻塞。
+- 未修改MoveIt或ICube上游、未应用补丁；未执行Ubuntu目标环境测试、VAL3/CS9/SRS/HIL/FAT/SAT或实机验收。Stäubli工程级验收仍未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/issues/3887
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp
+- 专项追加件§9.3.137。
