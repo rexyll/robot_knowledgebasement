@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.00  
+> 版本：v9.01  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.127，厂商档案新增§128.78。确认ROS Jazzy正式release binary配置对Noble amd64/arm64禁用package tests；同时核对MoveIt 2.12.4上游GitHub Actions/industrial_ci独立测试路径，并取得精确源码SHA对应的CI run 19975338753整体成功、两个CI矩阵job成功。逐测试报告尚未取得，不能把CI整体成功当作单项测试/正式APT包验收。SERVO-718静态证据链已完成，SERVO-719部分取证；SERVO-716部分取证，SERVO-710/714未完成、SERVO-713部分取证。APT签名/完整Packages/deb control/SHA256、具体Jenkins release job日志和Stäubli目标Ubuntu 24.04安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.128，厂商档案新增§128.79。已梳理MoveIt 2.12.4精确源码SHA对应的5个GitHub Actions runs和13个check-runs；两个industrial_ci CI矩阵job成功，但相关job日志下载HTTP 410、steps/artifacts不可用，三个Servo测试逐项结果仍未取得。SERVO-718已完成，SERVO-719部分取证；SERVO-716部分取证，SERVO-710/714未完成、SERVO-713部分取证。APT签名/完整Packages/deb control/SHA256、具体Jenkins release job日志和Stäubli目标Ubuntu 24.04安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1182,3 +1182,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v8.99 | 00-01/21-02继续Stäubli MoveIt Servo Jazzy供应链审查至§9.3.126：读取实际部署于build.ros2.org的`ros2/ros_buildfarm_config`分支HEAD `e8ac988037437c0150a5e7a91cd80395cd1aea91`（2026-11-02）；Jazzy Noble amd64 (`default`)与arm64 (`unv8`) release配置均明确`include_test_dependencies:false`、`run_package_tests:false`。追踪Build Farm `release_job.py:770`、`binarydeb_job.py:128–146`确认其转换为`skip_tests=true`、`DEB_BUILD_OPTIONS/DEB_BUILD_PROFILES=nocheck`及`dpkg-buildpackage -Pnocheck`。上游MoveIt Servo 2.12.4 CMakeLists中3个gtest目标均受`if(BUILD_TESTING)`保护，而debian/rules在nocheck时关闭BUILD_TESTING；据此确认正式release binary build配置不运行这3个包级测试。新增SERVO-717静态证据链核验已完成；SERVO-716改为部分取证（部署配置已确认禁测，但具体Jenkins job XML/console log未取得）。新增专项§9.3.126、厂商档案§128.77、同步报告§24、README及00/21章日志；资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA 2fe0efb498d2aad2651999435792b697b4f1e9be、UTF-8大小521,359 bytes；该操作仅维护单一文件Git元数据，不代表claim-level复核或整库清单重算。该结论不代表上游PR/devel/nightly CI也不测试。SERVO-710/714未完成、SERVO-713部分取证；未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。 | ros2/ros_buildfarm_config部署配置；ros-infrastructure/ros_buildfarm；MoveIt Servo 2.12.4源码；专项追加件§9.3.126 |
 
 | 2026-11-08 | v9.00 | 00-01/21-02继续Stäubli MoveIt Servo测试证据链审查至§9.3.127：核对MoveIt上游2.12.4 GitHub Actions ci.yaml和industrial_ci默认测试路径，确认NOT_TEST_BUILD默认false，target workspace执行colcon test/test-result；MoveIt Servo三个测试入口位于BUILD_TESTING条件块。找到与上游2.12.4 commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`完全匹配的Actions run `19975338753`，整体CI及两个矩阵job均success。该上游CI与ROS Build Farm正式release binary禁测配置不同；逐测试XML/console log未取得。新增SERVO-718（静态路径映射完成）、SERVO-719（run/job成功、逐测试报告未取得，部分取证），新增专项§9.3.127、厂商档案§128.78、同步报告§25及更新00/21章日志和README。资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA e613a2320a10a3e5224f2a5334962c8e988fa593、UTF-8大小522,813 bytes；该操作仅维护Git元数据，不代表claim-level复核或整库清单重算。SERVO-716仍部分取证；SERVO-710/714未完成、SERVO-713部分取证。未执行Stäubli目标apt安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证；未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收仍未通过。 | MoveIt 2.12.4 GitHub Actions；industrial_ci runner；ament_cmake_test；专项追加件§9.3.127；厂商档案§128.78 |
+
+| 2026-11-08 | v9.01 | 00-01/21-02继续Stäubli审查至§9.3.128：对MoveIt 2.12.4精确源码SHA检索到5个Actions run与13个check-runs，区分CI矩阵成功、source/tutorial/format/lint成功与release job失败。下载两个关键industrial_ci job及4个相关job日志均HTTP 410，steps接口空、artifacts列表空；不据此推断测试失败或未运行。SERVO-719仍部分取证，三个Servo测试逐项colcon/XML/console证据仍缺。新增专项§9.3.128、厂商档案§128.79、同步报告§26、README索引及第00/21章日志，根计划升至v9.01。未执行目标APT安装、VAL3/CS9/HIL/实机验证；未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。 | GitHub Actions runs/check-runs/log API；专项追加件§9.3.128 |
