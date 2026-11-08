@@ -1302,3 +1302,18 @@
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - 专项追加件§9.3.120。
+
+
+### Stäubli专项审查新增记录（§9.3.121，MoveIt Servo Debian源包与发布证据边界）
+
+- ROS Jazzy amd64/arm64规范状态页重新核对，页面生成时间分别04:36:03/04:43:04（-0800）；moveit_servo B/T仍为11月5/6日构建，M仍为10月6日构建。
+- moveit2-release README的Jazzy 2.12.4-1发布记录包含moveit_servo，与rosdistro/release ref声明一致；这是发布批次证据，不是具体Jenkins job/build成功证据。
+- ROS main、OSUOSL镜像及testing的.dsc读取失败/不可访问，testing pool目录未取得可解析列表。未取得源包Checksums-Sha256、Files、Build-Depends、Debian control/changelog/rules正文或签名状态。
+- 未取得真实Jenkins job/build number/result/source revision/console log、APT完整Packages stanza/InRelease验签、deb control/SHA256。
+- SERVO-710/714未完成，SERVO-713部分取证未完成。未执行Ubuntu 24.04安装运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证；Stäubli工程验收仍未通过。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://github.com/ros2-gbp/moveit2-release
+- 专项追加件§9.3.121。
