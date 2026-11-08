@@ -5649,3 +5649,110 @@ STOP_REQUEST可以在普通协议层具有最高调度优先级，并要求控�
 
 **验证边界：** 本节完成了文档级字段长度核算与规范缺口登记；没有运行VAL3编译器、CS9/SRS仿真、C++新序列化器、跨端golden tests、时间同步算法或HIL/实机测试。SERVO-513–SERVO-522全部未执行；u64表示策略、时间同步准入门槛和未闭合消息schema仍待实现/厂商平台确认。Stäubli仍为静态审查，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
 
+
+
+## 9.3.88 FTP管理通道、VAL3应用部署与SIO配置变更安全审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节审查固定提交 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79` 中的FTP管理通道、凭据参数、应用文件递归上传/删除、SIO配置覆盖、删除工具、安装文档与自动化测试覆盖。
+
+**结论一：当前实现使用普通FTP客户端，不是FTPS/TLS客户端。** `StaubliFTP.connect()`调用标准库`ftplib.FTP(self.robot_ip)`并直接`login(user=..., passwd=...)`；代码没有调用`FTP_TLS`、`AUTH TLS`、证书校验或数据通道保护。若控制器FTP服务和网络路径没有外部加密封装，登录凭据及控制/数据通道内容可能在网络链路上被观察或篡改。当前仓库本身没有提供该外部加密封装的证据；是否由专用隔离网/隧道保护必须在部署拓扑中核验。
+
+**结论二：应用更新采用先删除、后逐项上传的非事务式流程。** `upload_application()`在目标目录存在时先调用`delete_remote_directory()`，但没有检查该删除调用的返回值；随后递归创建目录和上传文件。上传失败时函数只返回False，没有恢复旧目录或清理/隔离半成品。上传成功也只基于每条`STOR`调用成功，没有远端清单、哈希读回或VAL3项目装载验证。因此部署过程中可能出现旧版本已被删除、新版本只上传一部分或新旧文件混合的状态。
+
+**结论三：SIO配置覆盖默认开启且没有备份/回读。** `upload_val3_server.py`把`upload_sio_config`默认设为True，脚本会调用`upload_sio_config()`并覆盖`/usr/configs/sio.cfx`；该工具没有先下载原配置、比较差异、生成备份或验证远端文件内容。随包`sio.cfx`将控制器远端IP固定为`192.168.0.1`，而文档同时提示实际ROS 2主机IP不同时需调整Socket远端IP。运行默认上传可能覆盖用户此前在示教器上配置的不同地址/端口，导致控制/诊断通信中断或配置漂移。代码确认的是文件覆盖行为，不代表已证实上传后立即生效；配置加载时机、是否需重启/重载及失败影响必须经CS9验证。
+
+**结论四：上传主流程不是失败即停止的部署事务。** 应用上传失败只记录日志，脚本仍可能继续上传SIO配置；SIO上传失败也只记录日志，最后仍无条件输出“请在pendant重载应用”的提示。脚本未显式返回失败状态码，也没有`try/finally`保证FTP会话清理。部署执行结果可能无法被CI/运维脚本准确判断。
+
+### 1. FTP通道与凭据管理
+
+| 检查项 | 固定源码证据 | 结果与边界 |
+|---|---|---|
+| 传输协议 | `staubli_ftp.py`导入`ftplib`并实例化`ftplib.FTP` | 使用普通FTP API；代码未实现FTPS/TLS或数据通道加密。外部VPN/IPsec/隔离网络是否存在不在仓库证据范围内 |
+| 登录 | `login(user=self.ftp_username, passwd=self.ftp_password)` | 凭据通过FTP登录流程发送；没有应用层加密或证书/服务器身份验证实现 |
+| 凭据来源 | ROS 2参数`username`和`password` | 两者为普通字符串参数；未接入密钥管理器、受保护凭据文件、硬件密钥存储或独立秘密注入接口 |
+| 默认值 | username与password默认均为`default` | 代码提供弱默认值；**不据此断言目标控制器一定接受该默认账号/密码**，实际账户策略需现场验证 |
+| 目标地址 | `robot_ip`默认`192.168.0.254` | 地址可配置，但没有独立FTP端口参数、目标证书/主机密钥绑定或远端指纹校验 |
+| 超时 | `ftplib.FTP(self.robot_ip)`未传入timeout参数 | 本模块未设置有界连接/读写超时；网络黑洞或控制器无响应时，工具可能等待较长时间，具体底层超时受Python运行时默认行为影响 |
+| 失败清理 | connect异常时将`_ftp=None`；disconnect直接调用`quit()` | disconnect没有异常保护；析构函数中调用disconnect与`rclpy.shutdown()`也无防御性处理，异常路径的关闭保证不足 |
+| 生命周期 | CLI脚本创建StaubliFTP对象后未显式在finally中disconnect | 依赖对象析构触发清理；不适合作为可组合/长期运行部署API的可靠资源管理边界 |
+
+**安全要求：** 若CS9支持厂商认可的加密管理通道，应优先采用并验证服务器身份；若目标平台只能提供普通FTP，则必须把它限定在隔离的物理/逻辑机器人管理网络中，通过ACL只允许受控维护主机访问，在运维窗口开放并在维护完成后关闭不必要的管理访问。不得把默认`default/default`当作生产凭据；每台控制器需独立凭据、最小权限、受控轮换和吊销。密码不得写进仓库、shell历史、公开launch/YAML、日志或工单截图。当前是否存在控制器默认账号、FTP服务权限边界、匿名访问或用户角色限制均未由仓库证明。
+
+### 2. 应用上传/删除的完整性与回滚
+
+`upload_application()`上传到`/usr/usrapp/<application_name>`，其当前逻辑存在以下问题：
+
+1. 若目录存在，先调用递归删除；调用结果被忽略，删除失败时仍继续上传。
+2. 递归删除使用FTP `NLST/DELE/RMD`，没有删除前的目录快照、文件清单或恢复包。
+3. `upload_directory()`若`create_remote_directory()`返回False，只记录warning并继续遍历上传，不会立即中止。
+4. `create_remote_directory()`把所有`ftplib.error_perm`都解释为“目录可能已存在”并返回True；权限拒绝、非法路径等错误也可能被掩盖。
+5. 上传文件成功只代表FTP库收到成功响应；没有下载回读、哈希比对、文件数量/长度核验，也没有写入完成标记。
+6. 任一文件上传失败都可能留下部分新目录；旧版本已删除时无可自动回退的last-known-good副本。
+7. 缺少上传前的本地manifest、文件路径白名单、文件数/体积上限和远端部署后清单核验；没有校验远端VAL3项目文件引用的程序/类型是否全部存在。
+8. `upload_file()`只捕获`ftplib.all_errors`，本地`open()`产生的普通文件系统异常并不属于FTP错误族，可能直接向上抛出；部署入口没有统一异常收敛和清理处理。
+
+**推荐部署事务：** 在不触碰当前运行目录的情况下，先执行本地完整性预检与控制器目标/固件/VAL3版本白名单核验；将文件上传到独立staging目录；以manifest记录包版本、源Git commit、文件相对路径、长度和SHA-256；通过FTP读回或控制器支持的等效机制逐文件核验；执行VAL3工程结构/引用文件检查；备份当前last-known-good目录和配置；只有通过所有检查并得到维护授权后才进行promote。只有在CS9文件系统确认目录rename语义和运行时加载行为后，才可把重命名视为原子切换；否则使用显式停机、备份、切换、验证和回滚作业卡。失败必须保留旧版本可恢复性，不允许自动启动半成品。
+
+### 3. SIO配置覆盖与网络参数漂移
+
+`upload_val3_server.py`把`upload_sio_config`设为True；`upload_sio_config()`将本地文件直接STOR至`/usr/configs/sio.cfx`。本地`val3/configs/sio.cfx`的两个UDP socket均使用`connectIp=192.168.0.1`和固定端口11000/11001。文档说明若ROS 2主机地址不同需修改pendant中的IP remote，但脚本上传的随包配置可能再次覆盖该手动设置。
+
+这构成配置管理上的冲突：部署脚本声称该项可选且有覆盖警告，但默认选项仍为开启；缺少面向当前设备网络参数的配置生成/注入、现有配置备份、差异审查、用户确认和上传后回读。**不应在没有备份和差异确认的情况下将示例默认SIO配置推送到已有现场机器人。**
+
+推荐把`upload_sio_config`默认改为False；部署工具先下载远端原配置并产生diff；由明确的设备配置源生成目标`connectIp`、端口、接口和超时；仅在用户/维护流程确认后写入临时文件并核验；保留上一个可用配置及回滚说明。还需核实控制器的SIO配置文件是否需要重新加载、是否需要重启、覆盖活动socket时的实际影响，以及上传过程是否可能出现截断配置。
+
+### 4. 部署脚本的错误处理、状态报告和运维可追溯性
+
+- 应用上传失败后脚本仍可继续上传SIO配置，缺少“应用包失败则阻断所有后续变更”的fail-fast规则。
+- SIO上传失败或应用上传失败时仅打印日志，脚本未明确向shell返回非零退出码；自动化流水线可能误判为成功。
+- 脚本在所有结果下都打印重载提示，没有区分“上传成功待人工重载”“上传失败”“配置已变更但应用失败”等状态。
+- 没有显式`try/finally`关闭FTP连接；`disconnect()`自身也缺少异常保护。
+- `remove_val3_server.py`会递归删除固定的`/usr/usrapp/ros2_server`目录，没有dry-run、远端备份、交互确认或删除后恢复包；属于破坏性维护动作，应具备明确的维护授权和恢复策略。
+- 没有记录操作者身份、审批工单/变更编号、控制器序列号或设备标识、源Git commit、上传manifest、目标路径、文件校验结果、应用重载结果和回滚结果。
+- 项目包`package.xml`版本为0.1.4；VAL3工程文件`ros2_server.pjx`声明的是目标VAL3/CS9版本串`s8.20.2Cs9_BS4270`，不是该应用构建版本。上传流程没有把ROS包版本、源提交、VAL3应用构建ID和远端文件manifest绑定为同一可审计发布物。
+- 同一FTP工具模块的`download_logs()`在远端`/log`目录不存在时只有孤立的`False`表达式而没有`return False`，会继续进入下载流程；属于相邻的工具函数错误返回问题。
+
+### 5. 路径与文档一致性
+
+自动上传代码的目标为`/usr/usrapp/ros2_server`；手动安装文档描述为将`val3/userapp`内容复制到控制器的`/usrapp`或`userapp`目录。文档没有解释FTP虚拟根目录与控制器真实文件系统路径的映射，也没有给出自动上传后远端目录树的核对命令/截图。可能存在FTP根目录映射差异，不能仅凭字符串不同就断定路径错误；必须在CS9上列出FTP可见路径、pendant中工程路径与实际加载路径三者并对齐后修正文档。
+
+### 6. 测试覆盖与部署验收缺口
+
+当前`staubli_robot_driver/CMakeLists.txt`注册的是ament C++/GTest测试目标；未发现针对`StaubliFTP`、`upload_application`、`upload_sio_config`和部署脚本的Python模拟FTP测试目标。固定提交没有以可重复测试证明以下行为：FTP登录失败、网络超时、权限拒绝、远端目录删除中断、目录创建失败、磁盘空间不足、单文件传输中断、重试后重复文件、SIO配置回滚、上传后哈希一致、重载失败恢复及脚本退出码。
+
+**部署准入要求：** 在真实机器人上执行任何写入前先完成离线mock FTP故障注入与路径清单测试；现场变更前确认机械运动处于停止/安全维护状态、现场授权和备份已准备；上传后核对文件manifest、VAL3项目引用和SIO配置内容；pendant重载后检查VAL3/控制器版本、任务状态、socket通信和状态反馈；任何一步失败均回退last-known-good版本并禁止远程运动，直至完成显式恢复验收。该部署准入建议不能替代CS9安全规程。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-523 | FTP安全传输通道 | 核实CS9支持的FTPS/其他安全管理通道；若普通FTP不可避免，形成专用管理网隔离与访问控制方案 | 未执行 |
+| SERVO-524 | FTP凭据生命周期 | 去除生产默认凭据、按设备唯一化、受保护注入、轮换/吊销并检查参数/日志泄露面 | 未执行 |
+| SERVO-525 | FTP连接超时与资源清理 | 设置连接/传输超时、受限重试、显式finally关闭及disconnect异常恢复 | 未执行 |
+| SERVO-526 | 部署前安全准入 | 校验设备身份、固件/VAL3兼容、维护授权、运动停止和部署目标路径 | 未执行 |
+| SERVO-527 | VAL3应用staging与原子切换 | 旧版本备份、新版本staging、完整性验证、promote与last-known-good回滚 | 未执行 |
+| SERVO-528 | 部署manifest与远端完整性 | 记录源commit/版本/文件列表/长度/SHA-256，执行远端读回核验和项目引用检查 | 未执行 |
+| SERVO-529 | SIO配置备份和显式批准 | 上传默认关闭；先备份/diff/参数化IP与端口，人工确认后写入并验证回滚 | 未执行 |
+| SERVO-530 | fail-fast与退出状态 | 应用上传失败不继续改SIO；每个失败向shell返回非零码，成功状态只在全部步骤通过后报告 | 未执行 |
+| SERVO-531 | FTP目录操作错误语义 | 区分“已存在”和权限/路径错误；删除前校验目标根、删除结果强制检查 | 未执行 |
+| SERVO-532 | 手动/自动路径一致性 | 在CS9验证FTP虚拟根、/usr/usrapp与pendant项目加载目录映射并统一文档 | 未执行 |
+| SERVO-533 | FTP工具Python故障注入 | 使用模拟FTP覆盖认证/超时/权限/删除/上传中断/磁盘不足/异常退出等场景 | 未执行 |
+| SERVO-534 | 应用和SIO部署回滚实测 | 对文件中断、配置覆盖、重载失败执行恢复，证明last-known-good可重新加载 | 未执行 |
+| SERVO-535 | 现场部署审计记录 | 将操作者/审批、设备身份、源commit、manifest、变更前后配置、重载和回滚结果留档 | 未执行 |
+
+### 本节来源记录（#2028–#2035）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2028 | [staubli_ftp.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/staubli_robot_driver/staubli_ftp.py) | 普通ftplib.FTP、凭据参数默认值、登录、连接超时未显式设置和资源清理方式 |
+| #2029 | [staubli_ftp_utils.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/staubli_robot_driver/staubli_ftp_utils.py) | 目录删除/上传、创建目录错误语义、应用目录先删后传、SIO覆盖和download_logs返回缺陷 |
+| #2030 | [upload_val3_server.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/scripts/upload_val3_server.py) | SIO默认上传True、应用失败后仍继续、无显式退出码/连接清理、无条件输出重载提示 |
+| #2031 | [remove_val3_server.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/scripts/remove_val3_server.py) | 固定应用目录递归删除，没有dry-run、备份、交互授权或恢复路径 |
+| #2032 | [sio.cfx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx) | 随包control/diagnostics端点硬编码192.168.0.1及11000/11001 |
+| #2033 | [installation_val3.rst](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/installation_val3.rst)与[VAL3 README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md) | 手动上传目录说明、网络参数提示、Socket设置和自动脚本行为的文档对照 |
+| #2034 | [CMakeLists.txt](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/CMakeLists.txt)与[package.xml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/package.xml) | Python FTP部署工具测试目标缺口、ROS包版本元数据 |
+| #2035 | [ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx)与[README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md) | VAL3工程目标版本标识、应用清单及项目当前仍属POC/非工业就绪的上游自述 |
+
+**验证边界：** 本节为固定提交静态源码/文档审查。没有连接任何真实Stäubli控制器，没有抓取FTP登录/数据报文，没有验证CS9是否支持FTPS/TLS、FTP服务端角色权限、虚拟根目录映射、文件rename原子性、上传配置生效/重载条件或现场回滚；没有执行mock FTP测试、Python测试、VAL3编译、CS9仿真、HIL或实机操作。当前源码显示普通FTP、默认凭据字符串和破坏性先删后传/SIO覆盖流程，但不能据此断言真实现场FTP服务接受默认凭据或网络一定明文可被第三方访问。SERVO-523–SERVO-535全部未执行；Stäubli仍为静态审查，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
