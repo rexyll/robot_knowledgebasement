@@ -221,3 +221,15 @@ Build Farm release文档说明source job、binary job、building→testing sync 
 - 厂商档案资产清单行刷新为Blob SHA `a524a65e286b8127b6375407fc31d4d9a669957a`、UTF-8大小515,845 bytes，仅元数据维护，不代表claim-level验收。
 
 SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进行中。未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工业级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
+
+
+## 21. 2026-11-08 ROS Jazzy双架构状态页刷新（§9.3.123）
+
+本轮再次直接读取ROS官方Jazzy规范状态页并定位moveit_servo行：amd64页面生成时间刷新至2026-11-08 04:56:18 -0800，B/T仍为2.12.4-1noble.20261105.184638、M仍为2.12.4-1noble.20261006.040508；arm64页面仍为04:43:04 -0800，B/T仍为2.12.4-1noble.20261106.111556、M仍为2.12.4-1noble.20261006.043301。因此本轮只有amd64页面生成时间更新，没有观察到B/T/M版本变化或Main晋级。
+
+专项追加件新增§9.3.123，厂商档案新增§128.74，审计README同步索引。Jenkins具体package job/build number/result/source revision/console log仍缺；APT InRelease/Packages正文及签名、deb control/SHA256/依赖闭包仍未取得。未执行目标Ubuntu 24.04安装运行、VAL3、CS9/SRS/HIL/FAT/SAT或实机验证；SERVO-710/714未完成，SERVO-713部分取证未完成，Stäubli工程级验收仍未通过，TODO-EXT-001仍未授权合并。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- 专项追加件§9.3.123。
