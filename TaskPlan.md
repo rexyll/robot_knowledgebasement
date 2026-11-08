@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.13  
+> 版本：v9.14  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.140，厂商档案新增§128.91。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；SERVO-725已完成更细的生命周期静态分析：区分双topic活动时直接start重配置与显式stop后restart；动态验证尚未执行。新增SERVO-726审查OccupancyMapUpdater初始化失败隔离与插件stop/start生命周期：main忽略initialize()失败结果，PR #3909拟修复但仍Open且CI失败；#3901接口文档与内置插件实际依赖顺序冲突，现场Octomap插件配置未确认。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.141，厂商档案新增§128.92。MoveIt PR #3907仍Open/未合并，双订阅stop缺陷仍在当前main；PR #3909也仍Open/未合并，拟修复OccupancyMapUpdater初始化失败传播，但其CI run 37457932979与Formatting run 37457933046均completed/failure，jobs/artifacts接口为空、失败原因未知，reviews/threads为空。PR #3909将public纯虚MiddlewareHandle钩子由void改为bool，外部自定义实现需迁移；源码兼容性变化已确认，ABI未验证；失败路径资源回收缺少统一契约，新增SERVO-727并建立U11-U15矩阵。#3901/#3902仍Open。SERVO-721/723/725/726动态验证未执行，SERVO-722现场调用链与Octomap配置缺失/阻塞，SERVO-724持续跟踪两项PR及Jazzy回移/正式发行。SERVO-727静态审查完成，编译/ABI/动态资源测试未执行。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1232,3 +1232,10 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 - stopMonitor逐个调用updater stop，析构再次stop；PointCloud stop删除filter/subscriber并置空，DepthImage stop调用subscription.shutdown()。接口没有统一在途回调退出确认，重复start/stop与回调静默需按插件动态验证。
 - 新增SERVO-726及U1-U10矩阵。Stäubli现场是否启用Octomap及sensor plugin未确认；动态测试未执行。未修改上游/ICube或应用补丁，工程级验收未通过。
 - 详见专项追加件§9.3.140。
+
+
+### §9.3.141 PR #3909 API兼容性与失败资源回收审查
+
+本轮确认PR #3909把public纯虚MiddlewareHandle初始化钩子由void改为bool；外部自定义handle及Mock需要更新，旧void override不能满足新接口。PR迁移说明属于ROS Rolling章节，不能推断变化已进入Jazzy。二进制ABI未经工具验证，保持未知。
+
+PR失败分支continue只跳过后续配置与登记，依赖updater对象析构回收资源，没有统一stop/rollback契约；initialize部分初始化失败和setParams失败后的资源回收尚未通过测试。新增SERVO-727、U11-U15矩阵，静态审查完成，源码迁移编译、ABI与动态资源测试未执行。PR #3909仍Open，CI/Formatting均failure，jobs/artifacts为空，reviews/threads为空。未修改上游、未应用补丁；Stäubli现场是否启用Octomap仍未知。
