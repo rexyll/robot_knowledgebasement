@@ -548,3 +548,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli连接、断开与重连线程生命周期审查 | 固定ICube bd658e2核对RobotDriver、RealTimeSocketSubscriber、UDPSocketImpl及StaubliHardwareInterface。RobotDriver的接口shared_ptr成员在connect/disconnect中直接赋值/reset，读写入口直接读取，类内没有生命周期互斥锁/状态机；若调用方并发执行读写和disconnect，存在同一shared_ptr成员数据竞争风险。UDP stop仅io_service.stop()+join，disconnect随后close；start重用io_service并覆盖callback，缺少连接代际隔离；接收handler遇错误仍调用callback并可能重新arm。并发start/stop/join、错误重试、异常回滚与deactivate资源语义均需实测。新增§9.3.59、SERVO-223–SERVO-232及来源#1812–#1816。全部测试未执行；未证明实机线程故障或运动安全失效，Stäubli仍未验收。 | 来源#1812–#1816；专项审计§9.3.59 |
+
+
+| 2026-11-08 | 21-02/Stäubli控制状态与诊断状态一致性审查 | 固定ICube bd658e2核对RobotDriver、RealTimeSocketSubscriber及HardwareInterface。connect等待阶段只读控制状态，诊断读取仍为TODO且diag_interface_ready硬编码true；协议版本只检查控制帧，CS9类型检查被注释，固件版本只打印未读取/验证的诊断缓存。read_diagnostic_data虽实现类型/新鲜度/丢包检查，但周期read/write不调用；两通道各自独立sequence、接收时间与staleness，没有共同采样ID、配对时间窗或原子快照。新增§9.3.60、SERVO-233–SERVO-242及来源#1817–#1821。未做双通道故障注入、协议抓包、错位测试或CS9 HIL；不据此断言VAL3协议无共同ID，Stäubli仍未验收。 | 来源#1817–#1821；专项审计§9.3.60 |
