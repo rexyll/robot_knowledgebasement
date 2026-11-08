@@ -1523,3 +1523,24 @@ SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启�
 - PR作者自报Ubuntu 24.04/Jazzy测试通过，但Formatting与CI workflow均failure，jobs API当前返回空列表；reviews为空，无维护者approval。Mergify/WIP/CodeRabbit辅助状态不代表required CI通过。
 - base:jazzy相关搜索未发现#3907回移PR；issue #3887仍open且其可见backport清单未列#3907。ROS Jazzy官方状态页B/T/M与生产main pool仍显示2.12.4-1旧Main构建，未证明修复进入Jazzy正式包。
 - SERVO-724持续进行中；SERVO-721/723/725仍未执行，SERVO-722现场部署证据仍缺。未修改上游、未应用补丁。详见专项追加件§9.3.134。
+
+
+### Stäubli专项审查新增记录（§9.3.135，PR #3907 Actions失败状态复核）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-724 | 跟踪PR #3907的head、Formatting/CI、job/step日志、review/merge、Jazzy backport与正式deb | 正在进行中（本轮确认两个workflow均completed/failure；jobs查询均为空；reviews为空；PR仍Open） |
+| SERVO-721 | Ubuntu 24.04/Jazzy双订阅单次stop、double-stop、restart与回调计数矩阵 | 未执行 |
+| SERVO-722 | Stäubli/ICube现场版本、launch/YAML、monitor实例和start/stop调用链 | 未执行/阻塞（现场证据缺失） |
+| SERVO-723 | 上游修复合并或目标补丁版本的双订阅及生命周期回归 | 未执行 |
+| SERVO-725 | 双topic/单topic/空topic及restart配置切换矩阵 | 未执行（静态推导完成，动态测试未执行） |
+
+本轮通过GitHub连接器按PR head SHA `821818f4ffeaa7564459faed2cbddbfb604f9dcb`查询Actions workflow runs，确认Formatting (pre-commit) run `36755746603`与CI run `36755746261`均completed/failure；对两个run分别查询jobs，均返回空数组。该结果确认workflow级失败，但job/step和失败原因仍未知；空数组不等于没有运行job。PR reviews列表为空，PR仍Open，未取得维护者review/approval。
+
+SERVO-724继续跟踪PR更新、失败原因/日志、修复后CI、review/merge、Jazzy backport及正式deb。不得将作者自报测试、WIP/Mergify/CodeRabbit辅助状态当作required CI或维护者审批。其余动态测试与现场证据状态不变。未修改上游、未应用补丁、未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收。详见专项追加件§9.3.135。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907
+- https://api.github.com/repos/moveit/moveit2/actions/runs/36755746603/jobs
+- https://api.github.com/repos/moveit/moveit2/actions/runs/36755746261/jobs
+- 专项追加件§9.3.135。
