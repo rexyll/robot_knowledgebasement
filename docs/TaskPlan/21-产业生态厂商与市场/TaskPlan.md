@@ -595,3 +595,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli诊断数据通道真实生产端、连接准入与Mock测试边界 | 固定ICube bd658e2核对DIAGNOSTIC_DATA消息、RobotDriver连接等待、诊断subscriber、Mock发送和测试夹具。发现connect创建诊断subscriber后将diag_interface_ready硬编码true，没有等待/读取真实诊断首帧；CS9类型校验被注释，固件版本从未被本次连接验证的缓存打印；is_connected仅检查socket/subscriber ready；Mock可发送74字节诊断帧且测试夹具每4ms发送，但未检索到固定提交VAL3服务端对应诊断编码/发送实现，Mock不能证明CS9生产端可用。新增§9.3.78、SERVO-413–SERVO-422及来源#1954–#1959。C++/VAL3/CS9抓包、诊断异常注入、HIL/实机测试全部未执行；21-02继续进行中，Stäubli未验收。 |
+
+
+| 2026-11-08 | 21-02/Stäubli诊断功能生命周期闭环、VAL3任务调度与ROS 2上层暴露 | 固定ICube bd658e2审查start.pgx、ros2_server.pjx、sio.cfx、StaubliHardwareInterface::read/export_state_interfaces、官方diagnostics demo与README。发现start.pgx的supervision/diagnostics task为TODO，实际只启动controlTask；VAL3工程Program/Types清单没有诊断task/消息类型；硬件接口read只消费RobotState，未调用read_diagnostic_data，未导出DiagnosticData字段或ROS 2诊断topic；官方diagnostics demo仅Coming soon，README明确诊断支持在后续版本加入。诊断socket 11001只是配置，不是功能完成证据。新增§9.3.79、SERVO-423–SERVO-432、来源#1960–#1966。VAL3/CS9、ROS 2运行、UDP抓包、实时性/HIL/实机测试全部未执行；21-02继续进行中。 |
