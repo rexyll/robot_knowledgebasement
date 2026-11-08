@@ -1,0 +1,59 @@
+# 2026-11-08｜Stäubli专项审计记录同步性核查
+
+> 本记录属于第00章 00-01「全库资产盘点与基线」的审计治理工作。核查对象为 `rexyll/robot_knowledgebasement` 的 `main` 分支；本记录只登记文件间的可核验差异，不把摘要性 TaskPlan 记录当作专项报告正文，也不提前提升任何节点验收状态。
+
+## 1. 核查结论
+
+截至本次读取，Stäubli/ICube ROS 2专项审查在根目录 `TaskPlan.md` 中已记录到 §9.3.111，但其配套审计报告、厂商知识页、审计索引和第00章执行日志没有同步到同一进度。该差异是仓库的文档追踪/可审计性缺口，不代表此前的静态审查结论必然错误，也不能据此推断缺失文件中的内容不存在。
+
+| 记录载体 | main 分支读取结果 | 最新可见进度 | Blob SHA |
+| --- | --- | --- | --- |
+| 根目录 `TaskPlan.md` | v8.81；版本日志末条为2026-11-08 | §9.3.111 | `3881faf2d11530a935fc1569aaa57c116f3a972e` |
+| `docs/audits/2026-11-06-staubli-robotics-ecosystem-review.md` | 6,744行；末尾为§9.3.101及SERVO-666–SERVO-672验收任务 | §9.3.101 | `aae87e1dce6734232c40b371a10154bdc9d539a9` |
+| `knowledge/ecosystem/主要厂商.md` | 2,322行；最后一个Stäubli增量节为128.61，引用专项审计§9.3.87、SERVO-513–SERVO-522 | §9.3.87 | `d3405aa5a2c242ddf6722edaef9c36ec520f26e6` |
+| `docs/audits/README.md` | 111行；最后一个Stäubli索引条目停留在§9.3.56、SERVO-188–SERVO-202 | §9.3.56 | `71403a62c7f2126da2a28bfe19d7ffdf84d845e8` |
+| `docs/TaskPlan/00-知识治理与分类体系/TaskPlan.md` | 506行；最后一条00-01专项记录为§9.3.38、SERVO-01–SERVO-14 | §9.3.38 | `5cf0844d3511d04988d3d7040a628d22f282a7d3` |
+
+因此，不能仅凭根计划摘要就认为§9.3.88–§9.3.111已在各交付载体完成归档。特别是根计划记录的§9.3.102–§9.3.111尚未进入专项报告正文；厂商档案、README和00章执行日志落后得更多。
+
+## 2. 可确认的最新增量工作边界
+
+根计划v8.81对§9.3.102–§9.3.111的记录显示，工作主题已从Servo launch依赖继续进入MoveIt Servo Jazzy 2.12.4-1发布供应链追溯，包含：
+
+- §9.3.102：检查CI与Docker对可选Servo启动路径的覆盖；发现manifest/测试覆盖缺口，但未据此断言CI必然缺包。
+- §9.3.103–§9.3.106：定向核对Jazzy包可用性、Noble amd64/arm64构建工件索引、MoveIt 2.12.4源码清单、Servo节点安装路径及ROS发行记录。
+- §9.3.107–§9.3.110：追溯Bloom发布记录、rosdistro合并提交、release README首次引入记录、轻量release tag及Noble Debian packaging branch。
+- §9.3.111：已完成release tag commit tree与MoveIt上游2.12.4的`moveit_ros/moveit_servo`目录递归比对，双方均为54个tree条目/43个blob，路径、mode、type与blob SHA逐项一致；SERVO-712完成。SERVO-713只推进到查阅Build Farm job命名规范并尝试访问Jenkins/API，尚未取得可核验job索引、构建状态、source revision或console log。
+
+以上为根计划现存的摘要记录；在补齐专项报告章节与逐项来源链接之前，不应将其提升为“完整可复核报告已归档”。
+
+## 3. Build Farm证据边界
+
+ROS 2官方Build Farm文档说明，release job分为source与binary类型；source job由rosdistro distribution文件中的版本变化触发，binary job由对应source job触发。文档给出命名模板，并举例Rolling/Noble/amd64的binary job名称为`Rbin_uN64__rclcpp__ubuntu_noble_amd64__binary`。据此，对Jazzy/Noble/amd64的`moveit_servo` binary job只能推导出候选名称：
+
+`Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary`
+
+该字符串只是按公开命名模板推导的查询候选，不构成Jenkins job存在、曾执行、构建成功、上传生产仓库或产物可安装的证据。当前未确认arm64任务名，也未确认source job的具体platform短码。
+
+本轮尝试访问候选Jenkins job/API时，网页读取端返回不可访问；运行环境访问`build.ros2.org`时DNS解析失败；搜索也没有返回可验证的精确job页面。因此，本轮不报告job URL、build number、result、source revision或console log，不把访问失败解释为job不存在或构建失败。
+
+参考：
+- ROS 2 Build Farms官方文档：<https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst>
+- ROS Build Farm release job实现说明：<https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst>
+
+## 4. 必须补齐的同步工作
+
+1. 将根计划已记录的§9.3.102–§9.3.111逐节补入专项审计报告，保留每节的输入源码版本、官方来源、事实结论、推断边界、验收任务ID与状态。
+2. 将§9.3.88–§9.3.111的经核对摘要同步到`knowledge/ecosystem/主要厂商.md`；未从专项报告恢复的来源编号不得猜测或复用。
+3. 更新`docs/audits/README.md`中的专项审计索引，明确正文最新节、未执行的SERVO任务及静态审查边界。
+4. 更新第00章00-01执行日志，使其反映真实交付载体进度，而不是只记录早期§9.3.38。
+5. 同步完成后再核对各文件引用的来源编号、任务ID、上游commit、发行版/二进制版本和验收状态；有冲突时保留差异说明，不静默覆盖历史判断。
+
+## 5. 状态与限制
+
+- 第00章00-01：**进行中**。本次仅确认审计记录不同步并建立纠偏任务，不代表全库资产盘点或claim-level审计完成。
+- 第21章21-02/Stäubli：**进行中**。仍是固定公开源码与文档的静态审查，未完成Jazzy干净环境安装/构建/launch、VAL3编译、CS9/SRS、HIL、FAT、SAT或实机验证。
+- SERVO-710：生产APT签名、Packages stanza、deb SHA256和control元数据仍未取得。
+- SERVO-713：Build Farm job/build证据仍未取得；候选任务名不得标成已确认job。
+- SERVO-714：发布构建与APT产物的最终一致性核验仍未完成。
+- 未修改ICube上游；未授权合并TODO-EXT-001；不以普通STOP/软件状态推断CS9安全停止或物理静止。
