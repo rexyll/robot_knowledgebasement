@@ -1046,3 +1046,47 @@ SERVO-720仅完成静态核验。SERVO-721/722/723未执行；未修改ICube上�
 - 固定tag commit：https://github.com/moveit/moveit2/commit/1ade0e9dcf50dbbbc3a984b995c786cf12736235
 - Jazzy后续发布跟踪Issue #3887：https://github.com/moveit/moveit2/issues/3887
 - 关联既有审查：§9.3.98、§9.3.99、§9.3.129。
+
+
+### §9.3.132 MoveIt #3897候选修复PR #3907状态、CI与Jazzy发行链复核（2026-11-08追加）
+
+#### 1. 新发现的候选修复PR
+
+- 本轮检索发现上游PR [#3907](https://github.com/moveit/moveit2/pull/3907)（标题：Preserve planning scene and request diagnostic contracts），PR描述明确列出`Fixes #3897`，涉及`PlanningSceneMonitor::stopWorldGeometryMonitor()`双订阅停止缺陷。
+- PR当前状态为open、未合并，目标分支为`main`；head为`Yuhx141:fix/planning-scene-contracts`，head commit `821818f4ffeaa7564459faed2cbddbfb604f9dcb`，PR显示的base SHA为`a9004a43151b7d1fd50d462b8db6d4d280b0cc21`。不得把PR head或其diff当作上游main已包含的代码。
+- 与本缺陷直接相关的diff把两个subscriber的reset改为无条件分别执行：先在任一subscriber存在时记录停止日志，随后分别reset `collision_object_subscriber_`和`planning_scene_world_subscriber_`，再沿用既有octomap monitor停止路径。
+- PR新增`PlanningSceneMonitor.StopWorldGeometryMonitorStopsAllSubscriptions`测试：同时启动两个独立topic，调用一次stop，再通过`getMonitoredTopics()`验证两个topic均不再列出。已核对该函数会先clear输出vector，再根据当前subscriber成员重建列表，因此断言能反映两个subscriber成员已释放。该测试并未直接计数消息回调，也未覆盖重复stop/restart/空topic/octomap矩阵和Stäubli应用集成。
+- PR描述自报在Ubuntu 24.04/ROS Jazzy、基于`a9004a4`执行了四项测试，其中包括新增的StopWorldGeometryMonitor测试。此为PR作者提供的测试记录，不能替代独立复测或上游required CI通过证明。
+
+#### 2. PR审查与CI状态
+
+- GitHub PR元数据仍为`state=open`、`merged=false`，没有已提交的review approval记录。
+- PR head SHA的Actions元数据中，`Formatting (pre-commit)`与`CI`两条workflow run均为completed/failure。对应jobs接口返回`total_count=0`，当前无法取得具体失败job、步骤或日志；因此记录为工作流失败、原因未明，不推断是代码缺陷或基础设施故障。
+- 同一head SHA的可见commit status只包含CodeRabbit success；它不是仓库维护者的review approval，也不能替代required CI。
+- PR目标为main，当前没有证据表明该修复已合并或已进入Jazzy backport。Jazzy发布跟踪issue [#3887](https://github.com/moveit/moveit2/issues/3887)截至本轮仍open，评论显示仍在整理/合并多个可回移变更；不能据此认定#3907已经排入发布或已回移。
+
+#### 3. 上游main与Jazzy正式二进制交叉验证
+
+- 本轮重新读取MoveIt上游main的`planning_scene_monitor.cpp`，blob SHA为`83f67e15cb167957ddf15bde8fc239d053ed727c`。该文件的`stopWorldGeometryMonitor()`仍是`if (collision_object_subscriber_) ... else if (planning_scene_world_subscriber_)`，所以截至该源码快照，候选PR尚未进入main。
+- ROS官方Jazzy amd64状态页（2026-11-08 05:56:04 -0800）中，`moveit_servo`的B/T为`2.12.4-1noble.20261105.184638`，M为`2.12.4-1noble.20261006.040508`；arm64状态页（05:43:04 -0800）中，B/T为`2.12.4-1noble.20261106.111556`，M为`2.12.4-1noble.20261006.043301`。
+- ROS production main pool目录仍只列出2026-10-06构建的amd64/arm64 `ros-jazzy-moveit-servo` 2.12.4-1 deb（674,492/615,538 bytes）。当前没有2.12.5或能证明包含PR #3907的生产deb文件证据。B/T状态页构建号不能视作M生产发布。
+- 因此发布链结论为：#3907是明确关联#3897的候选修复，但当前open/未合并；MoveIt main仍保留旧实现；Jazzy production binary仍为2.12.4-1；修复未被证明进入Jazzy正式包。
+
+#### 4. 任务状态与处置边界
+
+- SERVO-720：已完成（#3897与2.12.4源码静态对应）。
+- SERVO-721：未执行（目标Ubuntu/Jazzy实验仍未运行；PR新增topic-list测试不是本项目复测）。
+- SERVO-722：未执行/阻塞（ICube现场源码、launch/YAML、PlanningSceneMonitor实例及stop调用链仍缺）。
+- SERVO-723：未执行（PR #3907是待合并候选，不是已确认修复版本；目标回归矩阵未运行）。
+- SERVO-724：持续进行中（跟踪#3907审查/CI/合并、Jazzy backport、正式deb版本及校验材料）。
+
+本轮仅读取上游PR与官方发行状态，没有向MoveIt/ICube提交代码或补丁，没有把double-stop作为规避措施。未在目标机执行测试；VAL3、CS9、SRS、HIL、FAT/SAT及实机验证均未执行，Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3887
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
