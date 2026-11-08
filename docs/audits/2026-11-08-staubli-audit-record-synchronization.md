@@ -324,3 +324,8 @@ SERVO-719仍部分取证：workflow/job元数据已梳理，但三个Servo测试
 - https://github.com/moveit/moveit2/actions/runs/19975338729
 - https://github.com/moveit/moveit2/actions/runs/19975338846
 - 专项追加件§9.3.128。
+
+
+## 26.1 厂商档案资产清单单行元数据刷新
+
+因厂商档案新增§128.79，资产清单中`knowledge/ecosystem/主要厂商.md`对应行刷新为Blob SHA `b639f21d4f6403dbe1bc791cd85e379071fa91fd`、UTF-8大小524,243 bytes。该操作仅刷新单一资产Git元数据，不代表claim-level审查完成或全库资产清单重算。
