@@ -622,3 +622,21 @@
 | SERVO-460 | 回放、乱序、重启和回绕单元测试 | 未执行 |
 | SERVO-461 | RobotDriver基于序号进展和会话的新鲜度门控 | 未执行 |
 | SERVO-462 | CS9/HIL抗回放和旧帧拒绝验收 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli ROS 2命令发送、VAL3接收/执行与状态反馈端到端关联 | 固定ICube bd658e2审查HardwareInterface::write、RobotDriver、RealTimeSocketInterface、VAL3 controlTask/decodeRobotCommandMsg/updateJointPositionControl/RobotState编码及mock测试。发现write在本地send调用返回true后即返回OK；VAL3只设置本地bIsValid，不回传命令接收/接受/应用结果；controlTask先发布状态再读取/执行本周期新命令；状态帧只有状态周期序号、控制模式、遥测和粗粒度sequence_delay，没有命令ID、ACK阶段、结果原因或完成事件；movejSync状态1/2未形成上报，write测试未核验命令收件/执行。新增§9.3.83、SERVO-463–SERVO-472、来源#1992–#2001。未执行真实CS9命令/ACK抓包、运动终态、STOP/HIL或实机测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.83，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-463 | 独立命令身份与会话/期限绑定 | 未执行 |
+| SERVO-464 | 分阶段控制器ACK与拒绝原因 | 未执行 |
+| SERVO-465 | ACK与状态帧时序因果关联 | 未执行 |
+| SERVO-466 | movejSync状态到ROS 2结果映射 | 未执行 |
+| SERVO-467 | 轨迹/命令完成准则与终态 | 未执行 |
+| SERVO-468 | STOP接收与实际停止确认 | 未执行 |
+| SERVO-469 | RobotDriver命令事务和ACK关联 | 未执行 |
+| SERVO-470 | write OK与底层发送语义整改 | 未执行 |
+| SERVO-471 | Mock命令端到端闭环测试 | 未执行 |
+| SERVO-472 | CS9/HIL命令因果链验收 | 未执行 |
