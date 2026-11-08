@@ -5309,7 +5309,7 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 
 ### v2 基础帧头规范（设计建议，非上游实现）
 
-**版本发现/端点约束：** v1固定8字节头只定义protocol_version=1，v1解码器无法通过普通v1握手协商理解新的32字节v2头。建议v2使用独立UDP端口或独立控制器服务端点；v2 HELLO/ACCEPT只在该端点解释。若控制器不支持v2或握手/能力协商失败，远程运动必须保持INHIBITED，不得静默回退到v1并假装具备事务ACK。只允许在显式策略批准下开放受限只读遥测兼容。
+**版本发现/端点约束：** v1固定8字节头只定义protocol_version=1，v1解码器无法通过普通v1握手协商理解新的36字节v2头。建议v2使用独立UDP端口或独立控制器服务端点；v2 HELLO/ACCEPT只在该端点解释。若控制器不支持v2或握手/能力协商失败，远程运动必须保持INHIBITED，不得静默回退到v1并假装具备事务ACK。只允许在显式策略批准下开放受限只读遥测兼容。
 
 v2头部在§9.3.86安全审查后修订为固定36字节；32位packet_sequence存在长期运行回绕风险，改为u64，防重放窗口与会话身份共同约束。由于v1固定8字节头无法承载v2扩展字段，建议v2先使用单独UDP端口/独立控制器服务端点完成握手和能力协商；不得让只支持v1的解码器尝试按v1结构解析v2帧。所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
 
@@ -5325,7 +5325,7 @@ v2头部在§9.3.86安全审查后修订为固定36字节；32位packet_sequence
 | 20 | controller_boot_id | u64 | 8 | 控制器每次启动生成的新boot身份；除SESSION_HELLO外必须非0且匹配 |
 | 28 | session_id | u64 | 8 | 握手建立的会话身份；会话外/握手报文允许按消息规则为0 |
 
-当`AUTH_TAG_PRESENT=1`时，在payload后追加16字节认证tag；tag覆盖完整32字节头和payload，推荐采用会话密钥下的HMAC-SHA-256截断16字节。控制类报文在生产部署中必须认证；无认证tag的黄金向量只用于离线序列化一致性测试，不构成生产通信配置。Nonce交换本身不构成身份认证；会话密钥须来自预配置密钥派生或经安全评审的认证密钥建立机制，并验证密钥轮换、授权范围和失效流程。接收端必须验证`datagram_size == header_size + payload_size + tag_size`，同时拒绝整数溢出、短帧、超长帧、未知flags、未知消息类型、错误boot/session和认证失败。
+当`AUTH_TAG_PRESENT=1`时，在payload后追加16字节认证tag；tag覆盖完整36字节头和payload，推荐采用会话密钥下的HMAC-SHA-256截断16字节。控制类报文在生产部署中必须认证；无认证tag的黄金向量只用于离线序列化一致性测试，不构成生产通信配置。Nonce交换本身不构成身份认证；会话密钥须来自预配置密钥派生或经安全评审的认证密钥建立机制，并验证密钥轮换、授权范围和失效流程。接收端必须验证`datagram_size == header_size + payload_size + tag_size`，同时拒绝整数溢出、短帧、超长帧、未知flags、未知消息类型、错误boot/session和认证失败。
 
 ### v2消息类型与字段模型
 
@@ -5383,7 +5383,7 @@ VAL3仍需确认：`num`对u32边界的准确处理、signed/unsigned转换、`t
 
 ### 跨端黄金测试向量（离线规范样例）
 
-以下样例为无认证tag的解析器黄金向量，供C++编码器与VAL3解码器、VAL3编码器与C++解码器逐字节对照。头部定义为v2、类型COMMAND_REQUEST(0x20)、header_size=32、packet_sequence=7、payload_size=75、boot_id=0x0102030405060708、session_id=0x1112131415161718。command_id=0x2122232425262728，joint position命令，host monotonic时间样例为0x0000000100000000，ttl=1000ms，body长度47。
+以下样例为无认证tag的解析器黄金向量，供C++编码器与VAL3解码器、VAL3编码器与C++解码器逐字节对照。头部定义为v2、类型COMMAND_REQUEST(0x20)、header_size=36、packet_sequence=7、payload_size=75、boot_id=0x0102030405060708、session_id=0x1112131415161718。command_id=0x2122232425262728，joint position命令，host monotonic时间样例为0x0000000100000000，ttl=1000ms，body长度47。
 
 **头部36字节（§9.3.86修订后的u64 packet_sequence）：**
 `CD AB 02 20 24 00 00 00 07 00 00 00 00 00 00 00 4B 00 00 00 08 07 06 05 04 03 02 01 18 17 16 15 14 13 12 11`
@@ -5411,7 +5411,7 @@ body对应controller_period=4.0ms、motion_cmd_type=2、关节位置[0,1,-1,2,-2
 
 | 任务 | 验收对象 | 验收要求 | 状态 |
 |---|---|---|---|
-| SERVO-486 | v2固定帧头 | 实现/评审32字节头、字段偏移、LE、payload与tag长度规则 | 未执行 |
+| SERVO-486 | v2固定帧头 | 实现/评审36字节头、字段偏移、LE、payload与tag长度规则 | 未执行 |
 | SERVO-487 | COMMAND_REQUEST数据模型 | 固定28字节事务前缀与命令body schema、单位和精度 | 未执行 |
 | SERVO-488 | Session与CommandEvent数据模型 | 握手、事件、查询和状态回复字段跨端一致 | 未执行 |
 | SERVO-489 | C++规范序列化器 | 显式LE读写、binary32约束、有限值/范围/长度校验 | 未执行 |
@@ -5553,3 +5553,99 @@ v1协议没有认证tag、key_id、boot_id、session_id或防重放计数器。V
 | #2027 | [protocol.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp)、[types.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp) | v1 16位通用序号、消息类型和协议中无身份/认证信息的边界 |
 
 **验证边界：** 本节属于固定提交静态安全审查与威胁建模；没有执行渗透测试、源地址伪造、UDP重放/DoS注入、密钥管理测试、网络分区、控制器重启、CS9 SIO源过滤验证或实机运动试验。未证明远端攻击者可跨越当前网络边界，也未证明CS9 SIO平台层不具备额外过滤；这里只确认当前仓库应用层未实现可审计的报文身份认证/抗重放，并确认ROS 2 UDP接收端源地址校验是显式TODO。§9.3.85协议v2头部由32字节修订为36字节，packet_sequence改为u64；原32字节/107字节样例由本节修订。SERVO-499–SERVO-512全部未执行。v2认证/抗重放方案仍是待实现建议，需厂商平台确认、密码学评审、故障注入和安全验收。Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+## 9.3.87 协议 v2 规范自洽性、64 位计时字段与消息负载闭合审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节复核§9.3.85的数据模型与§9.3.86的安全修订是否形成唯一、可实施的线格式规范，重点检查头长/黄金向量一致性、VAL3跨端64位字段表示、时钟同步验收边界，以及各消息类型是否已定义完整payload schema。固定上游仍为 ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79；本节不修改该上游实现，也不把离线协议设计视为产品能力。
+
+**结论：** §9.3.85在§9.3.86将头部从32字节扩为36字节后，已有字段表和hex样例正确反映36字节，但保留了若干旧的32字节文字：header_size约束、认证tag覆盖范围、黄金向量说明和SERVO-486验收描述，造成同一规范有两套互相冲突的要求。本轮已将§9.3.85这些残留规范性文字统一到36字节；头字段长度求和、header_size=36、hex头长36字节、payload 75字节、不带tag总长111字节、加16字节tag总长127字节彼此一致。
+
+另一个缺口是VAL3 64位表示策略目前主要针对ID字段，未明确覆盖host monotonic时间戳和controller tick。时间同步消息虽然给出字段和长度，但尚无可执行的时延/不确定度/漂移门槛。ROBOT_STATE、DIAGNOSTIC_DATA、SETPOINT_STREAM和STOP_REQUEST也只有用途描述，仍缺固定字段布局或受控的版本化变长schema。因此v2目前是部分完成的设计基线，尚不能冻结为跨端实施规范。
+
+### 1. 36字节帧头唯一规范与长度核算
+
+| 字段 | 偏移 | 宽度 |
+|---|---:|---:|
+| magic | 0 | 2 |
+| protocol_version | 2 | 1 |
+| message_type | 3 | 1 |
+| header_size | 4 | 2 |
+| flags | 6 | 2 |
+| packet_sequence | 8 | 8 |
+| payload_size | 16 | 4 |
+| controller_boot_id | 20 | 8 |
+| session_id | 28 | 8 |
+| **合计** |  | **36** |
+
+- v2.0唯一基准为header_size=36；认证tag覆盖完整36字节头和payload，tag本身不计入payload_size。
+- 现有COMMAND_REQUEST示例payload为28字节事务前缀+47字节body=75字节；datagram长度为36+75=111字节，启用16字节tag后为127字节。
+- §9.3.85的表格/hex vector与以上结果相符。已修复其遗留的header_size=32、32字节tag覆盖范围和SERVO-486文字；§9.3.86关于原设计由32改为36的历史说明保留为变更记录，不再作为当前规范。
+- 接收端必须先检查可用数据至少覆盖固定36字节头，再解析字段；随后以受检整数运算校验header_size + payload_size + tag_size与实际datagram长度完全相等。禁止在未验证头长时读取偏移36以后的字段。
+
+### 2. 64位字段的VAL3表示范围
+
+v2当前已定义/引用的u64字段不仅包括packet_sequence、controller_boot_id、session_id和command_id，还包括：
+
+- SESSION_HELLO.host_monotonic_ns；
+- COMMAND_REQUEST.issued_at_host_monotonic_ns；
+- TIME_SYNC_REQUEST.host_t1_monotonic_ns；
+- TIME_SYNC_REPLY.echo_host_t1_ns、controller_t2_receive_tick和controller_t3_send_tick；
+- COMMAND_EVENT.controller_tick。
+
+§9.3.85已提出VAL3对u64身份字段使用high/low u32 word或8字节数组，但没有把同一规则明确扩展到上述时间戳/tick字段。若目标VAL3运行时以binary64数值承载num，单一数值对超过2^53的整数不能保证逐整数精确；然而当前静态证据并未证明目标CS9运行时对这些字段的实际数值类型/转换语义，因此不能直接断言平台一定丢精度，也不能假设其天然支持完整u64。
+
+**规范要求：** 所有wire u64都必须按8字节little-endian原样保留；需要在VAL3内参与算术的字段，应使用经目标运行时验证的high_u32/low_u32运算，或以byte array保留并仅在安全边界内计算有界差值。不得先将完整u64转成单个num再参与浮点算术。每个字段都要明确其是opaque ID、host timestamp还是controller tick；禁止跨时钟域直接相减。
+
+### 3. TIME_SYNC的可执行准入条件仍未闭合
+
+现有设计定义t1/t2/t3/t4数据流：主机记录单调时钟t1与t4，控制器返回t2/t3 tick，并由controller_tick_hz提供频率。消息长度本身核算为TIME_SYNC_REQUEST 12字节、TIME_SYNC_REPLY 28字节；但协议尚未定义以下强制策略：
+
+- 最少有效样本数、样本窗口和离群样本剔除规则；
+- 最大往返时延、最大映射不确定度，以及不满足时拒绝哪些deadline模式；
+- 主机时钟频率/漂移假设、同步刷新周期与同步失效时间；
+- controller tick单调性、tick回绕/复位检测、控制器重启后旧映射失效；
+- 映射失效后运动闭锁条件，以及重新同步后是否还需操作员显式re-arm。
+
+这些门槛应作为目标系统可配置但有受控上限的参数写入协议配置/ICD；在阈值未经任务时序预算和CS9实测支持前，不得自行填入看似精确的常数。
+
+### 4. 消息payload schema尚未完整冻结
+
+| 消息 | 当前设计粒度 | 冻结前必须补齐 |
+|---|---|---|
+| ROBOT_STATE | 仅说明状态遥测、state_sequence、活动命令摘要和最后应用的setpoint序号 | 关节/状态字段、轴数/顺序、单位、validity flags、枚举、时间基准、错误语义、最大长度 |
+| DIAGNOSTIC_DATA | 仅说明诊断快照与错误记录 | 记录ID、级别、错误码、时间戳、记录计数、分页/截断、最大长度与保留策略 |
+| SETPOINT_STREAM | 仅说明stream_id/sample_sequence/deadline | 字段宽度、样本时戳/时基、周期/有效期、运动模式、轴顺序/单位、丢样/乱序策略、队列上限 |
+| STOP_REQUEST | 仅说明独立高优先级停止事务 | stop_id/关联session、原因码、优先级/抢占规则、重复请求幂等性、ACK阶段和软件停止终态 |
+| COMMAND_REQUEST | 已有28字节前缀和47字节关节body示例 | command_kind/deadline_mode枚举、flags/reserved取值、body schema注册表，以及command_body_size与实际剩余payload精确相等规则 |
+
+未列明的保留位必须要求为0；未知必选字段/枚举/消息版本必须拒绝，不能静默按默认运动命令解释。变长消息必须规定明确最大值、截断/分页行为及认证覆盖范围。
+
+### 5. STOP事务的状态语义
+
+STOP_REQUEST可以在普通协议层具有最高调度优先级，并要求控制器回报RECEIVED、ACCEPTED、APPLIED、STOPPED或REJECTED等阶段；但这些软件事件只能描述协议/应用层观察，不能代替CS9安全功能、独立安全输入或经风险评估确定的停止类别。STOPPED必须定义为目标应用层的可观测终态，并与真实反馈/停止判据绑定；在没有安全控制器证据和停止时间/距离测试时，不能将该事件描述为安全静止证明。网络断开或ACK丢失时状态应为UNKNOWN_OUTCOME/INHIBITED，而不是默认成功。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-513 | 36字节帧头规范单一化 | 字段偏移/宽度、header_size、tag覆盖和111/127字节长度由同一golden fixture验证 | 未执行 |
+| SERVO-514 | v2全部u64字段清单 | 建立ID、host timestamp、controller tick字段登记表，标出时钟域和wire偏移 | 未执行 |
+| SERVO-515 | VAL3身份u64无损表示 | 对packet_sequence/boot_id/session_id/command_id验证high-low或byte-array实现 | 未执行 |
+| SERVO-516 | VAL3时间戳/tick无损表示 | 对t1/t2/t3、issued_at和controller_tick验证编码、存储、比较与边界 | 未执行 |
+| SERVO-517 | u64跨端边界黄金向量 | 覆盖0、1、2^32−1、2^32、2^53−1、2^53、2^53+1及2^64−1 | 未执行 |
+| SERVO-518 | 时间同步准入门槛 | 定义样本数、最大RTT/不确定度、漂移、刷新周期和离群剔除 | 未执行 |
+| SERVO-519 | tick回绕/重启与同步失效 | 注入tick回绕、controller reboot、超龄映射，确认运动闭锁及显式恢复 | 未执行 |
+| SERVO-520 | ROBOT_STATE/DIAGNOSTIC_DATA schema | 冻结字段、单位、validity、枚举、长度上限和兼容规则 | 未执行 |
+| SERVO-521 | SETPOINT_STREAM schema | 冻结stream/sample身份、时基、有效期、轴数据、背压和丢样策略 | 未执行 |
+| SERVO-522 | STOP_REQUEST schema与终态 | 验证优先级、幂等、ACK/UNKNOWN_OUTCOME、停止判据及独立安全边界 | 未执行 |
+
+### 交叉引用与验证边界
+
+- §9.3.85：协议v2数据模型、帧头、会话、事务字段和原始黄金向量；本轮修正了其中残留的32字节文本。
+- §9.3.86：UDP来源、认证、抗重放、网络分区与恢复威胁模型；其36字节头修订现与§9.3.85规范文字一致。
+- 来源#2010–#2018支持固定上游v1字段、VAL3编码/C++解析及现有测试覆盖边界；本节是对现有设计规格的静态一致性检查，不新增上游实现来源。
+
+**验证边界：** 本节完成了文档级字段长度核算与规范缺口登记；没有运行VAL3编译器、CS9/SRS仿真、C++新序列化器、跨端golden tests、时间同步算法或HIL/实机测试。SERVO-513–SERVO-522全部未执行；u64表示策略、时间同步准入门槛和未闭合消息schema仍待实现/厂商平台确认。Stäubli仍为静态审查，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
