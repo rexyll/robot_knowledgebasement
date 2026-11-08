@@ -233,3 +233,8 @@ SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进�
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - 专项追加件§9.3.123。
+
+
+## 21.1 厂商档案资产清单单行元数据刷新
+
+因§128.74更新厂商档案后，已将资产清单中 knowledge/ecosystem/主要厂商.md 对应行刷新为Blob SHA 403007ce8e50dab4b3a2af3ddceebd7e63e5364a、UTF-8大小516,870 bytes。该操作仅刷新单一资产的Git元数据，不代表claim-level复核完成，也不代表其余资产行已重新计算。
