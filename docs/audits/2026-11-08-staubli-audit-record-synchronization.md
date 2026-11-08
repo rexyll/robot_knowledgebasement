@@ -397,3 +397,20 @@ SERVO-720已完成（静态核对）；SERVO-721/722/723未执行。未修改ICu
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+
+
+## 31. PlanningSceneMonitor stop与重启配置切换生命周期核验（§9.3.133）
+
+固定MoveIt 2.12.4源码文件Blob SHA `fd07db53761d533f2f6e7f33189063a18000c9a9`显示`startWorldGeometryMonitor()`在创建新订阅前先调用stop；旧stop对两个subscriber采用if/else if。若原先两个topic均启用，随后restart把`planning_scene_world_topic`设为空，旧PlanningSceneWorld subscriber可能不被新配置覆盖；monitor对象继续存活期间，旧topic可能仍有回调。若重启时新world topic非空，该成员随后由新subscriber覆盖；对象析构后成员会随对象生命周期销毁，不应误报为析构后的永久泄漏。
+
+由此扩展SERVO-725：双topic初始配置后分别直接stop、restart到仅CollisionObject、仅PlanningSceneWorld、双空、双新topic，以及单topic/重复stop场景；通过`getMonitoredTopics()`和旧/新topic回调计数双重验证。本轮完成固定源码静态调用链推导和测试设计，未运行目标环境实验。PR #3907现有测试只覆盖双topic启动后单次stop的topic-list断言，未覆盖完整restart矩阵。
+
+SERVO-721/723/725未执行；SERVO-722仍因Stäubli现场部署证据缺失而阻塞；SERVO-724持续跟踪PR #3907和Jazzy回移/正式deb。没有修改MoveIt/ICube上游或应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT/实机验证。
+
+本轮厂商档案新增§128.84；该文件更新后资产清单单行Blob SHA与UTF-8大小将单独刷新，不代表claim-level验收或整库重算。
+
+来源：
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- 专项追加件§9.3.133；厂商档案§128.84。
