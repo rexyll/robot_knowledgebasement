@@ -1438,3 +1438,66 @@ main中startMonitor()将active_设为true并逐个调用所有已登记updater�
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor_middleware_handle.cpp
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp
+
+
+### §9.3.141 PR #3909 的 MiddlewareHandle 源码兼容性与失败资源回收边界
+
+#### 1. 本轮上游状态复核
+
+- MoveIt PR #3909（`3fc0594f708730008da2c4b3709368ade65302f2`）仍为Open、未合并，目标分支main；与当前main比较为diverged，ahead 2 / behind 3。
+- CI run `37457932979` 与 Formatting run `37457933046` 均为completed/failure；jobs与artifacts接口均返回空数组，失败job/step/原因不可见。PR reviews与inline review threads为空。
+- CodeRabbit自动评论不是维护者review/approval。该评论指出#3909覆盖#3902但未解决#3901，并提出失败初始化后的清理契约风险；本节分别依据源码和接口定义核验，不将机器人评论当作正式审批。
+- PR作者自报Ubuntu 24.04/ROS Jazzy构建及4项测试0失败，仍属于作者报告，不是本项目独立验证。
+
+#### 2. MiddlewareHandle API 的源兼容性影响
+
+PR #3909将公开头文件中 `OccupancyMapMonitor::MiddlewareHandle::initializeOccupancyMapUpdater(OccupancyMapUpdaterPtr)` 从纯虚 `void` 改为纯虚 `bool`，ROS具体实现与测试Mock也同步改签名；PR同时向 `MIGRATION.md` 的ROS Rolling章节增加自定义middleware handle迁移说明。
+
+静态核对确认：
+- `OccupancyMapMonitor::MiddlewareHandle` 是公共头文件中的public嵌套类，方法为public纯虚接口。
+- `OccupancyMapMonitor(std::unique_ptr<MiddlewareHandle>, ...)` 是public构造函数，允许外部传入自定义handle；因此这不是只能由MoveIt内部访问的私有实现细节。
+- 下游若仍以旧的 `void` 返回类型实现该纯虚方法，方法签名不再匹配新接口，派生类无法按新头文件完成编译；自定义handle、测试fake/mock和任何封装此接口的集成都要更新为bool并明确传播初始化成功/失败。
+- PR迁移说明位于ROS Rolling章节。当前PR目标是main，不能据此推断该API变更已进入Jazzy稳定分支或Jazzy二进制包。
+
+兼容性判定：源码层面的破坏性变更已确认；二进制ABI是否兼容没有通过ABI工具或旧/新二进制混合加载验证，不能声称兼容。采用该接口的下游应按需要更新实现并以目标分支头文件重编译相关目标；正式回移Jazzy前必须单独评估稳定分支API/ABI影响、版本策略和迁移窗口。
+
+#### 3. initialize失败与setParams失败的资源回收覆盖缺口
+
+PR #3909在middleware返回false后由构造器执行continue，因而跳过setParams与addUpdater；局部updater句柄在本次循环迭代结束时离开作用域。候选实现没有在该分支显式调用updater的stop()，也没有增加统一rollback接口或文档化的“initialize失败必须自行撤销已创建资源”契约。
+
+当前可证明与不可证明的边界：
+- 内置PointCloud updater的initialize设置node_并创建TF buffer/listener和shape mask，当前实现最终返回true；其stop()删除message filter/subscriber。不能把该内置路径描述成已经复现initialize(false)泄漏。
+- 内置DepthImage updater的initialize设置node_并创建多个ImageTransport对象及TF相关对象，当前实现最终返回true；析构函数明确shutdown深度图像订阅。不能把当前内置实现的true路径外推为所有自定义插件的失败回滚保证。
+- 外部updater可以在initialize()中先申请资源再返回false；接口没有统一规定失败后资源必须如何撤销。若只依赖析构，安全性取决于每个插件是否用RAII正确拥有所有资源，以及回调/后台执行是否可能继续引用monitor。
+- setParams(false)发生在initialize成功之后，构造器同样continue且不会登记updater；它也可能留下initialize阶段已经分配的资源。PR新增测试没有覆盖此失败路径。
+- PR中的fake updater失败测试只记录initialize调用并返回false，没有创建ROS subscription、timer、callback或后台资源，因此不能证明部分初始化失败可安全回收。
+
+结论：这是需要明确契约并测试的资源生命周期缺口，不是已经证实的资源泄漏。禁止仅凭continue或局部对象离开作用域，推断任意第三方插件均能安全清理。
+
+#### 4. 新增SERVO-727验证矩阵
+
+| 场景 | 操作 | 验收点 |
+|---|---|---|
+| U11 | 使用旧void签名和新bool签名分别编译自定义MiddlewareHandle派生类 | 确认源兼容性变化；盘点所有下游实现、Mock与测试夹具 |
+| U12 | 对旧/新头文件和库进行ABI检查，必要时做旧插件/新库混合加载验证 | 得到ABI工具报告；未完成前标记ABI兼容性未知，不承诺二进制兼容 |
+| U13 | fake updater在initialize中创建subscription/timer/callback后返回false | 验证continue后的资源释放、ROS graph消退、回调静默、无悬空monitor访问 |
+| U14 | initialize成功并创建资源，随后setParams返回false | 验证该失败分支销毁/停止资源，不登记、不启动且无残余回调 |
+| U15 | 多插件混合加载，一项初始化失败、一项参数配置失败，其余成功 | 失败插件隔离、成功插件仍可启动停止，资源计数与日志可追溯 |
+
+#### 5. 任务状态与边界
+
+- SERVO-727：源码/API兼容性与失败回收静态审查已完成；U11-U15构建、ABI和动态资源测试未执行。
+- SERVO-726：初始化失败传播、#3901调用顺序契约、U1-U10插件生命周期矩阵继续跟踪；动态验证未执行。
+- SERVO-724：继续跟踪#3907及#3909的PR head、CI、维护者review/merge和Jazzy回移。#3909目前CI/Formatting失败且失败详情不可读。
+- SERVO-722现场Octomap使用情况、sensor plugin、参数与executor仍未确认；不得将上游通用源码结论写成Stäubli现场已触发。
+- 未修改MoveIt/ICube上游，未应用PR补丁；未执行目标环境构建、VAL3/CS9/HIL/FAT/SAT或实机验收。Stäubli工程级验收未通过。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3909
+- https://github.com/moveit/moveit2/issues/3901
+- https://github.com/moveit/moveit2/issues/3902
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp
+- 专项追加件§9.3.140。
