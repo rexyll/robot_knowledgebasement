@@ -1122,7 +1122,6 @@
 
 | 任务 | 验收对象 | 状态 |
 |---|---|---|
-| SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 已完成（commit、父版本README和diff三方核验） |
 | SERVO-705 | 将Bloom发布日志与rosdistro/distribution仓库中Jazzy moveit release tag/version记录对应，保存PR及merge commit | 未执行 |
 | SERVO-706 | 核对MoveIt上游2.12.4源代码tag与release仓库track配置、Bloom生成tag/源包版本之间的映射 | 未执行 |
 | SERVO-707 | 追踪ROS build-farm对应Jazzy/Noble amd64与arm64构建任务、job URL、source revision及二进制构建修订 | 未执行 |
@@ -1181,7 +1180,6 @@
 | 任务 | 验收对象 | 状态 |
 |---|---|---|
 | SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 已完成（commit、父版本README和diff三方核验） |
-| SERVO-709 | 解析MoveIt与moveit_servo的Jazzy release tag ref、对象类型、peeled commit和创建时间 | 已完成（轻量tag，ref直接指向commit；annotated tag签名不适用） |
 | SERVO-710 | 取得Bloom执行时上游源码不可变revision/归档校验值，并完成release tag包目录与上游2.12.4源码包目录的完整tree比对 | 未执行 |
 | SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 未执行 |
 | SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 未执行 |
