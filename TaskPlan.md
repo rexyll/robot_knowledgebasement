@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.08  
+> 版本：v9.09  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.135，厂商档案新增§128.86。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；新增SERVO-725，固定2.12.4源码显示start入口先stop，双topic转为空world topic时旧订阅可能保留；已形成restart矩阵，尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.136，厂商档案新增§128.87。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；新增SERVO-725，固定2.12.4源码显示start入口先stop，双topic转为空world topic时旧订阅可能保留；已形成restart矩阵，尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1202,3 +1202,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-08 | v9.08 | 00-01/21-02继续MoveIt #3907候选修复PR审查至§9.3.135：通过GitHub连接器按head SHA `821818f4ffeaa7564459faed2cbddbfb604f9dcb`重新读取workflow runs，Formatting (pre-commit) run `36755746603`与CI run `36755746261`均为completed/failure；分别查询jobs均返回空数组，故workflow级失败已确认，但失败job/step/原因未知；reviews为空，PR仍Open。不得把空jobs数组解释为未运行或所有测试失败。新增SERVO-724状态复核记录、专项§9.3.135、厂商档案§128.86及第21章TaskPlan记录。SERVO-721/723/725动态测试未执行，SERVO-722现场调用链仍缺证据/阻塞；未修改MoveIt/ICube上游、未应用补丁，未进行VAL3/CS9/SRS/HIL/FAT/SAT或实机验证，Stäubli工程级验收未通过，TODO-EXT-001仍未授权合并。 | MoveIt #3907；GitHub Actions runs/jobs API；PR reviews API；专项追加件§9.3.135 |
+
+| 2026-11-08 | v9.09 | 00-01/21-02继续审查MoveIt #3907修复候选的回归测试覆盖至§9.3.136：逐行检查PR新增PlanningSceneMonitor测试，确认其启动双topic、调用一次stop并用getMonitoredTopics断言两个topic均移除，直接覆盖subscriber登记/释放核心回归；但未发布消息检查回调静默，也未覆盖重复stop、restart、单topic/空topic及octomap生命周期矩阵。该测试源码审查不代表Actions通过；Formatting/CI仍completed/failure、jobs空数组、reviews为空、PR仍Open。新增§9.3.136、厂商档案§128.87及第21章TaskPlan记录。SERVO-721/723/725动态验证未执行，SERVO-722现场集成调用链缺失/阻塞，SERVO-724继续跟踪；未修改上游/ICube、未应用补丁，未执行VAL3/CS9/SRS/HIL/实机验证，Stäubli工程级验收未通过。 | MoveIt #3907 diff与回归测试；专项追加件§9.3.136 |
