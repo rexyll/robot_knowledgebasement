@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.51  
+> 版本：v8.52  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.83；新增ROS 2 write、UDP发送、VAL3命令解码/执行与状态反馈的端到端关联审查；确认缺少单命令ACK/应用/完成结果，状态先于本周期新命令发布，write OK只反映本地发送调用链；新增SERVO-463–SERVO-472均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
@@ -1073,3 +1073,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-08 | v8.51 | 00-01/21-02继续Stäubli ROS 2—UDP—VAL3命令发送、接收、接受、应用、执行与状态反馈端到端关联审查：固定ICube bd658e2确认HardwareInterface::write经RobotDriver/RealTimeSocketInterface发送后直接返回OK，无事务表/ACK等待；VAL3 decode的bIsValid仅本地标志不回传；controlTask每周期先采样并发布状态，再读取/解码/执行新命令，状态header为状态周期序号，nControlMode只是模式，nSequenceDelay只是发送/接收序号差，状态协议没有last accepted/applied command ID、结果码和目标完成事件；movejSync状态1/2仅注释未上报，bInMotion/关节遥测不与命令ID关联；现有hardware-interface测试只断言write返回OK，mock仅发送状态/诊断而未验证命令实际接收/执行。新增§9.3.83、来源#1992–#2001及SERVO-463–SERVO-472。未执行CS9 ACK抓包、运动完成、STOP确认、HIL或实机测试；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.83；来源#1992–#2001；《主要厂商》§128.66 |
+
+
+| 2026-11-08 | v8.52 | 00-01/21-02完成Stäubli命令事务状态机与协议升级设计基线审查：固定ICube bd658e2确认v1协议头8字节、protocol_version=1、16位sequence、仅state/command/diagnostic三类消息，C++ RobotCommand与VAL3 RobotCommand均无command_id/session epoch/deadline/ACK阶段/终态结果。提出v2显式协商、独立command ID与boot/session、分阶段事务事件、幂等去重、deadline、事件查询、命令流与离散事务分层、STOP优先级、完成判据、错误码、认证和实时性预算；明确这是设计基线而非已实现功能。新增§9.3.84、来源#2002–#2009及SERVO-473–SERVO-485，全部未执行。未修改上游代码，未做VAL3/CS9/HIL/实机验证；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.84；来源#2002–#2009；《主要厂商》§128.67 |
