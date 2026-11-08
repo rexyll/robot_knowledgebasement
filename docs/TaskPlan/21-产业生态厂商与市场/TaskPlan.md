@@ -1181,7 +1181,7 @@
 |---|---|---|
 | SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 已完成（commit、父版本README和diff三方核验） |
 | SERVO-710 | 取得Bloom执行时上游源码不可变revision/归档校验值，并完成release tag包目录与上游2.12.4源码包目录的完整tree比对 | 未执行 |
-| SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 未执行 |
+| SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 已完成（54个tree条目、43个blob逐项比较；路径/mode/type/blob SHA全部一致，双方tree均未截断） |
 | SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 未执行 |
 | SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
 
@@ -1190,3 +1190,30 @@
 - Release refs：`refs/tags/release/jazzy/moveit_servo/2.12.4-1` → `517bafc0d687bd0863fb82ca53fdf792ecd3fc28`；`refs/tags/release/jazzy/moveit/2.12.4-1` → `3e353f0257928fe59d133a031395dfeb0fd3bc0d`。
 - 上游MoveIt tag：`moveit/moveit2@2.12.4` → `1ade0e9dcf50dbbbc3a984b995c786cf12736235`。
 - Noble Debian packaging branch：`debian/jazzy/noble/moveit_servo`，HEAD `04da341a35a97633b11a95ac1600b1995bcbacc3`。
+
+
+### Stäubli专项审查新增记录（§9.3.111，MoveIt Servo release package完整Git tree核验与Build Farm证据边界）
+
+本轮完成SERVO-712，并启动SERVO-713：
+
+- MoveIt Servo release轻量tag release/jazzy/moveit_servo/2.12.4-1 指向commit 517bafc0d687bd0863fb82ca53fdf792ecd3fc28，其commit tree为 48089db4f79b75bdd80d70107dc7ec1fc26febba。通过GitHub Git Trees API递归读取该tree，API返回54个条目，truncated=false；其中43个blob文件。
+- 上游MoveIt 2.12.4 tag对应commit 1ade0e9dcf50dbbbc3a984b995c786cf12736235。对其完整递归tree筛选 moveit_ros/moveit_servo/ 子树，API返回54个条目（43个blob），truncated=false。将上游路径前缀剥离后与release tag package root比较。
+- 比较维度包括相对路径、Git mode、对象type和blob SHA。结果：release侧独有文件0、上游侧独有文件0、blob/mode/type差异0；两侧各43个blob全部逐项一致。该结果证明Bloom release tag所裁剪的Servo package文件树与上游2.12.4源码标签对应目录完全一致，强于此前四个关键文件抽样比对。
+- 因此SERVO-712标记完成（完整静态Git tree一致性）。此结论不等于Bloom执行输入归档SHA已取得，也不等于验证了debian构建源码包、Build Farm工作区或上传deb字节；SERVO-710仍保持未完成。
+- 推进SERVO-713时，查阅ROS 2官方Build Farm文档，确认release job命名模板为 {distro}src_{platf}__{package}__{platform}__source 与 {distro}bin_{platf}__{package}__{platform}__binary，且binary job由source job触发。文档给出的Noble amd64示例使用uN64平台标识。尝试访问build.ros2.org Jenkins job/API端点及查询目标moveit_servo job，但本轮读取接口未能返回可核验的job页面/API JSON或构建日志。
+- 因此本轮没有把按命名模板推导的job名称写成“已确认存在”，也没有臆测ARM64平台标识、job状态、构建编号、source revision或构建工件对应关系。SERVO-713仍未执行完成。下一步需取得Build Farm job索引/具体job API与console log，确认Jazzy/Noble amd64、arm64 source/binary任务及对应revision、状态和工件。
+- 未取得生产main的InRelease/Packages stanza及实际deb；SERVO-714仍未执行。未验证APT签名、SHA256、Debian control依赖、目标环境apt候选/安装/servo_node启动。未修改ICube上游；未进行ROS运行、VAL3编译仿真、CS9、HIL或实机验证。Stäubli仍未通过工业级验收，TODO-EXT-001仍未授权合并。
+
+### Stäubli专项审查新增验收任务（§9.3.111）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 已完成（43个blob逐项一致；路径/mode/type/blob SHA零差异） |
+| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 未执行 |
+| SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
+
+本节来源：
+- MoveIt Servo release commit/tree：517bafc0d687bd0863fb82ca53fdf792ecd3fc28 / 48089db4f79b75bdd80d70107dc7ec1fc26febba。
+- MoveIt upstream 2.12.4 commit：1ade0e9dcf50dbbbc3a984b995c786cf12736235。
+- ROS 2 Build Farm官方job类型/命名说明：https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst 。
+- Build Farm入口：https://build.ros2.org/ （本轮job/API端点未获得可核验响应）。
