@@ -142,3 +142,6 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.132，发现MoveIt PR #3907明确Fixes #3897且包含双subscriber单次stop的修复和topic-list回归测试；PR仍open/未合并，Formatting与CI workflow失败且jobs明细不可用。当前上游main仍为旧if/else if实现，Jazzy生产main仍为2.12.4-1，未证明修复进入main/backport/正式deb。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.131，核对MoveItCpp默认world-geometry启动路径、当前main仍存在的双订阅stop问题及针对#3897的PR搜索；知识库缺少ICube现场源码/部署配置，SERVO-722保持未执行/阻塞，并补齐SERVO-721实验规程和SERVO-724上游修复跟踪。
+
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.133，固定MoveIt 2.12.4源码确认startWorldGeometryMonitor先调用stop；初始双topic后restart为`planning_scene_world_topic=""`时旧world subscriber可能保留。澄清对象析构后成员会销毁，不扩大描述为永久泄漏；新增SERVO-725配置切换矩阵，尚未执行动态测试。
