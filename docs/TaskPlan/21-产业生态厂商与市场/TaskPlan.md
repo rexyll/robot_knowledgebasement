@@ -1482,7 +1482,7 @@
 | SERVO-721 | Ubuntu 24.04/Jazzy目标环境双订阅单次stop、double-stop、restart、单topic/空topic及octomap矩阵测试 | 未执行（实验规程已整理） |
 | SERVO-722 | 获取Stäubli/ICube目标版本、launch/YAML、PlanningSceneMonitor构造及全部start/stop调用点，确认现场触发条件 | 未执行（目标源码与部署配置缺失，阻塞） |
 | SERVO-723 | 对修复版本或审查补丁增加双订阅停止、重复stop、restart、空topic与octomap回归测试 | 未执行（尚无确认修复版本/补丁） |
-| SERVO-724 | 跟踪MoveIt #3897修复PR、Jazzy backport及正式发行二进制版本 | 未完成（持续跟踪） |
+| SERVO-724 | 跟踪MoveIt #3897修复PR、Jazzy backport及正式发行二进制版本 | 正在进行中（PR #3907 open/behind；CI失败、Jazzy backport未确认） |
 
 本轮上游main静态证据：`MoveItCpp::initialize()`在PlanningScene配置成功后调用`startWorldGeometryMonitor()`；当前main的`stopWorldGeometryMonitor()`仍使用if/else if释放subscriber。该轮PR列表检索未命中；后续发现修复候选PR #3907，详见§9.3.132。该通用路径不能证明Stäubli应用实际采用MoveItCpp默认初始化。仓库缺少ICube应用源码、启动参数、monitor实例及stop调用点，因此SERVO-722无法判定现场触发条件，维持未执行/阻塞；不得把证据缺失写成现场不受影响。
 
