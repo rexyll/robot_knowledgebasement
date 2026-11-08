@@ -1505,6 +1505,8 @@ SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启�
 | SERVO-723 | PR #3907合并或目标修复版本的回归验证 | 未执行 |
 | SERVO-724 | 跟踪PR #3907审查/CI/合并、Jazzy backport和正式deb | 正在进行中（PR open/behind；Formatting与CI失败，jobs明细缺失；无review approval及Jazzy backport证据） |
 | SERVO-725 | 双topic启动后，stop或restart为单topic/双空/新topic配置的生命周期矩阵，验证旧topic回调停止和新topic集合准确 | 正在进行中（已完成固定源码静态推导；目标环境实验未执行） |
+| SERVO-726 | OccupancyMapUpdater初始化失败隔离、API契约与插件stop/start生命周期矩阵 | 正在进行中（静态源码审查完成；U1-U10动态验证未执行） |
+| SERVO-727 | MiddlewareHandle下游兼容性、ABI与initialize/setParams失败资源回收 | 正在进行中（源码破坏性变更已确认；U11-U15编译/ABI/动态测试未执行） |
 
 固定MoveIt 2.12.4源码（Blob SHA `fd07db53761d533f2f6e7f33189063a18000c9a9`）显示`startWorldGeometryMonitor()`开头会调用stop；stop仍以if/else if只释放一个subscriber。故原先两个topic同时启用时，若随后重启并把`planning_scene_world_topic`设为空，旧PlanningSceneWorld subscriber可能未被新配置覆盖，导致monitor对象仍存活时继续订阅旧topic。若新world topic非空，旧成员在新subscriber赋值时被替换；对象析构时剩余成员也随对象销毁。因此风险不应被扩大描述为析构后永久订阅泄漏。
 
@@ -1597,3 +1599,21 @@ main当前调用顺序为setMonitor -> initialize -> setParams -> addUpdater。M
 Issue #3901是独立的接口契约冲突：头文件注释声称initialize假定setParams已调用，但内置PointCloud/DepthImage插件的setParams使用node_，而node_在initialize中设置；因此不能简单把setParams前移。PR #3909保留initialize后setParams，只处理失败状态传播，未解决#3901文档/API契约问题。
 
 OccupancyMapMonitor的start/stop逐个委托插件，析构会再次stop；插件stop实现不同，monitor层没有统一在途回调退出确认。已形成U1-U10测试矩阵，动态测试未执行。现场是否启用Octomap尚未确认，不推断该问题已影响Stäubli部署。详见审计追加件§9.3.140。
+
+
+### Stäubli专项审查新增任务（SERVO-727，MiddlewareHandle兼容性与失败资源回收）
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| U11 | 旧void与新bool MiddlewareHandle派生类、下游Mock/fixture源码编译迁移 | 静态接口差异已确认；编译矩阵未执行 |
+| U12 | 旧/新头文件与二进制库ABI兼容性 | 未执行；ABI状态未知 |
+| U13 | updater在initialize中部分创建subscription/timer/callback后返回false | 未执行 |
+| U14 | initialize成功后setParams返回false的资源回收 | 未执行 |
+| U15 | 初始化失败、参数配置失败与成功插件混合加载 | 未执行 |
+| 迁移适用性 | 自定义MiddlewareHandle消费者、ROS Rolling与Jazzy分支边界 | public API源码破坏性变更已确认；下游清单与目标分支迁移范围未核实 |
+
+PR #3909把public纯虚接口 `OccupancyMapMonitor::MiddlewareHandle::initializeOccupancyMapUpdater()` 从void改为bool，并在MIGRATION.md的ROS Rolling章节增加自定义handle迁移说明。由于MiddlewareHandle是public嵌套类，且OccupancyMapMonitor存在public unique_ptr<MiddlewareHandle>构造函数，外部自定义实现和Mock必须更新签名；旧void override不能满足新bool纯虚接口。源码兼容性变化已确认，二进制ABI未经工具验证，不能宣称兼容。PR目标为main，不推断该API变更已经进入Jazzy。
+
+失败回收方面，PR在initialize返回false时continue跳过setParams/addUpdater，局部updater句柄随循环迭代结束而销毁，但没有统一stop/rollback契约。第三方插件若在initialize中创建资源后返回false，或initialize成功而setParams失败，是否安全依赖插件自身析构和资源所有权。PR新增fake测试没有创建订阅、定时器或在途回调，不能证明这些路径已清理。此处登记为测试覆盖/契约缺口，不认定为已证实泄漏。
+
+SERVO-727静态审查已完成，U11-U15未执行；SERVO-726动态插件生命周期验证也未执行。详见专项追加件§9.3.141。
