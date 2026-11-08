@@ -815,3 +815,21 @@
 | SERVO-572 | period字段异常注入 | 未执行 |
 | SERVO-573 | 250Hz假设验证 | 未执行 |
 | SERVO-574 | 周期与网络时延联合验收 | 未执行 |
+
+| 2026-11-08 | 21-02/Stäubli VAL3位置目标刷新、MoveJSync状态、HOLD恢复与停止路径审查 | 固定ICube提交bd658e2静态追踪ROS 2 write、VAL3 readData/controlTask与updateJointPositionControl：无新UDP包时旧有效命令不会被读取路径自动失效，位置模式仍逐周期将缓存目标刷新给MoveJSync；位置目标只有isInRange检查，目标接近性/跳变连续性留有TODO；MoveJSync状态1刷新迟到和状态2运动锁定的应用处理均被注释；updateState将motion_possible定义为上电且非EStop，没有纳入Hold；位置/速度专用stop helper不对称，但公共STOP路径仍会执行stopMove/resetMotion；VAL3速度控制仍为占位且ROS2硬件接口拒绝该模式。新增§9.3.93、SERVO-575–SERVO-585、来源#2063–#2071。全部未执行；未编译VAL3，未在CS9/SRS/HIL/实机验证轨迹连续性、Hold释放或停止行为。 |
+
+### Stäubli专项审查新增验收任务（§9.3.93，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-575 | MoveJSync刷新超时状态1 | 未执行 |
+| SERVO-576 | MoveJSync锁定状态2 | 未执行 |
+| SERVO-577 | Hold与motion_possible映射 | 未执行 |
+| SERVO-578 | 缓存目标年龄与失效策略 | 未执行 |
+| SERVO-579 | 目标位置跳变与变化率限制 | 未执行 |
+| SERVO-580 | 目标—实测位置跟踪误差 | 未执行 |
+| SERVO-581 | STOP函数与统一停止契约 | 未执行 |
+| SERVO-582 | Hold/急停恢复后的重新授权 | 未执行 |
+| SERVO-583 | 速度控制模式实现一致性 | 未执行 |
+| SERVO-584 | 轨迹采样连续性与丢点行为 | 未执行 |
+| SERVO-585 | Hold/STOP/恢复动态验收 | 未执行 |
