@@ -1417,3 +1417,6 @@
 - https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/tests/source_tests.sh
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
 - 专项追加件§9.3.127。
+
+
+- 本轮更新`knowledge/ecosystem/主要厂商.md`后，资产清单对应行已刷新为Blob SHA `e613a2320a10a3e5224f2a5334962c8e988fa593`、UTF-8大小522,813 bytes；仅刷新该单一资产的Git元数据，不代表claim-level审查完成或整库清单重算。
