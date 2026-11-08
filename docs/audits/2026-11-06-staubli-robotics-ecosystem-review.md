@@ -5311,19 +5311,19 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 
 **版本发现/端点约束：** v1固定8字节头只定义protocol_version=1，v1解码器无法通过普通v1握手协商理解新的32字节v2头。建议v2使用独立UDP端口或独立控制器服务端点；v2 HELLO/ACCEPT只在该端点解释。若控制器不支持v2或握手/能力协商失败，远程运动必须保持INHIBITED，不得静默回退到v1并假装具备事务ACK。只允许在显式策略批准下开放受限只读遥测兼容。
 
-v2采用固定32字节基础头；由于v1固定8字节头无法承载v2扩展字段，建议v2先使用单独UDP端口/独立控制器服务端点完成握手和能力协商；不得让只支持v1的解码器尝试按v1结构解析v2帧。所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
+v2头部在§9.3.86安全审查后修订为固定36字节；32位packet_sequence存在长期运行回绕风险，改为u64，防重放窗口与会话身份共同约束。由于v1固定8字节头无法承载v2扩展字段，建议v2先使用单独UDP端口/独立控制器服务端点完成握手和能力协商；不得让只支持v1的解码器尝试按v1结构解析v2帧。所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
 
 | 偏移 | 字段 | 类型 | 字节数 | 约束 |
 |---:|---|---|---:|---|
 | 0 | magic | u16 | 2 | 沿用0xABCD，线格式字节为CD AB |
 | 2 | protocol_version | u8 | 1 | 固定2 |
 | 3 | message_type | u8 | 1 | 见下方消息类型表 |
-| 4 | header_size | u16 | 2 | v2.0固定32 |
+| 4 | header_size | u16 | 2 | v2.0固定36 |
 | 6 | flags | u16 | 2 | bit0=AUTH_TAG_PRESENT；其余未定义位必须为0 |
-| 8 | packet_sequence | u32 | 4 | 按session单调递增；回绕规则明确，重连必须换session |
-| 12 | payload_size | u32 | 4 | 只统计payload，不含头部和认证tag |
-| 16 | controller_boot_id | u64 | 8 | 控制器每次启动生成的新boot身份；除SESSION_HELLO外必须非0且匹配 |
-| 24 | session_id | u64 | 8 | 握手建立的会话身份；会话外/握手报文允许按消息规则为0 |
+| 8 | packet_sequence | u64 | 8 | 每方向、每session单调递增；到达u64上限前必须换session，禁止回绕复用 |
+| 16 | payload_size | u32 | 4 | 只统计payload，不含头部和认证tag |
+| 20 | controller_boot_id | u64 | 8 | 控制器每次启动生成的新boot身份；除SESSION_HELLO外必须非0且匹配 |
+| 28 | session_id | u64 | 8 | 握手建立的会话身份；会话外/握手报文允许按消息规则为0 |
 
 当`AUTH_TAG_PRESENT=1`时，在payload后追加16字节认证tag；tag覆盖完整32字节头和payload，推荐采用会话密钥下的HMAC-SHA-256截断16字节。控制类报文在生产部署中必须认证；无认证tag的黄金向量只用于离线序列化一致性测试，不构成生产通信配置。Nonce交换本身不构成身份认证；会话密钥须来自预配置密钥派生或经安全评审的认证密钥建立机制，并验证密钥轮换、授权范围和失效流程。接收端必须验证`datagram_size == header_size + payload_size + tag_size`，同时拒绝整数溢出、短帧、超长帧、未知flags、未知消息类型、错误boot/session和认证失败。
 
@@ -5385,8 +5385,8 @@ VAL3仍需确认：`num`对u32边界的准确处理、signed/unsigned转换、`t
 
 以下样例为无认证tag的解析器黄金向量，供C++编码器与VAL3解码器、VAL3编码器与C++解码器逐字节对照。头部定义为v2、类型COMMAND_REQUEST(0x20)、header_size=32、packet_sequence=7、payload_size=75、boot_id=0x0102030405060708、session_id=0x1112131415161718。command_id=0x2122232425262728，joint position命令，host monotonic时间样例为0x0000000100000000，ttl=1000ms，body长度47。
 
-**头部32字节：**
-`CD AB 02 20 20 00 00 00 07 00 00 00 4B 00 00 00 08 07 06 05 04 03 02 01 18 17 16 15 14 13 12 11`
+**头部36字节（§9.3.86修订后的u64 packet_sequence）：**
+`CD AB 02 20 24 00 00 00 07 00 00 00 00 00 00 00 4B 00 00 00 08 07 06 05 04 03 02 01 18 17 16 15 14 13 12 11`
 
 **命令事务前缀28字节：**
 `28 27 26 25 24 23 22 21 02 00 01 01 00 00 00 00 01 00 00 00 E8 03 00 00 2F 00 00 00`
@@ -5394,7 +5394,7 @@ VAL3仍需确认：`num`对u32边界的准确处理、signed/unsigned转换、`t
 **命令body47字节：**
 `00 00 80 40 02 00 00 00 00 00 00 80 3F 00 00 80 BF 00 00 00 40 00 00 00 C0 00 00 00 3F 05 00 00 00 00 00 00 00 80 3F 00 00 80 BF 00 00 20 40`
 
-body对应controller_period=4.0ms、motion_cmd_type=2、关节位置[0,1,-1,2,-2,0.5]、数字输出mask=0x0005、模拟输出[0,1,-1,2.5]。不含tag的datagram总长107字节；开启认证时header flags置AUTH_TAG_PRESENT并在末尾追加16字节tag，payload_size仍为75，总长123字节。此向量用于字节级互操作，不代表这些数值适合任何实机运动。
+body对应controller_period=4.0ms、motion_cmd_type=2、关节位置[0,1,-1,2,-2,0.5]、数字输出mask=0x0005、模拟输出[0,1,-1,2.5]。不含tag的datagram总长111字节；开启认证时header flags置AUTH_TAG_PRESENT并在末尾追加16字节tag，payload_size仍为75，总长127字节。此向量用于字节级互操作，不代表这些数值适合任何实机运动。
 
 ### 必须覆盖的测试矩阵
 
@@ -5440,3 +5440,116 @@ body对应controller_period=4.0ms、motion_cmd_type=2、关节位置[0,1,-1,2,-2
 | #2018 | [test_message_serialization.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp) | 现有C++自往返测试；缺少VAL3跨端黄金向量 |
 
 **验证边界：** 本节为固定提交的静态源码审查、v2线格式设计和离线手工构造的规范样例；没有在上游实现任何修复或v2代码。未运行C++单元测试、未编译VAL3工程、未确认CS9对uint64/缓冲区/认证算法的支持、未抓取控制器真实UDP帧、未测量WCET/周期抖动，也未进行HIL或实机运动验证。v1 VAL3头部编码缺陷仍未修复；SERVO-486–SERVO-498全部未执行。v2字段、消息类型和黄金向量是待实现规范，不代表厂商确认或工业级验收。Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.86 UDP威胁模型、身份认证、抗重放与故障恢复审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查结论
+
+固定提交的UDP通信路径缺少可证明的端点身份校验和密码学报文认证；ROS 2侧 `UDPSocketImpl::handle_data_received()` 已将发送方校验明确标注为TODO，实际仍把回调交给消息解析器。默认 `NetworkConfig::local_ip` 为空，UDP实现将其转换为`0.0.0.0`并绑定所有IPv4接口；发送时使用固定`remote_endpoint_`调用send_to，但接收用async_receive_from并把来源写入`sender_endpoint_`，没有调用UDP socket.connect()将内核接收限制到该对端。因而在网络可达条件下，其他主机向本地控制/诊断UDP端口发送结构合法的报文，可能进入状态/诊断消息接收链。实际可利用性取决于网络路由、防火墙、控制器网络拓扑和主机权限；本轮未进行渗透测试、源地址伪造或真实运动注入。
+
+VAL3侧`sio.cfx`为control与diagnostics配置了`connectIp=192.168.0.1`、端口11000/11001；这可能由SIO/控制器平台实现对端约束，但当前VAL3应用的`readDataOnce.pgx`只调用`sioGet`读取字节，`decodeHeader.pgx`只校验magic与protocol_version，代码没有读取来源IP/端口或执行消息认证。**不能仅凭SIO配置字段断言CS9平台必然完成接收源过滤**；必须通过Stäubli文档和CS9实际网络测试确认。
+
+v1协议没有认证tag、key_id、boot_id、session_id或防重放计数器。VAL3接收侧读取命令后仅验证固定长度、magic、版本、消息类型和内容解析；命令sequence用于计算与当前状态序号的粗略延迟，并在阈值超限时触发控制错误/STOP，不是严格的单调窗口/重复包拒绝策略。控制任务发生错误时将状态sequence重置为0、清理接收缓冲区并将命令标记为无效；`resetControlSocket`的`clearBuffer`仅清理当时缓冲，不建立新的密码学会话，也不能阻止清理之后到达的旧包。C++侧重复/回放状态帧会刷新本机接收时间并覆盖缓存的问题已在§9.3.82记录，本节从攻击面角度交叉引用。
+
+### 威胁与影响评估
+
+| 威胁场景 | 固定源码证据 | 潜在影响 | 当前判断 |
+|---|---|---|---|
+| 未授权主机注入状态/诊断UDP帧 | C++默认local_ip为空绑定0.0.0.0；sender_endpoint_有来源信息但handler中校验被TODO注释 | 伪造位置、速度、模式、安全/错误标志或诊断信息；污染控制器反馈与连接有效性 | 高风险设计缺口；受网络可达性与边界防护影响，未实测 |
+| 伪造/重放主机命令到控制器 | VAL3 readDataOnce只读取datagram；decodeHeader校验magic/version，未检查发送身份/认证tag | 未授权运动/IO命令或近期旧命令重放；SIO平台是否先行过滤尚待确认 | 高风险设计缺口；平台层过滤未证实 |
+| 状态帧回放 | C++ subscriber按任何可解析数据更新接收时间；序号重复不阻止时间戳更新 | 可持续制造“新鲜”但重复的机器人反馈；见§9.3.82 | 已有静态证据，影响需注入测试量化 |
+| 命令帧重放/乱序 | VAL3没有session内单调滑窗和command ID；sequence delay仅用于延迟阈值/错误停机 | 小延迟旧帧可能再次被执行；更老报文可能触发sequence delay错误，不能等同于安全抗重放 | 机制缺失；真实可接受窗口需CS9实测 |
+| 控制器/主机重启后的旧包 | v1无boot/session epoch；VAL3错误恢复将sequence清零并清缓存；C++ reset_data清空状态缓存 | 新旧运行周期序号空间重叠，旧包无法通过协议身份区分 | 风险成立于协议设计，重启时序未实测 |
+| UDP flood/畸形报文压力 | 接收callback无显式来源限速/令牌桶；VAL3每周期最多尝试readData两次；C++异步接收错误路径仍可能调用回调 | 接收线程、VAL3控制周期、日志/解析资源受到耗尽或抖动影响 | 缺少显式防护；未执行DoS负载测试 |
+| 密钥泄露/冒用 | v1报文结构没有认证/密钥标识；固定通信路径未见认证状态机 | 仅靠IP白名单无法抵御内网恶意节点、被攻陷主机或链路注入 | v1协议不具备消息级身份认证 |
+| 故障恢复时自动恢复运动 | VAL3错误分支清除错误标志、将sequence归零并重置socket；重新使能延迟仍TODO；详见§9.3.81 | 旧包或重连后首包可能与旧会话混淆；缺少显式重新授权门控 | 高风险恢复策略缺口 |
+
+### 网络与端点防护要求
+
+1. **先做网络分区。** 机器人控制网络应与办公/访客/Wi-Fi/公网隔离；通过交换机ACL/防火墙仅允许指定ROS 2主机IP、控制器IP和必要UDP源/目标端口；限制广播/多播和管理端口；监控非授权端点。防火墙是纵深防御，不替代报文认证。
+2. **主机侧严格绑定。** 默认`local_ip=""`导致绑定0.0.0.0的行为必须改为显式配置并验证专用机器人网卡地址；对接收报文同时核对sender IP和sender UDP port与已配置remote endpoint完全一致；不匹配报文在进入解析器和刷新reception_timestamp之前丢弃。若业务确需多网卡，必须显式列出允许接口和端点，不能隐式接受任意网卡。
+3. **VAL3/SIO对端约束须实测。** 明确`connectIp`和`portNumber`在CS9上的绑定方向、入站过滤语义、重绑定行为及多主机行为；用第二台主机/伪造源端口发送合法帧，验证不会被应用接收。若SIO不提供可审计的源过滤能力，应在可信网络边界或受控网关实施，并以密码学认证作为最终身份判断。
+4. **不要把IP/MAC当密码学身份。** IP allowlist、VLAN、MAC过滤均可降低暴露面，但同网段恶意主机、ARP欺骗、源地址伪造和已入侵节点仍需消息级认证处理。
+
+### v2认证与密钥生命周期设计要求
+
+- 生产控制命令、STOP请求、命令事件、会话协商和状态/诊断数据都应按安全策略认证；需防止反射攻击，C++→VAL3和VAL3→C++采用方向分离的派生密钥。
+- 使用经安全评审的预置身份凭据或密钥建立机制；HELLO中的nonce只提供新鲜性材料，本身不证明发送方身份。双方认证后才能派生session key。建议HKDF-SHA-256派生独立方向密钥，报文认证采用HMAC-SHA-256截断128 bit；若未来需保密性，再单独论证AEAD及nonce唯一性。
+- 认证覆盖协议域标签、方向、完整帧头、payload、boot_id、session_id和packet_sequence；认证字段不可由未认证payload自我声明。校验顺序为：受限解析固定头→检查最大长度/基本版本→按候选session取得密钥→常量时间校验tag→检查boot/session/重放窗口→严格解析payload→执行权限/模式/期限检查。失败包不得刷新状态新鲜度、推进序号窗口或改变控制器状态。
+- 每台机器人/主机使用唯一身份密钥，禁止在仓库、普通配置文件、日志或ROS参数中明文保存私钥；密钥应由受控预配流程写入平台受保护存储。定义key_id、启用/撤销、轮换重叠窗口、紧急吊销、恢复和审计策略。旧密钥只在明确的短暂轮换窗口内有效，到期不得继续接受。
+- 若CS9/VAL3无法安全保存密钥、执行认证或在目标周期预算内完成校验，不得降低为“只校验IP”的远程运动生产方案；应采用厂商支持的安全网关/安全通信通道，或将功能降级为受限制的只读能力，等待平台能力确认。
+
+### v2抗重放与重连恢复要求（修订§9.3.85头部）
+
+**头部修订：** §9.3.85初稿的32位packet_sequence存在回绕风险。若每方向250包/秒，32位序号约198.84天耗尽；多类型消息共用同方向计数器时更快。为避免长期运行依赖频繁重建会话，v2头部必须改为**36字节**：packet_sequence为u64，位于偏移8–15；payload_size移至偏移16；controller_boot_id位于偏移20–27；session_id位于偏移28–35。header_size固定36。§9.3.85的原32字节格式在v2协议冻结前由本修订替代。原COMMAND_REQUEST样例头部应更新为：
+
+`CD AB 02 20 24 00 00 00 07 00 00 00 00 00 00 00 4B 00 00 00 08 07 06 05 04 03 02 01 18 17 16 15 14 13 12 11`
+
+因此无tag示例datagram由107字节修正为111字节；带16字节tag为127字节。旧头部32字节样例不得作为v2最终黄金向量。
+
+**防重放算法要求：**
+1. packet_sequence为每个方向、每个session独立的u64严格递增计数；发送端不得在同session内回绕或复用。达到预设阈值前必须建立新session，session更新须认证完成。
+2. 接收端对每个方向维护最高已认证序号和滑动位图窗口（初始建议64/128包，需按最大乱序、网络抖动与控制周期测量确定）。只允许窗口内尚未见过的乱序报文；重复序号、低于窗口下界、未来跳跃超限均拒绝并计数。滑窗只在认证通过后原子更新。
+3. command_id与packet_sequence是两个独立域：packet_sequence负责数据报新鲜度/重放；command_id负责业务事务幂等去重。重复command_id同payload返回既有事务状态，不再执行；同ID异payload拒绝。
+4. controller_boot_id须在每次控制器启动/VAL3应用重启时变化，session_id在双方认证握手后建立。boot/session不匹配的数据报即使MAC有效也拒绝。boot_id生成方式、熵源或持久化单调计数器必须在CS9平台确认。
+5. 主机或控制器重启、通信分区、认证超时、密钥轮换、计数器回绕风险、窗口异常或事务状态不确定时，进入INHIBITED/UNKNOWN_OUTCOME；废弃旧session所有待执行命令，不在恢复后自动重放。恢复顺序为：建立新boot/session→双向认证→时钟映射确认→状态样本连续且新鲜→安全/操作模式检查→操作员/上层显式重新授权→才允许运动。
+6. 网络分区期间控制器对流式setpoint应用经安全评估的短时超时/受控停止策略；策略参数必须依据机器人负载、控制模式、刹车/停止类别和风险评估确定，不能在协议审查中臆造通用毫秒值。网络恢复不得自动解除停止或重新运动。
+
+### 抗DoS、审计和安全边界
+
+- 收包路径限制datagram最大长度并严格等于头+payload+tag；收到Asio错误、截断包或sender mismatch时不得调用消息解析器。
+- 对未认证/错误tag/未知端点报文按来源限速、限日志、计数并隔离；认证失败不能阻塞4 ms级运动控制任务或占满VAL3共享缓存。重认证/状态查询/事件重传队列设上限，队列满应显式报告，不可静默丢事件。
+- 记录端点、session、key_id、包序号、拒绝原因、时间戳和计数器；禁止把密钥、完整认证秘密或敏感命令载荷写入日志。定义告警阈值与安全审计保存周期。
+- 协议认证、网络ACL、软件STOP和状态遥测都不是功能安全措施。任何安全停止仍由CS9安全控制器、安全I/O、急停装置和经认证安全回路完成；远程通信异常时不得削弱独立安全回路。
+
+### 验收攻击/故障注入矩阵
+
+| 测试 | 注入方式 | 通过判据 |
+|---|---|---|
+| 端点冒充 | 从非白名单IP、正确IP但错误源端口、其他网卡发合法结构帧 | 解析器前拒绝，不刷新状态年龄，不影响序号窗口/运动 |
+| 内网报文伪造 | 无密钥节点构造正确magic/version和payload | 无有效tag即拒绝；不触发运动或状态覆盖 |
+| 报文篡改 | 分别翻转头部、payload、tag任一bit | 认证失败且常量时间比较；状态不变 |
+| 重放 | 重放本session已成功处理报文及旧session捕获报文 | 重复包/旧session在执行前拒绝；旧命令不重新启动 |
+| 乱序/滑窗边界 | 窗口内新包、已见序号、窗口外旧包、超大跳号 | 只接受允许的未见窗口内报文；其他拒绝且计数正确 |
+| 控制器重启 | 重启VAL3/控制器后重放重启前数据报 | boot/session不匹配，运动闭锁 |
+| 主机重启/重新连接 | 杀进程、重连、延迟注入旧命令 | 旧session失效；新session重新授权前不运动 |
+| 网络分区 | 丢弃双向报文、延迟恢复、乱序恢复 | 按安全评估执行受控策略；恢复后不自动运动 |
+| DoS/畸形帧 | 高频垃圾包、超长、短帧、截断、错误tag | 控制周期WCET边界满足；队列和日志有界；有效流不会被无界阻塞 |
+| 密钥生命周期 | 过期、吊销、轮换交叠、错误key_id | 旧密钥按策略失效；轮换期间没有降级到未认证控制 |
+| 安全边界 | 触发网络STOP与独立安全回路动作 | 证明软件STOP不能抑制或替代硬件/认证安全停止 |
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-499 | ROS 2 UDP源端点校验 | 校验sender IP+port，拒绝未授权来源；绑定接口默认不暴露0.0.0.0 | 未执行 |
+| SERVO-500 | CS9 SIO来源约束 | 通过厂商文档/双主机实测确认connectIp、portNumber和入站过滤 | 未执行 |
+| SERVO-501 | 消息认证与方向密钥 | 双向认证、会话派生密钥、tag覆盖范围和常量时间校验 | 未执行 |
+| SERVO-502 | u64抗重放窗口 | 每方向/session滑动窗口、重复/乱序/跳号边界和原子更新 | 未执行 |
+| SERVO-503 | boot/session隔离 | 控制器/应用重启改变boot身份，旧session报文全部失效 | 未执行 |
+| SERVO-504 | 断线恢复闭锁 | 网络分区、主机重启、状态未知后不自动重放/恢复运动 | 未执行 |
+| SERVO-505 | UDP DoS与解析隔离 | 错误包、截断包、超长包不进解析器；速率/日志/队列有界 | 未执行 |
+| SERVO-506 | 控制网分区与ACL | 机器人控制网隔离、端点白名单、防火墙和接口绑定配置审计 | 未执行 |
+| SERVO-507 | C++端点注入测试 | 使用非授权IP/端口注入RobotState/DiagnosticData，确认不污染状态 | 未执行 |
+| SERVO-508 | VAL3命令伪造与重放测试 | 验证无密钥、旧序号、重复ID、旧session均不能再次执行 | 未执行 |
+| SERVO-509 | 主机/控制器重启与分区测试 | 故障注入确认session重建和显式re-arm流程 | 未执行 |
+| SERVO-510 | 密钥预配/轮换/吊销 | 单机唯一凭据、受保护存储、rotation/revocation/恢复流程 | 未执行 |
+| SERVO-511 | 安全审计与告警 | 端点、包序号、拒绝原因、速率和密钥事件可审计且不泄密 | 未执行 |
+| SERVO-512 | 独立功能安全边界 | 证明通信认证/软件STOP不能取代安全控制器和硬件安全回路 | 未执行 |
+
+### 本节来源记录（#2019–#2027）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2019 | [socket.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/socket.hpp)、[udp_socket.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/udp_socket.hpp)与[udp_socket_impl.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | 默认本地地址、send_to固定目标、async_receive_from来源端点及sender校验TODO |
+| #2020 | [real_time_socket_subscriber.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 收到可解析报文即更新时间戳并写缓存；交叉引用§9.3.82 |
+| #2021 | [decodeHeader.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx)、[decodeRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx)与[readDataOnce.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx) | VAL3命令接收、头部校验、固定长度读取，没有应用层认证/身份字段 |
+| #2022 | [controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx)、[getNextSequenceNumber.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx)与[computeSequenceDelay.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | 16位序号回绕、延迟阈值处理和非严格重放检测 |
+| #2023 | [resetControlSocket.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx)、[robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp)与[robot_driver.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | 清缓冲/数据重置/重连路径和v1无会话身份 |
+| #2024 | [sio.cfx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx)与[ros2_server.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx) | SIO connectIp/端口配置；平台层源地址过滤语义待CS9验证 |
+| #2025 | [test_sockets.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp)与[test_robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | 现有UDP测试为loopback正常收发/重连/状态新鲜度，没有来源伪造、MAC、重放、密钥或DoS测试 |
+| #2026 | [sio.cfx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx)与[upload_val3_server.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/scripts/upload_val3_server.py) | 控制/诊断UDP配置和可覆盖控制器SIO配置的部署入口；不据此断言FTP安全属性 |
+| #2027 | [protocol.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp)、[types.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp) | v1 16位通用序号、消息类型和协议中无身份/认证信息的边界 |
+
+**验证边界：** 本节属于固定提交静态安全审查与威胁建模；没有执行渗透测试、源地址伪造、UDP重放/DoS注入、密钥管理测试、网络分区、控制器重启、CS9 SIO源过滤验证或实机运动试验。未证明远端攻击者可跨越当前网络边界，也未证明CS9 SIO平台层不具备额外过滤；这里只确认当前仓库应用层未实现可审计的报文身份认证/抗重放，并确认ROS 2 UDP接收端源地址校验是显式TODO。§9.3.85协议v2头部由32字节修订为36字节，packet_sequence改为u64；原32字节/107字节样例由本节修订。SERVO-499–SERVO-512全部未执行。v2认证/抗重放方案仍是待实现建议，需厂商平台确认、密码学评审、故障注入和安全验收。Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
