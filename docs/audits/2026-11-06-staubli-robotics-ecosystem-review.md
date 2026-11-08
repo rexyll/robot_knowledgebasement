@@ -5279,3 +5279,160 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #2009 | [ros2_server.pjx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx) | VAL3项目程序/类型清单及跨端协议升级影响面 |
 
 **验证边界：** 本节是基于固定提交v1代码的数据结构/协议边界审查及v2设计基线，不是v2实现。未修改上游ICube仓库，未编写或编译协议v2，未在VAL3仿真/CS9/HIL/实机验证消息长度、WCET、事件队列、认证、事务去重、STOP确认或升级回滚。SERVO-473–SERVO-485全部未执行；所有协议字段、错误码、状态机与部署要求均为建议设计，需经C++/VAL3双方实现、厂商平台能力确认和安全评审。Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.85 协议 v2 的 C++ 数据模型、二进制布局与跨端兼容性测试设计（固定上游提交 bd658e2，2026-11-08）
+
+### 结论摘要
+
+本节继续固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，将§9.3.84的事务/协议升级建议落实为字段级设计、偏移、序列化约束和黄金测试向量。审查发现一个必须先处理的 v1 跨端缺陷：VAL3 `Serialization/encodeHeader.pgx` 将 `nMsgSequenceNumber` 连续写入头部偏移4和偏移6；第二次写入本应为 `nPayloadSize`。这会导致 VAL3 发出的状态帧将 payload_size 编码为当前序号，而非固定的124字节。C++ `RobotStateMessage::deserialize()`在“Validate header fields”注释后没有实施字段校验，因此该不一致可能未被当前C++接收路径拒绝；但它仍是确定的线格式缺陷，第三方或严格解码器可能拒绝，不能认定互操作正常。
+
+另外，C++协议编码采用小端主机内存拷贝，`double`字段统一降为float32；VAL3则通过`toBinary/fromBinary`显式使用little-endian float32。当前测试主要是C++自序列化/反序列化往返，没有C++与VAL3之间的固定黄金帧测试。因此v2必须以字段字节定义为规范，而非依赖C++结构体内存布局或仅通过同端往返测试。
+
+### v1 线格式现状与已发现缺陷
+
+| 项目 | 固定提交证据 | 审查结果 |
+|---|---|---|
+| v1帧头 | `FrameHeader` | 8字节：magic u16、version u8、message_type u8、sequence u16、payload_size u16 |
+| 端序 | C++ `serialization.hpp`、VAL3 `encodeHeader/decodeHeader` | 双端约定little-endian；C++构建直接拒绝非little-endian主机 |
+| 数值 | C++ `serialize_type(double)` | C++ double强制转换为float32；VAL3使用`4.0l`float32格式 |
+| RobotCommand | C++ `RobotCommandMessage::message_size()`、VAL3 `initRobotCommandMsg.pgx` | 总长55字节、payload 47字节；字段为period(4)、type(1)、六轴float32(24)、数字输出mask(2)、模拟输出float32(16) |
+| RobotState | C++ `RobotStateMessage::message_size()`、VAL3 `initRobotStateMsg.pgx` | 总长132字节、payload 124字节 |
+| VAL3帧头编码 | `encodeHeader.pgx` | **缺陷：偏移6处再次写sequence，而非payload_size** |
+| C++状态解析 | `messages.cpp::RobotStateMessage::deserialize` | 读取header后“Validate header fields”段为空；没有核验version/type/payload_size |
+| C++通用帧头解析 | `protocol.cpp::FrameHeader::deserialize` | 只验证magic number，没有验证protocol_version、消息类型或声明长度 |
+| C++命令解析 | `messages.cpp::RobotCommandMessage::deserialize` | 验证command类型和payload_size=47，但没有校验protocol_version；长度检查是“不小于固定消息长度”而非严格等于实际datagram长度 |
+| VAL3命令解析 | `decodeRobotCommandMsg.pgx` | 当前先依据初始化后缓存的headerSize/payloadSize比较数组长度，再调用decodeHeader读取网络头；未在解码后重新以接收到的header字段验证严格总长度 |
+| 测试 | `test_message_serialization.cpp` | 有C++头、状态和命令的自往返测试；没有固定C++↔VAL3双向黄金向量、header损坏和长度不匹配互操作测试 |
+
+**v1头部编码缺陷的具体说明：** 当前VAL3 `encodeHeader.pgx`先按偏移顺序写magic、version、type、sequence，然后在最后两个字节又调用`toBinary(x_header.nMsgSequenceNumber,2,"2l",...)`。正确字段应为`x_header.nPayloadSize`。例如状态帧sequence=42时，当前头部payload_size会被写成42（`2A 00`），而不是RobotState规定的124（`7C 00`）。必须修复并通过真实VAL3导出字节复核，不能只把C++解析器改成忽略长度字段。
+
+### v2 基础帧头规范（设计建议，非上游实现）
+
+v2采用固定32字节基础头；所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
+
+| 偏移 | 字段 | 类型 | 字节数 | 约束 |
+|---:|---|---|---:|---|
+| 0 | magic | u16 | 2 | 沿用0xABCD，线格式字节为CD AB |
+| 2 | protocol_version | u8 | 1 | 固定2 |
+| 3 | message_type | u8 | 1 | 见下方消息类型表 |
+| 4 | header_size | u16 | 2 | v2.0固定32 |
+| 6 | flags | u16 | 2 | bit0=AUTH_TAG_PRESENT；其余未定义位必须为0 |
+| 8 | packet_sequence | u32 | 4 | 按session单调递增；回绕规则明确，重连必须换session |
+| 12 | payload_size | u32 | 4 | 只统计payload，不含头部和认证tag |
+| 16 | controller_boot_id | u64 | 8 | 控制器每次启动生成的新boot身份；除SESSION_HELLO外必须非0且匹配 |
+| 24 | session_id | u64 | 8 | 握手建立的会话身份；会话外/握手报文允许按消息规则为0 |
+
+当`AUTH_TAG_PRESENT=1`时，在payload后追加16字节认证tag；tag覆盖完整32字节头和payload，推荐采用会话密钥下的HMAC-SHA-256截断16字节。控制类报文在生产部署中必须认证；无认证tag的黄金向量只用于离线序列化一致性测试，不构成生产通信配置。接收端必须验证`datagram_size == header_size + payload_size + tag_size`，同时拒绝整数溢出、短帧、超长帧、未知flags、未知消息类型、错误boot/session和认证失败。
+
+### v2消息类型与字段模型
+
+| 类型值 | 名称 | 方向/用途 | 设计payload |
+|---:|---|---|---|
+| 0x01 | ROBOT_STATE | 控制器→主机 | 状态遥测；包含state_sequence、活动命令摘要及最后应用的流式setpoint序号，不以状态替代事务事件 |
+| 0x03 | DIAGNOSTIC_DATA | 控制器→主机 | 诊断快照与错误记录 |
+| 0x10 | SESSION_HELLO | 主机→控制器 | host_nonce[16]、min_version u8、max_version u8、reserved u16、feature_bits u64、host_monotonic_ns u64；共36字节 |
+| 0x11 | SESSION_ACCEPT | 控制器→主机 | echo_host_nonce[16]、controller_nonce[16]、controller_tick_hz u32、feature_bits u64、max_datagram_size u16、max_command_lifetime_ms u32；共50字节；boot_id/session_id置于头部 |
+| 0x20 | COMMAND_REQUEST | 主机→控制器 | 28字节事务前缀 + command body |
+| 0x21 | COMMAND_EVENT | 控制器→主机 | 32字节阶段事件；每个事件关联原command_id/session |
+| 0x22 | COMMAND_STATUS_QUERY | 主机→控制器 | command_id u64；查询控制器事务保留表 |
+| 0x23 | COMMAND_STATUS_REPLY | 控制器→主机 | 32字节事件状态 + retention_remaining_ms u32 |
+| 0x24 | SETPOINT_STREAM | 主机→控制器 | 连续控制样本流；使用stream_id/sample_sequence/deadline，不要求每个样本完成完整事务ACK |
+| 0x25 | STOP_REQUEST | 主机→控制器 | 独立高优先级停止事务；仍不是认证安全急停/安全功能 |
+
+**COMMAND_REQUEST固定前缀（28字节）：**
+
+| payload偏移 | 字段 | 类型 | 字节数 |
+|---:|---|---|---:|
+| 0 | command_id | u64 | 8 |
+| 8 | command_kind | u8 | 1 |
+| 9 | command_flags | u8 | 1 |
+| 10 | deadline_mode | u8 | 1 |
+| 11 | body_schema_version | u8 | 1 |
+| 12 | issued_at_host_monotonic_ns | u64 | 8 |
+| 20 | ttl_ms | u32 | 4 |
+| 24 | command_body_size | u16 | 2 |
+| 26 | reserved | u16 | 2 |
+
+随后紧跟command body。首版joint motion body沿用已经明确的47字节字段顺序：controller_period float32(4)、motion_cmd_type u8(1)、六轴参考值float32[6](24)、digital_outputs_mask u16(2)、analog_outputs float32[4](16)。因此该示例COMMAND_REQUEST payload为28+47=75字节。deadline须使用握手期间建立的host monotonic与controller tick映射，并在映射误差超过协商阈值时拒绝运动命令；不能把两个设备的墙钟直接比较。
+
+**COMMAND_EVENT固定32字节：** command_id u64、event_sequence u32、stage u8、reason_code u16、event_flags u8、controller_tick u64、active_command_id u64。事件阶段至少覆盖RECEIVED、VALIDATED、ACCEPTED、APPLIED、COMPLETED、REJECTED、EXPIRED、CANCELED、ABORTED、STOPPED、UNKNOWN_OUTCOME。相同(session_id, command_id, stage, event_sequence)事件允许重发并由主机去重；事件序号不替代command_id。
+
+### C++数据模型与序列化实现约束
+
+建议新增独立v2代码命名空间/类型，避免修改v1结构后令旧固件误解析：
+
+- `FrameHeaderV2`：只保存字段语义，不使用`#pragma pack`后的结构体内存作为wire buffer。
+- `SessionHelloPayload`、`SessionAcceptPayload`：固定宽度字段和nonce数组。
+- `CommandRequestPayload`：独立command_id、命令类型、期限、body schema、body长度。
+- `CommandEventPayload`、`CommandStatusQueryPayload`、`CommandStatusReplyPayload`：阶段结果及状态查询。
+- `SetpointStreamPayload`：流ID、样本序号、样本时间/有效期和固定控制量。
+- `ProtocolReader/Writer`：逐字段写入/读取LE字节；每次读取先检查剩余长度，任何失败返回明确错误，不产生部分有效对象。
+
+实现建议提供`write_u16_le`、`write_u32_le`、`write_u64_le`、`write_f32_le`及对应读取接口；float32须验证IEEE-754 binary32与有限值，NaN/Inf、越界关节值和非法枚举在进入VAL3控制逻辑前拒绝。当前C++ double→float32是有损转换，v2接口必须在字段定义中明确float32精度、单位、范围和误差预算。整数和float都不能靠本机字节序或未定义结构padding决定。
+
+### VAL3端的64位整数与跨语言边界
+
+VAL3当前头文件字段以`num`表示，命令数据也存于`num`数组；固定提交没有证明该数据类型能够无损表示整个uint64范围。若平台数值采用binary64，单一数值变量对大于2^53的整数不能保证逐整数精确。**在目标CS9/VAL3运行时实测和文档确认前，不允许把64位command_id/boot_id/session_id直接作为单个num传递。** 建议将u64拆成high_u32/low_u32两个word，或以8字节数组逐字节编码；两部分都必须通过边界向量验证。不得把十进制字符串转number后再转二进制，以免失去低位。
+
+VAL3仍需确认：`num`对u32边界的准确处理、signed/unsigned转换、`toBinary/fromBinary`可用格式、数组索引边界、接收缓冲区最大长度及执行周期内的编码成本。字段定义可以先冻结，但不能在没有CS9实测前宣称VAL3已支持v2。
+
+### 跨端黄金测试向量（离线规范样例）
+
+以下样例为无认证tag的解析器黄金向量，供C++编码器与VAL3解码器、VAL3编码器与C++解码器逐字节对照。头部定义为v2、类型COMMAND_REQUEST(0x20)、header_size=32、packet_sequence=7、payload_size=75、boot_id=0x0102030405060708、session_id=0x1112131415161718。command_id=0x2122232425262728，joint position命令，host monotonic时间样例为0x0000000100000000，ttl=1000ms，body长度47。
+
+**头部32字节：**
+`CD AB 02 20 20 00 00 00 07 00 00 00 4B 00 00 00 08 07 06 05 04 03 02 01 18 17 16 15 14 13 12 11`
+
+**命令事务前缀28字节：**
+`28 27 26 25 24 23 22 21 02 00 01 01 00 00 00 00 01 00 00 00 E8 03 00 00 2F 00 00 00`
+
+**命令body47字节：**
+`00 00 80 40 02 00 00 00 00 00 00 80 3F 00 00 80 BF 00 00 00 40 00 00 00 C0 00 00 00 3F 05 00 00 00 00 00 00 00 80 3F 00 00 80 BF 00 00 20 40`
+
+body对应controller_period=4.0ms、motion_cmd_type=2、关节位置[0,1,-1,2,-2,0.5]、数字输出mask=0x0005、模拟输出[0,1,-1,2.5]。不含tag的datagram总长107字节；开启认证时header flags置AUTH_TAG_PRESENT并在末尾追加16字节tag，payload_size仍为75，总长123字节。此向量用于字节级互操作，不代表这些数值适合任何实机运动。
+
+### 必须覆盖的测试矩阵
+
+1. C++ v2 encode与decode：所有消息类型、字段边界、长度精确匹配、保留位、未知版本和未知消息类型。
+2. VAL3↔C++黄金向量双向：上述COMMAND_REQUEST；SESSION_HELLO/ACCEPT；COMMAND_EVENT各阶段；RobotState；STOP_REQUEST；认证tag开启/关闭配置。
+3. 整数边界：command_id=0、1、2^32−1、2^32、2^53−1、2^53、2^64−1；VAL3 high/low word组合不丢位。
+4. 数值边界：正负零、最大/最小允许值、极小值、NaN、正负Inf、float32舍入误差、单位/范围和溢出。
+5. 帧边界：少1字节、多1字节、payload声明过大/过小、tag缺失/错误、头部损坏、u32长度加法溢出、超最大datagram。
+6. 会话/回放：错误boot_id、错误session_id、重启后旧包、重复packet_sequence、乱序、packet_sequence回绕、重复command_id同payload、重复ID不同payload。
+7. 状态和结果：EVENT丢包后查询、结果保留过期、UNKNOWN_OUTCOME、事件重复和乱序、controller restart后事务隔离。
+8. 兼容与部署：v1/v2混合端、协商失败、未知能力bit、回滚至v1、v1旧头部缺陷修复回归；任一端不支持所需事务能力时运动闭锁。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-486 | v2固定帧头 | 实现/评审32字节头、字段偏移、LE、payload与tag长度规则 | 未执行 |
+| SERVO-487 | COMMAND_REQUEST数据模型 | 固定28字节事务前缀与命令body schema、单位和精度 | 未执行 |
+| SERVO-488 | Session与CommandEvent数据模型 | 握手、事件、查询和状态回复字段跨端一致 | 未执行 |
+| SERVO-489 | C++规范序列化器 | 显式LE读写、binary32约束、有限值/范围/长度校验 | 未执行 |
+| SERVO-490 | VAL3 64位身份字段 | 验证u64无损表示或实现high/low word方案 | 未执行 |
+| SERVO-491 | v2严格帧边界校验 | 解析顺序、精确长度、整数溢出、未知字段和缓冲区边界拒绝 | 未执行 |
+| SERVO-492 | C++↔VAL3黄金向量 | 双端使用相同固定hex向量做双向字节一致性测试 | 未执行 |
+| SERVO-493 | 修复v1 VAL3头部编码缺陷 | encodeHeader偏移6写nPayloadSize；sequence=0/1/42/65535逐项验证 | 未执行 |
+| SERVO-494 | C++头部严格校验 | version/type/payload_size/datagram size统一校验，尤其RobotState路径 | 未执行 |
+| SERVO-495 | v1/v2协议协商闭锁 | 版本/能力不匹配时拒绝运动，不能静默降级为无ACK控制 | 未执行 |
+| SERVO-496 | 认证与重放保护 | session key、认证tag、错误tag、重放窗口和key失效测试 | 未执行 |
+| SERVO-497 | 流式控制/事务事件/STOP路径 | 验证setpoint流不阻塞控制周期，STOP高优先级且不冒充安全功能 | 未执行 |
+| SERVO-498 | CS9/VAL3协议v2互操作验收 | 目标控制器编译、黄金帧、WCET、缓冲区、重启和回滚实测 | 未执行 |
+
+### 本节来源记录（#2010–#2018）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2010 | [protocol.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp)与[protocol.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/protocol.cpp) | v1帧头8字节、字段序列化和C++头部校验范围 |
+| #2011 | [serialization.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp) | little-endian编译限制、memcpy序列化和double→float32转换 |
+| #2012 | [messages.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp)与[messages.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | RobotState 132/124字节、RobotCommand 55/47字节及字段校验差异 |
+| #2013 | [types.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp) | v1消息类型和命令枚举定义 |
+| #2014 | [VAL3 encodeHeader.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeHeader.pgx) | 偏移6误写nMsgSequenceNumber而不是nPayloadSize |
+| #2015 | [VAL3 decodeHeader.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx)与[initHeader.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initHeader.pgx) | VAL3头部解码、v1版本硬编码和8字节初始化 |
+| #2016 | [initRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx)、[initRobotStateMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotStateMsg.pgx)与[decodeRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | VAL3固定payload大小、字段解析和长度检查顺序 |
+| #2017 | [encodeRobotStateMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx)与[controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 状态帧编码、控制任务发送顺序及v1字段使用方式 |
+| #2018 | [test_message_serialization.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp) | 现有C++自往返测试；缺少VAL3跨端黄金向量 |
+
+**验证边界：** 本节为固定提交的静态源码审查、v2线格式设计和离线手工构造的规范样例；没有在上游实现任何修复或v2代码。未运行C++单元测试、未编译VAL3工程、未确认CS9对uint64/缓冲区/认证算法的支持、未抓取控制器真实UDP帧、未测量WCET/周期抖动，也未进行HIL或实机运动验证。v1 VAL3头部编码缺陷仍未修复；SERVO-486–SERVO-498全部未执行。v2字段、消息类型和黄金向量是待实现规范，不代表厂商确认或工业级验收。Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
