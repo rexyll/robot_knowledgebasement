@@ -932,3 +932,47 @@ GitHub Actions API返回与上游2.12.4 commit SHA完全相同的运行记录：
 - https://github.com/ament/ament_cmake/blob/f91f816a51ad3c048d81b4115eece44c5a063137/ament_cmake_test/ament_cmake_test-extras.cmake
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
 - §9.3.126。
+
+
+## 9.3.128 MoveIt Servo 2.12.4同SHA工作流全集与CI日志可用性复核（2026-11-08）
+
+### 1. 同一源码SHA的全部Actions运行
+
+针对上游源码commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`，通过GitHub Actions `workflow_runs?head_sha=...&per_page=100`检索到5个push运行，不能只看其中一个CI workflow：
+
+| Run ID | 分支 | 工作流/运行结论 | 关键Job/检查 |
+|---|---|---|---|
+| `19975338753` | `jazzy` | `CI` success | `jazzy-ci + ccov` success；`jazzy-ci + ikfast + clang-tidy (delta)` success |
+| `19975338722` | `jazzy` | 含source与release检查的运行，整体failure | `ci (jazzy)` success；`source (jazzy)` success；`release (jazzy)` failure |
+| `19975338758` | `jazzy` | tutorial-source success | `tutorial-source (jazzy)` success |
+| `19975338729` | `jazzy` | formatting检查 success | `Format` success |
+| `19975338846` | `2.12.4` | Dockerfile lint success | ci/release/source/ci-testing四个Dockerfile lint均success |
+
+这些是同一源码SHA的不同workflow/Job，不可把某一失败release job混同为CI矩阵失败，也不可把其他成功的lint/tutorial/source job当作三个Servo测试的逐项报告。提交check-runs共13项；其中与本审查直接相关的两个industrial_ci CI job仍是Run `19975338753`的两个成功矩阵job。`source (jazzy)`的整体job success只记录其job结论，不推断它对Servo三个测试入口的逐用例结果。
+
+### 2. 原始日志与artifact追取结果
+
+对Run `19975338753`的两个industrial_ci job（`57290019178`、`57290019180`）调用GitHub Actions job-log下载接口，均返回HTTP `410`；job-steps接口未返回可用步骤（空数组）。Run artifacts接口返回空列表。
+
+进一步尝试同SHA其他可关联job：`source (jazzy)` job `57290439384`、`tutorial-source (jazzy)` job `57290019177`、`ci (jazzy)` job `57290019108`、`release (jazzy)` job `57290019125`。四个job日志下载接口同样返回HTTP `410`，job-steps接口均未返回可用步骤。
+
+HTTP 410只说明当前GitHub日志下载接口已无法提供这些job日志；不能据此断言当年没有执行测试、测试失败或日志内容是什么。Run artifacts为空也只说明当前API没有列出可下载artifact，不代表历史测试没有产生过内部临时文件。
+
+### 3. 对SERVO-719的结论与边界
+
+- SERVO-718保持已完成：workflow、industrial_ci默认测试路径、ament默认开关、Servo CMake测试注册和同SHA成功CI运行的静态/元数据证据链已建立。
+- SERVO-719保持部分取证：已证明同SHA两个CI矩阵job整体成功；已检索同SHA全部5个Actions runs并区分release job失败与CI矩阵成功；但两个关键CI job及其他相关job日志下载均HTTP 410，steps不可读，artifacts列表为空。三个Servo测试入口各自的colcon结果、测试XML和console log仍未取得。
+- 不将`source (jazzy)` success等同于Servo测试逐项通过，也不将`release (jazzy)` failure解释成Servo测试失败；二者均缺少可读job日志来确认具体原因。
+- §9.3.126正式release binary build关闭package tests的结论不变；§9.3.127上游industrial_ci默认进入colcon测试阶段的配置分析不变。CI运行整体成功不等于生产Noble APT包安装、CS9安全链或Stäubli实机验收。
+- SERVO-716仍部分取证；SERVO-710/714未完成、SERVO-713部分取证。未执行Ubuntu 24.04安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证；未修改ICube上游，`TODO-EXT-001`未授权合并，Stäubli工程级验收仍未通过。
+
+### 4. 来源
+
+- https://api.github.com/repos/moveit/moveit2/actions/runs?head_sha=1ade0e9dcf50dbbbc3a984b995c786cf12736235%26per_page=100
+- https://api.github.com/repos/moveit/moveit2/commits/1ade0e9dcf50dbbbc3a984b995c786cf12736235/check-runs
+- https://github.com/moveit/moveit2/actions/runs/19975338753
+- https://github.com/moveit/moveit2/actions/runs/19975338722
+- https://github.com/moveit/moveit2/actions/runs/19975338758
+- https://github.com/moveit/moveit2/actions/runs/19975338729
+- https://github.com/moveit/moveit2/actions/runs/19975338846
+- §9.3.126–§9.3.127。
