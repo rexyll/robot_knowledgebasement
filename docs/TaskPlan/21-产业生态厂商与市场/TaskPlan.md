@@ -566,3 +566,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli同步控制循环周期对齐、movejSync刷新与overrun门控 | 固定ICube bd658e2核对start/controlTask/updateJointPositionControl、controllers.yaml和Servo配置，并对照Stäubli CS9 TSS.000.014.04-A：默认VAL3/ControllerManager/Servo均4ms，但TX2-60L MR文档为1ms采样，当前launch无型号自动周期适配，MR曾测试2ms VAL3但Servo仍4ms；controlTask先发布状态后读命令/执行运动，反馈新模式晚一周期；movejSync state 1/2分支只留注释，不升级错误；overrun只日志/计数，未触发安全门控，跳过周期未计入应用sequence；nOverruns无实时ROS诊断字段；同步任务无WCET/余量测量。新增§9.3.65、SERVO-283–SERVO-292、来源#1844–#1849。所有周期、抖动、movejSync、overrun、生命周期测试未执行。 | 来源#1844–#1849；专项审计§9.3.65 |
+
+
+| 2026-11-08 | 21-02/Stäubli ROS 2—UDP—VAL3端到端时延、发送结果语义与通信线程实时性 | 固定ICube bd658e2核对hardware write→RobotDriver→RealTimeSocketInterface→Boost.Asio UDP send及UDP async receive→Subscriber→hardware read链路。发现would_block时UDP数据报已丢弃但send仍返回true，可能使hardware write误报OK；send_message文档称blocking但实际MSG_DONTWAIT；发送结果仅本机内核语义，无VAL3命令ACK；receive thread实时优先级/CPU affinity为TODO；接收错误仍回调并重挂接；sender endpoint校验注释掉；latest-value缓存覆盖中间帧，统计不覆盖发送端丢弃；现有loopback测试仅功能性sleep，无deadline/jitter/端到端时延数据。新增§9.3.66、SERVO-293–SERVO-302、来源#1850–#1856。所有buffer-full、线程调度、sender注入、burst、端到端性能与HIL/实机测试未执行。 | 来源#1850–#1856；专项审计§9.3.66 |
