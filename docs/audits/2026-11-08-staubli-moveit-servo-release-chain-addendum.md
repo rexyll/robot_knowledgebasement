@@ -151,3 +151,36 @@ ROS `ros_buildfarm`官方release job文档说明：
 - **SERVO-710：未完成。** 生产APT InRelease/Release签名验证、Packages stanza与deb SHA256/control元数据仍缺。
 - **SERVO-714：未完成。** 新构建尚未进入main生产仓库；main仍显示amd64 `20261006.040508`、arm64 `20261006.043301`。最终生产APT包/源码/构建产物哈希对应关系未核验。
 - 未修改ICube上游，未进行干净Jazzy安装/构建、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli仍保持静态审查未验收状态。
+
+## 9.3.113 2026-11-08最新ROS Jazzy状态页复核：生产main未晋级
+
+### 1. 最新页面时间戳与逐架构状态
+
+本轮重新读取ROS官方Jazzy status page，避免继续引用上一轮较早的快照：
+
+| 页面 | 页面生成时间（页面本地时区 -0800） | Noble目标 | B（building） | T（testing） | M（main） |
+| --- | --- | --- | --- | --- | --- |
+| `ros_jazzy_default.html` | 2026-11-08 03:56:07 | amd64（N64） | `2.12.4-1noble.20261105.184638` | `2.12.4-1noble.20261105.184638` | `2.12.4-1noble.20261006.040508` |
+| `ros_jazzy_unv8.html` | 2026-11-08 04:23:04 | arm64（Nv8） | `2.12.4-1noble.20261106.111556` | `2.12.4-1noble.20261106.111556` | `2.12.4-1noble.20261006.043301` |
+
+### 2. 与生产main pool目录交叉核对
+
+`repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/`当前目录仍只列出两份2026-10-06生产deb：
+- amd64：674,492 bytes，目录时间2026-10-06 04:18；
+- arm64：615,538 bytes，目录时间2026-10-06 04:45。
+
+这与两份status page的M列版本相互吻合。没有发现2026-11-05 amd64或2026-11-06 arm64新构建进入生产main的证据。ROS官方状态页当前仍显示新构建处于B/T，不能将其描述为生产APT已发布或用户已可从main安装。
+
+### 3. 当前审计判定
+
+- SERVO-713：building/testing双架构构建证据保持成立；本轮最新状态复核未发现main晋级。Jenkins build number、job result、source revision、console log仍未直接取得，故部分取证、不完成。
+- SERVO-714：仍未完成。main生产包继续是10月6日旧工件；未取得完整Packages stanza、deb control、SHA256及源码/二进制端到端对应证据。
+- SERVO-710：仍未完成。InRelease/Release.gpg文件存在不等于签名已验证；Packages索引与签名原文仍无法读取。
+- 未执行apt update/policy/install、干净Jazzy构建/launch、VAL3编译、SRS、CS9、HIL/FAT/SAT或实机验证；未修改ICube上游，TODO-EXT-001仍未授权合并。
+
+### 4. 原始来源
+
+- <https://repo.ros2.org/status_page/ros_jazzy_default.html>
+- <https://repo.ros2.org/status_page/ros_jazzy_unv8.html>
+- <https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/>
+- 上述来源本轮读取时间：2026-11-08。页面可能继续更新，引用的时间戳是页面自身生成时间，不是本地查询时刻。
