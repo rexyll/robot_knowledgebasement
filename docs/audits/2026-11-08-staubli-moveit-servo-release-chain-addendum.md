@@ -1189,3 +1189,43 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://github.com/moveit/moveit2/pull/3907
 - https://github.com/moveit/moveit2/issues/3897
 - 固定2.12.4源码Blob SHA：`fd07db53761d533f2f6e7f33189063a18000c9a9`。
+
+
+### §9.3.134 MoveIt PR #3907审查阻塞、Jazzy backport缺口与发布状态复核（2026-11-08追加）
+
+#### 1. PR状态与代码内容
+
+- 重新读取上游PR [#3907](https://github.com/moveit/moveit2/pull/3907)：仍为open、未合并，base为`main`，head为`Yuhx141:fix/planning-scene-contracts`，head SHA `821818f4ffeaa7564459faed2cbddbfb604f9dcb`；PR元数据`updated_at=2026-09-30T18:09:48Z`，`mergeable_state=behind`。即PR分支落后于目标main，需要更新后再评估；这不等同于存在冲突。
+- 与#3897直接相关的源码diff把`stopWorldGeometryMonitor()`改为分别无条件reset `collision_object_subscriber_`与`planning_scene_world_subscriber_`，从静态实现上解决双订阅单次stop只释放一个的问题。
+- PR新增`PlanningSceneMonitor.StopWorldGeometryMonitorStopsAllSubscriptions`：双topic启动后调用一次stop，再用`getMonitoredTopics()`确认两个topic均被移除。该测试覆盖subscriber/topic列表释放，不直接验证消息回调计数，也未覆盖restart切换到空topic、重复stop和octomap生命周期矩阵。
+- PR作者描述自报Ubuntu 24.04/ROS Jazzy下四项测试通过（包含新增测试），测试基线为`a9004a4`。该信息是作者声明，不是本项目独立复测或维护者required CI通过证据。
+
+#### 2. Review与CI证据
+
+- `pulls/3907/reviews`返回空列表，没有提交的review approval。
+- 针对head SHA查询Actions workflow runs，`Formatting (pre-commit)`（run `36755746603`）与`CI`（run `36755746261`）均为completed/failure；两者jobs接口当前均返回`total_count=0`，未能取得具体失败job、step或日志，失败原因未知。
+- 同一head SHA的check-runs中Mergify Summary与WIP为success、Mergify Merge Queue为neutral；commit status中CodeRabbit为success。这些辅助状态不能覆盖Formatting/CI workflow failure，也不是维护者review approval。
+- PR目前仍behind，未发现该PR在目标main上的新head或成功required CI证据；不得把PR作者自报测试视为合并门禁通过。
+
+#### 3. Jazzy回移与正式发行链
+
+- GitHub issue search按`repo:moveit/moveit2 is:pr base:jazzy 3897`及`repo:moveit/moveit2 is:pr base:jazzy stopWorldGeometryMonitor`查询，均为0条匹配。当前未找到#3907的Jazzy backport PR。
+- MoveIt Jazzy发布跟踪issue [#3887](https://github.com/moveit/moveit2/issues/3887)仍open。其维护者评论列出若干待回移PR清单，但该清单没有#3907；这只能说明当前可见清单未列出#3907，不能推断以后不会回移。
+- ROS官方Jazzy状态页快照：amd64（2026-11-08 05:56:04 -0800）`moveit_servo` B/T为`2.12.4-1noble.20261105.184638`、M为`2.12.4-1noble.20261006.040508`；arm64（05:43:04 -0800）B/T为`2.12.4-1noble.20261106.111556`、M为`2.12.4-1noble.20261006.043301`。production main pool目录仍列出2026-10-06的2.12.4-1 deb文件。故截至该快照，正式Jazzy Main二进制未体现#3907修复。
+- 当前MoveIt main的`planning_scene_monitor.cpp` Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`仍保留if/else if stop结构；这与PR未合并状态相符。
+
+#### 4. 任务状态
+
+- SERVO-724持续进行：跟踪#3907更新/CI/review/merge、Jazzy backport及正式deb；当前阻塞点是PR behind、Formatting/CI失败且无可读job明细、无review approval、未发现Jazzy backport。
+- SERVO-721与SERVO-723仍未执行；SERVO-725生命周期矩阵仍未执行；SERVO-722现场ICube源码/配置缺失，继续未执行/阻塞。
+- 未修改MoveIt或ICube上游，未应用PR补丁。Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907
+- https://api.github.com/repos/moveit/moveit2/commits/821818f4ffeaa7564459faed2cbddbfb604f9dcb/check-runs
+- https://api.github.com/repos/moveit/moveit2/actions/runs?head_sha=821818f4ffeaa7564459faed2cbddbfb604f9dcb
+- https://api.github.com/repos/moveit/moveit2/pulls/3907/reviews
+- https://github.com/moveit/moveit2/issues/3887
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
