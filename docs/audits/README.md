@@ -112,3 +112,6 @@
 - [2026-11-08 Stäubli专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)：记录首轮发现的根计划、专项报告、厂商档案、审计索引与00章日志进度差异及各载体SHA；后续已同步专项追加件至§9.3.114、厂商档案至§128.65、审计README及00-01日志，并记录厂商资产清单元数据的两轮单行刷新。附带记录Build Farm/生产APT证据边界；文档同步不代表Stäubli工程验收完成，也不改变00-01进行中状态。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：补齐主报告后续§9.3.102–§9.3.115；新增Build Farm source/binary job命名函数复核，推导Jazzy/Noble的source、amd64与arm64 binary候选job名，但Jenkins真实job/build日志仍未取得；最新状态页仍显示两架构新版本处于building/testing、production main仍为2026-10-06旧工件。APT签名、完整Packages/deb元数据及目标安装运行验证仍待完成。
+
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：补齐主报告后续§9.3.102–§9.3.116；除Build Farm候选job命名算法外，新增状态页04:36:03刷新与building/main pool完整deb文件名、大小对照。新版本仍只在building/testing可见，production main仍为2026-10-06旧deb；Jenkins真实job/build日志、APT签名、完整Packages/deb元数据及目标安装运行验证仍待完成。
