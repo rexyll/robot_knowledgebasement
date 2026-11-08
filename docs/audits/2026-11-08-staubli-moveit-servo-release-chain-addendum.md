@@ -1071,3 +1071,48 @@ SERVO-721目标环境动态复现仍未执行；SERVO-723修复回归仍未执�
 - MoveIt上游当前main源码：https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - 上游issue #3897：https://github.com/moveit/moveit2/issues/3897
 - 固定2.12.4源码：https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+
+
+### §9.3.131 MoveItCpp默认启动路径、上游修复追踪与Stäubli调用链证据边界（2026-11-08追加）
+
+#### 1. 新增上游调用路径证据
+
+- 在MoveIt上游当前main分支`moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp`静态核对`MoveItCpp::initialize()`：当PlanningScene配置成功时，先启动state monitor、planning-scene发布/场景订阅，再无条件调用`planning_scene_monitor_->startWorldGeometryMonitor()`。该调用是MoveItCpp通用默认初始化路径证据，不是Stäubli专有集成证据，也不能证明实际现场一定采用MoveItCpp或未覆写其生命周期管理。
+- 同一上游main分支的`PlanningSceneMonitor::stopWorldGeometryMonitor()`仍使用`if (collision_object_subscriber_) ... else if (planning_scene_world_subscriber_)`结构：两者同时存在时一次调用仍只reset第一个subscriber。故本轮未观察到main分支已消除该停止语义缺陷。
+- 对MoveIt仓库当前可见Pull Requests列表按标题/描述检索`stopWorldGeometryMonitor`、PlanningSceneWorld订阅与world geometry monitor相关修复，未找到可确认针对#3897的修复PR。检索结果不能替代完整历史/隐藏草稿审查；当前没有可据以宣称修复已合并的证据。
+
+#### 2. Stäubli调用链核查结果
+
+- `robot_knowledgebasement`仓库当前main树未包含ICube应用源代码、Stäubli MoveIt启动launch/参数文件、PlanningSceneMonitor构造点或stop调用点；已登记审计材料也没有提供这些现场配置。
+- 因缺少可核验的目标ICube版本/commit、启动参数、ROS graph快照和应用调用栈，无法确认：实际实例是否为MoveItCpp；CollisionObject与PlanningSceneWorld topic是否同时非空；是否存在额外PlanningSceneMonitor实例；stop是否只调用一次；关闭后残留订阅是否仍能接收消息。
+- 因此SERVO-722维持未执行（证据输入缺失/阻塞），不是“现场不受影响”，也不是“现场已触发”。要解除阻塞，需取得脱敏后的目标部署版本标识、相关launch/YAML参数、应用层monitor创建及start/stop调用代码，以及一次启停时的topic graph/日志。
+
+#### 3. SERVO-721最小可复现实验规程（规程已整理，实验未执行）
+
+在与目标一致的Ubuntu 24.04、ROS Jazzy、MoveIt 2.12.4二进制环境中，使用隔离测试节点和临时namespace：
+
+1. 同时配置非空`collision_object_topic`与`planning_scene_world_topic`，发布带唯一递增标识的CollisionObject与PlanningSceneWorld消息，并分别记录回调计数。
+2. 启动monitor，确认`ros2 topic info -v`显示两个订阅端点；停止前保存topic graph与计数快照。
+3. 调用一次`stopWorldGeometryMonitor()`，持续发布两类消息；预期缺陷表现为CollisionObject回调不再增长而PlanningSceneWorld回调仍增长。该预期来自上游issue/源码，不是本项目实验结果。
+4. 在独立运行中执行double-stop对照，检查两个回调是否均停止；再执行start→stop、start→stop→stop、只启用单一topic、两个topic均为空的矩阵，检查重复调用幂等性和空配置边界。
+5. 单独启用octomap monitor并验证stop是否停止其updater；记录ROS graph、回调计数、日志、测试退出码及版本包清单。不要仅以节点仍存在/订阅端点消失作为唯一判据。
+6. 修复验证需在相同测试矩阵中证明两个subscriber均被一次stop释放，并运行相关MoveIt/Servo回归测试；不得以double-stop workaround代替修复验收。
+
+本轮没有目标Ubuntu/Jazzy执行环境，也没有执行上述实验；SERVO-721仍未执行。不得将规程写成测试通过。
+
+#### 4. 结论与任务状态
+
+- SERVO-720：已完成（固定2.12.4 issue/源码静态对应）。
+- SERVO-721：未执行（本轮仅补齐可复现实验规程）。
+- SERVO-722：未执行/阻塞（无ICube目标版本、启动配置及调用链证据）。
+- SERVO-723：未执行（没有修复PR/修复版本，也未运行回归矩阵）。
+- SERVO-724：新增；持续跟踪#3897状态、修复PR、Jazzy backport及正式二进制版本，只有取得明确修复commit、分支合并和发行包证据后才更新修复状态。
+
+未修改ICube或MoveIt上游，未应用本地补丁，未将double-stop作为现场规避措施。VAL3、CS9、SRS、HIL、FAT/SAT及实机验证仍未执行，Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/pulls
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- 固定版本源码与上游报告详见§9.3.130。
