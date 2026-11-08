@@ -273,3 +273,42 @@ testing目录快照日期比production main新约一个月；该证据与§9.3.1
 ### 4. 本轮读取边界
 
 Jenkins API端点不可访问仅表示本轮读取通道未能取得页面/JSON，不证明job不存在或失败。状态页显示B/T版本一致可支持“该版本已进入building与testing仓库”的结论，但不能替代Jenkins执行日志、APT签名验证、包元数据核验或目标系统安装测试。Stäubli工程验收状态保持未通过。
+## 9.3.116 ROS Jazzy状态页刷新与MoveIt Servo二进制池文件名/字节核对（2026-11-08）
+
+### 1. 状态页刷新结果
+
+本轮再次打开ROS官方Jazzy状态页并定位moveit_servo行。amd64页面的生成时间从上一轮03:56:07更新为04:36:03（-0800）；该行版本未变化：B=2.12.4-1noble.20261105.184638，T=2.12.4-1noble.20261105.184638，M=2.12.4-1noble.20261006.040508。arm64页面仍为04:23:04（-0800），版本仍为B/T=2.12.4-1noble.20261106.111556、M=2.12.4-1noble.20261006.043301。
+
+来源：
+- amd64状态页：https://repo.ros2.org/status_page/ros_jazzy_default.html（页面生成时间04:36:03；moveit_servo行）
+- arm64状态页：https://repo.ros2.org/status_page/ros_jazzy_unv8.html（页面生成时间04:23:04；moveit_servo行）
+
+状态页中B/T/M分别对应building/testing/main仓库。该证据支持两个架构新版本已进入building和testing，而生产main仍是10月6日旧版本；不能据此声称生产APT已晋级，也不能替代Jenkins job日志或APT客户端验证。
+
+### 2. Binary pool文件名和大小交叉核对
+
+本轮直接读取ROS官方building和production main的moveit_servo包目录索引，并点击deb条目以取得完整URL。目录证据如下：
+
+| 仓库 | 完整deb文件名 | 目录修改时间 | 大小（bytes） |
+|---|---|---|---:|
+| building | ros-jazzy-moveit-servo_2.12.4-1noble.20261105.184638_amd64.deb | 2026-11-05 18:58 | 673,950 |
+| building | ros-jazzy-moveit-servo_2.12.4-1noble.20261106.111556_arm64.deb | 2026-11-06 11:29 | 617,952 |
+| production main | ros-jazzy-moveit-servo_2.12.4-1noble.20261006.040508_amd64.deb | 2026-10-06 04:18 | 674,492 |
+| production main | ros-jazzy-moveit-servo_2.12.4-1noble.20261006.043301_arm64.deb | 2026-10-06 04:45 | 615,538 |
+
+目录来源：
+- building：https://repo.ros2.org/ubuntu/building/pool/main/r/ros-jazzy-moveit-servo/
+- production main：https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+
+本轮点击四个deb文件链接后，读取通道均因application/octet-stream不支持而无法展开二进制内容。故本节只确认目录列出的完整文件名、修改时间和字节大小；未读取deb控制信息，未计算或验证SHA256，也未验证包内二进制与Bloom源码/Build Farm source revision一致。testing pool目录请求未取得可读响应；testing仓库状态仍以官方状态页T列为证，不将building目录存在误写成直接读取了testing pool文件。
+
+### 3. SERVO任务状态更新
+
+- SERVO-713：继续为部分取证、未完成。新增证据：amd64状态页04:36刷新后B/T仍一致；两个架构building pool均列出完整deb文件名与大小；状态页T列对应相同版本。仍缺真实Jenkins job/build页面、build number、result、source revision、console log及testing池直接文件读取。
+- SERVO-710：未完成。上游tag与Bloom记录已静态追溯，但未取得Bloom执行输入不可变revision/完整源归档SHA；本轮也未读取deb control或APT Packages完整记录，未验证InRelease签名和SHA256。
+- SERVO-714：未完成。生产main pool仍仅列2026-10-06两架构旧deb；未取得生产main完整Packages stanza、签名验证结果、最终deb SHA256/control及其与源码/Build Farm产物的端到端关联。
+- 未执行apt update/policy/install、rosdep、colcon、Servo launch/smoke test、VAL3编译、CS9/SRS、HIL/FAT/SAT或实机测试。未修改ICube上游，TODO-EXT-001仍未授权合并。
+
+### 4. 证据边界与结论
+
+状态页B/T/M列和pool目录列表属于仓库侧发布状态/文件存在证据；它们不证明客户端索引签名有效、APT候选选择正确、deb完整性或目标运行环境兼容。application/octet-stream读取失败是当前读取通道限制，不是deb损坏或签名失败的证据。当前结论保持：新版本在building/testing可见，production main未晋级，Stäubli工程级验收未通过。
