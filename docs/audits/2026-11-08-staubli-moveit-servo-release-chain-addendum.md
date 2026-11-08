@@ -1366,3 +1366,75 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://github.com/moveit/moveit2/pull/3907
 - https://github.com/moveit/moveit2/issues/3897
 - 专项追加件§9.3.139。
+
+
+### §9.3.140 OccupancyMapMonitor updater 初始化与停止生命周期审查（2026-11-08）
+
+#### 1. 初始化调用链与上游问题拆分
+
+本轮固定MoveIt main源码：
+- occupancy_map_monitor.cpp Blob SHA：7b8bb7a42eed1eea01323458c816993828df3370。
+- occupancy_map_monitor.hpp Blob SHA：d30741a6cb7635821e89f480d1142a1c8a8c6bb6。
+- occupancy_map_monitor_middleware_handle.cpp Blob SHA：4e870ca9f8f58ecd395beaecbdbff2ccad36eade。
+- occupancy_map_updater.hpp Blob SHA：fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b。
+
+main中构造updater的实际顺序为：
+setMonitor(this) -> middleware_handle_->initializeOccupancyMapUpdater(updater) -> updater->setParams(sensor_name) -> addUpdater(updater)。
+但MiddlewareHandle接口当前返回void；ROS middleware实现调用updater->initialize(node_)，只在false时记录错误，没有把失败状态传回构造器。因此初始化失败的updater仍可能继续执行setParams并被addUpdater登记，之后由startMonitor启动。这与Issue #3902报告一致。Issue #3902仍Open。
+
+PR #3909（Reject occupancy map updaters that fail initialization）针对#3902，将MiddlewareHandle初始化钩子改为bool，失败时返回false，构造器遇到失败便continue，不再配置或登记该updater。PR新增成功/失败两个fake-updater测试；作者自报Ubuntu 24.04/Jazzy构建及4项测试0失败，但这不是本项目独立验证。PR #3909仍Open/未合并，head 3fc0594f708730008da2c4b3709368ade65302f2，base main；与当前main比较diverged，ahead 2 / behind 3。CI run 37457932979和Formatting run 37457933046均completed/failure；jobs与artifacts接口均返回空数组，失败原因未知。Reviews与inline threads为空；CodeRabbit自动评论不是维护者审批。
+
+#### 2. #3901接口契约冲突：不能简单交换调用顺序
+
+occupancy_map_updater.hpp当前注释声称initialize()假定setMonitor()与setParams()已先调用；但main内置插件源码显示：
+- PointCloudOctomapUpdater::initialize()设置node_；其setParams()随后通过node_->get_parameter读取配置。
+- DepthImageOctomapUpdater::initialize()设置node_并创建image_transport等资源；其setParams()也通过node_->get_parameter读取参数。
+
+因此对于内置插件，先setParams再initialize会在node_尚未初始化时解引用空成员，不能为了满足注释而机械交换顺序。PR #3909作者在Issue #3901评论中也明确指出，内置插件先initialize后setParams；PR #3909因此保留当前运行顺序，只修复初始化失败结果被忽略的问题。Issue #3901仍Open，作为独立API契约问题待上游决策。
+
+结论：当前事实是“接口注释与实现/插件依赖不一致”，不是“已经证明所有updater都必须先setParams”。后续需明确正式契约、同步修正文档/抽象接口和自定义插件迁移策略，并在真实插件与fake插件中覆盖。不能在Stäubli现场自行交换顺序或修改上游。
+
+#### 3. OccupancyMapMonitor停止语义与内置插件观察
+
+main中startMonitor()将active_设为true并逐个调用所有已登记updater的start()；stopMonitor()将active_设为false并逐个调用stop()；析构函数再次调用stopMonitor()。本文件中的active_只见初始化和赋值，没有作为start/stop幂等门闩使用。停止行为实际委托给每个插件，接口stop()为void，没有统一的“所有在途回调已退出”确认/等待接口。
+
+本轮静态查看两个内置插件：
+- PointCloud updater的stop删除message filter与subscriber并将指针置空；重复stop从代码表面看可安全处理空指针。
+- DepthImage updater的stop调用sub_depth_image_.shutdown()；订阅句柄关闭后是否无在途回调，以及与并发回调的退出顺序，仍需在目标executor/RMW上验证。
+- 两者的start路径资源处理方式不同；尤其不能仅凭monitor层active_布尔值认定重复start被统一抑制。
+
+因此stopMonitor()可以确认会逐个调用插件stop，但仅凭这一层不能证明所有插件的后台工作线程、在途回调和资源均已完成退出。需要按启用的插件类型记录旧topic消息、回调计数、订阅graph、线程/日志和stop返回后的静默窗口。对象析构时会再次调用stop，不应假设插件只会收到一次stop。
+
+#### 4. 建议补充的SERVO-726验证矩阵
+
+| 场景 | 操作 | 验收点 |
+|---|---|---|
+| U1 | updater initialize=true | 调用顺序、setParams成功、登记、start |
+| U2 | updater initialize=false | 不调用setParams、不登记、不start；确认失败资源清理 |
+| U3 | initialize=true但setParams=false | 不登记、不start；确认initialize已创建的资源被安全回收 |
+| U4 | 内置PointCloud updater | initialize先于setParams；缺参/错误类型参数时失败路径安全 |
+| U5 | 内置DepthImage updater | initialize先于setParams；ImageTransport和参数错误路径安全 |
+| U6 | start→stop→stop | 所有插件停止，重复stop安全，在途回调计数最终稳定 |
+| U7 | start→stop→start | 恢复订阅，无重复订阅/重复回调 |
+| U8 | start→start→stop | 重复start行为符合明确契约，不产生资源/订阅异常 |
+| U9 | monitor析构前已stop | 析构再次stop安全；无use-after-free或残余回调 |
+| U10 | 初始化失败插件与成功插件混合 | 失败插件被隔离，成功插件仍可正常启动和停止 |
+
+以上为测试规程，不是已执行结果。Stäubli现场是否启用Octomap monitor、具体sensor plugin、插件参数与executor配置尚未取得；因此这些问题对现场的影响仍为条件性未知，不能宣称现场已触发。
+
+#### 5. 状态与限制
+
+- SERVO-724：继续跟踪PR #3907；仍Open、CI失败原因不可读、无维护者review。
+- SERVO-725：PSM双topic与重配置静态矩阵已整理；动态测试未执行。
+- SERVO-726：新增updater初始化契约、失败隔离及stop/start生命周期审查；静态源码核对完成，动态验证未执行。
+- 上游#3901、#3902仍Open；PR #3909仍Open，目标修复未进入main。PR #3909不解决#3901接口文档契约冲突。
+- SERVO-722现场插件配置/源码仍缺，Stäubli适用性未确认。未修改MoveIt/ICube上游、未应用PR补丁；未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收。Stäubli工程级验收未通过。
+
+来源：
+- https://github.com/moveit/moveit2/issues/3901
+- https://github.com/moveit/moveit2/issues/3902
+- https://github.com/moveit/moveit2/pull/3909
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor_middleware_handle.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp
