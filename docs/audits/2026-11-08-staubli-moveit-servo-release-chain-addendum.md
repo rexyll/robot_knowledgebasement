@@ -465,3 +465,50 @@ production main包目录可读取的索引搜索结果仍列出旧deb：amd64 67
 - https://github.com/ros2-gbp/moveit2-release/blob/release/jazzy/moveit_servo/2.12.4-1/package.xml
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/package.xml
 - https://github.com/ros2-gbp/moveit2-release/blob/master/README.md
+
+
+## 9.3.120 Jazzy状态页新快照与production main源包/二进制目录复核（2026-11-08）
+
+### 1. 两架构状态页重新读取
+
+再次直接打开ROS官方Jazzy规范状态页并定位`moveit_servo`行：
+
+- amd64页面生成时间：2026-11-08 04:36:03 -0800；B/T均为`2.12.4-1noble.20261105.184638`，M为`2.12.4-1noble.20261006.040508`。
+- arm64页面生成时间：本次读取为2026-11-08 04:43:04 -0800；B/T均为`2.12.4-1noble.20261106.111556`，M为`2.12.4-1noble.20261006.043301`。
+
+与§9.3.118记录相比，arm64页面生成时间从此前记录的04:23:04更新为04:43:04，但moveit_servo的B/T/M版本字符串没有变化。页面更新时间变化不能解释为包版本变化或production晋级。两架构B/T均为新构建版本，M仍指向10月6日旧构建。
+
+### 2. production main pool目录复核
+
+直接打开ROS官方production main目录`https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/`，当前目录显示：
+
+| 文件类型 | 目录显示文件名/版本 | 时间 | 大小 |
+|---|---|---|---:|
+| amd64 binary | `ros-jazzy-moveit-servo_2.12.4-1noble.20261006.040508_amd64.deb` | 2026-10-06 04:18 | 674,492 bytes |
+| arm64 binary | `ros-jazzy-moveit-servo_2.12.4-1noble.20261006.043301_arm64.deb` | 2026-10-06 04:45 | 615,538 bytes |
+| amd64 dbgsym | 对应20261006.040508构建 | 2026-10-06 04:18 | 30,362,802 bytes |
+| arm64 dbgsym | 对应20261006.043301构建 | 2026-10-06 04:45 | 30,002,110 bytes |
+| Debian source descriptor | `ros-jazzy-moveit-servo_2.12.4-1noble.dsc` | 2025-12-06 16:22 | 1,564 bytes |
+| Debian packaging archive | `ros-jazzy-moveit-servo_2.12.4-1noble.debian.tar.xz` | 2025-12-06 16:22 | 16,152 bytes |
+| upstream source archive | `ros-jazzy-moveit-servo_2.12.4.orig.tar.gz` | 2025-12-06 16:22 | 65,707 bytes |
+
+目录中的production binary文件名与状态页M列的构建标识一致，构成状态页与main pool目录元数据的交叉印证。当前目录没有列出11月5/6日的B/T新构建二进制；不能据此推断testing pool不存在这些文件，因为本轮未成功读取testing pool包目录。
+
+### 3. 源包内容读取尝试与边界
+
+本轮尝试通过ROS官方目录和OSUOSL镜像读取`.dsc`、`.debian.tar.xz`及deb文件。网页读取器对官方二进制内容返回unsupported content-type；OSUOSL镜像的`.dsc`返回`text/prs.lines.tag`且未展开；容器下载尝试失败。故本轮只记录目录列出的文件名、时间和大小，不记录未经读取的SHA256、Files字段、Debian control/changelog内容，也不声称签名验证通过。
+
+### 4. 当前结论与状态
+
+- SERVO-710：未完成。仍缺可解析的APT InRelease/Packages正文、签名验证、完整Packages stanza、deb control与SHA256。
+- SERVO-713：部分取证、未完成。rosdistro/release ref与package.xml文件级关联已确认；Build Farm真实Jenkins job、build number、result、source revision和console log仍缺。
+- SERVO-714：未完成。两架构B/T仍为11月5/6日新构建，M及production main pool仍为10月6日构建；本轮没有观察到production晋级。
+- 未执行目标Ubuntu 24.04 apt update/policy/install、rosdep、colcon、Servo launch/smoke test；未执行VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。
+- Stäubli工业级验收仍未通过；ICube上游未修改；`TODO-EXT-001`仍未授权合并。
+
+### 5. 来源
+
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- https://rsync.osuosl.org/pub/ros2/pool/main/r/ros-jazzy-moveit-servo/
