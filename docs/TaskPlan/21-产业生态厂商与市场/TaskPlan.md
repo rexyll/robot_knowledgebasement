@@ -1454,3 +1454,21 @@
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - 专项追加件§9.3.129。
+
+
+### Stäubli专项审查新增验收任务（§9.3.130，PlanningSceneMonitor世界几何订阅停止缺陷）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-720 | 固定MoveIt 2.12.4源码并核对上游issue #3897复现描述与stop/start实现 | 已完成（issue元数据/复现描述与固定源码if/else if结构静态对应；本项目未实测） |
+| SERVO-721 | 目标Ubuntu 24.04/Jazzy二进制环境单次stop、double-stop、restart/stop重复调用测试，记录topic graph与回调计数 | 未执行 |
+| SERVO-722 | 核对Stäubli实际启动参数、PlanningSceneMonitor实例及所有start/stop调用点，确认触发条件是否成立 | 未执行 |
+| SERVO-723 | 对修复版本或经审查补丁增加双订阅停止、重复stop、restart、空topic与octomap停止回归测试 | 未执行 |
+
+本轮证据与边界：上游`moveit/moveit2#3897`（2026-09-29创建，open）报告ROS Jazzy/Ubuntu 24.04/MoveIt binary 2.12.4/FastRTPS下同时启用CollisionObject与PlanningSceneWorld后，一次stop只释放前者；issue作者报告单次stop 3/3复现、double-stop 3/3通过。固定MoveIt 2.12.4源码commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`的`startWorldGeometryMonitor()`默认创建两个subscriber，`stopWorldGeometryMonitor()`使用if/else if依次reset，静态代码与报告一致。本项目未独立复现，尚未确认Stäubli现场调用链满足触发条件；不推断必然碰撞或CS9安全失效。未修改ICube/MoveIt上游，未应用补丁。详见专项追加件§9.3.130与厂商档案§128.81。
+
+来源：
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/issues/3887
+- 专项追加件§9.3.130。
