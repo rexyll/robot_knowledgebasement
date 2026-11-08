@@ -5309,6 +5309,8 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 
 ### v2 基础帧头规范（设计建议，非上游实现）
 
+**版本发现/端点约束：** v1固定8字节头只定义protocol_version=1，v1解码器无法通过普通v1握手协商理解新的32字节v2头。建议v2使用独立UDP端口或独立控制器服务端点；v2 HELLO/ACCEPT只在该端点解释。若控制器不支持v2或握手/能力协商失败，远程运动必须保持INHIBITED，不得静默回退到v1并假装具备事务ACK。只允许在显式策略批准下开放受限只读遥测兼容。
+
 v2采用固定32字节基础头；由于v1固定8字节头无法承载v2扩展字段，建议v2先使用单独UDP端口/独立控制器服务端点完成握手和能力协商；不得让只支持v1的解码器尝试按v1结构解析v2帧。所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
 
 | 偏移 | 字段 | 类型 | 字节数 | 约束 |
@@ -5323,7 +5325,7 @@ v2采用固定32字节基础头；由于v1固定8字节头无法承载v2扩展�
 | 16 | controller_boot_id | u64 | 8 | 控制器每次启动生成的新boot身份；除SESSION_HELLO外必须非0且匹配 |
 | 24 | session_id | u64 | 8 | 握手建立的会话身份；会话外/握手报文允许按消息规则为0 |
 
-当`AUTH_TAG_PRESENT=1`时，在payload后追加16字节认证tag；tag覆盖完整32字节头和payload，推荐采用会话密钥下的HMAC-SHA-256截断16字节。控制类报文在生产部署中必须认证；无认证tag的黄金向量只用于离线序列化一致性测试，不构成生产通信配置。接收端必须验证`datagram_size == header_size + payload_size + tag_size`，同时拒绝整数溢出、短帧、超长帧、未知flags、未知消息类型、错误boot/session和认证失败。
+当`AUTH_TAG_PRESENT=1`时，在payload后追加16字节认证tag；tag覆盖完整32字节头和payload，推荐采用会话密钥下的HMAC-SHA-256截断16字节。控制类报文在生产部署中必须认证；无认证tag的黄金向量只用于离线序列化一致性测试，不构成生产通信配置。Nonce交换本身不构成身份认证；会话密钥须来自预配置密钥派生或经安全评审的认证密钥建立机制，并验证密钥轮换、授权范围和失效流程。接收端必须验证`datagram_size == header_size + payload_size + tag_size`，同时拒绝整数溢出、短帧、超长帧、未知flags、未知消息类型、错误boot/session和认证失败。
 
 ### v2消息类型与字段模型
 
