@@ -157,3 +157,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.138，Formatting/CI失败run的jobs与artifacts接口均无可读数据，失败原因未知；不得猜测故障类型，SERVO-724继续跟踪。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.139，细化PR #3907修复源码与测试覆盖，并区分双topic活动时直接重配置和显式stop后restart两条生命周期路径；发现当前main在直接切换为仅CollisionObject/双空topic时可能保留旧PlanningSceneWorld subscriber（静态推导，未动态复现）。补充ROS graph与回调计数测试要求，SERVO-725仍未完成动态验证。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.140，核对OccupancyMapMonitor初始化顺序、#3902初始化失败被忽略及PR #3909候选修复，并发现#3901接口契约文档与内置插件node_依赖顺序冲突；梳理PointCloud/DepthImage stop实现与U1-U10测试矩阵。现场Octomap配置未确认，动态验证未执行。
