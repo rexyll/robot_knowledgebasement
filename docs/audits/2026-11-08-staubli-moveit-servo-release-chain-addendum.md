@@ -1135,3 +1135,57 @@ SERVO-720仅完成静态核验。SERVO-721/722/723未执行；未修改ICube上�
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - 固定2.12.4源码与issue复现详见§9.3.130。
+
+
+### §9.3.133 PlanningSceneMonitor停止与重启配置切换的生命周期边界（2026-11-08追加）
+
+#### 1. 固定2.12.4源码调用路径
+
+本轮从MoveIt 2.12.4固定版本的`planning_scene_monitor.cpp`逐一核对三个生命周期函数，文件Blob SHA为`fd07db53761d533f2f6e7f33189063a18000c9a9`：
+
+- `PlanningSceneMonitor::~PlanningSceneMonitor()`在析构体中调用一次`stopWorldGeometryMonitor()`，随后完成executor和场景对象清理；析构体结束后类成员会按C++对象生命周期销毁。因此本缺陷不应描述成“对象析构后仍永久残留订阅”。本轮未发现证据支持该扩大结论。
+- `startWorldGeometryMonitor()`开头无条件调用`stopWorldGeometryMonitor()`，之后仅在传入topic字符串非空时创建对应subscriber。
+- `stopWorldGeometryMonitor()`仍使用`if (collision_object_subscriber_) ... else if (planning_scene_world_subscriber_)`。当两个subscriber同时存在时，一次调用先释放CollisionObject，PlanningSceneWorld仍保留。
+
+#### 2. 重启配置切换的条件性缺陷
+
+上述调用关系带来一个比单次显式stop更具体的配置切换场景：
+
+1. 初始以非空CollisionObject和PlanningSceneWorld两个topic启动monitor。
+2. 再次调用`startWorldGeometryMonitor()`切换配置。函数开头的stop只释放CollisionObject subscriber，旧PlanningSceneWorld subscriber仍在。
+3. 若新配置的`planning_scene_world_topic`为空，后续创建阶段不会给`planning_scene_world_subscriber_`赋新值，旧subscriber就可能在重启调用返回后继续留存并接收旧topic消息。
+4. 如果新配置的两个topic都非空，旧PlanningSceneWorld subscriber会在后续赋值新subscriber时被替换；这是不同分支，不能与“禁用world topic后旧订阅残留”混为一谈。
+5. 若直接调用stop且PlanningSceneMonitor对象继续存活，旧PlanningSceneWorld subscriber会保留；若随后对象析构，剩余成员会随对象结束生命周期销毁。
+
+因此本轮将风险精确限定为：当原配置同时启用两个subscriber，且调用stop或重启为`planning_scene_world_topic=""`的配置时，monitor对象仍存活期间可能保留旧PlanningSceneWorld订阅。是否在Stäubli部署中发生，仍取决于实际topic配置及生命周期调用，当前没有现场证据。
+
+#### 3. SERVO-721/725扩展实验矩阵（均未执行）
+
+在固定Ubuntu 24.04/ROS Jazzy/MoveIt 2.12.4环境中，以隔离namespace和唯一topic名执行：
+
+| 初始配置 | 操作 | 期望保留的topic |
+|---|---|---|
+| CollisionObject + PlanningSceneWorld | 直接调用stop一次 | 无 |
+| CollisionObject + PlanningSceneWorld | restart为仅CollisionObject | 新CollisionObject |
+| CollisionObject + PlanningSceneWorld | restart为仅PlanningSceneWorld | 新PlanningSceneWorld |
+| CollisionObject + PlanningSceneWorld | restart为两个topic均为空 | 无 |
+| CollisionObject + PlanningSceneWorld | restart为两个新topic | 两个新topic，不包含旧topic |
+| 仅CollisionObject | stop后保持对象存活 | 无 |
+| 仅PlanningSceneWorld | stop后保持对象存活 | 无 |
+| 任意上述配置 | 对同一monitor重复stop | 无，且无异常 |
+
+每个场景应在操作后通过`getMonitoredTopics()`比对实际topic集合，同时分别发布带递增标识的旧topic和新topic消息，核对旧topic回调停止、新topic回调只在对应订阅存在时增长。保留ROS graph、回调计数、日志、测试退出码和包版本。PR #3907现有测试只覆盖“双topic启动→单次stop→topic列表双路移除”这一用例；本扩展矩阵尚未由本项目执行。
+
+SERVO-725作为新任务跟踪重启配置切换的显式验证。它是由固定2.12.4源码直接推导的测试需求，不是已经复现的动态故障，也不是Stäubli现场风险确认。
+
+#### 4. 修复审查与边界
+
+PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改为无条件reset，因此从静态代码结构上覆盖了直接stop和start开头调用stop的双订阅场景。但PR仍open/未合并；其作者自报测试不等于本项目测试。其topic-list测试不能替代上表所有生命周期切换及回调计数矩阵。
+
+未修改MoveIt/ICube上游，未应用补丁；未在目标环境运行实验。SERVO-721、SERVO-723、SERVO-725均未执行；SERVO-722仍因Stäubli现场源码和部署配置缺失而阻塞；SERVO-724继续跟踪PR与Jazzy发布链。VAL3、CS9、SRS、HIL、FAT/SAT和实机验证未执行，Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- 固定2.12.4源码Blob SHA：`fd07db53761d533f2f6e7f33189063a18000c9a9`。
