@@ -574,3 +574,5 @@
 
 
 | 2026-11-08 | 21-02/Stäubli VAL3命令接收窗口、重复/乱序/延迟命令拒绝与运动状态一致性 | 固定ICube bd658e2审查controlTask/readData/readDataOnce/computeSequenceDelay/decode/position control：每周期最多读两次；无新数据时旧bIsValid命令仍被使用，staleness为TODO；序号差只作16位回绕修正，无严格重复/乱序/超前/过期窗口；错误恢复只清SIO缓冲，缺少冷却/握手/重新授权；状态先发布后执行命令，缺少命令ACK/执行关联；movejSyncState 1/2未升级错误。新增§9.3.68、SERVO-313–SERVO-322、来源#1865–#1872。VAL3编译、CS9仿真、网络故障注入、状态一致性/HIL/实机验证未执行。 | 来源#1865–#1872；专项审计§9.3.68 |
+
+| 2026-11-08 | 21-02/Stäubli STOP/ERROR锁存、故障复位与ROS 2硬件生命周期一致性 | 固定ICube bd658e2审查controlTask与SystemInterface：VAL3错误处理stop/reset后清除l_bError并复位通信，恢复延迟TODO，无故障锁存/外部复位授权；on_error仅发普通UDP STOP无ACK；on_shutdown依赖is_connected和缓存control_state决定是否发STOP；on_activate只设本地STOP；mode switch依赖缓存error/motion_possible，HOLD仅警告；write在STOP模式豁免error检查。read/write ERROR不等于机械停止证据。新增§9.3.69、SERVO-323–SERVO-332、来源#1873–#1880。Lifecycle、STOP丢包、错误恢复、Controller Manager传播、CS9/HIL/实机验证未执行。 | 来源#1873–#1880；专项审计§9.3.69 |
