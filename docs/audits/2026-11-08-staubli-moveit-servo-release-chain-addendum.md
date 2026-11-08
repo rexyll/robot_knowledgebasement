@@ -1560,14 +1560,14 @@ U11从“静态接口差异已确认”细化为“已找到作者维护的MoveI
 
 #### 1. 直接源码证据
 
-PR #3909 的 \`RejectsUpdaterWhenInitializationFails\` 测试：
-- 在测试作用域内创建 \`auto updater = std::make_shared<RecordingUpdater>(state, false)\`；
-- Mock middleware 的 \`loadOccupancyMapUpdater\` 返回该同一个shared_ptr；
-- middleware初始化钩子通过 \`value->initialize(nullptr)\` 返回false；
-- monitor构造循环因此continue，跳过\`setParams()\`与后续登记；
-- 测试结束前局部变量\`updater\`仍持有shared_ptr所有权。
+PR #3909 的 `RejectsUpdaterWhenInitializationFails` 测试：
+- 在测试作用域内创建 `auto updater = std::make_shared<RecordingUpdater>(state, false)`；
+- Mock middleware 的 `loadOccupancyMapUpdater` 返回该同一个shared_ptr；
+- middleware初始化钩子通过 `value->initialize(nullptr)` 返回false；
+- monitor构造循环因此continue，跳过`setParams()`与后续登记；
+- 测试结束前局部变量`updater`仍持有shared_ptr所有权。
 
-因此该测试的断言\`calls == {"initialize"}\`及\`started == false\`只证明失败后未配置、未启动；由于测试自身仍持有对象，无法证明monitor拒绝后updater已析构，也没有观察析构计数、弱引用失效、ROS graph资源清理或回调静默。
+因此该测试的断言`calls == {"initialize"}`及`started == false`只证明失败后未配置、未启动；由于测试自身仍持有对象，无法证明monitor拒绝后updater已析构，也没有观察析构计数、弱引用失效、ROS graph资源清理或回调静默。
 
 #### 2. 已证实的覆盖边界
 
@@ -1591,7 +1591,7 @@ PR #3909 的 \`RejectsUpdaterWhenInitializationFails\` 测试：
 
 #### 4. PR #3909 当前调用顺序澄清
 
-PR #3909当前head \`3fc0594f708730008da2c4b3709368ade65302f2\`保留\`initialize()\`先于\`setParams()\`。作者在PR评论中称已在该commit修正先前发现的内置updater顺序回归；CodeRabbit评论仍指出#3901要求的接口契约顺序与当前调用顺序不一致。不能把曾经的顺序回归描述成当前head仍存在的错误；当前问题是#3901公开契约与内置插件依赖顺序需要上游统一，而#3902失败结果传播是另一个问题。
+PR #3909当前head `3fc0594f708730008da2c4b3709368ade65302f2`保留`initialize()`先于`setParams()`。作者在PR评论中称已在该commit修正先前发现的内置updater顺序回归；CodeRabbit评论仍指出#3901要求的接口契约顺序与当前调用顺序不一致。不能把曾经的顺序回归描述成当前head仍存在的错误；当前问题是#3901公开契约与内置插件依赖顺序需要上游统一，而#3902失败结果传播是另一个问题。
 
 #### 5. SERVO-727状态
 
@@ -1612,15 +1612,15 @@ PR #3909当前head \`3fc0594f708730008da2c4b3709368ade65302f2\`保留\`initializ
 
 #### 1. 进一步确认 PR #3909 测试的所有权污染
 
-除测试函数局部变量 \`updater\` 保留强引用外，PR测试还通过GMock \`WillOnce(testing::Return(updater))\` 注册返回动作。该动作也会持有被返回的shared_ptr副本，至少在mock期望对象销毁前可能继续保活对象。因此仅删除测试函数局部变量仍不足以确保weak_ptr在monitor构造结束后expired。
+除测试函数局部变量 `updater` 保留强引用外，PR测试还通过GMock `WillOnce(testing::Return(updater))` 注册返回动作。该动作也会持有被返回的shared_ptr副本，至少在mock期望对象销毁前可能继续保活对象。因此仅删除测试函数局部变量仍不足以确保weak_ptr在monitor构造结束后expired。
 
-可靠夹具应避免在GMock动作对象中存储updater强引用：改用\`Invoke\`，在\`loadOccupancyMapUpdater\`被调用时临时创建shared_ptr，将其弱引用写入测试状态，再把唯一强引用返回给monitor。测试状态只持有weak_ptr和析构计数器，不保留强引用。
+可靠夹具应避免在GMock动作对象中存储updater强引用：改用`Invoke`，在`loadOccupancyMapUpdater`被调用时临时创建shared_ptr，将其弱引用写入测试状态，再把唯一强引用返回给monitor。测试状态只持有weak_ptr和析构计数器，不保留强引用。
 
 #### 2. 推荐的U13最小单元测试骨架
 
 以下为测试设计草案，未对MoveIt上游仓库提交或执行：
 
-\`\`\`cpp
+```cpp
 std::weak_ptr<RecordingUpdater> rejected;
 auto state = std::make_shared<UpdaterState>();
 auto middleware = std::make_unique<MockMiddlewareHandle>();
@@ -1642,11 +1642,11 @@ monitor.startMonitor();
 EXPECT_TRUE(rejected.expired());
 EXPECT_EQ(state->destructor_count, 1);
 EXPECT_EQ(state->calls, (std::vector<std::string>{ "initialize" }));
-\`\`\`
+```
 
-\`RecordingUpdater\`析构函数只更新由测试持有的独立state计数器；state本身不得拥有updater。该写法规避局部shared_ptr和GMock Return action双重保活问题。应在实际测试中确认GMock调用签名、返回类型及异常路径。
+`RecordingUpdater`析构函数只更新由测试持有的独立state计数器；state本身不得拥有updater。该写法规避局部shared_ptr和GMock Return action双重保活问题。应在实际测试中确认GMock调用签名、返回类型及异常路径。
 
-U14沿用同样的weak_ptr创建方式，但fake updater的\`initialize()\`返回true、\`setParams()\`返回false；断言\`start()\`未调用、对象析构、析构计数为1。当前main源代码的setParams失败分支同样continue，PR #3909没有为该路径增加测试。
+U14沿用同样的weak_ptr创建方式，但fake updater的`initialize()`返回true、`setParams()`返回false；断言`start()`未调用、对象析构、析构计数为1。当前main源代码的setParams失败分支同样continue，PR #3909没有为该路径增加测试。
 
 #### 3. 分层验收，不把析构等同于异步安全
 
@@ -1658,22 +1658,22 @@ U14沿用同样的weak_ptr创建方式，但fake updater的\`initialize()\`返�
 | L4 回调静默 | executor运行、旧topic持续发布、回调计数和屏障 | 指定观察窗口内无新回调进入 | 所有RMW/调度条件下绝对无竞态 |
 | L5 并发/内存 | ASan/TSan、析构并发压力测试 | 覆盖到的内存/数据竞态缺陷 | 未覆盖平台和时序下的普遍安全 |
 
-真实ROS资源测试需让fake middleware向updater传入有效Node，并使用实际executor；不能把PR现有的\`initialize(nullptr)\` mock路径误当成ROS graph测试。建议先验证L1/L2单元层，再在Ubuntu 24.04/Jazzy及目标RMW做L3-L5。
+真实ROS资源测试需让fake middleware向updater传入有效Node，并使用实际executor；不能把PR现有的`initialize(nullptr)` mock路径误当成ROS graph测试。建议先验证L1/L2单元层，再在Ubuntu 24.04/Jazzy及目标RMW做L3-L5。
 
 #### 4. 生命周期契约建议
 
 上游应明确二选一或组合采用：
-- **失败原子契约**：\`initialize(false)\`及\`setParams(false)\`返回时，插件不得留下活动订阅、timer、线程或引用monitor的异步回调；插件析构必须安全释放部分初始化资源。
-- **显式rollback契约**：增加明确的清理接口，或规定\`stop()\`可对部分初始化对象安全调用且必须幂等；monitor在拒绝对象前调用rollback/stop，再释放对象。
+- **失败原子契约**：`initialize(false)`及`setParams(false)`返回时，插件不得留下活动订阅、timer、线程或引用monitor的异步回调；插件析构必须安全释放部分初始化资源。
+- **显式rollback契约**：增加明确的清理接口，或规定`stop()`可对部分初始化对象安全调用且必须幂等；monitor在拒绝对象前调用rollback/stop，再释放对象。
 
-不能只凭当前\`stop()\`的void签名推断其等待所有在途回调退出。若清理要求回调静默，应明确同步/等待语义、executor约束和析构时序。该建议是待上游讨论的契约方案，不是已合并API。
+不能只凭当前`stop()`的void签名推断其等待所有在途回调退出。若清理要求回调静默，应明确同步/等待语义、executor约束和析构时序。该建议是待上游讨论的契约方案，不是已合并API。
 
 #### 5. 本轮源码状态复核
 
-- PR #3909仍Open、未合并，head为\`3fc0594f708730008da2c4b3709368ade65302f2\`，base main。CI run \`37457932979\`和Formatting run \`37457933046\`均completed/failure；当前连接器可读取的workflow记录只有run级结论，jobs查询为空，失败原因未知。
-- PR patch中的测试仍使用\`WillOnce(Return(updater))\)，且测试函数保留局部updater；没有析构、weak_ptr、资源实体或回调静默断言。
-- 当前MoveIt main的\`occupancy_map_monitor.cpp\` Blob SHA \`7b8bb7a42eed1eea01323458c816993828df3370\`仍是旧void调用并忽略initialize返回值；PR变更尚未进入main。
-- 当前main的\`occupancy_map_updater.hpp\` Blob SHA \`fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b\`仍写明\`initialize()\`假定setMonitor和setParams先调用，和当前内置实现调用顺序存在契约冲突。
+- PR #3909仍Open、未合并，head为`3fc0594f708730008da2c4b3709368ade65302f2`，base main。CI run `37457932979`和Formatting run `37457933046`均completed/failure；当前连接器可读取的workflow记录只有run级结论，jobs查询为空，失败原因未知。
+- PR patch中的测试仍使用`WillOnce(Return(updater))\)，且测试函数保留局部updater；没有析构、weak_ptr、资源实体或回调静默断言。
+- 当前MoveIt main的`occupancy_map_monitor.cpp` Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`仍是旧void调用并忽略initialize返回值；PR变更尚未进入main。
+- 当前main的`occupancy_map_updater.hpp` Blob SHA `fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b`仍写明`initialize()`假定setMonitor和setParams先调用，和当前内置实现调用顺序存在契约冲突。
 
 #### 6. SERVO-727状态
 
