@@ -5031,3 +5031,77 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1983 | [troubleshooting.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | addon demo license约2小时导致control task失效的故障说明 |
 
 **验证边界：** 本节为固定提交bd658e2静态源码与文档审查；未执行C++构建/测试、VAL3编译、CS9任务调度、UDP would_block故障注入、真实命令中断/STOP反馈、故障恢复/HIL/FAT/SAT或实机安全测试。would_block分支返回true及VAL3 staleness/重新接受命令等待TODO均由源码直接支持；实际设备停机时间、控制器运动响应和安全行为仍需受控设备验证。SERVO-443–SERVO-452全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.82 C++状态订阅端序号窗口、重复帧新鲜度刷新与回放隔离审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与已有结论边界
+
+本节继续固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，重点从VAL3接收路径转向ROS 2/C++状态订阅端：UDP来源端点检查、异步消息缓存、sequence tracking、新鲜度计算、RobotDriver接收门控、命令序号生成和单元测试覆盖。
+
+本节与§9.3.66、§9.3.67及§9.3.68互补：§9.3.66已记录UDP接收端点校验TODO；§9.3.67已指出缺少controller boot/session epoch、命令序号复用状态序号及重启/回放隔离不足；§9.3.68已分析VAL3端每周期最多两次读取、缓存旧命令、序号差值门控和缺少严格命令窗口。本节新增的是C++接收端的具体可复现代码路径和序号计数缺陷，不将这些既有问题重复作为新发现。
+
+### 静态源码发现
+
+1. **接收回调按到达顺序覆盖单槽消息缓存，没有先做序号新旧判定。** `RealTimeSocketSubscriber::update_message()`对每个成功反序列化的数据报写入本机接收时间戳，然后直接调用`message_buffer_.set(msg)`。该路径没有比较新帧与缓存帧的sequence，也没有boot ID/session epoch校验。多个数据报在读取线程消费前到达时，缓存保留的是最后一次到达的数据，而不是经过序号窗口判定的最新逻辑帧。
+2. **重复序号帧仍刷新接收时间戳。** 每个成功反序列化的重复帧都会重新设置`reception_timestamp`。随后`read_message()`比较sequence：同序号时将`status.new_message=false`，但仍返回true，并基于刚更新的时间戳计算`time_since_received`。因此“序号没有前进”与“本机最近收到一帧”被分开处理；重复/重放的有效帧可以刷新时间年龄。
+3. **RobotDriver没有消费new_message标志来区分新帧与重复帧。** `RobotDriver::read_robot_state()`调用`read_message()`后，检查消息类型和`status.time_since_received`，但没有拒绝`status.new_message==false`的帧，也没有对`status.lost_packages`采取控制动作；丢包告警代码被注释。只要重复帧持续刷新本机时间戳，就可能持续满足默认100ms状态新鲜度门槛，即使状态序号没有增加。该问题是静态逻辑推导，实际控制行为仍需通过重复datagram故障注入复现。
+4. **乱序旧帧能够覆盖缓存并被当作新近收到的状态。** `update_message()`没有按sequence拒绝较旧帧；若旧帧较晚到达，它会覆盖此前较新的缓存。读取时，较小sequence进入Subscriber的wrap-around分支并被计为大量丢包，但消息仍会返回给调用者；`RobotDriver::read_robot_state()`不以序号回退为拒绝条件，并会将`last_valid_sequence_id_`更新为该帧的较旧sequence。因此状态数据可能倒退，且下一条ROS 2命令会回送这个回退后的sequence。
+5. **16位序号回绕的丢包计数存在+1偏差。** `protocol.hpp`定义最大序号为65535；Subscriber在`new_sequence < last_sequence`时使用`(65535-last_sequence)+new_sequence+1`计算丢包数。对于正常连续回绕65535→0，正确缺失包数应为0，而当前公式返回1；对于65534→0，正确缺失包数应为1，当前公式返回2。该偏差本身不拒绝数据帧，但会污染丢包诊断与后续监控阈值。现有单元测试没有覆盖回绕边界。
+6. **序号回退未被区分为乱序、重启或真正回绕。** Subscriber只按数值大小判断“正常递增/回绕”，没有半区间模序比较、最大前进窗口或启动代际。controller重启后序号从小值重新开始、网络迟到旧帧、真实uint16回绕可能落入相同分支。即便`lost_packages`极大，当前代码也不拒绝、不隔离会话、不要求重新握手。
+7. **命令序号不是每条命令独立递增的身份标识。** `RobotDriver::get_current_message_sequence()`返回最近有效RobotState的sequence；HardwareInterface的普通write和RobotDriver的STOP构造均使用该值写入命令帧头。这个字段是状态帧序号回显，不是独立command sequence；在同一状态样本期间再次发送的命令可能重复使用同一序号，因而不能单独用来证明命令唯一性或抵御重放。该协议设计边界已在§9.3.67提示，本节补充其与主机端接收状态的直接关联。
+8. **UDP接收端没有在回调前核对发送端地址。** `UDPSocketImpl`使用`async_receive_from`并填充`sender_endpoint_`，但来源地址比较仍只是TODO注释；已解析的`remote_endpoint_`用于发送目标，接收处理没有将数据报来源与配置机器人地址绑定。若不可信主机能够访问本机控制UDP端口，伪造的有效状态帧可能进入订阅缓存。此项与§9.3.66重复，作为本节重放风险的输入信任前提引用，不另行重复登记新发现；网络ACL是否已在设备外部部署需要现场配置证据。
+9. **现有测试不足以证实回放和序号异常防护。** `test_rt_socket_interface.cpp`覆盖正常消息接收、读取已缓存消息时`new_message=false`、序号跳号丢包计数，以及未读取期间连续发送多帧的场景；但没有覆盖真正重新发送相同sequence的数据报、乱序旧帧、65535→0回绕、控制器重启后序号归零、旧会话迟到包、同序号帧刷新timestamp或未知发送端拒绝。当前测试证明的是局部缓存/计数行为，不是anti-replay能力。
+10. **状态新鲜度目前是“最近收到有效数据报的时间”，不等同于“状态样本持续前进”。** Subscriber的接收时间在反序列化回调中刷新；RobotDriver的staleness gate只看该时间差。缺少sequence进展、boot/session一致性和状态样本单调性联合门控时，反复收到旧帧可维持传输层接收新鲜度，却不能证明机器人状态持续更新。
+
+### 风险判断
+
+- **高：重复帧续命。** 若同一有效RobotState帧被重复发送或回放，Subscriber每次刷新接收时间；RobotDriver不检查`status.new_message`，可能将重复数据持续视作新鲜状态。需要故障注入确认实际调用节奏和风险窗口。
+- **高：乱序状态回退。** 后到达的旧帧覆盖单槽缓存，序号只用于计算丢包数，没有拒绝；调用层仍接受并更新命令回显序号。
+- **中高：回绕计数偏差。** 真实uint16回绕会多计一个丢包；若监控或阈值依赖该计数，可能产生误告警或不准确的通信健康指标。
+- **高：缺少来源认证与会话身份。** 在可达网络中，UDP校验和协议magic/version并不提供发送方认证、消息完整性或anti-replay证明。具体可达性依赖现场网络隔离，不能从仓库静态代码推定。
+- **高：命令帧序号不足以标识命令实例。** 回显状态sequence无法代替独立command ID、epoch和deadline；STOP/运动命令都受此协议设计限制。
+- **不应过度推断：** 本节没有证明机器人必然会按伪造或乱序帧运动，也没有完成CS9网络配置审查、数据包注入或真实运动反馈实验；结论是现有软件代码缺少明确拒绝与身份绑定证据。
+
+### 整改要求
+
+- 为RobotState接收器实现16位模序数比较与有界前进窗口：区分新帧、重复帧、过期帧、乱序帧、超前帧和controller重启；拒绝不符合窗口的帧，不得仅计数后继续更新状态。
+- 将`status.new_message`、sequence progress、接收时间年龄、boot/session epoch和来源身份联合纳入RobotDriver状态准入；重复帧不得刷新“最后有效状态样本前进时间”。
+- 将传输接收时间与状态样本进展时间分开保存：至少提供last_datagram_rx_time、last_new_sequence_time、last_accepted_state_time和last_state_sequence。
+- 修正模序丢包计数，定义uint16序号回绕golden vectors，覆盖65534→65535→0→1、跨回绕丢包以及序号回退/重启；异常回退必须进入明确的session recovery，而不是一律当作回绕。
+- 引入controller boot ID或握手session nonce；连接/控制器重启后先进入INHIBITED，拒绝旧epoch状态和命令，完成握手、连续新鲜状态验证和显式重新使能后才开放运动。
+- 为每条命令增加独立command sequence/ID、session epoch与deadline；响应中提供received/accepted/applied/rejected对应ID，不能继续把状态帧序号当作唯一命令标识。
+- 在UDP接收回调中校验发送端IP/端口与允许的机器人endpoint；需要跨不可信网络时增加消息认证与完整性保护，并配合网络ACL。来源检查不能替代加密认证。
+- 保留latest-value mailbox时必须明确“按到达时间最新”还是“按sequence最新”；遇到旧帧不得覆盖已接受的新帧。若采用有界队列，应定义溢出、过载和时限策略。
+- 增加重复、乱序、延迟、伪造来源、回绕、控制器重启和错误恢复期间注入旧包的单元测试与UDP故障注入；检查RobotDriver是否将重复帧错误计为新鲜状态。
+- 在CS9/HIL中记录UDP抓包、发送端、sequence、epoch、接收时间、状态接受/拒绝原因、运动状态与控制命令ID，证明在旧帧回放和控制器重启期间不会开放运动或沿用旧状态。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-453 | C++状态帧序号准入 | 实现模序前进窗口，重复/乱序/超前/过期帧按规则拒绝 | 未执行 |
+| SERVO-454 | 重复帧与新鲜度隔离 | 同序号重复datagram不得刷新最后有效状态样本前进时间 | 未执行 |
+| SERVO-455 | 乱序状态帧隔离 | 较旧帧不能覆盖已接受的更新状态，sequence回退触发明确处置 | 未执行 |
+| SERVO-456 | uint16回绕丢包计数 | 修正偏差并以65534/65535/0/1及跨回绕丢包向量验证 | 未执行 |
+| SERVO-457 | Controller boot/session epoch | 控制器重启建立新epoch，旧epoch状态/命令全部拒绝 | 未执行 |
+| SERVO-458 | 独立命令ID与ACK | 每条命令有独立sequence/ID、deadline和分阶段ACK关联 | 未执行 |
+| SERVO-459 | UDP发送端身份校验 | 接收端仅接受配置的可信endpoint，并完成适当认证/网络隔离验证 | 未执行 |
+| SERVO-460 | 回放/乱序/重启单元测试 | 补齐重复帧、乱序帧、回绕、重启、延迟旧包和缓存覆盖测试 | 未执行 |
+| SERVO-461 | RobotDriver新鲜度门控 | 联合检查new_message、序号前进、时间年龄与会话有效性 | 未执行 |
+| SERVO-462 | CS9/HIL抗回放验收 | 通过抓包、故障注入和实际状态反馈证明旧帧不能续命或恢复运动 | 未执行 |
+
+### 本节来源记录（#1984–#1991）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1984 | [real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 成功反序列化后更新本机时间戳并覆盖消息槽；同序号仅标记new_message=false；序号回退计数及last_read_sequence更新 |
+| #1985 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | read_robot_state仅按消息类型/接收时间age校验，未使用new_message与lost_packages；接受后更新last_valid_sequence_id_ |
+| #1986 | [robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) 与 [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 当前命令序号getter返回last_valid_sequence_id_，write命令复用最近状态帧sequence |
+| #1987 | [protocol.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp) | sequence_number为uint16_t，最大序号65535 |
+| #1988 | [udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | async_receive_from记录sender_endpoint，来源校验仍是TODO注释；与§9.3.66交叉引用 |
+| #1989 | [test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | 现有正常接收、缓存读取和丢包计数测试范围；缺失回放/乱序/回绕/重启测试 |
+| #1990 | [computeSequenceDelay.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) 与 [getNextSequenceNumber.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx) | VAL3状态序号生成、16位回绕及命令/状态序号差值语义；细节已见§9.3.68 |
+| #1991 | [real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | MessageStatus字段定义、缓存读取与staleness检查的调用契约 |
+
+**验证边界：** 本节为固定提交bd658e2静态源码/测试源码审查；未执行C++构建、单元测试、UDP重复/乱序/伪造来源/回绕/旧包注入、CS9控制器重启、VAL3仿真、HIL或实机测试。重复帧刷新接收时间、调用层忽略new_message/lost_packages、乱序覆盖缓存和回绕公式偏差均可由固定源码直接核对；“重复帧可续命”的系统级影响仍需运行时故障注入确认。SERVO-453–SERVO-462全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
