@@ -1387,6 +1387,7 @@
 - 两个实际部署配置均明确设置`include_test_dependencies:false`和`run_package_tests:false`。Build Farm `release_job.py`第770行将`run_package_tests`反转成`skip_tests`；`binarydeb_job.py`第128–134行追加`DEB_BUILD_OPTIONS=nocheck`与`DEB_BUILD_PROFILES=nocheck`，第144–146行执行`dpkg-buildpackage -b -us -uc -Pnocheck`。
 - MoveIt Servo 2.12.4的`CMakeLists.txt`第117行以`if(BUILD_TESTING)`包围三个gtest目标：`moveit_servo_utils_test`、`moveit_servo_cpp_integration_test`和`moveit_servo_ros_integration_test`。Noble debian/rules在nocheck分支设置`BUILD_TESTING=OFF`，因此这些测试目标在Jazzy release binary build配置路径中不会构建/注册。
 - 该证据确认正式release binary build配置禁用MoveIt Servo package tests；不代表上游PR/devel/nightly CI也禁用测试。具体2026-11-05/06 Jenkins job XML、历史job配置快照、console log和工件fingerprint仍未取得；本轮不声称读取了具体job执行日志。
+- 资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA 2fe0efb498d2aad2651999435792b697b4f1e9be、UTF-8大小521,359 bytes；该操作仅维护单一文件Git元数据，不代表claim-level复核或整库清单重算。
 - SERVO-717静态配置到Build Farm代码再到CMake测试目标的证据链已完成；SERVO-716改为部分取证，等待具体job实例及日志。SERVO-710/714未完成，SERVO-713部分取证、未完成；21-02继续进行中，Stäubli工程级验收仍未通过。
 
 来源：
