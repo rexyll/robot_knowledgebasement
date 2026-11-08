@@ -551,3 +551,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli控制状态与诊断状态一致性审查 | 固定ICube bd658e2核对RobotDriver、RealTimeSocketSubscriber及HardwareInterface。connect等待阶段只读控制状态，诊断读取仍为TODO且diag_interface_ready硬编码true；协议版本只检查控制帧，CS9类型检查被注释，固件版本只打印未读取/验证的诊断缓存。read_diagnostic_data虽实现类型/新鲜度/丢包检查，但周期read/write不调用；两通道各自独立sequence、接收时间与staleness，没有共同采样ID、配对时间窗或原子快照。新增§9.3.60、SERVO-233–SERVO-242及来源#1817–#1821。未做双通道故障注入、协议抓包、错位测试或CS9 HIL；不据此断言VAL3协议无共同ID，Stäubli仍未验收。 | 来源#1817–#1821；专项审计§9.3.60 |
+
+
+| 2026-11-08 | 21-02/Stäubli ROS 2生命周期状态转换、deactivate停机与命令门控 | 固定ICube bd658e2审查StaubliHardwareInterface、RobotDriver与UDP资源生命周期。头文件/实现均未覆盖on_deactivate；on_activate只复位本地STOP模式，不主动发送STOP或重新验证状态；read/write无独立生命周期门控；cleanup/shutdown忽略disconnect/STOP返回值；on_error在已连接分支忽略STOP结果，在未连接分支返回ERROR。Inactive阶段实际read/write调度需在目标Jazzy版本集成确认。新增§9.3.61、SERVO-243–SERVO-252及来源#1822–#1826。所有生命周期集成、STOP确认、UDP故障注入、TSAN/HIL测试未执行；Stäubli仍未验收。 | 来源#1822–#1826；专项审计§9.3.61 |
