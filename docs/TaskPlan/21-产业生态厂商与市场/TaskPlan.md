@@ -1217,3 +1217,6 @@
 - MoveIt upstream 2.12.4 commit：1ade0e9dcf50dbbbc3a984b995c786cf12736235。
 - ROS 2 Build Farm官方job类型/命名说明：https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst 。
 - Build Farm入口：https://build.ros2.org/ （本轮job/API端点未获得可核验响应）。
+
+
+| 2026-11-08 | 21-02 | MoveIt Servo Jazzy发布链继续核验：新增ROS testing与生产main APT lists目录快照对照。testing Noble amd64/arm64索引分别为2026-11-06/07，生产main仍为2026-10-06；Packages/InRelease二进制原文无法通过当前网页读取通道展开，因此不宣称签名、stanza、SHA256或Depends已验证。新增专项审计§9.3.114与厂商档案§128.65；SERVO-710/714仍未完成，SERVO-713部分取证；不改变未执行的VAL3/CS9/HIL/实机验收状态。 | ROS官方APT lists目录；专项追加件§9.3.114；厂商档案§128.65 |
