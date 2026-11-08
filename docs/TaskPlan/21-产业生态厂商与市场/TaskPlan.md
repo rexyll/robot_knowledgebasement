@@ -1053,3 +1053,31 @@
 | SERVO-691 | 从Noble amd64/arm64各自的InRelease签名元数据中提取并验证Packages/Packages.gz的SHA256与文件大小，确认索引内容属于已验证的ROS仓库快照 | 未执行 |
 | SERVO-692 | 取得SERVO-686对应的完整APT包记录，分别保存amd64与arm64的Version、Architecture、Filename、Size、SHA256、Depends及索引快照时间 | 未执行 |
 | SERVO-693 | 对APT包记录中的deb下载后执行SHA256校验和 `dpkg-deb -f` 元数据核对，确认控制字段与索引一致，并归档文件清单 | 未执行 |
+
+
+### Stäubli专项审查新增记录（§9.3.106，MoveIt Servo 2.12.4源码标签与Stäubli启动契约核对）
+
+本轮从MoveIt上游仓库直接读取固定版本标签 `2.12.4`，并与ICube Stäubli驱动固定提交交叉核对：
+
+- MoveIt上游 `moveit_ros/moveit_servo/package.xml` 在标签 `2.12.4` 中声明 `<version>2.12.4</version>`。该版本包清单中的运行时依赖包括 `controller_manager`、`gripper_controllers`、`joint_state_broadcaster`、`joint_trajectory_controller`、`joy`、`launch_param_builder`、`moveit_configs_utils`、`moveit_ros_visualization`、`robot_state_publisher` 和 `tf2_ros`；并列出其构建/链接所需的 `control_msgs`、`generate_parameter_library`、`geometry_msgs`、`moveit_core`、`moveit_msgs`、`moveit_ros_planning`、`moveit_ros_planning_interface`、`pluginlib`、`realtime_tools`、`sensor_msgs`、`std_msgs`、`std_srvs`、`tf2_eigen` 和 `trajectory_msgs`。此处是ROS package.xml源码声明，不等于尚未取得的Debian control `Depends` 字段。
+- 同一标签 `2.12.4` 的 `moveit_ros/moveit_servo/CMakeLists.txt` 使用 `rclcpp_components_register_node(... EXECUTABLE servo_node)` 注册节点，并将 `servo_node` 安装到 `lib/moveit_servo`。因此Stäubli launch文件指定的package `moveit_servo` 与executable `servo_node` 和该版本上游源码构建规则吻合。
+- 固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79` 的 `staubli_moveit_config/launch/staubli_moveit.launch.py` 中，`launch_servo` 默认值为 `false`，Servo节点受 `IfCondition(launch_servo)` 控制，使用 `package="moveit_servo"`、`executable="servo_node"`；同提交 `staubli_moveit_config/package.xml` 当前没有 `<exec_depend>moveit_servo</exec_depend>`。这确认了条件启动路径依赖闭包缺口与实际上游executable契约之间的对应关系。
+- 版本来源注意：ROS Index当前页面展示的仓库摘要版本为2.15.2、VCS Version为main；该页面不能替代固定Jazzy发行版的APT元数据。与之相对，ROS生产pool目录列出的Noble二进制工件版本仍是 `2.12.4-1` 加构建修订。此处必须以目标发行包来源/快照为准，不得把上游当前main版本当作Jazzy生产二进制版本。
+- 证据边界：已完成2.12.4源码标签的package.xml和CMake静态核对，以及Stäubli启动声明/manifest静态对照；未取得ROS APT完整Packages stanza或deb control文件，未核实二进制Depends、deb SHA256和签名链；没有运行rosdep/apt安装、servo_node启动或实际节点就绪检查。未修改ICube上游。
+
+### Stäubli专项审查新增验收任务（§9.3.106）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-694 | 固定MoveIt Servo 2.12.4源码标签，核对package.xml版本、build/exec/test依赖并保存源码Blob SHA | 已完成（静态源码核对） |
+| SERVO-695 | 核对MoveIt Servo 2.12.4 CMake中servo_node注册、安装路径及Stäubli launch package/executable匹配关系 | 已完成（静态源码核对） |
+| SERVO-696 | 固定ICube提交核对launch_servo默认值、条件节点和staubli_moveit_config/package.xml显式运行依赖 | 已完成（静态源码核对） |
+| SERVO-697 | 读取目标Jazzy生产APT Packages stanza与deb control，逐项映射package.xml声明依赖与Debian Depends，确认最终二进制运行依赖闭包 | 未执行 |
+| SERVO-698 | 将MoveIt Servo 2.12.4包版本、源码标签、release仓库修订、Noble amd64/arm64构建修订及deb校验值绑定为单一可追溯软件供应链记录 | 未执行 |
+| SERVO-699 | 在固定2.12.4二进制环境验证 `ros2 pkg executables moveit_servo`、`ros2 run moveit_servo servo_node`及实际launch加载行为，归档节点路径、进程退出码和节点就绪证据 | 未执行 |
+
+源码证据定位：
+- MoveIt `moveit_ros/moveit_servo/package.xml` 标签 `2.12.4`，GitHub Blob SHA `0f00c9ec3b85b0322b96124cd714cf9d280473fb`。
+- MoveIt `moveit_ros/moveit_servo/CMakeLists.txt` 标签 `2.12.4`，GitHub Blob SHA `6ec080d195798ba22e319def3da08c2e36a7d54f`。
+- ICube `staubli_moveit_config/launch/staubli_moveit.launch.py` 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，Blob SHA `5bcf90f5de19f79fdaad3fa32f5b948c5e575648`。
+- ICube `staubli_moveit_config/package.xml` 同一固定提交，Blob SHA `35d0d2937fdd1cfbce80fa4725f6aae99d45c8bf`。
