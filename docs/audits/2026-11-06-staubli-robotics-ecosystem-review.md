@@ -4343,3 +4343,65 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1897 | [sio.cfx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx) | UDP control/diagnostics socket网络配置，不含安全通道定义 |
 
 **验证边界：** 本节为固定提交静态源码和上游文档审查。未执行各型号Xacro展开、ROS构建、VAL3编译/加载、CS9版本/addon/license现场核验、控制器安全配置导出、I/O逐点检查、CS9仿真、HIL或实机验收。TX2-60L之外的型号兼容性仍是上游文档预期而非本轮实测。安全选配信息缺失不能解释为设备没有安全硬件，也不能解释为已具备安全功能。SERVO-343–SERVO-352全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.72 机器人运动学/动力学/关节限位与控制器执行参数一致性（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+本节审查TX2-60L与TX2-60L MED配置、URDF/Xacro装配、ros2_control接口、MoveIt关节限制、C++线级协议单位和VAL3位置/速度控制入口。结论：仓库建立了配置文件到URDF及ROS控制接口的基本装配路径，但当前模型参数缺少可信的制造商/实测来源，MoveIt与机器人描述分别维护限制，消息对象单位注释与硬件转换逻辑矛盾，且VAL3速度控制仍未实现。不能据此认定当前运动学/动力学/限位参数已与实机标定一致。
+
+### 静态源码事实
+1. TX2-60L的kinematics.yaml定义六轴关节原点xyz/rpy与旋转轴；TX2-60L MED使用同一份kinematics.yaml。仓库没有同提交中的制造商CAD/标定报告、机器人序列号、关节零位偏置、方向校准或实测TCP验证报告来证明这些参数与每台实机一致。
+2. 两种型号的dynamics.yaml文件完全共用。base_link质量5.0；link_1至link_6均为质量1.0、质心[0,0,0]、惯量对角项0.1且非对角项0.0。该重复参数集缺少来源和验证证据，不能直接视为真实TX2-60L连杆质量/惯量；用于重力补偿、动力学前馈、碰撞检测或负载估算前必须替换为制造商/辨识数据并验证。
+3. TX2-60L和MED共用joint_limits.yaml：J1/J2/J3/J4/J5/J6位置范围分别为±180°、±127°、±150°、±270°、±120°、±270°；速度上限前五轴300°/s，第六轴500°/s；加速度前五轴1000°/s²，第六轴3000°/s²。文件将has_effort_limits全部设为false；Xacro对无effort limit的关节写入URDF effort=0.0。该值不等于测得的驱动器力矩上限，也不能用作碰撞/负载保护依据。
+4. MoveIt另行定义joint_limits.yaml：J1–J5 max_velocity=1.5 rad/s、max_acceleration=5 rad/s²；J6为2.0 rad/s、10 rad/s²；默认速度和加速度缩放均为0.1。它比描述文件中的换算限值保守，但两套配置独立维护，仓库未见自动比较/生成/一致性测试；日后任一侧更新都可能发生漂移。MoveIt的规划限制不自动构成VAL3/驱动器硬件侧限值。
+5. staubli_macro.xacro分别加载robot_model、kinematics、dynamics、joint_limits、initial_positions和meshes文件；add_joint将kinematics的xyz/rpy/axis及joint_limits的position/velocity写入URDF。check_robot_model_config只检查关节/连杆列表非空、link数为joint数+1及末端执行器父链接，没有检查每个joint是否在kinematics/dynamics/limits中存在、参数有限性、惯量正定性、关节轴单位化、限值上下界/速度/加速度正值或跨文件一致性。
+6. 角度限值以!degrees标记进入Xacro YAML并装配为URDF数值；C++硬件接口显式在ROS弧度/弧度每秒与Staubli度/度每秒之间转换：write对position/velocity执行rad2deg，update_state对state position/velocity执行deg2rad。线级RobotCommandMessage数据通过double数组发送，VAL3 decodeRobotCommandMsg将其读入num数组，updateJointPositionControl再赋值到jointRx。
+7. messages.hpp却将RobotStateMessage的joint_positions/joint_velocities注释为radians/radians/s，并将RobotCommandMessage::command_reference注释为position radians、velocity radians/s；硬件接口的转换行为表明线级值按Staubli角度单位处理。消息结构体注释与硬件接口/VAL3协议使用语义不一致，直接使用消息类的其他调用方可能发生单位误用。应明确拆分wire degrees、ROS radians及转换边界，并通过往返测试证明。
+8. r2c_joints_control_description导出position、velocity命令接口；真实硬件配置还导出acceleration接口，其min/max从joint_limits.max_acceleration生成。硬件write当前只将position/velocity填入RobotCommandMessage，不将acceleration command写入消息；该接口的作用更接近控制器/限幅元数据，不能误认为VAL3收到每周期加速度命令。
+9. VAL3 updateJointPositionControl检查motion_possible、command有效性、命令类型及isInRange(jointRx)，越界则stopJointPositionControl并报错；但“target is close enough to current position”仍是TODO。该路径未显式对每周期目标增量、速度、加速度或jerk做软件限幅；不能单凭MoveIt规划限值推断直接ros2_control命令也受到同样限制。
+10. VAL3 updateJointVelocityControl仍将速度安全限制标为TODO，并明确记录not yet implemented，随后返回错误；C++硬件接口也在command mode switch拒绝JOINT_VELOCITY。因此joint_limits中虽配置了速度上限，不代表当前速度控制路径可用或已经完成速度限制验收。
+11. initial_positions.yaml包含0.1至0.6的六轴非零初值，供ros2_control接口初始状态/模拟状态描述使用；真实硬件read会从机器人状态更新位置。此文件不能被当成真实机器人当前关节位置或零位标定数据，mock hardware测试也必须明确它是占位初始值。
+12. 本轮没有执行Xacro展开、URDF解析、MoveIt规划、动力学计算、参数辨识、控制器限值读取、机器人零位/方向校准或实机轨迹测试。对真实负载能力、停止距离、最大速度/加速度及模型精度不作判断。
+
+### 风险与整改要求
+- 为每个型号/变体维护由制造商数据、序列号、软件版本、工具/负载配置、现场标定结果构成的可追溯模型基线；记录零位偏置、轴方向、编码器比例、关节范围、TCP与基座坐标系。
+- 将动力学参数来源分级：制造商CAD/官方参数、实测辨识、估算占位。估算/占位参数禁止进入动力学前馈、碰撞检测、负载监控和工业轨迹验收。
+- 建立单一限值数据源，自动生成或校验URDF、MoveIt、ros2_control和VAL3所需限值；对位置、速度、加速度、jerk、effort/torque、负载、工具惯量分别定义来源、单位、约束层级和有效配置。
+- 对effort limit缺失/零值、负限值、NaN/Inf、上下界反转、轴向量非单位化、惯量矩阵非正定、模型文件joint集合不一致等情况，在构建阶段fail closed。
+- 统一协议单位：线级Staubli度/度每秒与ROS弧度/弧度每秒只能在明确边界转换；修正messages.hpp注释/类型命名，添加position/velocity正反向转换、float32精度、符号和关节顺序测试。
+- 对VAL3位置目标增量增加明确的速度/加速度/jerk和目标跳变约束；明确控制器本体限制与软件限制谁负责、失效时如何拒绝。验证isInRange覆盖真实机器人每轴机械范围，不把MoveIt限制当作控制器保护。
+- 在目标机器人上执行零位、方向、关节限位、TCP、工作空间、负载和惯量辨识；以低速分阶段验证轨迹误差、最大速度/加速度、跟随误差、异常目标和边界行为。
+- 将未实现的joint velocity control从可发布接口/文档能力中明确隔离，直到VAL3实现、安全限制、控制器模式切换、丢包和故障测试全部通过。
+
+### 新增验收任务（全部未执行）
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-353 | 运动学参数溯源 | 六轴几何、零位、方向与官方CAD/实机标定一致 | 未执行 |
+| SERVO-354 | 动力学参数真实性 | 质量、质心、惯量来自制造商或辨识，惯量矩阵物理有效 | 未执行 |
+| SERVO-355 | 关节限值单一数据源 | URDF/MoveIt/ros2_control/VAL3限值自动生成或差异检查 | 未执行 |
+| SERVO-356 | effort/torque限制语义 | 处理effort limit=false/URDF effort=0，明确无力矩保护证据 | 未执行 |
+| SERVO-357 | 线级与ROS单位一致性 | 修正消息注释并完成deg↔rad、deg/s↔rad/s往返/符号测试 | 未执行 |
+| SERVO-358 | 轴顺序/方向/零位校准 | 验证J1–J6映射、符号、偏置、状态与命令一致 | 未执行 |
+| SERVO-359 | 位置目标增量约束 | 对每周期目标跳变、速度、加速度、jerk实施边界拒绝 | 未执行 |
+| SERVO-360 | 速度控制能力闭环 | VAL3速度控制实现、限幅、模式切换及异常测试；未实现前禁止宣称支持 | 未执行 |
+| SERVO-361 | 初始位置与mock模型 | 将占位initial_positions与实机状态/零位标定区分并测试 | 未执行 |
+| SERVO-362 | 型号级运动学/动力学验收 | 目标型号完成Xacro/URDF/MoveIt、低速实机轨迹与模型误差验收 | 未执行 |
+
+### 本节来源记录（#1898–#1908）
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1898 | [TX2-60L kinematics.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/kinematics.yaml) | 六轴几何原点、旋转轴配置 |
+| #1899 | [TX2-60L dynamics.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/dynamics.yaml) | 连杆质量、质心和惯量配置 |
+| #1900 | [TX2-60L joint_limits.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/joint_limits.yaml) | 六轴位置/速度/加速度/effort限制 |
+| #1901 | [MoveIt joint_limits.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/joint_limits.yaml) | 独立MoveIt速度/加速度限值 |
+| #1902 | [staubli_macro.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/staubli_macro.xacro) | 多类模型配置文件加载及URDF生成入口 |
+| #1903 | [staubli_helpers.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro) | joint/link模型校验、动力学与关节限值写入URDF |
+| #1904 | [staubli_r2c_joints.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro) | ros2_control接口与加速度限值元数据 |
+| #1905 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ROS/Staubli角度单位转换、命令发送与模式门控 |
+| #1906 | [messages.hpp / messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication) | 消息单位注释、线级数组序列化 |
+| #1907 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | 位置命令范围检查及目标增量TODO |
+| #1908 | [updateJointVelocityControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx) | 速度控制安全限制TODO和未实现状态 |
+
+**验证边界：** 本节仅为固定提交静态源码/配置审查。未执行Xacro展开、URDF解析、MoveIt规划、参数辨识、控制器限值读取、零位/方向校准、VAL3编译、低速轨迹或实机测试。重复动力学参数缺少来源，不等于已经证明其数值错误，但在获得证据前不得用于真实动力学/安全结论。SERVO-353–SERVO-362全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
