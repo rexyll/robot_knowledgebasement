@@ -1500,5 +1500,5 @@ SERVO-721本轮仅整理了实验规程，未运行。目标环境需同时启�
 
 - 对本仓库main完整Git树筛查`staubli|icube|moveit|servo`相关路径，命中项仅为审计/同步文档，未发现ICube源码、集成包、launch/YAML、部署清单或运行日志。不能从本知识库确认现场MoveIt版本、双topic是否同时启用、PlanningSceneMonitor实例及start/stop调用次数。
 - 读取MoveIt上游当前main的`stopWorldGeometryMonitor()`，仍见if/else if依次释放两个subscriber的结构；issue #3897仍open且无评论。当前main状态不能替代Stäubli实际部署版本证据。
-- SERVO-722由未执行更新为部分取证：完成仓库范围与上游main静态盘点，现场触发条件仍未知。下一步需目标部署源码/提交SHA、launch/YAML或部署配置导出、topic graph、节点日志和生命周期操作记录。
+- SERVO-722维持未执行/阻塞：本轮完成仓库文件范围盘点与上游main静态盘点，但未取得现场调用链，核心验收对象未完成。下一步需目标部署源码/提交SHA、launch/YAML或部署配置导出、topic graph、节点日志和生命周期操作记录。
 - SERVO-721目标Jazzy动态复现、SERVO-723修复回归仍未执行。未修改ICube/MoveIt上游、未应用补丁。详见专项追加件§9.3.131。
