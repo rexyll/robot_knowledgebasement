@@ -1187,6 +1187,8 @@
 | SERVO-715 | 固定Noble Debian包装分支，核对control/changelog/rules/gbp.conf并逐项映射package.xml的25项depend/exec_depend | 已完成（静态Git文件核验；不等于实际deb/构建测试验收） |
 | SERVO-716 | 取得amd64/arm64具体Jenkins job XML/console log与构建工件关联，核验单次构建的实际参数及日志 | 部分取证（实际部署配置已确认两架构run_package_tests=false；具体job实例和console log仍缺） |
 | SERVO-717 | 将实际部署的Jazzy default/unv8配置、release_job.py、binarydeb_job.py与MoveIt Servo 2.12.4的BUILD_TESTING测试目标形成可追溯静态证据链 | 已完成（静态配置/代码链核验；不替代job实例日志或其它CI结果） |
+| SERVO-718 | 核对MoveIt上游2.12.4 GitHub Actions/industrial_ci默认测试路径，并关联Servo三个BUILD_TESTING测试入口及相同源码SHA的workflow运行 | 已完成（workflow、runner默认行为、test registration和同SHA run静态/元数据证据） |
+| SERVO-719 | 取得同SHA上游CI run的三个Servo测试入口独立colcon test结果、XML/console log | 部分取证（run及两个job均success，逐测试报告/日志未取得） |
 
 本节来源：
 - README首次引入提交：`https://github.com/ros2-gbp/moveit2-release/commit/458a522d267a5bf75d324030a90ebe85154aa444`；父提交 `f1eff8fa0ccc288de2d334b796ffb7dbb3e15b89`。
@@ -1399,3 +1401,19 @@
 - https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/binarydeb_job.py
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
 - 专项追加件§9.3.126。
+
+
+### Stäubli专项审查新增记录（§9.3.127，MoveIt Servo上游CI测试路径与release binary禁测路径区分）
+
+- 固定MoveIt上游`2.12.4` commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`；`.github/workflows/ci.yaml`在pull_request、merge_group和push jazzy时运行industrial_ci。CI矩阵两个配置均未设置`NOT_TEST_BUILD=true`或`BUILD_TESTING=OFF`。
+- 与2025-12-05运行时间相容的industrial_ci源代码中`NOT_TEST_BUILD`默认false，target workspace执行`colcon test`与`colcon test-result --verbose`；`ament_cmake_test`默认`BUILD_TESTING=ON`。MoveIt Servo CMakeLists第117–146行注册三个测试可执行目标及对应ROS launch test入口。
+- 取得同SHA Actions run `19975338753`：整体CI success；`jazzy-ci + ikfast + clang-tidy (delta)`与`jazzy-ci + ccov`两个job均success。GitHub API未提供逐测试结果XML/报告，工作流也只在failure时上传test-results artifact；所以只记整体CI成功，不臆测具体测试报告。
+- 这说明ROS Jazzy正式release binary的禁测配置与上游GitHub Actions测试路径是两回事：前者不运行Servo package tests，后者默认运行colcon测试。此CI run不等于Noble production APT包部署、CS9安全链或Stäubli实机验收。
+- SERVO-718已完成；SERVO-719部分取证；SERVO-716仍部分取证；SERVO-710/713/714未完成或部分取证。21-02继续进行中，Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/moveit/moveit2/actions/runs/19975338753
+- https://github.com/moveit/moveit2/blob/2.12.4/.github/workflows/ci.yaml
+- https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/tests/source_tests.sh
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
+- 专项追加件§9.3.127。
