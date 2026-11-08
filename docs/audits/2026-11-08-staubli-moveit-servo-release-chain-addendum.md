@@ -312,3 +312,56 @@ Jenkins API端点不可访问仅表示本轮读取通道未能取得页面/JSON�
 ### 4. 证据边界与结论
 
 状态页B/T/M列和pool目录列表属于仓库侧发布状态/文件存在证据；它们不证明客户端索引签名有效、APT候选选择正确、deb完整性或目标运行环境兼容。application/octet-stream读取失败是当前读取通道限制，不是deb损坏或签名失败的证据。当前结论保持：新版本在building/testing可见，production main未晋级，Stäubli工程级验收未通过。
+## 9.3.117 ROS Jazzy testing/main APT索引目录时间戳交叉核验（2026-11-08）
+
+### 1. Testing索引目录的双源交叉证据
+
+本轮通过ROS官方testing lists目录检索结果及OSUOSL rsync镜像目录检索结果，重新取得Jazzy Noble APT索引文件的目录元数据。两处目录清单对关键文件名、修改时间及大小给出一致记录：
+
+| 目标 | 索引文件 | 目录修改时间 | 大小 |
+|---|---|---|---:|
+| testing amd64 | ros-jazzy-noble-amd64_noble_InRelease | 2026-11-06 13:15 | 4,679 bytes |
+| testing amd64 | ros-jazzy-noble-amd64_noble_main_amd64_Packages | 2026-11-06 13:15 | 8,406,600 bytes |
+| testing arm64 | ros-jazzy-noble-arm64_noble_InRelease | 2026-11-07 11:29 | 4,679 bytes |
+| testing arm64 | ros-jazzy-noble-arm64_noble_main_arm64_Packages | 2026-11-07 11:29 | 8,381,795 bytes |
+| testing source | ros-jazzy-noble-source_noble_InRelease | 2026-11-07 11:28 | 4,679 bytes |
+| testing source | ros-jazzy-noble-source_noble_main_Sources | 2026-11-06 13:09 | 10,217,787 bytes |
+
+来源：
+- ROS官方testing lists目录：https://repo.ros2.org/ubuntu/testing/lists/
+- OSUOSL镜像目录：https://rsync.osuosl.org/pub/ros2-testing/lists/
+- 当前检索返回的两处目录清单中，amd64、arm64、source索引文件名、时间和大小相互吻合。
+
+注意：以上是目录清单元数据的交叉核验，不是Packages/InRelease文件正文下载。此前直接打开Packages/InRelease文件的网页读取器仍无法展示application/octet-stream内容；本轮容器下载尝试亦未成功。因此没有读取moveit_servo完整APT stanza，没有取得Version/Filename/Size/SHA256/Depends，也没有执行gpgv或APT签名验证。
+
+### 2. Production main索引对照
+
+ROS production main lists目录检索结果仍列出Jazzy Noble amd64 Packages于2026-10-06 08:57、arm64 InRelease/Packages于2026-10-06 08:59；amd64 InRelease目录条目时间为2026-10-06 08:57。与testing目录相比，testing amd64索引新约31天，arm64索引新约32天。此差异与§9.3.113–§9.3.116中status page B/T/M列及main pool仍为10月6日旧deb的观察一致。
+
+来源：https://packages.ros.org/ros2/ubuntu/lists/。
+
+索引文件的目录时间较新不等于其中某个包已被正确记录，也不等于签名有效或客户端可安装。testing索引快照不能替代production main索引。
+
+### 3. Status page再次核验
+
+重新打开ROS官方Jazzy状态页并定位moveit_servo行：
+
+| 架构 | 页面生成时间（-0800） | B | T | M |
+|---|---|---|---|---|
+| amd64 | 2026-11-08 04:36:03 | 2.12.4-1noble.20261105.184638 | 2.12.4-1noble.20261105.184638 | 2.12.4-1noble.20261006.040508 |
+| arm64 | 2026-11-08 04:23:04 | 2.12.4-1noble.20261106.111556 | 2.12.4-1noble.20261106.111556 | 2.12.4-1noble.20261006.043301 |
+
+来源：https://repo.ros2.org/status_page/ros_jazzy_default.html；https://repo.ros2.org/status_page/ros_jazzy_unv8.html。
+
+状态页时间戳未比§9.3.116更晚，故本轮将其作为重新确认而非更新快照。B/T/M版本未发生变化。
+
+### 4. SERVO任务状态与证据分级
+
+- SERVO-710：未完成。新增testing与production main索引目录时间/大小双源证据；Packages/InRelease正文、moveit_servo stanza、签名验证、deb control及SHA256仍未取得。
+- SERVO-713：部分取证、未完成。testing索引目录元数据进一步证明Jazzy Noble双架构testing索引于11月6/7日更新；status page仍显示B/T新版本一致。Jenkins真实job配置、build number、result、source revision、console log仍未取得。
+- SERVO-714：未完成。production main索引仍是10月6日快照，status page M列及main pool旧deb未变化；未取得最终生产包完整APT记录及哈希。
+- 未执行目标Ubuntu 24.04 apt update/policy/install、rosdep、colcon、Servo launch/smoke test；未执行VAL3、CS9/SRS、HIL/FAT/SAT或实机安全验证。
+
+### 5. 结论
+
+当前可以确认的是：testing APT索引目录元数据较production main更新约一个月，且双架构testing status page仍显示新构建版本；production main仍未晋级。当前不能确认的是APT索引签名有效、moveit_servo完整包记录字段、deb哈希/内部control、Jenkins构建日志或目标机器安装运行结果。Stäubli工程级验收继续保持未通过。
