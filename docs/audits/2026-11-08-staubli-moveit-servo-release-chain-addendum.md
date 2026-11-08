@@ -1606,3 +1606,85 @@ PR #3909当前head \`3fc0594f708730008da2c4b3709368ade65302f2\`保留\`initializ
 - https://github.com/moveit/moveit2/issues/3901
 - https://github.com/moveit/moveit2/issues/3902
 - 专项追加件§9.3.141–§9.3.142。
+
+
+### §9.3.144 SERVO-727 失败路径测试夹具的强引用污染与可执行改造方案
+
+#### 1. 进一步确认 PR #3909 测试的所有权污染
+
+除测试函数局部变量 \`updater\` 保留强引用外，PR测试还通过GMock \`WillOnce(testing::Return(updater))\` 注册返回动作。该动作也会持有被返回的shared_ptr副本，至少在mock期望对象销毁前可能继续保活对象。因此仅删除测试函数局部变量仍不足以确保weak_ptr在monitor构造结束后expired。
+
+可靠夹具应避免在GMock动作对象中存储updater强引用：改用\`Invoke\`，在\`loadOccupancyMapUpdater\`被调用时临时创建shared_ptr，将其弱引用写入测试状态，再把唯一强引用返回给monitor。测试状态只持有weak_ptr和析构计数器，不保留强引用。
+
+#### 2. 推荐的U13最小单元测试骨架
+
+以下为测试设计草案，未对MoveIt上游仓库提交或执行：
+
+\`\`\`cpp
+std::weak_ptr<RecordingUpdater> rejected;
+auto state = std::make_shared<UpdaterState>();
+auto middleware = std::make_unique<MockMiddlewareHandle>();
+
+EXPECT_CALL(*middleware, loadOccupancyMapUpdater)
+    .WillOnce(testing::Invoke([&](const std::string&) {
+      auto value = std::make_shared<RecordingUpdater>(state, false);
+      rejected = value;
+      return value;  // 强引用只交给monitor的构造循环
+    }));
+EXPECT_CALL(*middleware, initializeOccupancyMapUpdater)
+    .WillOnce(testing::Invoke([](const auto& value) {
+      return value->initialize(nullptr);
+    }));
+
+occupancy_map_monitor::OccupancyMapMonitor monitor{ std::move(middleware), nullptr };
+monitor.startMonitor();
+
+EXPECT_TRUE(rejected.expired());
+EXPECT_EQ(state->destructor_count, 1);
+EXPECT_EQ(state->calls, (std::vector<std::string>{ "initialize" }));
+\`\`\`
+
+\`RecordingUpdater\`析构函数只更新由测试持有的独立state计数器；state本身不得拥有updater。该写法规避局部shared_ptr和GMock Return action双重保活问题。应在实际测试中确认GMock调用签名、返回类型及异常路径。
+
+U14沿用同样的weak_ptr创建方式，但fake updater的\`initialize()\`返回true、\`setParams()\`返回false；断言\`start()\`未调用、对象析构、析构计数为1。当前main源代码的setParams失败分支同样continue，PR #3909没有为该路径增加测试。
+
+#### 3. 分层验收，不把析构等同于异步安全
+
+| 层级 | 观测方式 | 可以证明 | 不能单独证明 |
+|---|---|---|---|
+| L1 对象所有权 | weak_ptr expired、析构计数 | monitor拒绝后对象已无强引用且析构 | ROS异步资源或在途回调已静默 |
+| L2 RAII资源 | fake资源token析构计数 | updater持有的RAII成员随对象销毁 | DDS graph和executor回调已退出 |
+| L3 ROS graph | subscription/timer销毁前后图状态 | 对应ROS实体不再被发现 | 已进入队列的回调绝不执行 |
+| L4 回调静默 | executor运行、旧topic持续发布、回调计数和屏障 | 指定观察窗口内无新回调进入 | 所有RMW/调度条件下绝对无竞态 |
+| L5 并发/内存 | ASan/TSan、析构并发压力测试 | 覆盖到的内存/数据竞态缺陷 | 未覆盖平台和时序下的普遍安全 |
+
+真实ROS资源测试需让fake middleware向updater传入有效Node，并使用实际executor；不能把PR现有的\`initialize(nullptr)\` mock路径误当成ROS graph测试。建议先验证L1/L2单元层，再在Ubuntu 24.04/Jazzy及目标RMW做L3-L5。
+
+#### 4. 生命周期契约建议
+
+上游应明确二选一或组合采用：
+- **失败原子契约**：\`initialize(false)\`及\`setParams(false)\`返回时，插件不得留下活动订阅、timer、线程或引用monitor的异步回调；插件析构必须安全释放部分初始化资源。
+- **显式rollback契约**：增加明确的清理接口，或规定\`stop()\`可对部分初始化对象安全调用且必须幂等；monitor在拒绝对象前调用rollback/stop，再释放对象。
+
+不能只凭当前\`stop()\`的void签名推断其等待所有在途回调退出。若清理要求回调静默，应明确同步/等待语义、executor约束和析构时序。该建议是待上游讨论的契约方案，不是已合并API。
+
+#### 5. 本轮源码状态复核
+
+- PR #3909仍Open、未合并，head为\`3fc0594f708730008da2c4b3709368ade65302f2\`，base main。CI run \`37457932979\`和Formatting run \`37457933046\`均completed/failure；当前连接器可读取的workflow记录只有run级结论，jobs查询为空，失败原因未知。
+- PR patch中的测试仍使用\`WillOnce(Return(updater))\)，且测试函数保留局部updater；没有析构、weak_ptr、资源实体或回调静默断言。
+- 当前MoveIt main的\`occupancy_map_monitor.cpp\` Blob SHA \`7b8bb7a42eed1eea01323458c816993828df3370\`仍是旧void调用并忽略initialize返回值；PR变更尚未进入main。
+- 当前main的\`occupancy_map_updater.hpp\` Blob SHA \`fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b\`仍写明\`initialize()\`假定setMonitor和setParams先调用，和当前内置实现调用顺序存在契约冲突。
+
+#### 6. SERVO-727状态
+
+- U13：测试夹具所有权污染已确认；weak_ptr/析构计数草案完成；真实ROS资源与回调静默未执行。
+- U14：setParams(false)的weak_ptr/析构测试草案完成；真实资源清理未执行。
+- U11：源码兼容性变化和最小C++编译探针已确认；外部fixture完整迁移构建未执行。
+- U12：ABI工具检查未执行。
+- U15：混合插件与并发清理测试未执行。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3909
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_updater.hpp
+- 专项追加件§9.3.143。
