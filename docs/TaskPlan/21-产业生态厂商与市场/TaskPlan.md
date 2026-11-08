@@ -851,3 +851,22 @@
 | SERVO-594 | action取消/抢占/重规划行为 | 未执行 |
 | SERVO-595 | 端到端轨迹时间戳与日志关联 | 未执行 |
 | SERVO-596 | 端到端轨迹跟踪误差与验收闭环 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli FollowJointTrajectory取消、抢占、停止与恢复链路审查 | 固定ICube bd658e2静态审查发现MoveIt仅映射FollowJointTrajectory action；JTC默认cancel/preempt为当前位置hold，项目未配置decelerate_on_cancel及每轴减速度；JTC hold仍通过position command发送，硬件write不会自动切换STOP command_type；只有显式STOP模式进入VAL3 STOP分支，调用MoveJSync结束helper并执行stopMove/resetMotion；action终态不等于VAL3停止完成、CS9安全停止或机器人物理静止；测试树无action取消/抢占及停止确认集成测试。新增§9.3.95、SERVO-597–SERVO-607、来源#2082–#2094。全部未执行；未进行JTC/MoveIt action测试、VAL3编译、CS9/SRS、HIL或实机停止验证。 |
+
+### Stäubli专项审查新增验收任务（§9.3.95，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-597 | FollowJointTrajectory cancel结果与JTC内部状态 | 未执行 |
+| SERVO-598 | Action preempt与新轨迹替换语义 | 未执行 |
+| SERVO-599 | Action与topic轨迹入口冲突行为 | 未执行 |
+| SERVO-600 | decelerate_on_cancel版本/配置/减速度适用性 | 未执行 |
+| SERVO-601 | JTC hold命令与VAL3 STOP命令区分 | 未执行 |
+| SERVO-602 | VAL3 MoveJSync结束、stopMove/resetMotion完成判据 | 未执行 |
+| SERVO-603 | Cancel/STOP与UDP丢包、延迟、乱序并发 | 未执行 |
+| SERVO-604 | Cancel与Hold/EStop/安全恢复并发 | 未执行 |
+| SERVO-605 | Action终态与实测机器人静止一致性 | 未执行 |
+| SERVO-606 | 取消、抢占、停止全过程日志关联 | 未执行 |
+| SERVO-607 | 取消后恢复、重新授权与禁止自动续动 | 未执行 |
