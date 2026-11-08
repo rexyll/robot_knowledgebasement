@@ -761,3 +761,22 @@
 | SERVO-542 | use_sim_time一致性 | 未执行 |
 | SERVO-543 | Bringup直接运行依赖 | 未执行 |
 | SERVO-544 | Bringup启动故障注入 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli运动规划限值、轨迹控制器与硬件命令边界一致性审查 | 固定ICube bd658e2发现MoveIt限值比TX2-60L型号配置保守但缺少统一来源/自动校验；硬件write仅检查NaN、不检查Inf且无本地位置/速度/加速度边界校验；Servo输出/forward_position_controller/commands，但bringup仅声明joint_state_broadcaster与joint_trajectory_controller；R2C加速度接口仅供限幅配置，实际消费路径待验证；URDF safety_controller不等于独立安全回路。新增§9.3.90、SERVO-545–SERVO-555、来源#2041–#2049。全部未执行；未运行MoveIt/Servo/JTC/限幅器、命令注入、CS9/HIL或实机测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.90，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-545 | 型号限值唯一来源 | 未执行 |
+| SERVO-546 | MoveIt/URDF限值交叉校验 | 未执行 |
+| SERVO-547 | 硬件命令有限数检查 | 未执行 |
+| SERVO-548 | 硬件位置/速度边界保护 | 未执行 |
+| SERVO-549 | 加速度接口限幅实际生效 | 未执行 |
+| SERVO-550 | JointTrajectoryController限值 | 未执行 |
+| SERVO-551 | Servo Forward Controller闭环 | 未执行 |
+| SERVO-552 | Servo命令模式切换 | 未执行 |
+| SERVO-553 | Servo/MoveIt/型号限值一致性 | 未执行 |
+| SERVO-554 | 型号与工具负载工况回归 | 未执行 |
+| SERVO-555 | 限值故障注入与停止验证 | 未执行 |
