@@ -969,3 +969,18 @@
 | SERVO-663 | 碰撞状态与JTC hold、硬件STOP、VAL3 stopMove/resetMotion映射及禁止自动续动 | 未执行 |
 | SERVO-664 | 障碍在检测周期之间出现/消失、场景锁竞争和弱网条件下最坏检测时延 | 未执行 |
 | SERVO-665 | Servo碰撞检测到CS9/HIL/实机物理静止的时间戳链、停止距离和安全功能独立性验收 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli Servo可选启动依赖闭包、MoveIt版本来源与部署可复现性审查 | 固定ICube提交bd658e2静态核对README、staubli_moveit.launch.py和staubli_moveit_config/package.xml：Servo节点由launch_servo条件启动、默认false，使用moveit_servo/servo_node，但package.xml未声明moveit_servo运行依赖，仓库内未找到其他manifest声明；仅按仓库rosdep安装流程不能保证Servo包被安装。README声明ROS Jazzy但没有锁定MoveIt版本/commit、构建选项或overlay来源，公开MoveIt算法参考不能据此视为现场二进制实现。新增§9.3.101、SERVO-666–SERVO-672、来源#2136–#2138，全部未执行；未进行干净环境rosdep/colcon/双launch测试、包版本/overlay核验、启动失败闭锁或CS9/HIL/实机测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.101，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-666 | 为Servo启动路径补齐显式moveit_servo运行依赖并验证rosdep依赖闭包 | 未执行 |
+| SERVO-667 | 干净ROS Jazzy环境分别验证launch_servo=false/true的安装、启动和退出 | 未执行 |
+| SERVO-668 | 冻结MoveIt Servo来源：APT包版本或源码commit、构建选项、补丁与overlay优先级 | 未执行 |
+| SERVO-669 | 生成MoveIt/Servo完整vcs依赖清单及可复现环境镜像/软件包清单 | 未执行 |
+| SERVO-670 | 目标二进制Servo参数描述、默认值、YAML覆盖值和最终运行值核对 | 未执行 |
+| SERVO-671 | 缺失moveit_servo包、节点启动失败、参数不兼容时的启动失败闭锁与就绪状态验证 | 未执行 |
+| SERVO-672 | MoveGroup-only与MoveGroup+Servo两种部署组合纳入CI矩阵并保存版本/日志证据 | 未执行 |
