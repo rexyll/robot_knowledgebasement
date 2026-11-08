@@ -1562,3 +1562,10 @@ SERVO-724继续跟踪PR更新、失败原因/日志、修复后CI、review/merge
 - 重新读取MoveIt main源码：`planning_scene_monitor.cpp` Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`仍以if/else if释放单个subscriber；`moveit_cpp.cpp` Blob SHA `abc683745c60e8c12af1955bbd5dbe80f27518fb`仍从MoveItCpp初始化调用`startWorldGeometryMonitor()`。静态缺陷仍在main。
 - SERVO-724继续进行中；SERVO-721/723/725动态验证未执行；SERVO-722现场调用链缺证据/阻塞。未修改上游/ICube、未应用补丁或执行工业验收。
 - 详见专项追加件§9.3.137。
+
+
+### Stäubli专项审查新增记录（§9.3.138，PR #3907失败workflow artifacts检查）
+
+- 分别查询Formatting run `36755746603`与CI run `36755746261`的GitHub Actions artifacts接口，均返回空数组。此前两个run的jobs接口也为空，故当前可见连接器证据既无可下载artifacts，也无job/step记录；失败原因未知，不能推断为具体格式化、编译、测试或基础设施故障。
+- 两个workflow仍completed/failure；PR #3907仍Open，reviews/inline threads为空。SERVO-724继续进行中，等待新head/重跑CI或可读失败证据；SERVO-721/723/725动态测试未执行，SERVO-722现场证据缺失/阻塞。
+- 未修改上游/ICube或应用补丁。详见专项追加件§9.3.138。
