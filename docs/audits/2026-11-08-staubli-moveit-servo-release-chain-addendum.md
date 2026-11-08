@@ -787,3 +787,77 @@ SERVO-710、SERVO-713、SERVO-714维持原状态；不因本轮行级核验而�
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/control
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/package.xml
 - §9.3.124。
+
+
+## 9.3.126 ROS 2 Build Farm实际部署配置确认Jazzy release package tests被禁用（2026-11-08）
+
+### 1. 固定实际部署配置分支及Jazzy架构映射
+
+读取 `ros2/ros_buildfarm_config` 仓库README：`ros2` 分支是部署到 `https://build.ros2.org` 的实际配置分支；`master` 是测试farm配置分支。实际部署分支HEAD为 `e8ac988037437c0150a5e7a91cd80395cd1aea91`，提交时间2026-11-02 14:54:31 UTC；因此本轮配置快照早于ROS状态页所列的amd64 2026-11-05及arm64 2026-11-06 moveit_servo构建。
+
+`index.yaml` 的Jazzy `release_builds`映射为：
+
+| Build name | 配置文件 | 目标平台 | Git Blob SHA |
+|---|---|---|---|
+| `default` | `jazzy/release-build.yaml` | Ubuntu Noble amd64 | `254545a07c675442f55e737cc16a507b0c420bbe` |
+| `unv8` | `jazzy/release-ubuntu-arm64-build.yaml` | Ubuntu Noble arm64 | `c81286a7af3205cd57af82d50b17b861f3fe1f14` |
+
+两个文件的 `package_dependency_behavior` 均明确为：
+
+```yaml
+package_dependency_behavior:
+  include_test_dependencies: false
+  run_package_tests: false
+```
+
+所以两种架构的Jazzy release build配置均明确要求不引入测试依赖、不执行release package tests。该设置是整个Jazzy release build配置，而非moveit_servo单包的特殊覆盖。
+
+### 2. 将部署配置追到Build Farm实际执行参数
+
+核对 `ros-infrastructure/ros_buildfarm` master HEAD `9a6a04a84804ce1a1fc26c745cdbf604ee956efa`（2026-10-25 04:08:36 UTC）中的源码：
+
+- `ros_buildfarm/release_job.py` 第770行：`'skip_tests': not build_file.run_package_tests`。当实际部署配置的 `run_package_tests: false` 时，生成的binary job参数为 `skip_tests: true`。
+- `ros_buildfarm/binarydeb_job.py` 第128–134行：`skip_tests` 为true时，设置 `DEB_BUILD_OPTIONS` 追加 `nocheck`，并将 `DEB_BUILD_PROFILES` 追加 `nocheck`。
+- 同文件第144–146行：以 `dpkg-buildpackage -b -us -uc -Pnocheck` 构建binary deb。
+- `create_binarydeb_task_generator.py` 也按 `skip_tests` 给测试依赖求解增加 `nocheck` build profile；结合配置中的 `include_test_dependencies: false`，测试依赖不会作为该release build的正常构建依赖引入。
+
+这将“实际部署配置run_package_tests=false”静态连接到“release job skip_tests=true”及“dpkg-buildpackage使用-Pnocheck”的代码路径。该证据比单独从debian/rules推断测试可能被跳过更直接。
+
+### 3. MoveIt Servo 2.12.4测试目标影响
+
+核对 `moveit/moveit2@2.12.4` 的 `moveit_ros/moveit_servo/CMakeLists.txt`（Blob SHA `6ec080d195798ba22e319def3da08c2e36a7d54f`）：第117行以 `if(BUILD_TESTING)` 包围测试配置；该块注册三个ament gtest目标：
+
+1. `moveit_servo_utils_test`，源文件 `tests/test_utils.cpp`；
+2. `moveit_servo_cpp_integration_test`，源文件 `tests/test_integration.cpp`；
+3. `moveit_servo_ros_integration_test`，源文件 `tests/test_ros_integration.cpp`。
+
+由于release job传入 `nocheck`，且Noble packaging `debian/rules` 第20–21行将 `BUILD_TESTING` 设为OFF，正常配置路径下不会进入这段CMake测试块；上述三个测试目标不会在该release binary build路径中构建/注册。对应测试文件在上游源码树中存在，但这不等于该发布包构建时执行了这些测试。
+
+### 4. 证据边界与解释
+
+- **已确认（静态配置/代码链）：** 实际部署配置分支README将 `ros2` 指定为build.ros2.org部署分支；该分支Jazzy amd64/arm64 release配置均 `run_package_tests:false` 和 `include_test_dependencies:false`；Build Farm源码将其转换为 `skip_tests:true`、`nocheck`环境/构建profile，并以 `-Pnocheck`运行dpkg-buildpackage；MoveIt Servo 2.12.4的三个CMake测试目标受 `BUILD_TESTING` 条件保护。
+- **尚未取得：** 2026-11-05/06两个具体moveit_servo Jenkins job的生成XML、历史job配置快照、console log、build number与工件fingerprint。因此本轮不宣称已读取该两次构建日志，也不宣称检查了上游PR/devel/nightly CI是否在其他路径运行同一套测试。
+- **结论限定：** ROS Jazzy正式release binary build配置本身明确禁用包测试；Building/Testing状态不能被称为MoveIt Servo单元/集成测试通过。上游其它CI或独立测试结果需要单独取证。
+- `debian/rules`中的 `dh_auto_test || true` 是另一层容错规则；在 `nocheck` 和 `BUILD_TESTING=OFF` 的配置路径下，测试目标本身预期不会执行，故不应把该容错写成这两次具体构建中发生过测试失败。
+
+### 5. 验收任务状态更新
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-715 | Noble Debian包装文件与package.xml 25项depend/exec_depend静态映射 | 已完成（静态文件核验） |
+| SERVO-716 | 获取2026-11-05/06 amd64/arm64具体Jenkins job XML、console log与构建工件关联 | 部分取证（实际部署配置已证明release package tests禁用；具体job实例日志/工件fingerprint仍缺） |
+| SERVO-717 | 将实际部署的Jazzy default/unv8配置、release_job.py、binarydeb_job.py与MoveIt Servo 2.12.4的BUILD_TESTING测试目标形成可追溯静态证据链 | 已完成（配置文件、Build Farm代码及上游CMake条件均已固定；不替代job实例日志或CI测试结果） |
+
+SERVO-710仍未取得Bloom执行输入源码revision/源归档SHA；SERVO-713仍未取得具体Jenkins job/build元数据和日志；SERVO-714仍未取得APT InRelease签名、完整Packages stanza、实际deb control/SHA256与依赖闭包。未执行Ubuntu 24.04安装/运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证。Stäubli工程级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
+
+### 6. 来源
+
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/README.md
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/index.yaml
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/jazzy/release-build.yaml
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/jazzy/release-ubuntu-arm64-build.yaml
+- https://github.com/ros2/ros_buildfarm_config/commit/e8ac988037437c0150a5e7a91cd80395cd1aea91
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/release_job.py
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/binarydeb_job.py
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
+- §9.3.124–§9.3.125。
