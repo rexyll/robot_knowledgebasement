@@ -4891,3 +4891,70 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1966 | [val3 README @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md) | 安装文档列出diagnostics socket配置，但未提供诊断task运行说明 |
 
 **验证边界：** 本节为固定提交bd658e2静态源码、VAL3工程清单和文档审查；没有执行VAL3编译/CS9加载/任务调度测试、UDP抓包、ROS 2 topic运行检查、诊断故障注入、WCET/4ms实时性测量、HIL或实机测试。源码中存在diagnostic socket配置和C++数据结构，但没有诊断生产、消费及ROS 2公开接口的端到端证据。SERVO-423–SERVO-432全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.80 机器人运行模式、安全状态与监督信号语义映射审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节核对VAL3 updateState.pgx、RobotState wire字段、C++ OperationMode/SafetyStatus枚举、StaubliHardwareInterface状态接口映射、Xacro接口声明、官方overview文档及现有测试，重点检查跨语言数值是否保持语义一致，以及安全状态信号是否被准确命名和解释。
+
+**结论：发现运行模式枚举存在明确的跨语言语义错配。VAL3 workingMode()注释定义0=无效/安全转换、1=Manual、2=Test、3=Automatic Local、4=Automatic Remote；C++ OperationMode却定义0=UNKNOWN、1=MANUAL、2=AUTOMATIC、3=REMOTE。当前VAL3将nRobotMode直接序列化，C++反序列化直接static_cast为OperationMode，硬件接口又直接将枚举数值导出为operation_mode，因此Test会被误报为AUTOMATIC、Automatic Local会被误报为REMOTE，Automatic Remote的值4超出C++枚举定义。与此同时，VAL3将任何非零SafetyStatus都映射为bEStopped=true，C++和ROS 2导出的estop_pressed会把SS1、SS2、等待重启和WMS等待状态混称为“急停按钮按下”。此外，bBrakeReleased直接赋值为isPowered()，没有独立制动器反馈证据。以上属于状态语义可信度问题；不能把这些普通状态接口视为安全控制器或安全I/O的权威信号。**
+
+### 端到端证据
+
+1. VAL3 updateState.pgx明确列出workingMode()返回模式值：0无效/安全转换，1手动，2测试，3自动本地，4自动远程；并将结果直接赋给x_state.nRobotMode。
+2. C++ types.hpp的OperationMode仅定义UNKNOWN=0、MANUAL=1、AUTOMATIC=2、REMOTE=3；不存在TEST、AUTOMATIC_LOCAL、AUTOMATIC_REMOTE等独立值，也没有4的枚举项。
+3. VAL3 encodeRobotStateMsg.pgx将nRobotMode直接作为一个字节写入RobotState payload；C++ messages.cpp将该字节直接static_cast<OperationMode>，没有映射表、范围校验或未知值拒绝。StaubliHardwareInterface::update_state()再将operation_mode直接转成double导出，语义错配一路传递到ros2_control state interface。
+4. 因此，VAL3值2(Test)在C++端被显示为AUTOMATIC；值3(Automatic Local)被显示为REMOTE；值4(Automatic Remote)成为未定义枚举值4。当前overview文档只笼统解释manual/automatic等，没有公开完整跨语言码表，容易使调用方把数值误读为可信模式。
+5. VAL3 updateState.pgx定义SafetyStatus：0 No safety stop、1 Waiting safety Restart、2 SS1 safety stop condition、3 SS2 safe operating stop condition、4 Waiting restart from WMS。随后执行bEStopped=(nSafetyStatus != 0)，即所有非零安全状态都置为true。
+6. C++ SafetyStatus枚举保留了0–4的区分，但RobotStateMessage中的estop_pressed仅是一个布尔值；VAL3编码时将bEStopped写入ESTOP_PRESSED bit，C++解析后硬件接口导出为supervision/estop_pressed。这个名称表达物理E-stop按钮状态，而生产逻辑表达的是“存在任意非零安全停止/等待状态”，语义不等价。
+7. bWaitAck只在SafetyStatus==1时为true；VAL3注释中状态4是Waiting restart from WMS，但没有同步置bWaitAck。是否应单独暴露WMS等待确认必须由Stäubli受控接口定义确认，不能在没有依据时将状态4简单并入或排除同一个操作员确认语义。
+8. VAL3 updateState.pgx将bBrakeReleased直接赋值为isPowered()。这表明它是由驱动上电状态推导的代理值，而不是代码中独立读取的制动器反馈；官方overview却将brakes_released解释为制动器释放状态。必须取得CS9/VAL3对isPowered()与各轴制动器实际状态的定义，才能确定该代理是否充分。
+9. motion_possible被计算为bDrivePowered且非bEStopped；代码没有在该布尔表达式中检查workingMode()/operation_mode_status、WMS状态或独立制动器反馈。不能仅凭该字段作为运动许可、安全许可或远程控制权限的充分判据。
+10. 当前测试test_message_serialization.cpp只对选定OperationMode值做同一C++实现roundtrip，test_staubli_hardware_interface.cpp主要验证接口存在和数量；没有覆盖VAL3所有0–4模式码的跨语言映射，也没有覆盖各SafetyStatus到estop_pressed/wait_for_ack的真值表。
+11. 上游overview将safety_status描述为E-stop、SS1、SS2等状态，将estop_pressed描述为急停当前按下；但生产代码把所有非零安全状态映射到estop_pressed。文档与实现存在语义不一致。
+12. 该问题与§9.3.76普通I/O、安全I/O边界相关，也与§9.3.79诊断功能未交付相关：RobotState中的supervision状态不是独立诊断UDP，也不是安全控制器的认证安全输出。必须将运行模式、普通监督状态、保护停止状态、物理急停输入和安全许可分层建模。
+
+### 风险与整改要求
+
+- 建立单一、版本化的运行模式协议表，分别表达MANUAL、TEST、AUTOMATIC_LOCAL、AUTOMATIC_REMOTE、TRANSITION/UNKNOWN；不能在没有明确定义的情况下把多个模式压缩为同一个C++枚举值。
+- 由协议双方共同确定wire code；C++反序列化使用显式switch映射，未知码进入UNKNOWN/INVALID并触发诊断，不得直接static_cast后静默通过。
+- 明确区分物理E-stop按钮状态、保护停止类别（SS1/SS2等）、等待安全重启、WMS重启等待和一般故障；建议独立字段/位域，不得把所有非零SafetyStatus编码成estop_pressed。
+- 对每种SafetyStatus定义精确真值表，明确是否允许运动命令、是否需要操作员确认、是否需要安全控制器复位、是否可自动恢复；具体安全行为必须来自Stäubli官方安全手册/安全控制器接口资料。
+- 核实isPowered()与制动器实际反馈的关系；若无独立反馈，将字段重命名为drive_powered或brake_release_inferred，并明确其推导来源，禁止称为真实制动器反馈。
+- motion_possible必须定义为普通运行许可提示还是安全许可；若仅为驱动器状态推导值，应改名并明确非安全功能。运动命令的实际许可仍由控制器安全功能和独立安全链路决定。
+- 为VAL3、C++、Xacro、ROS 2控制器、overview文档建立同源枚举/状态映射表，避免数值和名称漂移。
+- 增加跨语言golden vectors及真值表测试：模式0–4、未知值、所有SafetyStatus、estop physical input、WMS restart、power/brake状态组合、motion_possible组合。
+- 在HIL中逐项触发Manual/Test/Automatic Local/Automatic Remote、SS1、SS2、Safety Restart、WMS restart和真实急停按钮，记录VAL3原始状态、UDP字节、C++解析值、ros2_control接口值和示教器/安全控制器指示；不允许用Mock状态代替安全验证。
+- 明确安全验证责任：普通ROS 2接口仅用于监控/控制策略参考，不可替代安全PLC/安全控制器、双通道急停回路、经认证安全总线或风险评估要求的安全功能。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-433 | 运行模式码表 | 由VAL3/CS9受控资料确认0–4模式含义和转换状态 | 未执行 |
+| SERVO-434 | 跨语言运行模式映射 | C++显式映射TEST/AUTO_LOCAL/AUTO_REMOTE，未知码拒绝/降级 | 未执行 |
+| SERVO-435 | 物理急停与保护停止分离 | 将E-stop按钮、SS1/SS2、重启等待等分别表达 | 未执行 |
+| SERVO-436 | SafetyStatus真值表 | 为0–4状态定义急停、等待确认、运动许可及恢复语义 | 未执行 |
+| SERVO-437 | 制动器反馈可信度 | 核实isPowered与实际制动器反馈，修正brakes_released语义 | 未执行 |
+| SERVO-438 | motion_possible语义 | 定义其非安全许可属性及运行模式/保护状态依赖 | 未执行 |
+| SERVO-439 | 状态映射跨层一致性 | 同步VAL3、C++、Xacro、ROS接口和文档的码表 | 未执行 |
+| SERVO-440 | 状态映射自动化测试 | 覆盖全部模式码、安全状态真值表及未知码 | 未执行 |
+| SERVO-441 | CS9安全状态HIL验证 | 实测SS1/SS2/急停/安全重启/WMS状态全链路 | 未执行 |
+| SERVO-442 | 安全边界与用户文档 | 明确普通状态接口非安全认证信号，补充风险/使用限制 | 未执行 |
+
+### 本节来源记录（#1967–#1974）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1967 | [VAL3 updateState.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | workingMode码表、bEStopped映射、bBrakeReleased=isPowered、motion_possible公式 |
+| #1968 | [types.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp) | C++ OperationMode/SafetyStatus枚举 |
+| #1969 | [messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | nRobotMode直接转换为OperationMode、ESTOP_PRESSED状态位解析 |
+| #1970 | [encodeRobotStateMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | VAL3安全状态/模式按原始数值写入wire payload |
+| #1971 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | operation_mode、safety_status、estop_pressed等接口直接映射导出 |
+| #1972 | [overview.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/overview.rst) | 官方文档对estop_pressed、brakes_released和motion_possible的语义说明 |
+| #1973 | [RobotState.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx) | VAL3 RobotState状态字段声明 |
+| #1974 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 现有测试验证接口存在，但缺少跨语言模式码和安全状态真值表 |
+
+**验证边界：** 本节为固定提交bd658e2静态源码/文档/测试源码审查；未执行VAL3编译、CS9示教器实测、真实安全状态触发、网络抓包、跨语言golden vector、HIL或实机安全验证。枚举错配由双方代码中明确的码表和直接转换路径支持；实际设备显示/行为仍需CS9受控环境复现。estop_pressed、brakes_released和motion_possible均不得作为安全认证信号。SERVO-433–SERVO-442全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
