@@ -1575,8 +1575,8 @@ SERVO-724继续跟踪PR更新、失败原因/日志、修复后CI、review/merge
 
 - SERVO-724：PR #3907仍Open/未合并；比较结果为head领先main 1个提交、落后3个提交（diverged）。PR reviews/inline threads为空，Formatting/CI仍为此前确认的workflow级failure，jobs/artifacts无可读详情。持续跟踪head更新、可读CI失败原因、维护者review/merge、Jazzy backport与正式deb。
 - SERVO-725：已完成静态生命周期状态转换分析，动态测试未执行。关键修订：必须区分“两个topic活动时直接调用start切换配置”与“先显式stop一次再restart”。由于start入口内部会再次调用stop，后一条路径会执行第二次stop并清理前次残留；而直接从双topic活动状态重配置为仅CollisionObject或双空topic时，当前main单次stop会释放CollisionObject而保留旧PlanningSceneWorld subscriber。直接重配置为仅新PlanningSceneWorld或双新topic时，旧world成员会被新subscriber赋值覆盖，表现不同。
-- \`getMonitoredTopics()\`仅按subscriber成员指针列出topic，不足以证明回调静默或ROS graph订阅消失。动态测试需结合\`ros2 topic info -v\`、旧/新topic消息发布、PlanningScene更新回调计数和日志。
-- PR #3907新增测试使用\`load_octomap_monitor=false\`，只检查双topic登记后单次stop的topic列表，不覆盖消息回调静默、直接重配置、显式stop/restart、单topic/空topic及octomap停止语义。
+- `getMonitoredTopics()`仅按subscriber成员指针列出topic，不足以证明回调静默或ROS graph订阅消失。动态测试需结合`ros2 topic info -v`、旧/新topic消息发布、PlanningScene更新回调计数和日志。
+- PR #3907新增测试使用`load_octomap_monitor=false`，只检查双topic登记后单次stop的topic列表，不覆盖消息回调静默、直接重配置、显式stop/restart、单topic/空topic及octomap停止语义。
 - 未执行SERVO-721/723/725动态测试；SERVO-722现场集成证据仍缺/阻塞。未修改上游、未应用补丁或执行VAL3/CS9/HIL/SAT/实机验收。
 
 详见专项追加件§9.3.139。
