@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.11  
+> 版本：v9.12  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.138，厂商档案新增§128.89。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；新增SERVO-725，固定2.12.4源码显示start入口先stop，双topic转为空world topic时旧订阅可能保留；已形成restart矩阵，尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.139，厂商档案新增§128.90。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；SERVO-725已完成更细的生命周期静态分析：区分双topic活动时直接start重配置与显式stop后restart；前者切换为仅CollisionObject/双空topic时旧PlanningSceneWorld subscriber可能残留，后者因start入口再次stop会清理残留；测试矩阵已修订，动态验证尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1208,3 +1208,17 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v9.10 | 00-01/21-02继续Stäubli专项审查至§9.3.137：重新读取PR #3907、Issue #3897/#3887、CodeRabbit评论、reviews/threads、Actions runs及Jazzy回移搜索。PR仍Open/未更新，#3897仍Open；CodeRabbit评论报告4项通过、1项Docstring Coverage warning（5.56%/80%），但不是维护者审批或required CI；reviews/threads为空，Formatting与CI仍completed/failure且jobs日志不可读。#3887仍Open，当前backport清单未列#3907，base:jazzy精确搜索0条。MoveIt main源码Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`仍保留if/else if stop缺陷，MoveItCpp初始化仍启动world geometry monitor。新增§9.3.137、厂商档案§128.88及第21章TaskPlan记录。SERVO-724继续进行中；SERVO-721/723/725动态测试未执行，SERVO-722现场调用链缺失/阻塞；未修改上游/ICube、未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收，Stäubli工程级验收未通过。 | MoveIt #3907/#3897/#3887；Actions；main源码Blob；专项追加件§9.3.137 |
 
 | 2026-11-08 | v9.11 | 00-01/21-02继续追查MoveIt #3907失败Actions可诊断性至§9.3.138：对Formatting run 36755746603与CI run 36755746261分别查询workflow artifacts，均为空；此前jobs接口亦为空，无法取得job/step或日志，失败原因未知，不得推断具体故障类型。两个workflow仍completed/failure，PR仍Open，reviews/threads为空。新增§9.3.138、厂商档案§128.89和第21章TaskPlan记录。SERVO-724继续进行中；SERVO-721/723/725动态测试未执行，SERVO-722现场证据缺失/阻塞；未修改上游/ICube、未应用补丁或执行工业验收。 | GitHub Actions workflow runs/jobs/artifacts；PR #3907；专项追加件§9.3.138 |
+
+### §9.3.139 PlanningSceneMonitor直接重配置与显式stop/restart边界
+
+- 复核MoveIt main源码及PR #3907 head源码：main \`startWorldGeometryMonitor()\`入口先调用stop；当前main stop仍以if/else if只释放一个subscriber。PR修复分别reset两个subscriber，新增测试只验证双topic单次stop后的成员topic列表移除。
+- 关键路径区分：双topic活动时直接调用start切换为仅CollisionObject或双空topic，当前main内部stop仅清除CollisionObject，旧PlanningSceneWorld subscriber会残留；若先显式stop一次再start，start入口内部的第二次stop会清除残留。切换为新world topic时旧world成员会被新subscriber覆盖，不能将所有restart场景一概而论。
+- \`getMonitoredTopics()\`仅反映subscriber成员指针，不足以证明回调静默或ROS graph无订阅。SERVO-725矩阵新增旧/新topic发布、回调计数和\`ros2 topic info -v\`观测；PR测试未覆盖这些行为，也未覆盖octomap生命周期。
+- PR #3907 head与main比较为diverged，ahead 1 / behind 3；PR仍Open，reviews/threads为空，CI失败原因不可读。SERVO-724持续跟踪；SERVO-725完成静态矩阵修订但动态测试未执行；SERVO-721/723未执行，SERVO-722现场证据缺失/阻塞。
+- 未修改上游/ICube、未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收。Stäubli工程级验收未通过。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- 专项追加件§9.3.139。
