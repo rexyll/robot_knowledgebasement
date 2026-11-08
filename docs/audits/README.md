@@ -137,3 +137,6 @@
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.131，核对MoveItCpp通用初始化路径会启动world geometry monitor、当前main stop实现仍保留if/else if缺陷；未发现可确认修复#3897的当前可见PR。仓库缺少ICube应用源码与部署参数，SERVO-722保持未执行/阻塞；补充SERVO-721实验规程但未执行，新增SERVO-724跟踪修复与Jazzy正式发行证据。
 
+
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.132，发现MoveIt PR #3907明确Fixes #3897且包含双subscriber单次stop的修复和topic-list回归测试；PR仍open/未合并，Formatting与CI workflow失败且jobs明细不可用。当前上游main仍为旧if/else if实现，Jazzy生产main仍为2.12.4-1，未证明修复进入main/backport/正式deb。
