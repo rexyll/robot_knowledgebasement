@@ -6552,3 +6552,78 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2122 | [MoveIt Realtime Servo Tutorial](https://moveit.picknik.ai/main/doc/examples/realtime_servo/realtime_servo_tutorial.html) | Servo碰撞检查和速度缩放功能边界 |
 
 **验证边界：** 已完成固定上游提交的公开源码/配置/测试树静态审查，并参考MoveIt官方文档解释SRDF自碰撞矩阵和Planning Scene/Servo功能。官方在线文档当前为main/Rolling文档，未替代目标部署版本的Jazzy包级核验。没有运行MoveIt、Servo、Xacro、CS9/SRS、HIL或实机碰撞/停止测试；SERVO-632–SERVO-643全部未执行。
+
+
+## §9.3.99 MoveGroup/Servo Planning Scene同步、场景变更轨迹监测与执行起点一致性审查
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2固定提交 bd658e2d266e315d2ee35f985fb352ea88306b79；MoveIt 2采用上游jazzy分支静态源码快照核对关键实现。未冻结实际安装的MoveIt二进制包版本与补丁集。本节只审查接口/配置契约，不声称已在目标控制柜或ROS运行图复现问题。
+
+### 9.3.99.1 MoveGroup与Servo的场景主题及初始化同步
+
+- Stäubli的staubli_servo.yaml没有显式配置 monitored_planning_scene_topic；其余相关配置保持 is_primary_planning_scene_monitor=false。因此Servo采用MoveIt Servo该版本的参数默认值，而不是显式指定MoveGroup发布的场景状态主题。来源#2112、#2123。
+- MoveIt 2 Jazzy的servo_parameters.yaml将 monitored_planning_scene_topic 默认设为绝对主题 /planning_scene，描述为 PlanningSceneMonitor::DEFAULT_PLANNING_SCENE_TOPIC。Servo的PSM初始化代码调用 startSceneMonitor(servo_params.monitored_planning_scene_topic)，同时启动joint-state monitor和world geometry monitor。来源#2123–#2124。
+- MoveIt 2 Jazzy的MoveItCpp PSM选项默认使用 PlanningSceneMonitor::MONITORED_PLANNING_SCENE_TOPIC，其常量值为 monitored_planning_scene；MoveItCpp初始化时将主场景发布到该topic，并从 DEFAULT_PLANNING_SCENE_TOPIC 接收外部Planning Scene diff。MoveGroup因此具有“订阅外部 /planning_scene、向其他monitor发布 monitored_planning_scene”的双向主题角色。来源#2126–#2127及#2125。
+- Servo被设置为非primary时，其初始化代码调用 requestPlanningSceneState()。Jazzy PSM实现通过 /get_planning_scene 服务请求场景设置、机器人状态、attached objects、world geometry、Octomap、transforms、Allowed Collision Matrix等完整组件，然后将响应合入本地场景。该操作是一次服务快照请求，不是持续的服务订阅；Servo代码没有检查该函数返回值后再决定是否允许启动。服务未就绪或请求超时可导致初始化快照取得失败，但当前代码路径未用该返回值建立明确的场景就绪闭锁。来源#2124–#2125。
+- MoveIt 2 Jazzy的PlanningSceneInterface.applyPlanningScene/applyCollisionObjects/applyAttachedCollisionObject通过ApplyPlanningScene服务同步更新MoveGroup；其接口注释明确指出，其他PSM不会自动收到该更新，除非订阅MoveGroup的monitored scene。对应实现将PlanningScene作为服务请求发送，并以服务响应的success作为结果。来源#2128–#2129。
+- **条件性风险：** 当前Servo订阅默认 /planning_scene，而MoveGroup对外发布的完整监视场景为 monitored_planning_scene。若工件、夹具、附着工具或keep-out对象通过 applyPlanningScene/applyCollisionObjects 服务仅更新MoveGroup，Servo的启动时单次场景快照不会自动刷新，且其默认订阅topic并非MoveGroup的 monitored_planning_scene。这可能造成MoveGroup场景已更新而Servo仍使用旧场景。若对象通过 /planning_scene topic或Servo直接订阅的collision-object/planning-scene-world输入更新，则数据路径不同，不能把所有对象更新都判为必然丢失。
+- **结论边界：** 仓库没有集成测试证明外部程序实际采用哪一种场景更新API，也没有运行时topic remap/节点图快照。因此这是明确的接口契约风险和验收缺口，不是已复现的现场故障。
+
+### 9.3.99.2 MoveGroup规划后场景变化与剩余轨迹再验证
+
+- MoveIt 2 Jazzy的ExecutableTrajectory构造函数默认将 trajectory_monitoring=true。标准MoveGroup路径通过PlanExecution执行时，若轨迹组件保留此默认值，执行期间会监测场景更新并校验剩余轨迹。来源#2130。
+- PlanExecution向MoveGroup PSM注册update callback；目前回调只在 UPDATE_GEOMETRY 或 UPDATE_TRANSFORMS 事件时标记 new_scene_update_。执行器以100Hz主循环轮询该标记，取得当前预期轨迹点索引，并在锁定的最新Planning Scene上检查剩余轨迹waypoints的碰撞与state feasibility。来源#2130。
+- 若剩余轨迹被判为无效，执行器调用TrajectoryExecutionManager的 stopExecution()，并将结果设为 MOTION_PLAN_INVALIDATED_BY_ENVIRONMENT_CHANGE。这表明MoveGroup具备一定的“场景更新→剩余路径重新检查→停止执行”软件防线；不能笼统声称MoveGroup完全没有规划后场景变化处理。来源#2130。
+- 该防线的主要边界是：轨迹执行线程先启动，之后100Hz监测循环才检查 new_scene_update_；因此场景更新到下一次检测之间存在轮询和碰撞计算延迟，之后还要经过控制器/UDP/VAL3停止链路。100Hz是源码轮询频率，不代表总停止时间为10ms，也不证明机器人已经停止。最坏检测时延、控制器STOP送达和物理制动时间均未实测。
+- 回调监测的是MoveGroup自己的PSM。若Servo的PSM因§9.3.99.1所述更新通道差异而持有旧场景，MoveGroup路径再验证并不能自动修复Servo自己的collision check输入。
+- MoveGroup Move action从请求的 planning_options.replan、replan_attempts及replan_delay读取重规划设置。仓库未发现Stäubli特定配置强制打开重规划，也没有对应action goal抓取证据；因此不能默认场景变化后一定自动重规划。应分别验证未开启重规划时返回环境变化错误，以及显式请求重规划时尝试次数、延迟和重新授权语义。来源#2133。
+- **静态结论：** MoveGroup默认轨迹监测提供了部分场景变化防护；其可靠性仍取决于场景更新是否到达MoveGroup PSM、轨迹组件是否启用监测、剩余轨迹碰撞校验和执行器STOP响应。Servo不应被假设自动继承该PlanExecution防线。
+
+### 9.3.99.3 轨迹执行起点与机器人当前状态一致性
+
+- MoveIt 2 Jazzy的TrajectoryExecutionManager在初始化时将 allowed_start_tolerance_ 设为0.01，即默认关节起点容差为0.01 rad；同时支持参数 trajectory_execution.allowed_start_tolerance 和逐关节覆盖参数。Stäubli MoveIt配置未显式记录该值或来源，应在实际节点读取参数确认是否被其他配置覆盖。来源#2132。
+- 执行前 validate() 调用CurrentStateMonitor等待完整的当前状态；如果无法在默认1秒等待窗口内取得完整状态，轨迹验证失败。随后将轨迹第一点与当前机器人状态逐关节比较，超出允许距离则拒绝该轨迹。来源#2132。
+- 这项检查能降低计划起点与真实反馈明显偏离时直接执行的风险，但它只验证规划轨迹首点与当前状态的关节位置距离；不代替反馈数据源质量、状态时间戳/接收年龄、控制器ACTIVE状态、当前安全模式、工具/工件状态和独立运动许可检查。相关状态陈旧、近似速度和硬件许可边界已分别在§9.3.91、§9.3.93、§9.3.96与§9.3.97记录，本节不重复编号。
+- **静态结论：** MoveIt Jazzy执行层存在默认0.01rad的起点位置校验和当前状态等待机制，但Stäubli目标运行环境的有效参数值、真实反馈质量及失效行为没有运行证据。
+
+### 9.3.99.4 测试覆盖、结论与验证边界
+
+- **确认的上游软件能力：** MoveGroup PSM发布monitored scene；Servo非primary PSM初始化时请求完整场景；MoveGroup PlanExecution默认轨迹组件监测开启，并在几何/变换变化后检查剩余路径；TrajectoryExecutionManager具备起点位置容差检查。
+- **确认的项目缺口：** Stäubli Servo YAML未显式设置场景订阅topic；Servo默认订阅 /planning_scene，MoveGroup默认发布 monitored_planning_scene；Servo非primary初始场景请求结果未形成显式启动闭锁；项目测试没有覆盖同步Apply服务更新是否传播到Servo PSM、MoveGroup与Servo场景差异、更新并发于规划/执行时的剩余轨迹无效化，也没有冻结MoveGroup规划重试策略与执行起点容差。
+- **验证边界：** 本节核对了ICube固定提交与MoveIt 2 Jazzy分支源码。未运行ROS graph/topic introspection、ApplyPlanningScene服务、PlanningSceneInterface同步/异步添加和删除、Servo场景回读、MoveGroup action场景变化故障注入、起点偏差测试、CS9/HIL或实机停止测试。MoveIt上游jazzy分支源码快照并不等于现场安装的二进制包及补丁集，仍需冻结实际版本。
+- **安全边界：** MoveGroup剩余路径再验证和Servo碰撞缩放均属于软件规划/控制层机制；检测到无效路径后请求停止，不等于独立安全功能已动作或机器人已物理停止。人员防护仍必须由目标单元风险评估及经验证的安全回路负责。
+- **本节全部新增验收任务保持未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。**
+
+### 9.3.99.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-644 | MoveGroup/Servo实际解析后的场景topic、namespace、remap与订阅者图冻结 | 未执行 |
+| SERVO-645 | Servo非primary启动时/get_planning_scene初始快照成功、失败、超时及运动闭锁 | 未执行 |
+| SERVO-646 | applyPlanningScene/applyCollisionObjects/applyAttachedCollisionObjects更新传播至MoveGroup与Servo的端到端测试 | 未执行 |
+| SERVO-647 | /planning_scene topic与ApplyPlanningScene服务两种对象更新路径的一致性对照 | 未执行 |
+| SERVO-648 | MoveGroup monitored_planning_scene与Servo本地PSM场景内容/更新时间/ACM一致性 | 未执行 |
+| SERVO-649 | 场景更新与规划完成、controller goal发送并发时的竞争窗口测试 | 未执行 |
+| SERVO-650 | PlanExecution几何/TF更新触发、trajectory_monitoring有效值及剩余waypoint复检 | 未执行 |
+| SERVO-651 | 场景更新后轨迹失效、执行停止请求、JTC/UDP/VAL3停止链路响应测试 | 未执行 |
+| SERVO-652 | planning_options.replan开关、重试次数/延迟、环境变化错误与恢复授权验证 | 未执行 |
+| SERVO-653 | trajectory_execution.allowed_start_tolerance实际值及逐关节覆盖参数快照 | 未执行 |
+| SERVO-654 | 当前完整JointState的时间新鲜度、缺轴、延迟、反馈跳变及起点偏差拒绝测试 | 未执行 |
+| SERVO-655 | MoveGroup与Servo双路径场景变化、弱网/场景丢失、CS9/HIL/实机整体验收 | 未执行 |
+
+### 本节来源记录（#2123–#2133）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2123 | [MoveIt 2 Jazzy Servo参数描述](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/moveit_servo/config/servo_parameters.yaml) | monitored_planning_scene_topic默认/planning_scene及参数语义 |
+| #2124 | [MoveIt 2 Jazzy Servo common.cpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/moveit_servo/src/utils/common.cpp) | Servo PSM主题订阅、world geometry monitor及非primary场景初始化 |
+| #2125 | [MoveIt 2 Jazzy PlanningSceneMonitor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp) | requestPlanningSceneState一次服务请求、等待和失败返回 |
+| #2126 | [MoveIt 2 Jazzy MoveItCpp options](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/include/moveit/moveit_cpp/moveit_cpp.hpp) | MoveGroup monitored/publish scene默认主题 |
+| #2127 | [MoveIt 2 Jazzy MoveItCpp PSM启动](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp) | MoveGroup发布monitored scene、订阅外部scene及world monitor |
+| #2128 | [MoveIt 2 Jazzy PlanningSceneInterface API](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning_interface/planning_scene_interface/include/moveit/planning_scene_interface/planning_scene_interface.hpp) | 同步Apply服务不会自动更新其他PSM的接口契约 |
+| #2129 | [MoveIt 2 Jazzy PlanningSceneInterface实现](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning_interface/planning_scene_interface/src/planning_scene_interface.cpp) | apply方法调用ApplyPlanningScene service |
+| #2130 | [MoveIt 2 Jazzy PlanExecution](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/plan_execution/src/plan_execution.cpp) | 场景update callback、100Hz剩余路径复检、执行stop与环境变化错误 |
+| #2131 | [MoveIt 2 Jazzy ExecutableTrajectory](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/plan_execution/include/moveit/plan_execution/plan_representation.hpp) | trajectory_monitoring默认true |
+| #2132 | [MoveIt 2 Jazzy TrajectoryExecutionManager](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp) | allowed_start_tolerance默认0.01、当前状态等待与轨迹起点校验 |
+| #2133 | [MoveIt 2 Jazzy MoveGroup Move action](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp) | replan/replan_attempts/replan_delay来自请求，PlanExecution调用 |
+
+**验证边界：** 已完成ICube固定提交与MoveIt 2 Jazzy源码静态核对；没有执行ROS运行时主题图、规划场景服务/对象更新、MoveGroup/Servo碰撞场景一致性、路径失效停止、状态起点容差、CS9/HIL或实机测试。SERVO-644–SERVO-655全部未执行。
