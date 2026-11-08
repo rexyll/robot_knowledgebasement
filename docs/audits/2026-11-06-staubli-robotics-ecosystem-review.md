@@ -4958,3 +4958,76 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1974 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 现有测试验证接口存在，但缺少跨语言模式码和安全状态真值表 |
 
 **验证边界：** 本节为固定提交bd658e2静态源码/文档/测试源码审查；未执行VAL3编译、CS9示教器实测、真实安全状态触发、网络抓包、跨语言golden vector、HIL或实机安全验证。枚举错配由双方代码中明确的码表和直接转换路径支持；实际设备显示/行为仍需CS9受控环境复现。estop_pressed、brakes_released和motion_possible均不得作为安全认证信号。SERVO-433–SERVO-442全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.81 控制任务故障恢复、STOP确认与运动重新授权审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节核查VAL3 controlTask的通信异常、命令陈旧、任务超期、运动子程序失败、硬停/复位、重新接收命令的状态机，以及C++硬件接口在write/on_error/on_shutdown/on_cleanup中的STOP传播行为。固定上游为ICube提交bd658e2d266e315d2ee35f985fb352ea88306b79。
+
+**结论：源码中存在若干局部故障响应（命令序列延迟阈值、stopMove/resetMotion、错误时重置UDP socket），但尚未形成可证明的故障锁存、停机确认和显式重新授权机制。controlTask将l_bError清零后立即恢复接收命令，注释中的重新接受命令前延迟仍为TODO；恢复路径依赖后续STOP模式命令使内部模式回到1，再允许切换运动模式，但没有独立operator acknowledgement/重新授权令牌或故障原因清除条件。无新命令时的显式staleness处理仍是TODO，虽然另有基于sequence delay的阈值检测。任务overrun只计数并清除标志，没有累计阈值、降级或故障锁存；controlTask的循环退出标志在该文件内未被置true，stop.pgx也未显示显式终止该任务。更严重的是，C++ UDP发送遇到would_block会丢弃数据报却返回true，导致上层send_message/send_robot_command/write可能把STOP或运动命令报告为发送成功。故障恢复和STOP发送的端到端可靠性尚不能成立。**
+
+### 端到端证据
+
+1. VAL3 controlTask以4ms周期运行；每轮检测bIsOverrun时仅记录日志、清零标志并增加nOverruns，没有阈值判断、错误锁存、停机或任务重启策略。
+2. l_bStopControlTask在controlTask启动时被初始化为false，while条件为!l_bStopControlTask；在该程序可见代码中没有将其设为true的路径。stop.pgx只执行stopMove()、resetMotion()和clearBuffer(siSocketControl)，没有显式taskKill或修改该局部退出标志。这里只能确认源文件未呈现任务终止协议，不能推断VAL3运行时外部是否会自动终止任务。
+3. 收到命令读取错误、帧解码错误、命令类型越界、控制模式非法转换或运动子程序报告错误时，controlTask设置l_bError并进入统一错误处理，调用stopMove()/resetMotion()，清除命令有效标志、重置序号和通信socket，清除l_bControlActive。
+4. 运动中的命令序列延迟大于5个周期（注释标为约20ms）触发STOP/错误；机器人静止时阈值大于25个周期（约100ms）。该阈值依赖状态帧与命令序号差值，不是以最后接收命令的单调时钟年龄直接判定；阈值还没有按运动模式细化。
+5. 在elseIf(robot_command_msg.robotCommand.bIsValid)分支，未收到新命令时的命令陈旧检测明确标记TODO；后面又有staleness/lost pkg TODO。现有sequence delay逻辑可触发部分超时保护，但不等于完整的接收时间、乱序、重复、丢包和陈旧策略。
+6. 统一错误处理执行stopMove()/resetMotion()，把命令类型置0、l_nCmdMode置0，然后立即将l_bError清零并resetControlSocket；重新接受命令前等待（例如1000ms）明确留为TODO。没有故障锁存ID、故障清除条件、operator acknowledgement或授权代际。
+7. 由于命令模式切换要求经过STOP模式1，错误后内部模式置0时，后续STOP命令可使状态回到1，之后才可重新进入运动模式。但该STOP模式命令只是通信协议中的普通命令状态，不等同于经过身份/权限验证的人工复位或安全重新授权；代码也没有绑定新的授权token、控制器安全复位状态或新连接代际。
+8. joint position子程序在motion_possible为false、命令无效、命令类型不符、movejSync错误或越界时调用stopJointPositionControl/resetMotion并返回错误；目标位置接近当前状态的检查仍为TODO。joint velocity子程序明确标记not yet implemented，执行路径直接置错误并返回。不能把velocity分支的STOP/恢复当作已实现的运动功能验收。
+9. controlTask统一错误处理在当前命令模式为2时再次调用stopJointPositionControl；velocity模式则在普通STOP分支依previous mode调用stopJointVelocityControl。stopJointVelocityControl本身只调用resetMotion。当前错误处理没有可追踪的停止请求已执行、机器人已静止、驱动已撤销的独立确认状态机。
+10. C++ StaubliHardwareInterface::write()在已连接且非STOP模式下发现state_msg_.error_state或control_state==INVALID时，调用send_stop_all_command()后返回ERROR；NaN命令也调用send_stop_all_command()后返回ERROR。但STOP发送结果在这两个分支没有检查，STOP未必送达。
+11. RobotDriver::send_stop_all_command()会准备STOP命令并调用control_interface_->send_message()，只有底层返回false才报告失败。RobotDriver::send_robot_command()也完全依赖send_message()的返回值。
+12. UDPSocketImpl::send()使用MSG_DONTWAIT；当错误为would_block时明确记录Packet dropped，但该分支没有返回false，而是继续返回true。于是RealTimeSocketInterface::send_message()会把已丢弃的数据报报告为成功；上层write()、send_stop_all_command()和on_error()可能误以为STOP/运动命令已发送。代码注释称丢包比错过截止时间更安全，但缺少丢包计数与超阈值故障策略。
+13. 硬件接口on_error()仅在RobotDriver::is_connected()时调用send_stop_all_command()，并未验证机器人是否已停止；on_shutdown()仅当仍连接且state_msg_.control_state非STOP时发送STOP，然后断开；on_cleanup()直接disconnect，没有先发送STOP或等待停止确认。生命周期回调不能作为已验证的停机闭环。
+14. 官方troubleshooting文档说明约2小时断开可能由VAL3 addons demo license到期导致control task失效；但没有定义该任务失效时驱动如何通过独立看门狗检测、锁存故障和安全撤销运动授权。文档建议检查机器人日志不构成自动恢复机制。
+15. 因此当前证据应分层描述为：存在局部STOP动作和序列延迟阈值；没有完整命令新鲜度策略；没有明确故障锁存/人工重新授权；overrun没有故障策略；STOP数据报可能在would_block时静默丢弃；生命周期回调不等待停机确认。不得将stopMove/resetMotion调用或日志中的hard stop表述为已通过安全停机验收。
+
+### 风险与整改要求
+
+- 定义显式状态机：RUNNING、STOP_REQUESTED、STOP_SENT、STOP_CONFIRMED、FAULT_LATCHED、RESET_PENDING、REARM_AUTHORIZED；状态迁移需有可审计的触发条件和超时行为。
+- 区分通信STOP命令、VAL3普通stopMove/resetMotion、控制器保护停止、安全急停和人工重新授权；普通STOP不能替代安全链路，也不能自动清除锁存故障。
+- 命令超时必须以单调时钟的最后有效新命令接收时间为基准，同时检查sequence number、重复/乱序、消息年龄和控制模式专属超时；丢包/延迟阈值须有实测依据。
+- 修复UDP would_block语义：数据报未发送必须返回失败或明确的Dropped状态，维护发送失败/丢包计数；对STOP和运动命令分别定义策略，不能静默返回成功。对STOP另设有界重试/独立停止通道的安全设计评审，不可通过阻塞实时线程实现。
+- 任何send_stop_all_command失败必须上报并进入故障锁存/降级流程；STOP发送成功也只表示本机socket接受数据，仍须通过新鲜状态帧和运动反馈确认实际停止。
+- 对overrun建立连续/窗口计数、最大允许周期超期、执行时长分布和任务失活检测；超阈值进入明确故障处理。测量必须覆盖VAL3真实控制器，不能只看任务日志。
+- 在controlTask中实现明确命令staleness和通信中断超时；错误处理不能清除故障后立即无条件重新开放运动。明确等待、清故障、人工确认、控制器安全状态、命令STOP握手及重新使能的顺序。
+- 故障后清空旧命令缓存、命令序号窗口、模式状态和连接代际；只接受新代际、更新鲜且经过授权的命令，拒绝旧socket缓存/延迟数据报。
+- 补充位置/速度/扭矩模式故障路径；当前只允许position的实际能力需与VAL3未实现velocity/torque保持一致；补齐目标接近阈值、速度/加速度/jerk/软限位和控制器运动状态检查。
+- 生命周期deactivate、error、shutdown、cleanup均定义停止请求、状态确认、超时和资源关闭顺序；通信已断开时不能假设仍能通过同一UDP链路发送STOP。
+- 建立故障注入测试：UDP断线、would_block、send系统错误、状态帧陈旧、命令停止刷新、重复/乱序/旧序号、VAL3任务overrun、任务退出、addon许可到期、movejSync错误、STOP发送失败、STOP未产生静止反馈、控制器重启和重新连接。
+- 对所有故障执行CS9/HIL验证：记录命令时间戳、UDP抓包、VAL3任务日志、机器人实际速度/位置、安全控制器状态、STOP请求/反馈和人工重新授权记录。不得将软件STOP路径描述为安全认证急停。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-443 | 故障恢复状态机 | 定义STOP请求/确认、故障锁存、复位待定和重新授权状态 | 未执行 |
+| SERVO-444 | 命令新鲜度监控 | 基于单调时钟与序号实现陈旧、丢包、重复/乱序检测 | 未执行 |
+| SERVO-445 | 故障后重新授权 | 故障清除、人工确认、安全状态和新命令代际形成准入闭环 | 未执行 |
+| SERVO-446 | UDP发送失败语义 | would_block丢包必须向上层报告失败/丢弃，建立计数和阈值策略 | 未执行 |
+| SERVO-447 | STOP发送与停止确认 | STOP发送结果可追踪，并通过状态反馈确认实际停止 | 未执行 |
+| SERVO-448 | VAL3 overrun/任务存活监控 | 对overrun累计、任务退出和控制周期异常建立故障策略 | 未执行 |
+| SERVO-449 | VAL3任务停止生命周期 | 明确start/stop与controlTask创建、停止、退出和重启协议 | 未执行 |
+| SERVO-450 | 生命周期安全退出 | deactivate/error/shutdown/cleanup按停止、确认、断开顺序执行 | 未执行 |
+| SERVO-451 | 故障注入与恢复测试 | 覆盖链路、任务、命令、运动子程序、STOP失败和重连场景 | 未执行 |
+| SERVO-452 | CS9/HIL重新授权验收 | 实测故障锁存、人工确认、控制器状态和运动重新使能 | 未执行 |
+
+### 本节来源记录（#1975–#1983）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1975 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | overrun只计数、staleness TODO、sequence delay阈值、统一错误处理清除l_bError、重新接受命令延迟TODO |
+| #1976 | [start.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | 创建4ms controlTask |
+| #1977 | [stop.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx) | stopMove/resetMotion/清socket buffer，无显式任务停止调用 |
+| #1978 | [UDPSocketImpl::send @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | would_block时丢包并记录，但仍返回true |
+| #1979 | [RealTimeSocketInterface::send_message @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp) | 将socket send的true/false直接作为消息发送结果 |
+| #1980 | [RobotDriver::send_stop_all_command/send_robot_command @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | STOP和普通命令均依赖底层发送返回值 |
+| #1981 | [StaubliHardwareInterface::read/write/on_error/on_shutdown/on_cleanup @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 写命令错误、STOP发送、生命周期退出顺序及缺少停止确认 |
+| #1982 | [updateJointPositionControl/updateJointVelocityControl @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control) | 位置/速度子程序错误路径、目标接近TODO、速度控制未实现 |
+| #1983 | [troubleshooting.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | addon demo license约2小时导致control task失效的故障说明 |
+
+**验证边界：** 本节为固定提交bd658e2静态源码与文档审查；未执行C++构建/测试、VAL3编译、CS9任务调度、UDP would_block故障注入、真实命令中断/STOP反馈、故障恢复/HIL/FAT/SAT或实机安全测试。would_block分支返回true及VAL3 staleness/重新接受命令等待TODO均由源码直接支持；实际设备停机时间、控制器运动响应和安全行为仍需受控设备验证。SERVO-443–SERVO-452全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
