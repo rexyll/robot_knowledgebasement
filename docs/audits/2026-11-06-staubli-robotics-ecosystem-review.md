@@ -3279,3 +3279,86 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1795 | [ICube sendData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx) | sioSet必须完整写入、无部分写重试 |
 | #1796 | [ICube resetControlSocket/controlTask/start @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server) | timeout=-1配置、控制循环顺序、4ms同步任务与delay(0)位置 |
 | #1797 | [Stäubli VAL3 Reference Manual D.280.935.01-G (2021)](https://fr.scribd.com/document/655664199/Doc-VAL3) | SIO读写返回值、socket等待/错误语义的手册交叉核对；目标CS9 UDP运行行为仍需验证 |
+
+
+## 9.3.56 ROS 2 UDP最新消息快照、发送背压与命令年龄传播
+
+### A. 固定审查基线
+
+- 上游：ICube-Robotics/staubli_driver_ros2
+- 固定提交：bd658e2d266e315d2ee35f985fb352ea88306b79
+- 代码：real_time_socket_subscriber.hpp/.cpp、real_time_socket_interface.cpp、communication/udp_socket_impl.hpp、robot_driver.cpp/.hpp、staubli_hardware_interface.cpp。
+- VAL3交叉核对：Comm/computeSequenceDelay.pgx、Comm/getNextSequenceNumber.pgx、Serialization/decodeRobotCommandMsg.pgx。
+
+### B. ROS 2接收路径是最新值快照，不是逐条消息队列
+
+1. UDP接收线程通过async_receive_from收取数据；每个完整消息反序列化成功后，写入单个RealtimeThreadSafeBox<MessageType>。后到的有效帧会替换快照中的前一帧，消费者未及时读取时，中间帧不会逐条排队等待处理。
+2. read_message()从快照try_get最新消息，按header.sequence_number与上次读取序号计算lost_packages。序号差能显示消费者观察到的跳号，但不能单独证明这些帧在网络中丢失：也可能是内核接收队列积压后应用层只取到最新快照、接收线程/消费者调度不均或真实网络丢包。
+3. RobotDriver::read_robot_state()收到lost_packages后，相关告警日志目前被注释；该函数继续做staleness检查。因而序号跳跃没有成为可见的运行告警/故障计数。
+4. 当没有新帧时，read_message仍可把之前的msg返回，并根据其reception_timestamp计算time_since_received；只要未达到state_staleness_timeout_，RobotDriver::read_robot_state()就继续返回成功。硬件接口read()因此可能连续多个控制周期重复使用同一RobotState，而不是每周期都获得一条新状态帧。
+5. 这并非天然错误：状态接口可允许消费者读取最近已知状态；但对闭环运动控制必须明确区分“有有效缓存状态”和“本周期收到了新状态”，并将消息年龄作为显式安全输入，而非只检查一个较宽松的过期阈值。
+
+### C. 命令序号传播与时间年龄信息
+
+- StaubliHardwareInterface::write()将RobotCommand.header.sequence_number设置为RobotDriver::get_current_message_sequence()；该函数返回last_valid_sequence_id_，而last_valid_sequence_id_在read_robot_state()成功时更新为最近有效RobotState的sequence_number。
+- 因此ROS命令序号不是独立递增的命令发送计数器，而是引用最近一次被ROS侧接受的机器人状态帧序号。若ROS控制更新多次发生在同一状态帧之间，多个命令可能复用相同状态序号；若状态接收跳号，命令序号会直接跳到新的状态序号。
+- VAL3端computeSequenceDelay计算“本地最近发送的状态序号 - 最近接收的命令序号”，并处理uint16回绕。该值更接近命令相对状态帧进度的滞后量，不是单调时钟测得的命令年龄；当ROS复用同一状态序号时，滞后量会随机器人端状态序号推进而增大。
+- RobotCommand序列化内容包含controller_period，但没有独立命令生成时间戳/发送时间戳。controller_period描述控制周期，不足以表示命令在ROS线程、内核发送缓冲、网络、VAL3接收缓冲中已经等待多久。
+- 因此当前协议不能在跨端直接计算真实命令年龄，也无法单靠sequence_delay严格替代deadline/watchdog。需要新增单调时钟域的时间戳或明确的相对deadline语义，并处理ROS主机与CS9时钟不同步问题；若不做时钟同步，应采用可验证的握手/年龄测量协议，而不是直接比较两个无关时钟值。
+
+### D. UDP发送背压存在明确的返回值语义缺陷
+
+1. UDPSocketImpl::send()使用send_to(..., MSG_DONTWAIT, err)，注释说明内核发送缓冲区满时立即返回would_block，并主动丢弃当前数据包。
+2. would_block分支只记录WARN并保留TODO“增加丢包计数/阈值故障或异步发送”；函数在该分支后仍返回true。
+3. RealTimeSocketInterface::send_message()只根据socket_->send(data_out_)的bool结果判断发送成功；RobotDriver::send_robot_command()和StaubliHardwareInterface::write()继续把true解释为成功。
+4. 因此在send_to返回would_block的明确分支上，命令已被丢弃，但上层接口报告成功；这不是推测性的网络风险，而是固定源码可确认的错误返回语义。当前没有累计丢包数、连续丢包阈值或触发STOP/ERROR的策略。
+5. 其它非would_block的socket错误会返回false并向上层传播；因此would_block反而成为“静默成功”路径。应将发送结果改为明确枚举（sent / would_block_dropped / fatal_error），或至少在丢包时返回false并由实时安全策略处理；同时记录可观测计数。不能为了重试而无界阻塞实时控制线程。
+6. 发送路径还在实时调用线程执行序列化、日志和同步send_to；MSG_DONTWAIT只限制内核发送等待，不意味着整个C++函数、序列化和日志有确定WCET。高频WARN日志自身也需要节流或异步化评估。
+
+### E. 接收线程和来源验证的相关边界
+
+- receive thread的优先级/CPU affinity TODO尚未实现；线程通过io_service_.run()运行，接收回调反序列化并更新最新值快照。
+- handle_data_received遇到error会记录错误，但仍调用reception_callback_，随后继续安排下一次接收；需验证错误时bytes_transferred和缓冲区内容是否会导致重复错误日志/无效回调。
+- sender_endpoint校验仍是TODO。注释明确指出未验证来源地址可能允许非预期主机注入状态帧并扰乱序号追踪。目标部署应限制控制网络访问，并验证源IP/端口；不能仅依赖UDP远端endpoint配置推断接收端已过滤发送者。
+- 现有单元测试通过固定间隔发送和loopback收发验证基本通信、staleness和序号跳号；没有覆盖高速突发发送、消费者慢读、send buffer饱和、would_block后返回值、连续丢包故障门控、非预期发送源及端到端命令年龄。
+
+### F. 整改建议与可验收机制
+
+1. **发送返回值闭环：** would_block必须明确表示“本帧未发送”；增加total_tx、would_block_drop、fatal_error、consecutive_drop计数；按经风险分析批准的阈值进入受控故障状态。不要在控制线程中无限重试。
+2. **最新状态与新鲜状态分离：** read_message保留latest snapshot语义，但向硬件接口明确暴露new_message、sequence gap和age；在控制模式下定义允许重复读取的最大年龄与最大连续重复周期数。
+3. **命令身份独立化：** 为RobotCommand分配独立单调序号，不复用RobotState序号；同时保留state_reference_sequence用于关联状态样本。序号回绕、重复、乱序、重启复位均需有协议定义。
+4. **命令deadline/年龄：** 增加发送时间/相对deadline字段，或定义跨时钟安全的年龄测量方式；VAL3在应用运动命令前检查命令新鲜度。超过期限后进入经安全分析批准的STOP/ERROR状态，不继续使用最后一条旧命令。
+5. **诊断：** 将sequence gap、接收年龄、无新消息周期数、would_block丢包、fatal send error、receive error、unexpected sender分别计数并可查询；告警与故障门控分级，不把它们混为一个lost packet数。
+6. **网络安全：** 校验发送源地址/端口，配置机器人控制专用网络/VLAN/ACL；对异常源、重复帧和序号回退执行拒绝与审计。
+7. **压力验证：** 注入高于250Hz的命令突发、消费者暂停/慢读、内核发送缓冲饱和、网络延迟/乱序/丢包/断连恢复；对比ROS发送序号、抓包、VAL3接收序号和实际执行序号，证明每种异常路径的诊断及故障门控。
+
+### G. 新增验收任务（SERVO-188–SERVO-202）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-188 | RealtimeThreadSafeBox突发覆盖 | 明确消费者慢读时覆盖行为和可观测跳号 | 突发发送/慢读测试 | 未执行 |
+| SERVO-189 | ROS状态重复读取年龄 | 无新帧时age单调增长，控制模式按批准阈值响应 | 硬件接口单测与时间记录 | 未执行 |
+| SERVO-190 | sequence gap诊断 | lost_packages可见、可累计、可导出，不仅存在于临时status | 单测/诊断接口 | 未执行 |
+| SERVO-191 | would_block返回值 | 模拟发送缓冲满时send_message与write不能报告成功发送 | socket故障注入/单测 | 未执行 |
+| SERVO-192 | 发送丢包计数和门控 | 连续/窗口丢包达到批准阈值后进入定义的受控状态 | 压力测试和状态机日志 | 未执行 |
+| SERVO-193 | 250Hz相位偏差与突发 | 评估ROS 250Hz与VAL3 4ms不同相位下的命令覆盖/重复率 | 双端时序记录 | 未执行 |
+| SERVO-194 | 命令序号独立性 | 命令序号独立递增，状态引用序号单独表达 | 协议测试/VAL3互操作 | 未执行 |
+| SERVO-195 | 序号回绕/重启恢复 | 0xffff回绕、进程重启、控制器重启后不误判旧帧 | 边界单测/HIL | 未执行 |
+| SERVO-196 | 端到端命令年龄 | 可测量生成、发送、接收、应用各阶段年龄并验证deadline | 同步时钟或相对时间协议测试 | 未执行 |
+| SERVO-197 | 旧命令禁止继续执行 | 超deadline时VAL3不再沿用旧运动命令，进入批准的安全状态 | 故障注入/HIL | 未执行 |
+| SERVO-198 | UDP接收错误恢复 | 错误回调不会错误更新快照，接收循环恢复可诊断 | 错误注入/线程跟踪 | 未执行 |
+| SERVO-199 | UDP发送源身份校验 | 非允许源IP/端口的数据帧被拒绝且计数 | 多主机注入/抓包 | 未执行 |
+| SERVO-200 | 实时线程优先级与CPU亲和性 | 线程调度配置有依据，压力下接收延迟分布可复现 | OS调度跟踪 | 未执行 |
+| SERVO-201 | 高频日志对实时性的影响 | 丢包/错误洪泛时日志不会造成控制线程预算失控 | 日志压力与周期跟踪 | 未执行 |
+| SERVO-202 | 端到端网络故障矩阵 | 丢包、乱序、重复、突发、慢读、背压、断连恢复均有确定诊断和控制状态 | ROS/网络/CS9联合验收报告 | 未执行 |
+
+### H. 本节来源记录（#1798–#1803）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1798 | [ICube real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 单最新消息快照、reception timestamp、序号差和staleness计算 |
+| #1799 | [ICube udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | MSG_DONTWAIT、would_block丢包却返回true、无丢包计数、sender校验TODO |
+| #1800 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | lost_packages告警注释、staleness检查和最近有效状态序号更新 |
+| #1801 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write将最近有效状态序号写入命令序号、controller_period字段 |
+| #1802 | [ICube VAL3 computeSequenceDelay/getNextSequenceNumber @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm) | VAL3状态/命令序号差和uint16回绕 |
+| #1803 | [ICube test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | 现有测试覆盖staleness/序号跳号，但未覆盖慢读/突发/背压/丢包门控 |
