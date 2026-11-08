@@ -910,3 +910,24 @@
 | SERVO-629 | 现场PLC/uniVAL plc/uniVAL drive控制入口盘点 | 未执行 |
 | SERVO-630 | ROS与PLC控制权交接、租约及失联闭锁 | 未执行 |
 | SERVO-631 | 多控制源并发、切换失败与恢复的CS9/HIL/实机验收 | 未执行 |
+
+
+
+| 2026-11-08 | 21-02/Stäubli MoveIt自碰撞矩阵、Planning Scene输入与Servo碰撞监测边界审查 | 固定ICube提交bd658e2静态审查SRDF宏、TX2-60L collision mesh映射、MoveIt/bringup launch、Servo参数与测试定义：SRDF宏硬编码6组Adjacent和5组Never禁碰关系，未见基于目标型号/全关节空间的生成证据；现有test_default_srdf.py实际只展开URDF并check_urdf，不测试SRDF或碰撞矩阵；Servo collision_check_rate=5Hz而publish_period=4ms（配置频率比50:1），阈值为self 10mm/scene 20mm；Servo的PSM设为非primary并依赖MoveGroup，但仓库内未找到显式传感器/Octomap/CollisionObject环境输入实现；launch_servo默认false。新增§9.3.98、SERVO-632–SERVO-643、来源#2112–#2122。全部未执行；未运行Xacro/SRDF解析、自碰撞采样、MoveGroup/Servo、Octomap输入、CS9/SRS/HIL或实机停止验证。官方在线MoveIt文档为main/Rolling参考，目标部署版本仍待冻结和核验。 |
+
+### Stäubli专项审查新增验收任务（§9.3.98，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-632 | 冻结目标MoveIt/Servo发行版、包版本及运行时有效参数快照 | 未执行 |
+| SERVO-633 | 为每个支持型号/前缀生成并解析SRDF，验证group链路和link引用 | 未执行 |
+| SERVO-634 | 自碰撞矩阵生成/人工审核依据、采样密度和可复现配置 | 未执行 |
+| SERVO-635 | 五组Never排除连杆对的全关节空间/边界姿态复核 | 未执行 |
+| SERVO-636 | Collision mesh与制造商CAD、实物、工具/附件及工装的几何差异验证 | 未执行 |
+| SERVO-637 | MoveGroup primary PSM与Servo非primary场景同步、更新延迟和断连恢复 | 未执行 |
+| SERVO-638 | 环境障碍输入源、坐标系、时间戳、过滤、自体剔除与场景移除策略 | 未执行 |
+| SERVO-639 | check_octomap_collisions有效值、Octomap updater和地图覆盖范围核验 | 未执行 |
+| SERVO-640 | 5Hz碰撞检测与4ms命令发布的周期抖动、CPU负载和最坏检测时延测试 | 未执行 |
+| SERVO-641 | 10mm/20mm阈值与实际速度、制动性能、端到端延迟的工程论证 | 未执行 |
+| SERVO-642 | launch_servo启用门、Servo输出控制器接线及故障时闭锁/暂停行为 | 未执行 |
+| SERVO-643 | SRDF自碰撞、场景障碍、场景陈旧/丢失及真实停止行为的CS9/HIL/实机验收 | 未执行 |
