@@ -1320,3 +1320,49 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://api.github.com/repos/moveit/moveit2/actions/runs/36755746261/artifacts
 - https://github.com/moveit/moveit2/pull/3907
 - 专项追加件§9.3.138。
+
+
+### §9.3.139 PlanningSceneMonitor直接重配置与显式stop/restart边界（2026-11-08）
+
+#### 1. 本轮源码证据
+
+- MoveIt main \`planning_scene_monitor.cpp\` Blob SHA：\`83f67e15cb167957ddf15bde8fc239d053ed727c\`。\`startWorldGeometryMonitor()\`入口先调用\`stopWorldGeometryMonitor()\`，随后仅在参数topic非空时创建对应subscriber。当前main的stop仍是\`if (collision_object_subscriber_) ... else if (planning_scene_world_subscriber_)\`，因此单次stop只会reset一个成员。
+- \`getMonitoredTopics()\`根据subscriber成员指针是否非空列出topic名称；它不能单独证明ROS graph中无订阅或回调已经静默。
+- PR #3907 head \`821818f4ffeaa7564459faed2cbddbfb604f9dcb\`的修复源码将两个subscriber分别reset。新增测试\`StopWorldGeometryMonitorStopsAllSubscriptions\`启动双topic（\`load_octomap_monitor=false\`），通过\`getMonitoredTopics()\`确认两个topic登记，调用一次stop后断言两者均不在列表中。该测试是成员登记层面的回归测试，没有发布消息验证回调静默，也未覆盖重配置、重复stop或octomap生命周期。
+- PR相对main的比较结果为\`diverged\`，head领先1个提交、落后3个提交；当前main仍有上述缺陷，PR不能视为已可直接合并。PR仍Open，reviews和inline threads为空；此前记录的Formatting/CI workflow均failure，jobs/artifacts不可读，失败原因未知。
+
+#### 2. 关键生命周期推导（静态分析，不是动态复现）
+
+设旧配置同时订阅CollisionObject=A与PlanningSceneWorld=B。直接再次调用\`startWorldGeometryMonitor(A2, "", false)\`时，函数内部先stop：只释放A，B仍保留；随后只创建A2，B旧订阅仍留在monitor对象中。类似地，直接重配置为\`startWorldGeometryMonitor("", "", false)\`会留下B。若重配置为\`startWorldGeometryMonitor(A2, B2, false)\`，B成员随后被新B2覆盖，旧B不再由成员持有；因此该问题的可观察影响依赖新配置是否为空，不应笼统描述为每次restart都会产生重复订阅。
+
+若调用方先显式stop一次，再调用start，start入口的第二次stop会释放上一次残留的B，随后按新参数建立订阅。因此“显式stop后restart”和“从活动状态直接调用start以切换配置”是两个不同测试路径，必须分别覆盖。对象析构也会销毁成员，不将该问题描述为对象销毁后永久订阅泄漏。
+
+\`stopWorldGeometryMonitor()\`还会在subscriber处理后调用\`octomap_monitor_->stopMonitor()\`（若对象存在）；\`startWorldGeometryMonitor(..., load_octomap_monitor=false)\`不会创建/启动octomap monitor。当前静态代码足以确认stop路径调用stopMonitor，但不能证明OccupancyMapMonitor内部所有线程/订阅的停止时序，需动态检查其API语义和运行日志；本轮不推断额外octomap缺陷。
+
+#### 3. SERVO-725测试矩阵修订
+
+| 场景 | 初始状态与操作 | 预期subscriber成员/topic集合 | 重点观察 |
+|---|---|---|---|
+| L1 | 空→双topic启动→单次stop | 两topic均移除 | 回归#3897；同时做发布后回调计数 |
+| L2 | 双topic活动→直接start为仅CollisionObject新topic | 仅新CollisionObject | 旧PlanningSceneWorld不得残留；当前main静态推导会残留 |
+| L3 | 双topic活动→直接start为双空topic | 无world-geometry topic | 当前main静态推导会残留旧PlanningSceneWorld |
+| L4 | 双topic活动→直接start为仅PlanningSceneWorld新topic | 仅新PlanningSceneWorld | 旧CollisionObject应移除，新world topic应生效 |
+| L5 | 双topic活动→直接start为双新topic | 仅两个新topic | 检查旧topic停止、新topic回调生效 |
+| L6 | 双topic活动→显式stop一次→start为仅CollisionObject/双空 | 按新配置建立 | 与L2/L3区分，验证第二次stop清理残留状态 |
+| L7 | 单topic（分别两种）→stop、重复stop | 第一次stop后为空，重复stop安全 | 单topic与幂等性 |
+| L8 | octomap关闭启动→stop；开启启动→stop→restart关闭 | 按参数启停 | 记录OccupancyMapMonitor状态、日志、topic graph与线程退出证据 |
+
+每个场景需分别采集\`getMonitoredTopics()\`、ROS graph（如\`ros2 topic info -v\`）、旧/新topic消息发布与PlanningScene更新回调计数、日志、退出码和精确MoveIt包/commit。测试需在Ubuntu 24.04/ROS Jazzy目标环境执行；目前仅完成源码静态推导和规程修订，未执行动态测试。
+
+#### 4. 状态与限制
+
+- SERVO-724：PR #3907仍Open/未合并，head落后main 3个提交；CI失败原因不可读，reviews为空，继续跟踪新head、CI、review/merge、Jazzy backport和正式deb。
+- SERVO-725：本轮完成生命周期状态转换静态分析并修订矩阵；动态测试仍未执行。
+- SERVO-721/723：未执行；SERVO-722：缺少Stäubli/ICube现场源码、launch/YAML和实际调用链，仍阻塞。
+- 未修改MoveIt/ICube上游，未应用PR补丁；未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收。Stäubli工程级验收未通过。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- 专项追加件§9.3.139。
