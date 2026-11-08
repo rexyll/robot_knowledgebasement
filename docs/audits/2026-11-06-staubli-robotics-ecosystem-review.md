@@ -3959,3 +3959,79 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1847 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml)；[staubli_servo.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/staubli_servo.yaml) | ROS Controller Manager与MoveIt Servo周期配置 |
 | #1848 | [available_models.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/available_models.rst) | TX2-60L 4ms、MR 1ms、MR 500Hz测试说明 |
 | #1849 | [Stäubli CS9 Real Time Val3/Fieldbus TSS.000.014.04-A (2021-07-06)](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | CS9单scan任务顺序、同步任务周期、3000行限制与overrun跳过下一周期的厂商技术说明 |
+
+
+## 9.3.66 ROS 2—UDP—VAL3端到端时延、发送结果语义与通信线程实时性（2026-11-08）
+
+### A. 审查基线与范围
+
+- 上游固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 本节将ROS 2 hardware read/write、RobotDriver、RealTimeSocketInterface/Subscriber、Boost.Asio UDP收发线程、VAL3控制器命令接收和状态回传串成端到端链路。
+- 对照ROS 2实时编程指南与Executor文档，以及Stäubli CS9 TSS.000.014.04-A（2021-07-06）。ROS文档强调周期deadline、最大允许jitter和避免不确定操作；Executor文档说明callback线程由OS调度，执行时间超出消息到达周期时会产生下层排队和复杂调度语义。Stäubli文档说明同步VAL3任务消耗CPU，并在系统同步、IO刷新之后运行。
+- 来源#1850–#1856。仅固定提交静态审查；没有运行PREEMPT_RT、测量NIC/UDP/DDS延迟、抓包、线程调度跟踪、压力测试、CS9仿真、HIL或实机验证。
+
+### B. 端到端链路和已确认行为
+
+1. **命令发送路径。** Controller Manager调用hardware `write()`，将position从rad转换为degree、写入controller period和command sequence，再调用`RobotDriver::send_robot_command()`；RealTimeSocketInterface序列化到预分配buffer后调用UDP socket同步send_to(MSG_DONTWAIT)。这条路径不是DDS发布路径，不能将ROS topic延迟直接当作硬件UDP命令延迟。
+2. **状态接收路径。** UDP async receive thread收到datagram后调用RealTimeSocketSubscriber回调；回调反序列化、用本机默认rclcpp Clock写接收时间，并更新RealtimeThreadSafeBox；hardware `read()`随后读取最新缓存、检查状态有效性/新鲜度，再更新关节状态。状态时间戳表示本机反序列化完成时间，不是机器人采样时间，也不包含机器人内部采样至发送的延迟。
+3. **UDP发送结果严重不一致。** `UDPSocketImpl::send()`对`would_block`明确记录“Packet dropped”，但没有返回false，函数最终仍返回true；`RealTimeSocketInterface::send_message()`因此也返回true，`RobotDriver::send_robot_command()`不报失败，hardware `write()`可能返回OK。也就是说内核发送缓冲区满时，命令数据报可被丢弃而控制栈上层仍报告发送成功。源码TODO也承认尚无丢包计数或阈值错误门控。这是本轮最高优先级缺陷。
+4. **发送函数注释与实现矛盾。** `RealTimeSocketInterface::send_message()`头文件注释标为“blocking call”；实现实际走`UDPSocketImpl::send()`的`MSG_DONTWAIT`非阻塞send_to。应明确接口语义：它最多说明本地send系统调用没有报告错误，既不等于远端收到，也不等于VAL3解码/接受/执行。
+5. **没有端到端确认协议。** 发送侧只返回本地send函数结果；协议中command sequence取自最近RobotState sequence，但代码没有对应命令ACK/执行ACK或执行时间戳。后续状态帧的sequence/sequence_delay可以间接关联控制器循环，但不足以确认某条命令已被控制器接受、进入运动API或完成执行。应区分queued locally、datagram accepted by kernel、received by VAL3、validated、applied和motion completed。
+6. **接收线程未配置实时调度。** Subscriber初始化UDP receive thread的回调中明确TODO：调整线程实时优先级和CPU affinity；UDPSocketImpl创建std::thread时也留有提升优先级TODO。当前没有SCHED_FIFO/RR策略、线程优先级、CPU隔离/亲和、内存锁定或调度权限启动检查的实现证据。不能声称该接收线程具有硬实时调度保证。
+7. **接收错误仍进入回调并重新挂接。** `handle_data_received()`遇到Asio error只记录日志，之后仍调用用户callback，并在receiving_为true时重新发起async_receive_from。异常路径未按error类别区分operation_aborted、socket关闭、网络错误和短/空数据；持续错误是否形成紧密重试/日志风暴需注入验证。
+8. **未验证UDP来源地址。** `handle_data_received()`取得sender_endpoint_，但来源地址校验代码整体注释掉；源码TODO明确提示意外发送方可能注入状态数据或扰乱sequence跟踪。UDP socket connect只设定本地socket的远端endpoint，不构成机器人端身份认证或握手。当前网络隔离/ACL措施没有在驱动代码中体现。
+9. **接收线程每次回调后才重新发起下一次接收。** 一个socket只有一个async_receive_from，收到datagram后在回调中反序列化、打时间戳、写线程安全缓存，之后才重新挂接下一次接收。回调处理时间、调度延迟或日志开销会影响下一次接收提交时机；内核接收缓冲区是否溢出、burst时丢包量与队列延迟没有统计证据。
+10. **接收缓存是latest-value，不是有界命令/状态队列。** RealtimeThreadSafeBox保存最新消息；如果生产者在消费者两次read之间发送多个帧，中间帧会被覆盖，lost_packages通过sequence差估算。对RobotState而言latest-value可能符合控制状态读取目标，但必须量化丢帧和年龄；若把同样策略用于必须逐条执行的命令流，则不可接受。当前测试只检查跳过序列号的lost_packages，没有验证burst积压、缓存覆盖和最大数据年龄。
+11. **丢包统计不是传输确认。** Subscriber按sequence差估算丢包；UDP发送端的would_block丢包当前甚至没有计数，远端丢包、内核发送队列丢弃、网络交换机丢弃、接收缓冲区溢出和应用缓存覆盖没有统一的端到端分层计数。序列差也不能定位丢包发生在哪一段。
+12. **测试覆盖的是功能，不是实时性能。** `test_rt_socket_interface.cpp`使用loopback UDP，插入100ms、1s sleep确认收发、重复读取、staleness和lost package；没有4ms周期deadline、p50/p99/p99.9/max时延、抖动、CPU负载、线程优先级、网络burst、buffer full、远端不可达或持续运行测试。现有测试不能支持工业实时性能结论。
+13. **连接状态不代表远端持续在线。** `UDPSocketImpl::is_connected()`读取本地原子标志；UDP连接配置成功只表示本地socket已打开、bind和remote endpoint解析完成。RobotDriver还要求receive thread就绪，但这些条件不等于远端机器人持续响应。运行期远端活性仍依赖状态新鲜度检测，且状态新鲜度时钟源问题已在§9.3.57审查。
+
+### C. 风险判断（静态推导，尚未复现）
+
+- **高优先级：发送丢包被误报成功。** 在本机UDP发送缓冲区满/暂不可写时，硬件write可能返回OK，控制器收不到该周期命令；上层缺少可观测故障计数和阈值门控。对位置控制而言，控制器可能继续沿用旧目标或按自身控制策略处理，具体后果需VAL3端验证。
+- 发送系统调用成功仅代表本机内核接受该datagram，不代表网络传输、控制器接收、VAL3解析或运动执行成功。
+- 接收线程没有实时优先级/CPU亲和，回调执行延迟和线程抢占会成为状态数据新鲜度和丢包的重要来源；当前未量化。
+- 接收回调串行处理并在末尾重新提交接收；突发流量/反序列化与日志耗时可能增加接收间隙，内核缓冲区溢出风险尚未实测。
+- latest-value缓存会覆盖未被读取的中间状态帧；如果没有接收端队列溢出计数与年龄上限，序列差只能事后看到跳号，无法及时控制数据新鲜度。
+- 无远端身份校验时，同网段意外UDP数据源可能污染状态缓存和sequence统计；是否可达取决于现场网络隔离与ACL配置。
+- ROS 2 executor与OS线程调度的时延、VAL3同步任务的周期预算、UDP线程和hardware write线程目前没有统一的时间戳关联，无法计算真实端到端最大延迟。
+
+### D. 整改建议
+
+1. 修正UDP send语义：`would_block`必须返回可辨识的失败/丢弃状态；记录发送尝试、成功、would_block、其他错误和连续丢弃计数。禁止上层将本地丢弃当作write成功；按控制安全分析决定单次丢弃即错误、连续阈值或独立command watchdog。
+2. 重新定义发送结果枚举，至少区分SERIALIZATION_FAILED、LOCAL_SOCKET_NOT_READY、LOCAL_KERNEL_ACCEPTED、WOULD_BLOCK_DROPPED和SEND_ERROR；文档不要将LOCAL_KERNEL_ACCEPTED称为机器人已收到。
+3. 建立命令确认闭环：控制器回传最近接受/拒绝的command sequence、控制器接收时间、应用状态及拒绝原因；明确超时、重复命令、过期命令、重启epoch和sequence wrap策略。状态采样sequence与命令sequence需区分。
+4. 对UDP receive thread设置可配置调度策略、优先级、CPU affinity，并在权限不足时明确报告实际退化模式；测量线程唤醒延迟和回调执行时间。优先级设置不能代替完整WCET/CPU预算。
+5. 对sender endpoint实施源地址/端口白名单，并在需要时结合专用网段、交换机ACL、防火墙和协议认证/nonce；拒绝未授权来源后不得更新状态缓存或sequence统计。
+6. 接收错误处理按error类别分支：主动停止/关闭时终止重挂接；可恢复错误采用受控退避与故障计数；短包/无效报文计数并限频日志，避免错误风暴。
+7. 明确latest-value语义：为状态帧统计接收序列跳变、缓存覆盖次数、内核接收错误和最大消息年龄；对不可丢命令流使用独立有界队列、过期丢弃策略和逐条ACK，不复用状态latest-value缓存。
+8. 端到端统一时钟和追踪点：host command creation、write start/end、serialize end、send syscall start/end、controller receive/decode/accept/apply、robot state sample/send、host receive/decode/read。跨设备时间同步不可靠时用sequence/epoch关联并分别记录各端单调时钟，避免直接相减异步时钟。
+9. 建立性能验收：4ms和2ms配置分别测量command-to-controller、controller-to-host、round-trip及read/write deadline；报告p50/p95/p99/p99.9/max、jitter、deadline miss、丢包/重传/覆盖、CPU和线程调度数据；覆盖CPU满载、网络burst、buffer full、链路断开/恢复、控制器重启和长时间运行。
+10. 对普通STOP命令的传输确认和独立安全功能分开设计。UDP发送成功或发送STOP请求均不能当作机器人已停止的证明；停止状态必须通过控制器反馈/安全回路证据确认。
+
+### E. 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-293 | UDP would_block发送结果 | 模拟发送缓冲区满时底层/接口/write明确报告丢弃或错误，不返回成功 | socket mock与内核故障注入 | 未执行 |
+| SERVO-294 | UDP发送结果分层与计数 | 发送尝试、内核接受、would_block、其他错误及连续丢弃均可观测 | 计数器单测和压力报告 | 未执行 |
+| SERVO-295 | 命令接收/接受/执行ACK | 每个命令sequence/epoch有明确接收、拒绝、应用状态和超时语义 | VAL3协议测试与端到端跟踪 | 未执行 |
+| SERVO-296 | UDP接收线程实时调度 | 优先级、CPU affinity、权限失败降级行为明确，唤醒延迟有测量 | Linux调度配置与trace/perf报告 | 未执行 |
+| SERVO-297 | UDP sender身份校验 | 非白名单源不能更新状态缓存或sequence统计 | 多源注入与网络ACL测试 | 未执行 |
+| SERVO-298 | 接收错误分类与重挂接 | operation_aborted、关闭、短包、可恢复错误有独立策略，无紧密重试/日志风暴 | 故障注入及错误计数 | 未执行 |
+| SERVO-299 | 接收缓存覆盖/突发流量 | burst下覆盖、内核丢包、序列缺口和最大年龄可量化，超过预算触发门控 | 高速UDP burst测试 | 未执行 |
+| SERVO-300 | 端到端时钟/sequence关联 | host与VAL3追踪点可按epoch/sequence关联，跨时钟误差有界或不直接混算 | 双端追踪日志与时间同步报告 | 未执行 |
+| SERVO-301 | 4ms/2ms实时性能验收 | 两种配置分别提供p99/p99.9/max、jitter、deadline miss、CPU/调度证据 | PREEMPT_RT/目标机/CS9性能报告 | 未执行 |
+| SERVO-302 | 断链、重启与STOP确认 | 断链/重启后过期命令失效，恢复需重新握手使能；STOP有控制器反馈，不以本地send成功代替 | 网络故障注入、VAL3日志及停止状态证据 | 未执行 |
+
+### F. 本节来源记录（#1850–#1856）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1850 | [udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | MSG_DONTWAIT、would_block丢包但返回true、接收错误回调、接收重挂接、发送丢包TODO、sender校验TODO |
+| #1851 | [real_time_socket_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp) 与 [real_time_socket_interface.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_interface.hpp) | 序列化、send返回传播及blocking注释/MSG_DONTWAIT矛盾 |
+| #1852 | [real_time_socket_subscriber.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) 与 [header](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | receive thread、默认Clock时间戳、latest-value缓存、sequence丢包估算、线程优先级/亲和TODO |
+| #1853 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | hardware read/write调用链及send结果对write状态的影响 |
+| #1854 | [robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | send_robot_command、STOP发送、连接与状态读取语义 |
+| #1855 | [test_rt_socket_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | loopback功能测试、100ms/1s sleep、丢包计数测试范围 |
+| #1856 | [ROS 2 Real-Time Programming](https://github.com/ros2/ros2_documentation/blob/rolling/source/Capabilities/Motion-planning/Real-Time-Programming.rst)、[ROS 2 Executors](https://docs.ros.org/en/rolling/Concepts/Intermediate/About-Executors.html)、[Stäubli CS9 Real Time Val3/Fieldbus TSS.000.014.04-A](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | 周期deadline/jitter、executor线程调度与CS9同步任务时序背景 |
