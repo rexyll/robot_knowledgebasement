@@ -1185,7 +1185,8 @@
 | SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 部分取证（候选job名与B/T工件已核对；Jenkins直接元数据/日志未取得，任务未完成） |
 | SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
 | SERVO-715 | 固定Noble Debian包装分支，核对control/changelog/rules/gbp.conf并逐项映射package.xml的25项depend/exec_depend | 已完成（静态Git文件核验；不等于实际deb/构建测试验收） |
-| SERVO-716 | 取得amd64/arm64真实Build Farm job环境和console log，核验DEB_BUILD_OPTIONS、测试是否执行、测试结果、失败容错及工件关联 | 未执行 |
+| SERVO-716 | 取得amd64/arm64具体Jenkins job XML/console log与构建工件关联，核验单次构建的实际参数及日志 | 部分取证（实际部署配置已确认两架构run_package_tests=false；具体job实例和console log仍缺） |
+| SERVO-717 | 将实际部署的Jazzy default/unv8配置、release_job.py、binarydeb_job.py与MoveIt Servo 2.12.4的BUILD_TESTING测试目标形成可追溯静态证据链 | 已完成（静态配置/代码链核验；不替代job实例日志或其它CI结果） |
 
 本节来源：
 - README首次引入提交：`https://github.com/ros2-gbp/moveit2-release/commit/458a522d267a5bf75d324030a90ebe85154aa444`；父提交 `f1eff8fa0ccc288de2d334b796ffb7dbb3e15b89`。
@@ -1378,3 +1379,22 @@
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/rules
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/control
 - 专项追加件§9.3.125。
+
+
+### Stäubli专项审查新增记录（§9.3.126，ROS Build Farm实际部署配置确认Jazzy release package tests被禁用）
+
+- `ros2/ros_buildfarm_config` README说明`ros2`分支是部署到`build.ros2.org`的实际配置分支；本轮读取该分支HEAD `e8ac988037437c0150a5e7a91cd80395cd1aea91`，提交时间2026-11-02 14:54:31 UTC。`index.yaml`把Jazzy `default`映射到`jazzy/release-build.yaml`（Noble amd64）、`unv8`映射到`jazzy/release-ubuntu-arm64-build.yaml`（Noble arm64）。
+- 两个实际部署配置均明确设置`include_test_dependencies:false`和`run_package_tests:false`。Build Farm `release_job.py`第770行将`run_package_tests`反转成`skip_tests`；`binarydeb_job.py`第128–134行追加`DEB_BUILD_OPTIONS=nocheck`与`DEB_BUILD_PROFILES=nocheck`，第144–146行执行`dpkg-buildpackage -b -us -uc -Pnocheck`。
+- MoveIt Servo 2.12.4的`CMakeLists.txt`第117行以`if(BUILD_TESTING)`包围三个gtest目标：`moveit_servo_utils_test`、`moveit_servo_cpp_integration_test`和`moveit_servo_ros_integration_test`。Noble debian/rules在nocheck分支设置`BUILD_TESTING=OFF`，因此这些测试目标在Jazzy release binary build配置路径中不会构建/注册。
+- 该证据确认正式release binary build配置禁用MoveIt Servo package tests；不代表上游PR/devel/nightly CI也禁用测试。具体2026-11-05/06 Jenkins job XML、历史job配置快照、console log和工件fingerprint仍未取得；本轮不声称读取了具体job执行日志。
+- SERVO-717静态配置到Build Farm代码再到CMake测试目标的证据链已完成；SERVO-716改为部分取证，等待具体job实例及日志。SERVO-710/714未完成，SERVO-713部分取证、未完成；21-02继续进行中，Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/README.md
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/index.yaml
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/jazzy/release-build.yaml
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/jazzy/release-ubuntu-arm64-build.yaml
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/release_job.py
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/binarydeb_job.py
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
+- 专项追加件§9.3.126。
