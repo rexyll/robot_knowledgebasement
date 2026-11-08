@@ -3613,3 +3613,69 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1819 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 周期read/write只读取控制状态及supervision映射 |
 | #1820 | [ICube robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | 独立状态缓存、timeout和控制序列接口 |
 | #1821 | [ROS 2 diagnostic_msgs/DiagnosticArray](https://github.com/ros2/common_interfaces/blob/rolling/diagnostic_msgs/msg/DiagnosticArray.msg) | 诊断数据表达应包含明确header时间语义的通用参考；不代表Stäubli协议已采用该消息 |
+
+
+## 9.3.61 ROS 2 lifecycle转换、停机语义与命令门控（固定上游提交 bd658e2）
+
+**审查范围：** `StaubliHardwareInterface` 的 `on_init/on_configure/on_activate/on_deactivate/on_cleanup/on_shutdown/on_error/read/write`，`RobotDriver::connect/disconnect/send_stop_all_command/send_robot_command`，以及UDP资源关闭路径。固定上游提交：[`bd658e2d266e315d2ee35f985fb352ea88306b79`](https://github.com/ICube-Robotics/staubli_driver_ros2/commit/bd658e2d266e315d2ee35f985fb352ea88306b79)。
+
+### 源码事实
+
+1. `StaubliHardwareInterface` 头文件声明并实现 `on_init`、`on_configure`、`on_activate`、`on_cleanup`、`on_shutdown`、`on_error`，但没有声明或实现 `on_deactivate`。Active→Inactive没有该类自定义的动作停止、命令模式复位或资源策略。
+2. `on_configure()`解析网络参数并调用 `robot_driver_->connect(net_config, 5000)`；connect失败时返回CallbackReturn::ERROR。成功后保留通信连接，符合“配置阶段建立通信”的常见生命周期分工，但诊断首帧虚假ready问题已在§9.3.60单独记录。
+3. `on_activate()`只将本地 `current_control_mode_` 设置为 `CommandType::STOP` 并返回SUCCESS；没有主动发送STOP，没有重新读取/验证新鲜状态，也没有检查诊断、控制器身份或固件状态。
+4. `on_cleanup()`调用 `disconnect()`，但忽略其bool返回值，随后无条件返回SUCCESS。若接收线程停止或socket关闭失败，上层仍会认为cleanup成功。
+5. `on_shutdown()`仅在 `robot_driver_->is_connected()` 为真时处理；若缓存的 `state_msg_.control_state != STOP` 则调用 `send_stop_all_command()`，但忽略STOP发送结果，随后调用disconnect且同样忽略其结果。若状态缓存过期或从未有效读取，停机决策可能依据旧缓存；该情形需结合上层调用顺序验证。
+6. `on_error()`在driver连接时调用STOP但忽略返回值，并返回SUCCESS；若driver不连接则返回ERROR。该回调不执行disconnect或缓存失效处理。ROS 2 ros2_control文档说明read/write返回ERROR会触发on_error；on_error成功与失败会影响组件回到UNCONFIGURED或进入FINALIZED，故错误恢复策略不能只依赖日志。
+7. `read()`和`write()`只检查 `robot_driver_ && is_connected()`，没有检查组件当前生命周期状态。write在本地控制模式STOP时仍会构造并发送STOP命令；非STOP时依赖最近一次 `state_msg_` 的错误标志和control_state。是否在Inactive时仍被调用及接口是否可用，依赖具体ros2_control发行版和Controller Manager调度，不能仅凭该源码断言必然发生。
+8. `perform_command_mode_switch()`可改变本地 `current_control_mode_`，但没有独立的生命周期状态门闩；切换前检查使用缓存的状态字段。需要确保deactivate与mode switch并发/交错时不会重新进入运动模式。
+9. 硬件接口析构函数调用disconnect；RobotDriver析构函数为空。disconnect会reset接口对象、停止接收线程、关闭socket并reset数据；它是资源清理路径，不等价于向机器人发送STOP。
+10. `RobotDriver::disconnect()`重复调用在多数已断开路径上趋于幂等，但底层UDP disconnect在未连接时返回true并发出warning；完整的重复configure/cleanup/错误恢复仍需要状态序列测试。connect失败路径多处调用disconnect回滚，但各个失败点、异常抛出及并发读写下的原子性尚未得到验证。
+11. `send_stop_all_command()`调用 `control_interface_->send_message()`，而非先验证指针非空；正常单线程连接状态下由is_connected间接约束接口存在，但生命周期并发下仍依赖调用方串行化，需与§9.3.59的共享指针竞态合并验证。
+12. 上游ROS 2 Jazzy文档把on_configure作为建立硬件通信的阶段、on_activate作为允许运动/启用硬件的阶段、on_deactivate作为禁用运动的阶段、on_cleanup作为撤销配置通信的阶段；其生命周期文档同时提醒Inactive阶段命令接口的具体处理不能假设由框架自动阻断，硬件实现必须明确行为。
+
+### 风险判断（静态推导，尚未复现）
+
+- Active→Inactive缺少显式停止和模式门控，无法从本驱动源码证明deactivate成功返回后机器人端已收到STOP，或后续write不再发送运动命令。
+- activate只复位本地模式，不能证明机器人端控制状态与驱动本地模式同步；本地STOP不等于控制器已确认停止。
+- cleanup/shutdown忽略底层失败结果，可能造成上层生命周期状态与实际socket/接收线程资源状态不一致。
+- on_error返回SUCCESS的前提仅是调用路径进入已连接分支，而STOP发送结果未作为成功条件；可能出现“错误恢复回调成功”但停止命令未成功发送的状态不一致。
+- on_error在未连接时返回ERROR，按ros2_control错误转换语义可能使组件进入FINALIZED，自动恢复能力有限；应设计明确的故障锁存与人工/受控重新加载策略。
+- 旧的 `state_msg_` 被用于shutdown STOP判断及write错误门控；生命周期切换前应检查其有效性、新鲜度和连接代际。
+- 本节不证明机器人实际发生未停止、非Active运动或资源泄漏；需要控制器端命令确认、生命周期集成和故障注入证据。
+
+### 整改建议
+
+1. 显式实现 `on_deactivate()`：先关闭运动命令入口/锁存deactivating，再发送STOP并检查结果，确认策略后复位本地控制模式；若STOP失败，应返回明确错误并保留故障状态，不得伪报成功。
+2. 在硬件接口内维护生命周期/命令许可状态（如UNCONFIGURED/INACTIVE/ACTIVE/ERROR及连接代际）；read/write/mode-switch统一检查许可，非ACTIVE禁止位置/速度等运动命令。STOP与安全停机路径应单独定义，避免被普通命令门控误挡。
+3. `on_activate()`需重新验证控制状态有效且新鲜、机器人无错误、运动许可条件满足；若产品策略要求诊断/身份/固件为硬门槛，还应纳入激活门槛。只在状态确认后开放运动模式。
+4. `on_cleanup()`、`on_shutdown()`和析构路径应检查并记录disconnect结果；停止接收线程、取消异步操作、关闭socket、清理缓存的顺序与失败回滚应明确，避免生命周期状态先于资源清理完成。
+5. `on_error()`应验证STOP实际发送结果，并定义连接不可用时的独立安全策略；区分“STOP命令已发送”“控制器确认停止”“安全回路触发”，不得将它们合并为一个success标志。
+6. 对生命周期转换加串行化/门闩，与§9.3.59共享指针并发问题一起处理；每次configure建立新generation，deactivate/cleanup/shutdown使旧generation失效。
+7. 在目标ROS 2 Jazzy版本上核对实际Controller Manager调用时序及Inactive接口可用性；不要将Rolling/Humble文档的细节未经验证直接移植到Jazzy。
+8. 设计停机状态缓存策略：停止判断必须使用有效、新鲜、属于当前连接代际的状态；缓存无效时走显式故障策略，而不是静默跳过STOP。
+
+### 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-243 | deactivate停止门槛 | Active→Inactive关闭运动命令入口并执行经确认的停止策略 | Jazzy生命周期集成+控制器日志 | 未执行 |
+| SERVO-244 | Inactive写入门控 | Inactive期间位置/速度等运动命令不能发出；STOP/安全路径定义明确 | write调用跟踪与UDP抓包 | 未执行 |
+| SERVO-245 | activate重新校验 | 激活前检查当前代际控制状态新鲜、有效及运动许可 | 过期/错误/刹车状态注入 | 未执行 |
+| SERVO-246 | cleanup失败传播 | disconnect/线程停止/socket关闭失败不能被伪报cleanup成功 | socket故障注入 | 未执行 |
+| SERVO-247 | shutdown STOP结果 | STOP发送失败、状态缓存过期/无效时按安全策略处理并可审计 | 停机故障矩阵 | 未执行 |
+| SERVO-248 | on_error恢复语义 | STOP结果、断链策略与SUCCESS/ERROR生命周期结果一致 | read/write错误集成测试 | 未执行 |
+| SERVO-249 | configure/cleanup重复转换 | 重复configure、cleanup、shutdown及失败重试无残留线程/socket | 生命周期循环与资源计数 | 未执行 |
+| SERVO-250 | 生命周期与mode-switch竞态 | deactivate与prepare/perform mode switch交错时不能重新开放运动模式 | 并发/TSAN测试 | 未执行 |
+| SERVO-251 | 连接代际状态隔离 | 重连后旧state_msg不能通过activate或shutdown安全判定 | 重连+缓存过期注入 | 未执行 |
+| SERVO-252 | Jazzy实际调用顺序 | 记录目标Jazzy ros2_control版本下read/write与各回调的真实调用时序 | Controller Manager trace | 未执行 |
+
+### E. 本节来源记录（#1822–#1826）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1822 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 生命周期回调、read/write门控、模式切换和状态缓存 |
+| #1823 | [ICube staubli_hardware_interface.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp) | 生命周期回调声明；缺少on_deactivate覆盖 |
+| #1824 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect/disconnect/STOP发送与回滚 |
+| #1825 | [ICube udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | 接收线程停止、socket关闭及异步资源生命周期 |
+| #1826 | [ros2_control Jazzy hardware lifecycle](https://control.ros.org/jazzy/doc/ros2_control/hardware_interface/doc/lifecycle_of_a_hardware_component.html) | on_configure/on_activate/on_deactivate/on_cleanup职责及Inactive行为说明；具体行为须按目标Jazzy版本集成确认 |
