@@ -120,3 +120,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.122；新增Build Farm Jenkins平台视图存在性核验、source/binary候选job命名公式及具体job访问失败边界；更正production main目录`.orig.tar.gz`大小为65,705 bytes。平台视图可见不等于moveit_servo具体job或构建成功，APT签名/Packages/deb哈希仍未取得。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.123；重读ROS Jazzy amd64/arm64规范状态页，amd64页面刷新至04:56:18 -0800、arm64为04:43:04 -0800；两架构moveit_servo的B/T/M版本字段未变化，Main仍为10月6日旧构建。该记录不代表取得APT正文/验签、deb哈希或Jenkins package job日志。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.124；核对Noble Debian packaging分支的control/changelog/rules/gbp.conf与package.xml依赖映射（25/25）；发现debian/rules可通过nocheck关闭测试，并以dh_auto_test || true容忍测试失败，因此Build Farm构建成功不能作为测试全通过证据。真实deb字段及Jenkins测试日志仍缺。
