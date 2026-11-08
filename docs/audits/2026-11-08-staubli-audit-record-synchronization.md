@@ -165,3 +165,12 @@ SERVO-713仍部分取证、未完成；SERVO-710/714未完成。APT签名/Packag
 厂商档案更新后，资产清单对应行刷新为Blob SHA 33181a6ddebfbf4cda3c18b6b6d6ef470466075a、UTF-8 508670 bytes；仅元数据刷新，不代表claim-level审查或全库重算。
 
 SERVO-710/714仍未完成；SERVO-713部分取证、未完成。目标Jazzy apt安装运行、VAL3、CS9/SRS、HIL/FAT/SAT与实机验证未执行。
+## 16. 状态页时间顺序与Build Farm阶段语义复核（2026-11-08追加）
+
+新增专项追加件§9.3.118、厂商档案§128.69。ROS Jazzy规范URL直接读取的页面生成时间为amd64 2026-11-08 04:36:03、arm64 2026-11-08 04:23:04（-0800）；moveit_servo amd64 B/T均为2.12.4-1noble.20261105.184638、M为2.12.4-1noble.20261006.040508；arm64 B/T均为2.12.4-1noble.20261106.111556、M为2.12.4-1noble.20261006.043301。搜索索引中带?q=RED的2026-11-07 18:03:03页面早于11月8日规范快照，且打开后返回2025年旧缓存，不得将其误称为更新快照。
+
+ROS ros_buildfarm release job官方文档确认source job、binary job和building到testing的sync criteria流程；但不证明具体moveit_servo Jenkins job的实际执行结果。具体job API/页面在当前读取通道不可访问。再次尝试读取InRelease/Packages、压缩Packages和testing包目录未成功；未获得签名、包stanza、deb control或SHA256。Production main pool仍列10月6日旧deb。
+
+资产清单厂商档案行刷新为Blob SHA 996235b93781acb4ab77737ef1274ebd22eadc6d、UTF-8 510090 bytes，CSV保持14列且正确闭合引号。仅元数据刷新，不代表claim-level复审。
+
+SERVO-710/714未完成；SERVO-713部分取证但未完成。目标APT安装运行、VAL3、CS9/SRS、HIL/FAT/SAT和实机验证未执行。
