@@ -4541,3 +4541,73 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1926 | [FollowJointTrajectory action definition](https://docs.ros.org/en/ros2_packages/jazzy/api/control_msgs/action/FollowJointTrajectory.html) | Action goal/result/error语义基准 |
 
 **验证边界：** 本节仅为固定提交静态源码/配置审查。未运行JTC Action server/client、参数转储、goal/cancel/preemption/容差超时测试、VAL3编译、CS9仿真或实机验证。未显式配置path_tolerance/goal_tolerance不等于JTC一定没有默认行为；goal_time=0的实际语义需按部署版本确认。Action成功/取消不证明机械臂已静止或安全功能已动作。SERVO-373–SERVO-382全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.75 多控制器并发、控制权仲裁、接口切换与轨迹命令冲突（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节审查ros2_control控制器加载/激活配置、MoveIt控制器路由、ros2_control硬件接口声明、StaubliHardwareInterface的prepare/perform_command_mode_switch、控制模式映射及单元测试。结论：固定提交的默认bringup只配置joint_state_broadcaster和joint_trajectory_controller，轨迹控制器默认inactive，仅通过start_controller显式激活；这减少了仓库默认启动时的控制器数量，但不是全系统控制权仲裁或外部命令入口隔离。硬件接口模式切换逻辑存在明确TODO：未校验所有接口是否整体停止/启动、未拒绝混合position/velocity请求；模式只由start_interfaces中第一个匹配接口决定，stop_interfaces不参与模式推导。控制器资源claim可由ros2_control框架协调，但仓库未建立MoveIt、其他ROS节点、直接硬件/UDP命令和VAL3程序之间的统一owner/lease/epoch仲裁。当前仅位置控制实际受支持；速度/力矩切换被拒绝，加速度接口只为限幅器提供参数。
+
+### 静态源码事实
+
+1. `staubli_bringup/config/controllers.yaml`只声明joint_state_broadcaster和joint_trajectory_controller；未发现同一配置中并列加载位置、速度、力矩、笛卡尔或自定义servo控制器。controller_manager update_rate为250Hz。
+2. `launch_robot_control.launch.py`总是加载joint_state_broadcaster；joint_trajectory_controller以`--inactive`加载，只有`start_controller`参数明确等于该控制器名时才调用`ros2 control set_controller_state ... active`。默认值为none。该launch流程没有实现运行时多控制器策略、外部控制源互斥、租约过期或主备控制权转移。
+3. `moveit_controllers.yaml`只将joint_trajectory_controller映射为FollowJointTrajectory action，并设置default=false。MoveIt只是该控制器的Action客户端/路由配置，不是另一套独立硬件命令接口；是否启动和激活控制器仍由controller_manager及launch配置决定。
+4. `staubli_r2c_joints.xacro`为每个关节声明position和velocity命令接口；真实硬件模式额外导出acceleration接口作为joint limiter最大加速度参数载体。effort命令接口条件由has_joint_torque_control控制，但staubli.r2c.xacro将has_joint_torque_control固定为false，因此当前配置不声明effort命令接口。state接口包含position、velocity，effort状态由传感器选项控制。
+5. HardwareInterface::export_command_interfaces实际导出每轴position、velocity、acceleration三类接口；没有导出effort命令接口。头文件明确说明acceleration接口只用于joint limiter传递加速度限制，不是实际运动控制模式，切换到acceleration模式应始终拒绝。
+6. `resolve_mode(start_interfaces)`按传入列表顺序扫描字符串：遇到包含position返回JOINT_POSITION；velocity返回JOINT_VELOCITY；effort返回JOINT_TORQUE；acceleration返回INVALID。它遇到第一个匹配即返回，没有对完整接口集合进行集合级校验。因此混合position/velocity请求可能按列表顺序解析成不同模式，而不是一致地拒绝。
+7. `prepare_command_mode_switch()`明确注释TODO：应验证所有接口是否一起停止/启动，例如不允许混合position和velocity接口；另一个TODO表示未来模式增加后需校验当前active mode。实际代码只根据start_interfaces调用resolve_mode，不解析stop_interfaces（出站模式推导代码被注释），也没有核验启动/停止接口是否属于同一关节集合。
+8. prepare对position返回OK；velocity和torque返回ERROR；acceleration-only请求解析为INVALID并作为STOP接受，以支持加速度接口仅用于限幅器的用途。若start_interfaces混合position与acceleration，resolve_mode按顺序可能先命中position而接受该请求；当前没有显式验证acceleration接口只被限幅器读取且不能与控制模式混用。
+9. `perform_command_mode_switch()`忽略其start_interfaces和stop_interfaces参数，消费prepare阶段缓存的pending_mode_。如果prepare没有调用，则按STOP处理。对JOINT_POSITION只检查缓存error_state与motion_possible；operation_mode_status非0只警告HOLD但仍继续切换。没有检查切换前旧轨迹Action是否结束/取消、旧命令是否已排空、控制器是否已停稳或状态是否足够新鲜。
+10. 模式切换时将位置命令初始化为当前缓存关节位置，并将速度/加速度命令清零，再更新current_control_mode_。这是主机命令缓存初始化，不等于VAL3确认旧命令清空、旧轨迹终止或机器人静止。
+11. `write()`只根据current_control_mode_选择STOP/JOINT_POSITION/JOINT_VELOCITY命令并发送；位置模式和速度模式都可构造协议消息，但prepare明确拒绝velocity激活，README也说明当前只支持position control。若通过非标准调用路径绕过正常controller_manager切换，不能据此认定速度模式具备可用闭环。
+12. 目前ROS 2资源管理框架可以协调其自身controller manager内的command interface claims，但该项目没有在硬件驱动中实现跨进程控制源身份、外部直接UDP写入仲裁、控制权租约、会话epoch或命令owner标记。不能把框架内claim机制外推为对任意外部命令源的全局互斥保证。
+13. 本轮未发现仓库默认bringup同时加载多个运动控制器；但这不证明用户自定义controller yaml、独立controller_manager、外部ROS节点、厂商示教器或其他VAL3任务不会与本驱动竞争。实际部署必须盘点所有控制命令入口并建立唯一控制权策略。
+14. `test_staubli_hardware_interface.cpp`覆盖接口导出、mock生命周期、read/write等；没有prepare/perform_command_mode_switch测试，没有混合接口顺序测试、并发claim冲突测试、旧轨迹切换测试或外部命令源冲突测试。
+15. 本轮未运行controller_manager、spawner、switch_controller、MoveIt或实际ROS节点；未执行ROS构建、VAL3仿真、CS9或实机测试。对混合接口请求的行为属于按静态函数逻辑推导，尚未通过实际ros2_control版本执行确认。
+
+### 风险与整改要求
+
+- 建立唯一运动命令owner：在任一时刻明确MoveIt/JTC、servo控制器、示教器、厂商程序或其他控制源中谁拥有机器人命令权；切换采用明确状态机和租约/epoch，禁止多个源同时下发。
+- 完整校验start_interfaces与stop_interfaces：按关节和接口类型解析完整集合；拒绝混合position/velocity/effort、跨关节不完整切换、未知接口、重复接口和不一致停止集合；不可依赖vector顺序。
+- 明确控制器claim与硬件模式状态的双层一致性：controller_manager资源claim成功不代表机器人侧模式已切换；硬件模式提交失败时要验证控制器状态回滚、旧控制器恢复和命令输出清零。
+- 模式切换前要求活动轨迹Action进入终态，停止接收旧轨迹点，等待旧命令队列清理和控制器静止/允许切换确认；切换后重新建立command session并验证新鲜状态。
+- 对直接UDP/厂商示教器/外部VAL3程序等ROS外部控制源增加互斥接入机制或明确物理/网络隔离策略；控制器端校验owner/session epoch，拒绝旧owner命令。
+- 为STOP/ERROR和模式切换建立确定的优先级：STOP应可抢占所有普通运动命令；普通模式切换不能覆盖安全停止；安全状态必须由独立安全系统提供。
+- 修正resolve_mode为基于完整接口集合的确定性判定；在接口类型声明、硬件导出和真实支持模式之间建立一致性自动测试。
+- 增加controller_manager集成测试：两个运动控制器争用同一position interface、MoveIt与servo控制器切换、position/velocity混合、部分关节claim、prepare成功但perform失败、旧Action运行中切换、通信断链期间切换。
+- 通过运行时controller list/state、claimed_interfaces、hardware component state及驱动owner/session日志生成部署控制权快照；CS9/HIL/实机验证所有外部命令源互斥。
+- 在以上测试完成前，只能表述“默认配置只加载一个运动控制器并使用ros2_control接口claim机制”，不得宣称系统已经具备全局控制权仲裁或多源安全互斥。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-383 | 控制器清单与运行态快照 | 导出所有控制器、状态、claimed interfaces和硬件状态 | 未执行 |
+| SERVO-384 | 接口集合解析 | 按集合验证start/stop interfaces，混合模式/乱序/重复/未知接口一律确定性拒绝 | 未执行 |
+| SERVO-385 | 控制器资源竞争 | 两个运动控制器claim同一关节接口时验证唯一获权与失败回滚 | 未执行 |
+| SERVO-386 | MoveIt与servo控制源切换 | 轨迹Action终止、命令清空、静止确认后才能转移控制权 | 未执行 |
+| SERVO-387 | 外部控制源隔离 | 盘点示教器、直接UDP、VAL3程序及外部ROS节点并验证互斥 | 未执行 |
+| SERVO-388 | 模式切换原子性 | prepare/perform失败、部分接口切换及断链时验证状态回滚 | 未执行 |
+| SERVO-389 | 旧轨迹/旧命令隔离 | 引入owner/session epoch并拒绝切换前旧命令和队列残留 | 未执行 |
+| SERVO-390 | STOP优先级 | 验证STOP/ERROR可压制普通运动命令且不被模式切换覆盖 | 未执行 |
+| SERVO-391 | 接口声明与支持模式一致性 | Xacro导出接口、HardwareInterface导出及可用模式自动化一致性测试 | 未执行 |
+| SERVO-392 | 多源控制权端到端验收 | 在CS9/HIL/实机验证MoveIt、手动/示教器和其他命令源互斥 | 未执行 |
+
+### 本节来源记录（#1927–#1935）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1927 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | controller_manager控制器清单和250Hz更新率 |
+| #1928 | [launch_robot_control.launch.py @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_robot_control.launch.py) | 默认inactive加载与显式控制器激活 |
+| #1929 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 接口导出、resolve_mode、prepare/perform切换与write |
+| #1930 | [staubli_hardware_interface.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp) | pending mode状态与加速度接口用途说明 |
+| #1931 | [staubli_r2c_joints.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro) | position/velocity/acceleration/effort接口声明条件 |
+| #1932 | [staubli.r2c.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/staubli.r2c.xacro) | 真实硬件acceleration接口启用及torque control关闭 |
+| #1933 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 测试接口导出和生命周期，但未覆盖模式切换/claim竞争 |
+| #1934 | [README.md @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md) | 上游声明目前仅支持位置控制 |
+| #1935 | [bringup quickstart @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/bringup.rst) | 加速度接口只是joint limiter参数通道，不是运动控制模式 |
+
+**验证边界：** 本节仅为固定提交静态源码/配置审查。未运行controller_manager、spawner、switch_controller、MoveIt、混合接口测试、claim竞争测试、VAL3编译/仿真、CS9/HIL或实机验证。ros2_control框架的接口claim能力不等于项目实现全局控制源仲裁；混合接口行为为静态逻辑推导。SERVO-383–SERVO-392全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
