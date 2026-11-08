@@ -114,3 +114,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计已推进至§9.3.120；除rosdistro release ref与上游tag package.xml文件级关联外，新增两架构Jazzy状态页生成时间复核及production main pool源包/二进制目录元数据交叉核对。M仍为10月6日构建；Debian工件正文/哈希、APT签名、testing工件和Jenkins构建日志仍未取得。
 
 
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.121；补充moveit2-release README发布批次声明、ROS Jazzy双架构状态页再核验及Debian源包读取失败边界。发布声明与release ref关联已核实；源包正文/签名/校验和、Jenkins真实构建日志、APT完整索引与二进制元数据仍未取得。
