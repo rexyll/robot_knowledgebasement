@@ -156,3 +156,12 @@ building pool直接列出amd64新deb（完整文件名ros-jazzy-moveit-servo_2.1
 厂商档案更新后，资产清单中该文件单行已刷新为Blob SHA 7a58b297e73046ca65956547c2098dea54b6540c、UTF-8大小507502 bytes。仅为单一资产元数据刷新，不代表claim-level验收或全库重算。
 
 SERVO-713仍部分取证、未完成；SERVO-710/714未完成。APT签名/Packages完整记录、deb control/SHA256、真实Jenkins build日志、目标Jazzy安装运行、VAL3/CS9/SRS/HIL/实机验证仍缺。
+## 15. Testing/main APT索引目录双源交叉核验（2026-11-08追加）
+
+新增专项追加件§9.3.117与厂商档案§128.68。ROS官方testing lists目录及OSUOSL rsync镜像目录均列出Jazzy Noble amd64 InRelease/Packages时间为2026-11-06 13:15（4,679/8,406,600 bytes），arm64为2026-11-07 11:29（4,679/8,381,795 bytes）；source InRelease为11月7日11:28，Sources为11月6日13:09（10,217,787 bytes）。Production main lists目录仍列amd64 10月6日08:57、arm64 10月6日08:59的旧索引。Testing索引目录时间比main新约31–32天。
+
+本轮再次打开Jazzy amd64/arm64状态页，页面时间戳仍为04:36:03/04:23:04 -0800，moveit_servo B/T/M版本未变化。索引目录元数据双源一致，但Packages/InRelease正文仍未成功下载或展开；未取得包stanza、签名验证、deb control/SHA256。不得将索引时间新误读为production晋级或APT签名通过。
+
+厂商档案更新后，资产清单对应行刷新为Blob SHA 33181a6ddebfbf4cda3c18b6b6d6ef470466075a、UTF-8 508670 bytes；仅元数据刷新，不代表claim-level审查或全库重算。
+
+SERVO-710/714仍未完成；SERVO-713部分取证、未完成。目标Jazzy apt安装运行、VAL3、CS9/SRS、HIL/FAT/SAT与实机验证未执行。
