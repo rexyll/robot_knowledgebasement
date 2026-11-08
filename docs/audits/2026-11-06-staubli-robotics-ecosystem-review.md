@@ -6408,3 +6408,73 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2102 | [test_staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 硬件接口测试范围及action集成缺口 |
 
 **验证边界：** 完成固定上游提交的JTC配置、HardwareInterface错误回调、RobotDriver发送路径、VAL3状态映射与现有测试树静态审查，并以Jazzy官方文档核对参数语义。没有执行任何action、VAL3、CS9/SRS、HIL或实机测试。SERVO-608–SERVO-619全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## §9.3.97 控制权管理、控制模式切换与多控制源互斥审查
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`；ros2_control API语义按ROS 2 Control Jazzy官方文档。仅为公开源码、配置和测试树静态审查。
+
+### 9.3.97.1 ROS 2控制入口与接口资源
+
+- `StaubliHardwareInterface`导出每个关节的position、velocity和acceleration command interface；effort/torque仅在模式解析分支中出现，但没有对应effort command interface导出。acceleration接口在头文件中明确标注为Joint Limiter参数用途，不是可执行的加速度控制模式。来源#2103–#2104。
+- bringup的controller_manager配置仅声明joint_state_broadcaster与joint_trajectory_controller；launch默认加载joint_state_broadcaster，并将joint_trajectory_controller作为唯一运动控制器候选。MoveIt映射FollowJointTrajectory到该JTC。当前仓库启动配置没有加载Forward Position Controller，也没有形成Servo独立控制器入口；此前§9.3.90已记录Servo输出topic与bringup控制器清单不匹配。本节不把未配置的Servo入口算作当前有效运动控制源。来源#2105–#2106及§9.3.90。
+- 在当前仓库配置下，可确证的ROS运动命令链是MoveIt FollowJointTrajectory→JTC→ros2_control position command interface→HardwareInterface write→RobotCommand UDP→VAL3 controlTask。controller_manager资源声明可阻止多个控制器同时占有同一个完全相同的command interface，但position与velocity是不同资源键；若其他控制器分别claim不同类型接口，是否形成跨模式互斥必须由HardwareInterface显式拒绝，不能仅依赖资源claim机制。来源#2103–#2106、#2110–#2111。
+- 固定上游树中的VAL3程序均位于ros2_server目录；controlTask通过控制UDP socket接收RobotCommand并调用MoveJSync/STOP相关程序。未发现该仓库同时包含独立PLC运动程序或第二套VAL3运动任务的证据。但这只描述仓库交付内容，不能证明现场控制柜未加载其他VAL3应用、PLC程序、uniVAL plc或uniVAL drive控制路径。来源#2107及上游固定tree。
+
+### 9.3.97.2 prepare/perform两阶段切换实现
+
+- Jazzy HardwareComponentInterface文档将prepare定义为非实时阶段：检查新接口组合是否可准备并准备数据；perform定义为实时更新循环中的模式执行，要求快速完成。两者均接收start_interfaces和stop_interfaces。该机制本身不是跨外部PLC/VAL3控制源的身份认证或安全授权协议。来源#2110。
+- 驱动的`resolve_mode(start_interfaces)`按遍历顺序遇到第一个包含position/velocity/effort/acceleration的字符串即返回对应模式。因而混合position+velocity启动时由列表顺序决定结果，而不是明确拒绝冲突组合；源码旁明确留有“mixed position and velocity interfaces should not be allowed”的TODO。来源#2103。
+- acceleration接口的注释称应忽略它以便支持limiter，但实现并未跳过该接口：若遍历时先遇到acceleration，会先返回INVALID；prepare随后把INVALID映射为STOP。若position在前则可能解析为position。即同一组接口可能因输入顺序得到不同结果，需以目标ros2_control版本传入顺序实测确认其实际触发条件。来源#2103–#2104。
+- prepare只根据start_interfaces推导incoming_mode；stop_interfaces解析代码被注释，当前控制模式与待停止接口的匹配关系没有校验。它也没有校验六轴接口是否完整成组启停。源码明确保留“validate all interfaces are stopped/started together”TODO。来源#2103。
+- prepare拒绝velocity和torque模式；接受position与STOP。它将结果缓存到pending_mode_并设置switch_prepared_。因此当前驱动虽导出velocity command interface，却仍不允许切换到velocity控制模式；effort/torque分支在没有effort command export时也不是实际可用入口。来源#2103–#2104。
+- perform忽略实际传入的start_interfaces/stop_interfaces，只消费prepare缓存的pending_mode_；若switch_prepared_为false，则默认选择STOP。该实现依赖controller_manager紧邻调用prepare与perform且参数一致的框架契约，但插件自身没有核对两次调用的接口集合是否一致，也没有为异常调用序列提供可审计的拒绝状态。来源#2103–#2104、#2110。
+- perform对新position模式检查state_msg_.error_state与motion_possible，但没有验证状态样本年龄/序列；operation_mode_status非零（源码注释为HOLD）时只输出warning，仍继续初始化命令并提交JOINT_POSITION。它不会在perform中等待机器人静止，也不会通过协议确认VAL3已经进入STOP。结合§9.3.93/§9.3.96，HOLD与motion_possible映射和状态新鲜度仍是切换准入的关键缺口。来源#2103及既有#2068/#2098。
+- perform将position command初始化为最近一次硬件位置反馈，velocity/acceleration command清零，然后更新current_control_mode_。该动作是主机插件本地变量切换，不是VAL3确认的模式切换事务；真正的STOP或position RobotCommand要在后续write周期构造并发送。若UDP发送失败，write返回ERROR，但本地current_control_mode_已被更新，需与控制器管理器的失败回滚行为联合验证。来源#2103、#2106、#2108。
+
+### 9.3.97.3 VAL3端模式转换与控制源边界
+
+- VAL3 controlTask将模式定义为0=Invalid/Error、1=STOP/Idle、2=Joint position、3=Joint velocity。收到有效命令后提取nMotionCmdType；当上一模式与新模式均非STOP且彼此不同，程序强制转STOP并置错误；从STOP进入新运动模式时若机器人仍在运动，也会阻止启动。来源#2107。
+- STOP分支根据上一模式调用对应停止helper，随后执行stopMove/resetMotion；错误处理路径会清理通信状态、使命令失效并重置control socket。该模式转换逻辑提供了VAL3侧基本的“先STOP再换模式”约束，但不包含控制源身份、PLC/ROS所有权令牌、控制租约、接管握手或操作者授权。来源#2107。
+- RobotCommand消息含nMode与nMotionCmdType字段；固定解码程序将nMotionCmdType作为运动模式。审查未发现VAL3按ROS控制器身份、PLC身份或控制会话身份做授权判定。不能把UDP socket唯一端点等同于经认证的唯一运动控制权威；身份认证/端点校验问题已在§9.3.86记录，本节只说明它对控制权仲裁的影响，不重复协议设计。来源#2107–#2108及§9.3.86。
+- Stäubli生态中PLC/uniVAL plc和外部多轴控制器/uniVAL drive属于不同控制架构；现场若同时配置这些路径，必须明确每一时刻唯一运动控制权威、交接条件及安全责任。当前固定ICube仓库不能证明现场没有这些外部控制入口，也不能证明ROS与PLC并发时有仲裁。现场控制柜程序清单、PLC项目、总线拓扑和CS9配置均未取得，本节不作“现场存在并发”或“已安全互斥”的推断。
+
+### 9.3.97.4 测试覆盖与静态结论
+
+- `test_staubli_hardware_interface.cpp`覆盖构造、初始化、mock配置、接口导出、生命周期读写和pluginlib加载；未调用prepare_command_mode_switch/perform_command_mode_switch，未测试混合接口顺序、部分关节切换、prepare失败、perform无prepare、模式切换后write失败或回滚。来源#2109。
+- 当前静态证据表明：ROS配置只有JTC运动控制器，故未见仓库内多个ROS运动控制器并行启用；但HardwareInterface自身的模式解析与两阶段缓存存在接口组合校验缺口。VAL3端存在先STOP再切换的简单规则，但没有外部控制源身份和所有权授权机制。外部PLC/其他VAL3应用是否接入必须在现场盘点，不能仅靠此仓库排除。
+- **静态结论：** 两阶段API只是ros2_control硬件接口的模式切换钩子，不是完整的控制权仲裁。当前插件未严格验证start/stop接口集合、混合模式、接口成组性和prepare/perform参数一致性；acceleration接口解析顺序可能影响模式结果；perform本地提交模式后才由后续write发送网络命令，缺少VAL3模式接受/停止完成确认；HOLD状态只告警；ROS/PLC/其他VAL3控制源的唯一所有权未形成可审计契约。
+- **验证边界：** 仅完成固定上游提交的HardwareInterface、头文件、controller配置、bringup launch、VAL3 controlTask/命令解码和现有测试树静态审查，并对照ROS 2 Control Jazzy API。未运行controller_manager切换集成测试、ROS 2控制器并发claim测试、VAL3编译、CS9/SRS、PLC/uniVAL现场配置盘点、HIL或实机控制权交接测试。SERVO-620–SERVO-631全部未执行。
+
+### 9.3.97.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-620 | start/stop接口集合与当前模式一致性校验 | 未执行 |
+| SERVO-621 | position/velocity混合接口拒绝及顺序无关性 | 未执行 |
+| SERVO-622 | acceleration limiter接口过滤与解析顺序 | 未执行 |
+| SERVO-623 | 六轴接口完整成组启停与部分关节请求 | 未执行 |
+| SERVO-624 | prepare/perform参数一致性与异常调用序列 | 未执行 |
+| SERVO-625 | perform提交模式后write发送失败及回滚 | 未执行 |
+| SERVO-626 | STOP命令送达、VAL3模式确认与静止确认 | 未执行 |
+| SERVO-627 | HOLD/反馈陈旧/运动中进入position模式的准入 | 未执行 |
+| SERVO-628 | 多ROS控制器跨position/velocity资源互斥 | 未执行 |
+| SERVO-629 | 现场PLC/uniVAL plc/uniVAL drive控制入口盘点 | 未执行 |
+| SERVO-630 | ROS与PLC控制权交接、租约及失联闭锁 | 未执行 |
+| SERVO-631 | 多控制源并发、切换失败与恢复的CS9/HIL/实机验收 | 未执行 |
+
+### 本节来源记录（#2103–#2111）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2103 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 模式解析、prepare/perform、HOLD准入、write发送 |
+| #2104 | [staubli_hardware_interface.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp) | 当前/待切换模式状态及接口定义 |
+| #2105 | [controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | controller_manager已声明控制器 |
+| #2106 | [launch_robot_control.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_robot_control.launch.py) | bringup实际spawner与启动控制器 |
+| #2107 | [VAL3 controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | VAL3模式转换、STOP与运动中切换限制 |
+| #2108 | [decodeRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | VAL3命令运动模式字段解码 |
+| #2109 | [test_staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 现有测试覆盖与切换测试缺口 |
+| #2110 | [ROS 2 Control Jazzy HardwareComponentInterface API](https://control.ros.org/jazzy/doc/api/classhardware__interface_1_1HardwareComponentInterface.html) | prepare非实时检查、perform实时切换语义 |
+| #2111 | [ROS 2 Control Jazzy Controller Manager文档](https://control.ros.org/jazzy/doc/ros2_control/controller_manager/doc/userdoc.html) | 控制器切换策略、strictness与控制器管理行为 |
+
+**验证边界：** 仅静态审查固定上游提交与Jazzy API；没有执行ROS 2切换测试、VAL3编译、CS9/SRS、PLC现场盘点、HIL或实机测试。SERVO-620–SERVO-631全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
