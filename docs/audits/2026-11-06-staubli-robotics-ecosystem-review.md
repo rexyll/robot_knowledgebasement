@@ -5826,3 +5826,89 @@ STOP_REQUEST可以在普通协议层具有最高调度优先级，并要求控�
 | #2040 | [staubli_bringup/package.xml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/package.xml) | bringup声明依赖与脚本直接运行依赖对照 |
 
 **验证边界：** 本节为固定提交静态源码/包清单审查。没有运行ROS 2 launch、spawner、MoveIt或joint_state_broadcaster；没有检查目标Jazzy安装中的实际DDS QoS、controller_manager服务时序、launch事件returncode、仿真时钟或干净环境依赖解析；没有执行colcon build/test、CS9仿真、HIL或实机操作。TRANSIENT_LOCAL与VOLATILE的兼容风险需在锁定依赖版本后验证；“topic曾到达”不构成安全或运动许可证明。SERVO-536–SERVO-544全部未执行；Stäubli仍为静态审查，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.90 运动规划限值、轨迹控制器与硬件命令边界一致性审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围
+
+本节审查固定提交 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79` 中以下内容：
+- MoveIt通用关节限值：`staubli_moveit_config/config/joint_limits.yaml`
+- TX2-60L型号限值：`staubli_robot_description/config/tx2_60l/joint_limits.yaml`及`tx2_60l_med/joint_limits.yaml`
+- URDF软限位生成：`staubli_robot_description/urdf/include/staubli_helpers.xacro`
+- ros2_control接口声明：`staubli_robot_description/r2c/include/staubli_r2c_joints.xacro`
+- 控制器配置：`staubli_bringup/config/controllers.yaml`
+- Servo配置与启动：`staubli_moveit_config/config/staubli_servo.yaml`、`staubli_moveit_config/launch/staubli_moveit.launch.py`
+- 硬件接口写命令路径：`staubli_robot_driver/src/staubli_hardware_interface.cpp`
+
+### 发现与结论
+
+**发现一：MoveIt限值比TX2-60L型号配置明显保守，但两套限值没有可追溯的统一来源或一致性检查。**
+
+MoveIt通用配置对joint_1至joint_5设定max_velocity=1.5 rad/s、max_acceleration=5.0 rad/s²；joint_6为2.0 rad/s、10.0 rad/s²。TX2-60L型号文件则为joint_1至joint_5 300°/s（约5.236 rad/s）、1000°/s²（约17.453 rad/s²），joint_6 500°/s（约8.727 rad/s）、3000°/s²（约52.360 rad/s²）。因此MoveIt值约为型号文件的较低比例，表现为保守限速，不应仅凭差异认定超速风险。问题在于通用MoveIt配置没有按型号生成或自动交叉校验，也没有证据说明这些折减值的依据、适用负载/工具/安装条件和验证过程。若以后型号限值或MoveIt参数单独变化，可能出现规划层与模型层配置漂移。两份型号配置tx2_60l与tx2_60l_med在本次抽查的限值字段相同；仍需逐型号完整核验。
+
+**发现二：硬件接口write路径没有独立的位置/速度/加速度限幅。**
+
+`StaubliHardwareInterface::write()`将position或velocity命令从rad转换为degree后写入RobotCommandMessage；此路径检查连接、控制器错误状态和NaN，但没有在该函数内按型号joint_limits对命令作位置范围、速度、加速度或变化率校验。不能据此断言整个系统完全没有限制——URDF软限位、MoveIt/JTC及控制器管理器可能在各自路径施加约束——但硬件插件写出边界没有形成最后一道可由本仓库源码证明的独立限值保护。绕过MoveIt的其他控制器、直接命令接口或未来新入口是否受控必须做端到端验证。
+
+**发现三：硬件命令校验只检测NaN，不检测正负无穷和其他非有限数。**
+
+write路径使用`std::isnan()`检查命令引用；正负无穷不是NaN，会通过这一检查并继续rad-to-degree转换和发送。即使下游控制器或控制器端最终拒绝该值，也不能替代发送前的有限数校验。建议使用`std::isfinite`，并对每个关节做单位、范围和边界检查；异常时锁存故障并进入已验证的STOP路径。此结论是源码级控制流判断，尚未通过mock网络注入验证。
+
+**发现四：MoveIt Servo配置指向未在本仓库bringup控制器清单中配置的Forward Position Controller。**
+
+`staubli_servo.yaml`指定`command_out_type: std_msgs/Float64MultiArray`、`publish_joint_positions: true`及`command_out_topic: /forward_position_controller/commands`。但`controllers.yaml`只声明joint_state_broadcaster与joint_trajectory_controller；launch的`start_controller`选项也只允许none或joint_trajectory_controller，没有forward_position_controller的类型声明、参数、加载或激活流程。因此在仓库提供的默认控制器编排下，Servo配置的输出端没有对应控制器配置证据。Servo默认`launch_servo=false`，故这不是默认启动必然故障，而是启用Servo功能前必须解决并验证的配置闭环缺口。
+
+**发现五：Servo输出命令接口与硬件接口的模式支持尚未形成端到端证明。**
+
+Servo配置输出Float64MultiArray位置命令，硬件插件确实导出position命令接口；但实际接收端应由ForwardCommandController订阅并向controller_manager申请position接口。当前bringup只配置JointTrajectoryController，且硬件插件的`prepare_command_mode_switch()`对JOINT_VELOCITY明确拒绝，只接受STOP/JOINT_POSITION。应明确Servo仅使用位置输出，确认控制器申请的接口集合、切换事务、命令数组长度/关节顺序和STOP行为；不能将“插件导出了接口”当作Servo可工作的证据。
+
+**发现六：URDF safety_controller软限位不是硬件安全回路证明。**
+
+`staubli_helpers.xacro`根据型号min/max position生成URDF `limit`和可选`safety_controller`软限位，默认`use_soft_limits=true`、position margin=0.1 rad。它属于模型/软件约束配置，不能替代CS9内部安全参数、机械限位、保护停止、独立安全控制器或风险评估。源码中也未见将软限位参数直接传入硬件插件作为最后一道硬限幅的实现。
+
+**发现七：加速度命令接口的角色容易被误解。**
+
+实机模式下R2C xacro为每个关节导出acceleration command interface，并在URDF接口参数中写入型号max_acceleration；硬件接口头文件明确说明该接口用于joint limiter的加速度限值传递，并不直接控制机器人，且加速度控制模式始终拒绝。硬件write路径只发送当前控制模式对应的position/velocity reference，没有把该acceleration interface直接编码为控制命令。必须确认目标ros2_control版本如何消费该接口的min/max参数，以及限幅器是否确实作用于所有实际使用的控制器；不能仅凭参数存在认定加速度限制已经生效。
+
+### 影响与建议
+
+1. 建立每个机器人型号唯一的限值来源清单：厂商手册/安全参数、URDF硬限值、软件软限值、MoveIt规划限值、JTC/Servo控制限值和控制器输出限值，注明单位、负载、工具、安装方式、版本和审批人。
+2. 对各层限值进行自动化一致性检查。规划层可以比型号运行包络更保守，但不得无说明地超过经批准的运行包络；型号变更必须触发规划配置和回归测试。
+3. 在硬件write路径前增加有限数、关节数、关节索引、单位转换、位置/速度范围及命令变化率检查；保护策略必须由风险分析确定，不得简单静默截断并继续运动。
+4. 明确MoveIt Servo输出控制器：配置ForwardCommandController或改为有证据支持的Trajectory接口；将控制器类型、参数、激活、接口切换及停止语义纳入bringup和集成测试。
+5. 对JTC与Servo分别进行限值边界测试：刚好在边界、略微越界、NaN、±Inf、极大值、负载变化、状态反馈延迟、控制器切换及通信中断。
+6. 验证ROS 2 control实际使用版本中的joint limit enforcement路径、加速度接口解释和更新顺序；以运行时controller_manager状态和实际下发命令为证据。
+7. 所有软件限位只作为保护层之一；CS9安全参数、保护停止、急停及安全功能必须按制造商资料、风险评估和独立验证进行，不得由ROS配置替代。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-545 | 型号限值唯一来源 | 对每个支持型号建立厂商依据、单位、负载条件和版本受控限值表 | 未执行 |
+| SERVO-546 | MoveIt/URDF限值交叉校验 | 自动比较各型号URDF与MoveIt速度/加速度/位置限值，允许保守差异但必须有批准依据 | 未执行 |
+| SERVO-547 | 硬件命令有限数检查 | 对NaN、+Inf、-Inf、溢出和非法转换注入，证明异常命令不出网 | 未执行 |
+| SERVO-548 | 硬件位置/速度边界保护 | 绕过MoveIt从各命令入口注入越界值，验证硬件边界保护与故障策略 | 未执行 |
+| SERVO-549 | 加速度接口限幅实际生效 | 锁定ros2_control版本，追踪acceleration min/max参数到限幅器及实际命令 | 未执行 |
+| SERVO-550 | JointTrajectoryController限值 | 验证JTC轨迹位置/速度/加速度边界、终点速度及容差语义 | 未执行 |
+| SERVO-551 | Servo Forward Controller闭环 | 启用Servo时验证控制器存在、Float64MultiArray类型/关节顺序匹配且命令实际到达 | 未执行 |
+| SERVO-552 | Servo命令模式切换 | 验证Servo位置模式与JTC互斥切换、资源释放和失败回滚 | 未执行 |
+| SERVO-553 | Servo/MoveIt/型号限值一致性 | 对joint/Cartesian Servo分别验证速度、加速度、关节边界和margin | 未执行 |
+| SERVO-554 | 型号与工具负载工况回归 | 覆盖支持型号、工具、负载、安装条件和批准的运行包络 | 未执行 |
+| SERVO-555 | 限值故障注入与停止验证 | 覆盖越界、非有限值、反馈陈旧、限幅器失效及停止确认；证明独立安全链仍有效 | 未执行 |
+
+### 本节来源记录（#2041–#2049）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2041 | [MoveIt joint_limits.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/joint_limits.yaml) | MoveIt速度/加速度限值与默认缩放 |
+| #2042 | [TX2-60L joint_limits.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/joint_limits.yaml) | 型号位置、速度、加速度限值 |
+| #2043 | [TX2-60L MED joint_limits.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l_med/joint_limits.yaml) | 另一型号配置对照 |
+| #2044 | [StaubliHardwareInterface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write有限值检查、单位转换、命令下发及模式切换 |
+| #2045 | [controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | 已配置控制器清单与JTC约束 |
+| #2046 | [staubli_servo.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/staubli_servo.yaml) | Servo输出类型、topic、速度与停止参数 |
+| #2047 | [staubli_r2c_joints.xacro](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_joints.xacro) | position/velocity/acceleration接口及加速度min/max参数 |
+| #2048 | [staubli_helpers.xacro](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro) | URDF硬限值与可选safety_controller软限位生成 |
+| #2049 | [staubli_moveit.launch.py](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/launch/staubli_moveit.launch.py) | Servo可选启动路径与参数加载 |
+
+**验证边界：** 本节仅为固定提交静态源码和配置审查。没有运行MoveIt规划、Servo、ForwardCommandController、JTC或ros2_control限幅器；没有执行NaN/Inf/越界命令注入、控制器资源切换、型号限值实测、CS9参数核对、HIL或实机测试。MoveIt比型号限值保守的差异不是已证实的超速缺陷；Servo输出端缺少仓库内对应控制器配置证据，不代表外部工作区绝无同名控制器；硬件write没有本地限幅也不证明上游controller_manager没有施加限幅。SERVO-545–SERVO-555全部未执行，Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
