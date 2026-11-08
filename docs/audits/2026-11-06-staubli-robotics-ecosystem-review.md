@@ -3679,3 +3679,70 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1824 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect/disconnect/STOP发送与回滚 |
 | #1825 | [ICube udp_socket_impl.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp) | 接收线程停止、socket关闭及异步资源生命周期 |
 | #1826 | [ros2_control Jazzy hardware lifecycle](https://control.ros.org/jazzy/doc/ros2_control/hardware_interface/doc/lifecycle_of_a_hardware_component.html) | on_configure/on_activate/on_deactivate/on_cleanup职责及Inactive行为说明；具体行为须按目标Jazzy版本集成确认 |
+
+
+## 9.3.62 控制模式切换、接口组合与命令状态一致性（固定上游提交 bd658e2）
+
+**审查范围：** `resolve_mode()`、`prepare_command_mode_switch()`、`perform_command_mode_switch()`、`export_command_interfaces()`、`write()`及RobotDriver命令发送接口。固定上游提交：[`bd658e2d266e315d2ee35f985fb352ea88306b79`](https://github.com/ICube-Robotics/staubli_driver_ros2/commit/bd658e2d266e315d2ee35f985fb352ea88306b79)。
+
+### 源码事实
+
+1. `resolve_mode(start_interfaces)`按遍历顺序返回第一个匹配的position、velocity、effort或acceleration模式，不汇总全部接口集合，也不检测position与velocity等互斥模式是否同时出现。因此混合请求的解析结果依赖传入顺序。
+2. `prepare_command_mode_switch()`显式将`switch_prepared_`清false，然后只解析`start_interfaces`；`stop_interfaces`参数未使用，代码中原本计算outgoing mode的逻辑已注释。当前模式退出集合与新模式进入集合没有成对校验。
+3. prepare拒绝velocity、effort模式，但仅当解析结果首先命中它们时才拒绝。若同一批start接口同时包含position和velocity，position先出现时可被接受；反向顺序则因velocity先命中而拒绝。
+4. `export_command_interfaces()`对每个关节导出position、velocity和acceleration接口；其中velocity/effort切换被拒绝，acceleration-only请求被解析为INVALID后当作STOP接受。源码注释称acceleration用于joint-limiter support，但它仍是被导出的command interface，需明确控制器管理器/限幅器对它的claim语义。
+5. `export_command_interfaces()`还导出GPIO digital/analog输出接口；这些接口不参与`resolve_mode()`。GPIO-only启动时incoming mode为STOP并被接受，但`write()`无论STOP或运动模式都会把当前GPIO输出数组写入命令包。故STOP运动模式不等价于“所有IO输出归零”；底层`send_stop_all_command()`的语义则是motion+IOs置零，二者不同。
+6. prepare成功后只缓存一个`pending_mode_`和`switch_prepared_`布尔值，不保存start/stop接口集合、请求指纹、控制器切换代次或状态样本序列。perform不核对其参数（两个参数均未命名/使用），直接消费缓存；如果prepare未调用或标志为false，则默认执行STOP切换。
+7. prepare失败会留下`switch_prepared_=false`，但没有清理/记录失败原因或上次pending mode的代际信息。当前接口串行调用预期依赖Controller Manager协议，若外部调用并发/交错，单一pending槽可能被覆盖；需要集成和TSAN测试确认。
+8. perform对JOINT_POSITION检查缓存`state_msg_.error_state`、`motion_possible`和`operation_mode_status`。未检查状态消息是否新鲜、是否属于当前连接代际、是否与prepare时同一状态快照；HOLD只记录WARN仍提交position模式。
+9. perform在位置模式检查失败时将`current_control_mode_`设为STOP并返回ERROR，但没有在回调内发送STOP；后续周期write可能发送STOP，但这一安全效果依赖Controller Manager后续调度，不能视为perform已完成控制器STOP确认。
+10. perform成功切换时将位置命令初始化为最近读取的关节位置，并清零速度/加速度命令数组；未证明缓存位置新鲜，也未检查position命令接口是否完整覆盖全部关节。
+11. `write()`按`current_control_mode_`决定STOP或position/velocity消息，但不校验当前已claim的完整接口集合；STOP分支将运动参考清零，仍会附带GPIO命令。NaN检查遍历`num_joints_`，而command_reference固定容量，需对超出协议轴数的配置做独立边界验证。
+12. `send_robot_command()`目前没有实现position/velocity限位检查（源码TODO）；STOP参考非零只记录WARN，不拒绝发送。该方法发送成功只表示本地通信接口接受发送，不等于机器人控制器确认执行/停止。
+
+### 风险判断（静态推导，尚未复现）
+
+- 混合接口集合可能因顺序不同而产生不同接受结果，控制器切换结果不具备集合语义上的确定性。
+- 忽略stop_interfaces会弱化“旧模式退出+新模式进入”的一致性验证；模式状态可能与Controller Manager实际claim集合脱节。
+- acceleration接口导出但单独启动解析为STOP，GPIO接口启动也解析为STOP，二者都可能产生“接口已claim但控制模式仍STOP”的语义歧义。
+- pending mode单槽缺少接口集合/代际绑定，无法在源码层证明prepare与perform严格对应同一请求。
+- 基于旧/过期state_msg_开放position模式可能将不再有效的brake/error状态作为许可依据。
+- perform失败后仅修改本地模式，不代表机器人端已确认STOP；STOP与普通write的GPIO行为不同，必须明确其I/O副作用。
+- 这些是代码结构风险，不证明Controller Manager一定会发出错误模式、机器人一定运动或IO一定切换；需在目标Jazzy版本进行控制器管理器集成与通信抓包。
+
+### 整改建议
+
+1. 将start/stop接口解析为规范化集合：逐关节校验接口覆盖、禁止互斥position/velocity/effort混合、定义partial joint claims和GPIO-only策略；不依赖vector顺序。
+2. 对stop_interfaces与start_interfaces共同计算旧模式/目标模式，验证合法转换；明确position→STOP、position→position重启、GPIO独立claim、acceleration limiter接口的语义。
+3. prepare缓存完整规范化请求（start/stop集合、resolved mode、连接generation、状态sequence/有效时间、请求token）；perform核对调用参数与缓存完全一致，拒绝无prepare、重复perform、过期prepare及跨代请求，不静默默认STOP。
+4. 对acceleration接口明确为内部限幅器接口还是外部可claim command interface；若不支持独立控制，调整导出策略或明确组合约束并提供控制器管理器测试。
+5. 将GPIO输出与运动模式解耦：定义STOP时保持、归零或独立写入的产品语义；区分运动STOP、全部IO安全复位和急停/安全回路，不混为一类。
+6. position模式激活前检查当前连接代际、状态有效/新鲜、关节数和motion_possible；HOLD是否允许模式切换应成为显式策略，而非仅WARN。
+7. perform失败时保持命令门闩关闭并通过独立安全路径处理STOP；不能依赖下一周期write作为唯一停止保证。实时回调内避免阻塞网络等待。
+8. 在RobotDriver发送层补充按型号/协议明确的关节位置/速度/加速度限值与范围检查，并对固定长度数组与num_joints配置不一致作硬错误。
+9. 与§9.3.59并发生命周期、§9.3.61 lifecycle gate合并设计，避免mode switch和deactivate并发时重新开放运动模式。
+
+### 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-253 | 混合接口顺序不变性 | position+velocity/effort混合请求无论排列顺序均一致拒绝 | 单元测试排列/随机置换 | 未执行 |
+| SERVO-254 | stop/start集合合法性 | 校验旧模式退出与新模式进入组合，拒绝非法转换 | Controller Manager集成测试 | 未执行 |
+| SERVO-255 | acceleration接口claim语义 | limiter/控制器claim行为与驱动模式定义一致 | URDF+controller配置实测 | 未执行 |
+| SERVO-256 | GPIO-only与STOP语义 | 明确GPIO claim、运动STOP及IO复位的独立行为 | UDP命令包抓取与IO仿真 | 未执行 |
+| SERVO-257 | prepare/perform请求绑定 | 参数集合、token、状态序列与generation一致；过期/重复调用拒绝 | 回调序列测试/TSAN | 未执行 |
+| SERVO-258 | position模式状态新鲜度 | 过期、错误、刹车/许可变化不能开放position模式 | 状态延迟与故障注入 | 未执行 |
+| SERVO-259 | perform失败停止闭环 | 模式提交失败时命令门闩保持关闭并验证控制器STOP策略 | 控制器模拟器/抓包 | 未执行 |
+| SERVO-260 | 多关节接口完整性 | 缺关节、超协议轴数及不一致claim均明确拒绝 | URDF参数边界测试 | 未执行 |
+| SERVO-261 | GPIO与运动命令隔离 | GPIO输出策略不因运动STOP语义产生非预期副作用 | 数字/模拟IO故障矩阵 | 未执行 |
+| SERVO-262 | Jazzy模式切换端到端 | 目标Jazzy Controller Manager切换顺序、接口claim和write命令一致 | 版本锁定的系统集成测试 | 未执行 |
+
+### E. 本节来源记录（#1827–#1831）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1827 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | 接口导出、模式解析、prepare/perform、write与GPIO行为 |
+| #1828 | [ICube staubli_hardware_interface.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp) | pending/current mode及prepare标志成员 |
+| #1829 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | STOP与普通命令发送、限位TODO |
+| #1830 | [ICube robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | Driver命令接口契约 |
+| #1831 | [ros2_control Jazzy HardwareComponentInterface API](https://control.ros.org/jazzy/doc/api/classhardware__interface_1_1HardwareComponentInterface.html) | prepare为非实时准备，perform在实时更新循环执行且应快速完成 |
