@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.50  
+> 版本：v8.51  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.82；新增C++状态订阅端重复/回放帧刷新接收时间、乱序帧覆盖缓存、uint16回绕丢包计数偏差及状态序号门控审查；新增SERVO-453–SERVO-462均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.83；新增ROS 2 write、UDP发送、VAL3命令解码/执行与状态反馈的端到端关联审查；确认缺少单命令ACK/应用/完成结果，状态先于本周期新命令发布，write OK只反映本地发送调用链；新增SERVO-463–SERVO-472均未执行，Stäubli仍处于静态审查阶段，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -1070,3 +1070,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-08 | v8.50 | 00-01/21-02继续Stäubli C++状态接收序号、重复帧新鲜度和回放隔离审查：固定ICube bd658e2发现RealTimeSocketSubscriber对每个成功解码帧刷新reception_timestamp并按到达顺序覆盖单槽缓存；同序号帧只标记status.new_message=false但仍返回true，RobotDriver::read_robot_state不检查new_message/lost_packages，仅按接收时间判断stale，因此重复/回放数据报可能续刷新鲜度；乱序旧帧进入wrap分支计数后仍被接受并回写last_valid_sequence_id；uint16回绕丢包公式65535→0多计1包；命令sequence复用最新状态帧sequence，不是独立命令ID；UDP来源校验TODO与§9.3.66交叉引用。新增§9.3.82、来源#1984–#1991及SERVO-453–SERVO-462。未执行重复/乱序/回绕/重启故障注入、CS9/HIL或实机验收；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.82；来源#1984–#1991；《主要厂商》§128.65 |
+
+
+| 2026-11-08 | v8.51 | 00-01/21-02继续Stäubli ROS 2—UDP—VAL3命令发送、接收、接受、应用、执行与状态反馈端到端关联审查：固定ICube bd658e2确认HardwareInterface::write经RobotDriver/RealTimeSocketInterface发送后直接返回OK，无事务表/ACK等待；VAL3 decode的bIsValid仅本地标志不回传；controlTask每周期先采样并发布状态，再读取/解码/执行新命令，状态header为状态周期序号，nControlMode只是模式，nSequenceDelay只是发送/接收序号差，状态协议没有last accepted/applied command ID、结果码和目标完成事件；movejSync状态1/2仅注释未上报，bInMotion/关节遥测不与命令ID关联；现有hardware-interface测试只断言write返回OK，mock仅发送状态/诊断而未验证命令实际接收/执行。新增§9.3.83、来源#1992–#2001及SERVO-463–SERVO-472。未执行CS9 ACK抓包、运动完成、STOP确认、HIL或实机测试；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.83；来源#1992–#2001；《主要厂商》§128.66 |
