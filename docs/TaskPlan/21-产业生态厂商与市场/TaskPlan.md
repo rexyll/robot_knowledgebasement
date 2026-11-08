@@ -539,3 +539,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli ROS 2 UDP最新消息覆盖、背压丢包与命令年龄传播 | 固定ICube bd658e2核对RealTimeSocketSubscriber、UDPSocketImpl、RobotDriver、StaubliHardwareInterface及VAL3序号计算。异步接收线程反序列化后写入RealtimeThreadSafeBox单一最新消息快照，消费者可能跳过中间帧；sequence gap可计算但RobotDriver中lost_packages告警被注释。read_message无新帧时仍返回此前消息并更新年龄，未超过staleness timeout仍可被read()接受；write把最近有效RobotState序号复制为RobotCommand序号，命令未携带独立发送时间戳。UDP send遇would_block会丢包并警告，但函数仍返回true，且没有丢包计数/阈值故障；上层可能认为命令已成功发送。新增§9.3.56、SERVO-188–SERVO-202及来源#1798–#1803。静态审查，不代表目标网络实测丢包；压力、注入、HIL和实机验证未执行。 | 来源#1798–#1803；专项审计§9.3.56 |
+
+
+| 2026-11-08 | 21-02/Stäubli ROS 2状态新鲜度计时的时钟源与时间跳变 | 固定ICube bd658e2核对RealTimeSocketSubscriber、RobotDriver与ROS 2 Jazzy Clock API。接收时间戳、状态age和connect timeout均使用默认构造的rclcpp::Clock()，其默认类型为RCL_SYSTEM_TIME而非单调steady clock；墙钟回拨可能延长旧状态被接受的窗口，前跳可能提前触发staleness ERROR。独立Clock不因use_sim_time自动绑定Node TimeSource。新增§9.3.57、来源#1804–#1807及SERVO-203–SERVO-212。该风险为静态推导，未做时间跳变注入、ROS集成、VAL3/SRS、CS9 HIL或实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1804–#1807；专项审计§9.3.57 |
