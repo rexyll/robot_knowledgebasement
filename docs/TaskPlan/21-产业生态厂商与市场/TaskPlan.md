@@ -1288,3 +1288,17 @@
 - https://github.com/ros2-gbp/moveit2-release/tree/release/jazzy/moveit_servo/2.12.4-1
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/package.xml
 - 专项追加件§9.3.119。
+
+
+### Stäubli专项审查新增记录（§9.3.120，状态页与production main pool目录交叉核对）
+
+- ROS Jazzy amd64页面生成时间04:36:03、arm64本轮04:43:04（-0800）。moveit_servo B/T仍分别为11月5/6日构建，M仍分别为10月6日构建；arm64页面生成时间变化不代表版本变化。
+- production main pool目录列出的amd64/arm64二进制大小为674,492/615,538 bytes，构建标识与M列一致；同目录列有2025-12-06的dsc（1,564 bytes）、debian.tar.xz（16,152 bytes）、orig.tar.gz（65,707 bytes）。
+- 本轮deb/dsc读取和容器下载失败，未取得哈希、Debian control/changelog或签名验证；testing pool目录未成功读取，不推断testing不存在新包。
+- SERVO-710/714未完成；SERVO-713部分取证未完成。未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工程验收仍未通过。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- 专项追加件§9.3.120。
