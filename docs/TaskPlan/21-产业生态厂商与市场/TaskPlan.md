@@ -557,3 +557,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli控制模式切换、接口组合与STOP/运动命令一致性 | 固定ICube bd658e2审查resolve_mode、prepare/perform、接口导出和write。发现混合接口解析依赖start_interfaces顺序；stop_interfaces未使用；acceleration-only启动被当作STOP接受；GPIO-only也解析为STOP但write仍携带GPIO输出；prepare/perform仅用单槽pending_mode+bool绑定，没有请求集合/token/generation；perform使用未校验新鲜度的缓存状态开放position；perform失败只改本地STOP，不在回调内发送STOP；RobotDriver未实现运动限位（TODO）。新增§9.3.62、SERVO-253–SERVO-262、来源#1827–#1831。全部动态测试未执行，Stäubli未验收。 | 来源#1827–#1831；专项审计§9.3.62 |
+
+
+| 2026-11-08 | 21-02/Stäubli运动命令float32线级数值、周期与STOP/IO校验 | 固定ICube bd658e2增量审查serialization.hpp/messages.cpp/messages.hpp/HardwareInterface/RobotDriver：double统一缩窄float32但无转换前后finite/范围检查与量化预算；controller_period、运动参考、模拟输出共享该路径；STOP参考非零仅WARN，普通STOP write仍可携带GPIO值；协议单位注释rad/rad/s与HardwareInterface的rad2deg转换不一致（与§9.3.33既有问题交叉关联）。新增§9.3.63、SERVO-263–SERVO-272、来源#1832–#1836。所有新增测试未执行，未做C++/VAL3黄金向量、CS9 I/O仿真、HIL或实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1832–#1836；Stäubli专项审计§9.3.63 |
