@@ -1184,6 +1184,8 @@
 | SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 已完成（54个tree条目、43个blob逐项比较；路径/mode/type/blob SHA全部一致，双方tree均未截断） |
 | SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 部分取证（候选job名与B/T工件已核对；Jenkins直接元数据/日志未取得，任务未完成） |
 | SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
+| SERVO-715 | 固定Noble Debian包装分支，核对control/changelog/rules/gbp.conf并逐项映射package.xml的25项depend/exec_depend | 已完成（静态Git文件核验；不等于实际deb/构建测试验收） |
+| SERVO-716 | 取得amd64/arm64真实Build Farm job环境和console log，核验DEB_BUILD_OPTIONS、测试是否执行、测试结果、失败容错及工件关联 | 未执行 |
 
 本节来源：
 - README首次引入提交：`https://github.com/ros2-gbp/moveit2-release/commit/458a522d267a5bf75d324030a90ebe85154aa444`；父提交 `f1eff8fa0ccc288de2d334b796ffb7dbb3e15b89`。
@@ -1364,3 +1366,15 @@
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/rules
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/changelog
 - 专项追加件§9.3.124。
+
+
+### Stäubli专项审查新增记录（§9.3.125，Debian测试门控精确行级复核）
+
+- 固定Noble packaging分支的debian/rules/control/package.xml Blob SHA与§9.3.124一致。debian/rules第20–21行在DEB_BUILD_OPTIONS含nocheck时设置BUILD_TESTING=OFF；第47行定义override_dh_auto_test，第53行执行dh_auto_test || true；debian/control第5行将ament-cmake-gtest、moveit-resources-panda-moveit-config、ros-testing等Build-Depends标为<!nocheck>。
+- 规则允许跳过测试或忽略测试命令的非零退出；但未取得实际Jenkins job环境和console log，因此不判断具体amd64/arm64构建是否设置nocheck、是否运行测试或测试结果。Building/Testing/Main状态不能作为测试通过报告。
+- SERVO-715已完成静态核验；SERVO-716未执行；SERVO-710/714未完成、SERVO-713部分取证未完成。Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/rules
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/control
+- 专项追加件§9.3.125。
