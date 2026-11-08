@@ -661,3 +661,24 @@
 | SERVO-483 | ACK事件实时性和队列容量 | 未执行 |
 | SERVO-484 | C++/VAL3跨端协议一致性测试 | 未执行 |
 | SERVO-485 | 协议升级、配对部署与回滚 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli协议v2数据模型与跨端序列化设计基线 | 固定ICube bd658e2发现VAL3 encodeHeader把sequence重复写入payload_size，C++ RobotState反序列化未校验头部字段，C++测试未与VAL3做黄金向量互操作。定义v2 32字节帧头、LE字段、命令事务/会话/事件模型、VAL3 64位ID high/low word表示、严格报文长度和认证tag规则，构造107字节离线COMMAND_REQUEST黄金向量。新增§9.3.85、SERVO-486–SERVO-498、来源#2010–#2018。全部未执行；v1问题未修复，未在VAL3/CS9/HIL/实机验证。 |
+
+### Stäubli专项审查新增验收任务（§9.3.85，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-486 | v2固定帧头和字节偏移 | 未执行 |
+| SERVO-487 | COMMAND_REQUEST字段与body schema | 未执行 |
+| SERVO-488 | Session/CommandEvent/Status数据模型 | 未执行 |
+| SERVO-489 | C++规范LE序列化器与float32校验 | 未执行 |
+| SERVO-490 | VAL3 64位身份字段无损表示 | 未执行 |
+| SERVO-491 | v2严格长度与边界校验 | 未执行 |
+| SERVO-492 | C++↔VAL3双向黄金向量测试 | 未执行 |
+| SERVO-493 | 修复VAL3 v1 header payload_size编码缺陷 | 未执行 |
+| SERVO-494 | C++头部version/type/payload严格校验 | 未执行 |
+| SERVO-495 | v1/v2协商与失败闭锁 | 未执行 |
+| SERVO-496 | 消息认证、重放保护与密钥失效测试 | 未执行 |
+| SERVO-497 | setpoint流、事务事件和STOP优先级实时验证 | 未执行 |
+| SERVO-498 | CS9/VAL3 v2互操作、WCET与回滚验收 | 未执行 |
