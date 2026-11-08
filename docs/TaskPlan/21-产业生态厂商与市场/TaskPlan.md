@@ -1342,6 +1342,7 @@
 - 本轮重新读取ROS官方Jazzy amd64/arm64规范状态页并定位moveit_servo行：amd64页面生成时间为2026-11-08 04:56:18 -0800，B/T为2.12.4-1noble.20261105.184638、M为2.12.4-1noble.20261006.040508；arm64页面生成时间为04:43:04 -0800，B/T为2.12.4-1noble.20261106.111556、M为2.12.4-1noble.20261006.043301。相较§9.3.122，仅amd64页面生成时间刷新，B/T/M版本字段均未变化。
 - 本轮未观察到production Main晋级。具体Jenkins package job/build number/result/source revision/console log仍缺；APT InRelease/Packages完整正文、签名、deb control/SHA256及依赖闭包仍未取得。不得把状态页B/T条目解释为Main已发布或可安装性通过。
 - 未执行Ubuntu 24.04 apt/rosdep/colcon/servo_node运行、VAL3编译/仿真、CS9/SRS/HIL/FAT/SAT或实机验证。SERVO-710/714未完成，SERVO-713部分取证、未完成；21-02继续进行中，Stäubli工程级验收仍未通过。
+- 资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA 403007ce8e50dab4b3a2af3ddceebd7e63e5364a、UTF-8大小516,870 bytes；该操作仅维护Git元数据，不代表claim-level复核或整库清单重算。
 
 来源：
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
