@@ -1317,3 +1317,21 @@
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - https://github.com/ros2-gbp/moveit2-release
 - 专项追加件§9.3.121。
+
+
+### Stäubli专项审查新增记录（§9.3.122，MoveIt Servo Build Farm视图与job命名）
+
+- ROS Jazzy amd64/arm64状态页仍显示moveit_servo B/T为11月5/6日构建、M为10月6日旧构建。
+- ros_buildfarm/common.py的job命名函数已核对；按当前实现推导候选：source `Jsrc_uN__moveit_servo__ubuntu_noble__source`；amd64 binary `Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary`；arm64 binary `Jbin_unv8_uNv8__moveit_servo__ubuntu_noble_arm64__binary`。此前arm64简写遗漏`unv8`，本次纠正。
+- Jenkins首页可见Jsrc_uN、Jbin_uN64、Jbin_unv8_uNv8平台视图入口；具体moveit_servo job页面、view页和API读取失败/超时，不能证明包级job存在/不存在或构建成功/失败。build number、result、source revision、console log仍缺。
+- Build Farm release文档说明source→binary→building→testing→main流程，但不构成moveit_servo具体构建证据。
+- production main pool仍为10月6日amd64/arm64 deb；.orig.tar.gz目录大小本轮直接读数65,705 bytes，纠正此前65,707 bytes记录。testing pool与Packages.gz仍无法读取。
+- SERVO-710/714未完成，SERVO-713部分取证未完成。未执行Ubuntu 24.04安装运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证；Stäubli工程验收仍未通过。
+
+来源：
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://build.ros2.org/
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/common.py
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst
+- 专项追加件§9.3.122。
