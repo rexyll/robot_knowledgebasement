@@ -305,3 +305,22 @@ SERVO-718静态测试路径核验已完成；SERVO-719部分取证（同SHA run�
 ## 25.1 厂商档案资产清单单行元数据刷新
 
 因厂商档案新增§128.78，已将`knowledge/ecosystem/主要厂商.md`资产行刷新为Blob SHA `e613a2320a10a3e5224f2a5334962c8e988fa593`、UTF-8大小522,813 bytes。该操作仅刷新单一资产Git元数据，不代表claim-level审查完成或全库资产清单重算。
+
+
+## 26. 2026-11-08 MoveIt Servo同SHA工作流全集与CI日志可用性复核（§9.3.128）
+
+对MoveIt 2.12.4 commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`检索GitHub Actions全部push运行，共5个run：`19975338753` CI success（两个industrial_ci矩阵job success）；`19975338722`整体failure，但ci/source job success、release job failure；`19975338758` tutorial-source success；`19975338729` Format success；`19975338846` Dockerfile lint success。commit check-runs共13项。
+
+尝试下载两个CI job `57290019178`/`57290019180`原始日志均HTTP 410，steps为空，artifacts列表为空；同SHA的source/tutorial-source/ci/release job `57290439384`、`57290019177`、`57290019108`、`57290019125`日志接口也均HTTP 410、steps为空。410仅说明当前日志下载接口不可用，不代表测试未运行或失败。
+
+SERVO-719仍部分取证：workflow/job元数据已梳理，但三个Servo测试入口各自colcon结果、XML和console log未取得。release job failure不能等同Servo测试失败；source job success也不能等同Servo测试逐项通过。§9.3.126正式release binary禁测与§9.3.127上游industrial_ci测试路径结论均维持。未执行目标APT安装运行或VAL3/CS9/HIL/实机验证。
+
+来源：
+- https://api.github.com/repos/moveit/moveit2/actions/runs?head_sha=1ade0e9dcf50dbbbc3a984b995c786cf12736235%26per_page=100
+- https://api.github.com/repos/moveit/moveit2/commits/1ade0e9dcf50dbbbc3a984b995c786cf12736235/check-runs
+- https://github.com/moveit/moveit2/actions/runs/19975338753
+- https://github.com/moveit/moveit2/actions/runs/19975338722
+- https://github.com/moveit/moveit2/actions/runs/19975338758
+- https://github.com/moveit/moveit2/actions/runs/19975338729
+- https://github.com/moveit/moveit2/actions/runs/19975338846
+- 专项追加件§9.3.128。
