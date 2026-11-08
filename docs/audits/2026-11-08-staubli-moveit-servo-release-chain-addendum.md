@@ -365,3 +365,46 @@ ROS production main lists目录检索结果仍列出Jazzy Noble amd64 Packages�
 ### 5. 结论
 
 当前可以确认的是：testing APT索引目录元数据较production main更新约一个月，且双架构testing status page仍显示新构建版本；production main仍未晋级。当前不能确认的是APT索引签名有效、moveit_servo完整包记录字段、deb哈希/内部control、Jenkins构建日志或目标机器安装运行结果。Stäubli工程级验收继续保持未通过。
+## 9.3.118 Jazzy状态页时间戳与B/T/M发布阶段语义复核（2026-11-08）
+
+### 1. 规范URL的当前可读快照
+
+本轮直接打开ROS官方规范URL（不带筛选查询参数）并定位moveit_servo行：
+
+| 页面 | 页面生成时间（-0800） | moveit_servo B | T | M |
+|---|---|---|---|---|
+| Jazzy amd64 default | 2026-11-08 04:36:03 | 2.12.4-1noble.20261105.184638 | 2.12.4-1noble.20261105.184638 | 2.12.4-1noble.20261006.040508 |
+| Jazzy arm64 unv8 | 2026-11-08 04:23:04 | 2.12.4-1noble.20261106.111556 | 2.12.4-1noble.20261106.111556 | 2.12.4-1noble.20261006.043301 |
+
+来源：https://repo.ros2.org/status_page/ros_jazzy_default.html；https://repo.ros2.org/status_page/ros_jazzy_unv8.html。
+
+本轮搜索索引还返回带?q=RED筛选参数的arm64页面，标题时间为2026-11-07 18:03:03 -0800。该时间早于本轮规范URL直接读取的2026-11-08 04:23:04 -0800，因此不能将其描述为更新快照；打开该搜索结果时网页读取器又返回了2025年旧缓存，故不将其用于当前包版本判断。规范URL直接读取的2026-11-08快照是本轮状态页证据。
+
+结论：两架构B与T列相同，M仍为10月6日旧版本。未观察到MoveIt Servo从testing晋级production main。
+
+### 2. Build Farm发布流程语义约束
+
+ROS ros_buildfarm官方release job文档说明：source release job由rosdistro distribution文件中的版本变化触发；binary job由对应source job触发；source job获取GBP仓库中包的tag及Ubuntu代号对应的打包信息并构建source package；binary job通过apt source获取source package后构建binary package；包上传导入目标仓库后，在全部job完成并满足sync criteria时，包才会由building同步到testing。
+
+来源：https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst。
+
+该流程文档解释了B/T状态的阶段含义，但不能反向证明某个特定moveit_servo Jenkins job的实际result、源码revision、构建日志或sync判定。官方job文档也未提供本次审计所需的具体build number与console log。
+
+### 3. APT原始文件读取边界复测
+
+再次尝试读取ROS testing目录中的amd64 InRelease和Packages原始文件，网页读取器均因application/octet-stream不支持而拒绝展开。并尝试packages.ros.org的dists/noble/InRelease、binary-amd64/Packages.gz、binary-arm64/Packages.gz路径，以及ROS testing pool的moveit_servo目录；当前读取通道均未取得可解析正文。容器侧直连官方源及OSUOSL镜像下载亦失败。
+
+ROS testing lists目录仍可检索到§9.3.117所记录的目录元数据：amd64 11月6日13:15、arm64 11月7日11:29。目录时间和大小是索引文件元数据，不是索引内容或签名校验结果。
+
+production main包目录可读取的索引搜索结果仍列出旧deb：amd64 674,492 bytes、arm64 615,538 bytes，目录时间均为2026-10-06。来源：https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/。未取得testing目录中的对应新deb正文/哈希。
+
+### 4. 本轮任务状态
+
+- SERVO-710：未完成。仍缺InRelease正文、签名验证、Packages完整stanza、deb control与SHA256。
+- SERVO-713：部分取证、未完成。已确认规范状态页B/T版本与release流程语义；具体Jenkins job API/页面在当前读取通道不可访问，未取得job存在性、build number、result、source revision和console log。候选job名称仍只是按命名规则推导，不作实际job存在证明。
+- SERVO-714：未完成。B/T仍为新版本、M仍为旧版本；main pool旧deb目录证据与此一致。
+- 未执行目标Ubuntu 24.04 APT签名/安装测试、rosdep、colcon、Servo launch/smoke test；未执行VAL3、CS9/SRS、HIL/FAT/SAT或实机安全验证。
+
+### 5. 结论
+
+本轮修正了状态页时间顺序的表述：带?q=RED的2026-11-07 18:03页面早于规范URL的2026-11-08 04:23快照，不能视为新版本快照。最新可直接读取的规范页面仍显示双架构B/T相同、M为10月6日旧版本。ROS Build Farm文档说明发布流水线阶段，但具体job运行证据仍缺。Stäubli工程级验收继续保持未通过。
