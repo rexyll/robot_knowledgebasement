@@ -4109,3 +4109,59 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1863 | [VAL3 sequence/reconnect logic @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/search?q=sequence&type=code) | 与§9.3.64的控制器端sequence-delay、重放及重启门控发现交叉核对 |
 | #1864 | [ros2_control Hardware Components lifecycle](https://control.ros.org/humble/doc/ros2_control/hardware_interface/doc/hardware_components_userdoc.html) 与 [Controller Manager](https://control.ros.org/master/doc/ros2_control/controller_manager/doc/userdoc.html) | read/write ERROR生命周期处理、控制器停止及硬件重启需重新走生命周期的框架语义 |
 
+
+
+## 9.3.68 VAL3 命令接收窗口、重复/乱序/延迟命令拒绝与运动状态一致性（2026-11-08）
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节为静态源码审查，不代表VAL3编译、CS9仿真或实机验证。
+
+### 发现
+
+1. **接收窗口有限且不保证排空。** `readData.pgx`每个控制周期最多调用两次`readDataOnce`；`readDataOnce`仅用`sioGet`读取一次完整固定长度数据。未发现持续排空接收队列、按序缓存或明确的队列溢出/覆盖计数。若周期内积累多个UDP数据报，控制器可能只消费部分数据，旧包是否仍在socket队列中等待后续周期取决于CS9 SIO缓冲语义，需仿真/抓包验证。
+2. **无新数据时旧命令继续有效。** `controlTask.pgx`在`!l_bNewCmdMessage && robot_command_msg.robotCommand.bIsValid`分支仅留下staleness TODO；旧命令不会因本周期没有新数据而立即失效。后续仍按缓存的命令计算sequence delay，并将缓存的`nMotionCmdType`及参考值送入控制分支。虽然sequence delay超过阈值最终会置STOP/错误，但阈值按机器人是否运动分别为5或25个周期，且其准确年龄语义受序号/overrun问题影响，不能替代每条命令的deadline。
+3. **序号差不是严格接收窗口。** `computeSequenceDelay.pgx`只计算`nLastSequenceSent - nLastSequenceReceived`；当差值小于−60000时加65536作为uint16回绕。没有显式拒绝重复序号、乱序旧序号、超前序号、窗口外序号或同一命令重放，也没有独立command sequence、command deadline、boot ID/session epoch。对所有大负差统一按回绕解释会把某些乱序/重启情形与合法回绕混淆。
+4. **错误恢复清socket但缺少重新授权。** 错误处理执行停止/复位运动，将本地命令标记无效、复位本地sequence并调用`resetControlSocket`；后者设置非阻塞并清空SIO缓冲。源码TODO明确提到增加恢复延迟（例如1000ms），当前没有冷却计时、握手挑战、连续新鲜状态确认或显式enable授权状态机。清本地缓冲不能证明网络中没有延迟数据报。
+5. **状态与命令执行存在流水线错位。** 每轮先采集机器人状态、递增并发布状态sequence，之后才读命令、解析、更新控制模式和执行运动。因此本轮状态消息反映的是本轮命令执行前状态；不能把该状态帧当作本轮命令已接受/已执行的ACK。协议没有独立command ACK或应用结果关联ID。
+6. **运动刷新状态未充分门控。** `updateJointPositionControl.pgx`对`movejSyncState==1`（上一命令未及时刷新）和`==2`（运动停止/命令锁定）仅保留注释，不设置`x_bError`；只有−2明确停止并报错。控制任务的序号延迟门控不能替代底层运动刷新状态的显式错误处理和恢复状态上报。
+7. **模式/错误状态语义不完全对称。** decode失败会设置STOP并使错误路径清理通信；无新数据但缓存有效时仍可继续当前模式。速度控制函数当前尚未实现，会置错误；因此不能仅依据协议存在motion type=3推断速度控制已可用。
+8. **公开排障文档给出连续周期超时现象。** 上游troubleshooting文档说明运动中5个连续控制周期未收到命令会进入STOP（默认250Hz约20ms），但该超时只能作为通信中断保护之一，不能证明重复、乱序、超前或跨重启命令均被拒绝。
+
+### 风险与整改
+
+- 为命令定义独立的session epoch、单调command sequence、绝对/相对deadline、允许乱序窗口和重复策略；在控制器端对重复、旧、超前、过期及跨epoch数据报执行明确拒绝并计数。
+- 明确UDP接收策略：每周期有界排空、只接受窗口内最新命令，或可靠队列；必须说明丢弃策略、最大队列深度、溢出行为和实时预算，不能无意中延迟执行旧目标。
+- 没有新鲜命令时按命令类型和安全分析规定独立watchdog；超时后进入锁存STOP/故障状态，不能继续把最后一个位置目标当作有效新命令。
+- 错误恢复需经过冷却、socket/缓冲清理、会话握手、连续新鲜状态、安全状态确认和显式运动重新使能；任何旧session数据报均拒绝。
+- 增加命令ACK阶段：received、decoded、accepted、applied、rejected及原因码；ACK带epoch、command sequence、控制器采样/执行周期标识。状态帧应报告其对应的最后接受/应用命令ID，避免把先发状态误认为本周期执行反馈。
+- 对movejSync状态1/2建立明确策略：立即拒绝新目标/进入受控STOP或按Stäubli API规定恢复，并把状态映射为可诊断错误；禁止仅注释日志后继续假定刷新成功。
+- 增加可重放的协议黄金向量与网络故障注入：重复包、乱序包、旧包延迟、突发积压、socket缓冲溢出、丢包、序号回绕、控制器重启、错误恢复期间注入旧epoch包；同时核对VAL3状态、ROS 2控制器状态和实际运动反馈。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-313 | UDP接收窗口/队列策略 | 有界排空、队列深度、覆盖/溢出行为及实时预算明确 | 未执行 |
+| SERVO-314 | 无新命令watchdog | 旧命令按deadline失效，超时锁存STOP并可观测 | 未执行 |
+| SERVO-315 | 重复命令拒绝 | 相同epoch/sequence重复包不重复触发运动 | 未执行 |
+| SERVO-316 | 乱序/超前/窗口外命令 | 旧序号、未来序号、窗口外序号均按规范拒绝 | 未执行 |
+| SERVO-317 | 命令deadline与有效期 | 过期命令即使晚到也不能进入控制分支 | 未执行 |
+| SERVO-318 | 错误恢复冷却与重新授权 | 清缓冲后仍需握手、新鲜状态、安全检查和显式enable | 未执行 |
+| SERVO-319 | 命令ACK与执行关联 | received/accepted/applied/rejected分阶段ACK可追踪 | 未执行 |
+| SERVO-320 | 状态帧与命令执行周期关联 | 状态反馈可明确关联最后接受/应用command ID | 未执行 |
+| SERVO-321 | movejSync状态1/2门控 | 刷新失败/命令锁定触发确定的STOP/故障处理 | 未执行 |
+| SERVO-322 | VAL3/ROS 2状态一致性综合测试 | 注入重复、乱序、延迟、突发、重启并验证不自动运动 | 未执行 |
+
+### 本节来源记录（#1865–#1872）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1865 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 主循环状态发布、命令读取、缓存命令复用、sequence delay门控、错误恢复和运动执行顺序 |
+| #1866 | [readData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx) 与 [readDataOnce.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx) | 每周期最多两次读取、固定长度单次读取和接收窗口行为 |
+| #1867 | [computeSequenceDelay.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) 与 [getNextSequenceNumber.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx) | 16位序号差、回绕修正与控制器状态序号生成 |
+| #1868 | [decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) 与 [decodeHeader.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx) | 命令解码、header检查及消息有效标记 |
+| #1869 | [resetControlSocket.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx) 与 [initRobotCommandMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx) | 清空本地SIO缓冲、命令初始有效状态与恢复路径 |
+| #1870 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync状态1/2未升级错误、命令刷新门控 |
+| #1871 | [RobotCommand/RobotState VAL3 data definitions @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types) | 当前命令、状态字段未包含独立ACK关联ID或session字段 |
+| #1872 | [上游 troubleshooting.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst) | 连续5周期未收到命令触发STOP的公开排障说明；作为行为背景而非验收证据 |
+
+**验证边界：** 本节只完成静态源码和上游文档审查。未执行VAL3 Studio编译、CS9仿真、UDP队列/重复/乱序/延迟/突发注入、ROS 2状态关联测试、HIL或实机验证；所有SERVO-313–SERVO-322保持未执行。Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
