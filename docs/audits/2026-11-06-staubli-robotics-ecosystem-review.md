@@ -3808,3 +3808,73 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1834 | [ICube messages.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | command_reference单位注释、controller_period与IO字段契约 |
 | #1835 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ROS周期、运动参考及GPIO字段写入路径 |
 | #1836 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | STOP参考仅警告、发送入口缺少字段级统一校验 |
+
+
+## 9.3.64 VAL3命令接收解码、序列新鲜度与控制器侧执行门控（2026-11-08）
+
+### A. 审查基线与范围
+
+- 上游固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`。本节审查同一提交中的CS9/VAL3服务端源文件，而非仅审查ROS 2客户端。
+- 上游VAL3 README声明目标为CS9、VAL3 8.x.x及以上，测试机型为TX2-60L，并称可能兼容多数6DoF机型；这不是所有机型/固件的认证结论。
+- 核对UDP读取、消息头/命令payload解码、序列延迟、controlTask状态机、joint position控制、velocity控制和RobotCommand数据定义。来源#1837–#1843。
+- 本轮为固定提交的静态源码审查；未执行VAL3 Studio编译、CS9仿真、机器人控制器部署、网络故障注入、HIL或实机测试。VAL3运行时函数（如`isInRange`、`fromBinary`、`sioGet`）的边界行为未由该源码仓库完整定义，相关结论不作推断。
+
+### B. 控制器侧已有保护（源码事实）
+
+1. **UDP读取固定长度。** `initRobotCommandMsg`初始化8字节header、47字节payload，总计55字节；`readDataOnce`仅在`sioGet`返回字节数等于缓冲区长度时标记新消息，正数但长度不匹配时报告通信错误；零字节读取表示本轮无新消息。
+2. **消息头校验。** `decodeHeader`检查缓冲区至少有header长度、magic number=43981（0xABCD）、protocol version=1和header解码偏移=8；`decodeRobotCommandMsg`检查message type=2，并在payload解码结束时检查索引是否等于接收buffer长度。
+3. **命令类型门控。** `controlTask`先检查motion command type是否在0..4，再按STOP=1、position=2、velocity=3分派；未知模式最终进入错误路径。position子程序再次检查命令有效标志、motion possible和command type=2。
+4. **位置范围检查。** `updateJointPositionControl`将6个解码值写入`jointRx`，调用VAL3的`isInRange()`；若返回false则停止movejSync并置错误。注意源码没有定义`isInRange`对NaN/Inf的行为，不能声称它已可靠拒绝非有限值。
+5. **命令延迟门控。** controlTask用本机发出的state sequence和接收command sequence计算延迟；机器人正在运动时延迟大于5个循环触发STOP错误，静止时大于25触发STOP错误；负延迟也触发错误。序列差值小于-60000时按uint16回绕增加65536。
+6. **错误恢复路径。** 解码错误会设置错误标志并切到STOP模式；控制任务错误处理调用停止/复位运动并重置控制socket。此为软件请求路径，不等于安全回路动作或机械停止已被外部确认。
+
+### C. 发现的缺口与风险
+
+1. **声明payload长度没有在解码后与固定协议长度核对。** `decodeRobotCommandMsg`先用已初始化的header字段（8+47）核对当前buffer大小，随后才调用`decodeHeader`覆盖接收包中的`nPayloadSize`；之后没有显式断言接收header声明的payload size必须等于47。后续解析固定字段并检查最终偏移等于buffer长度，因此当前固定55字节缓冲区可约束实际解码长度，但header中的payload length字段未被独立验证。该缺口会削弱协议自描述字段一致性检查；不能据此直接断言存在越界读取。
+2. **解码后缺少字段级数值验证。** `fromBinary`直接把4字节float32写入VAL3 num字段；可见解码路径没有对`nRemoteCtrlPeriod`、6个`nMotionCmdData`或4个`nAnalogOutputs`执行显式finite、范围、物理单位或转换后合理性检查。position路径只有`isInRange`，其非有限输入行为未经验证；velocity子程序的安全限值仍是TODO，且运动执行尚未实现。
+3. **位置目标接近性仍是TODO。** position控制已调用`isInRange`检查关节范围，但“target is close enough to current position”仍标记TODO。范围内的远距离目标是否允许、最大单周期位置增量/速度/加速度如何限制，不能从现有代码确认。
+4. **接收数据无新消息时沿用上一条有效命令。** readData返回无新数据时，controlTask保留上一条`bIsValid`命令并继续按序列差计算延迟；运动中延迟阈值和静止阈值提供一定超时门控，但源码中还有明确的staleness TODO。重复序列（delay=0）没有被单独拒绝；未建立严格的单调递增/重复包策略。小幅倒退会产生负延迟错误，大幅负差按uint16回绕解释，旧包跨回绕边界可能被误判为新鲜，需边界测试确认。
+5. **序列延迟与命令时间不是同一概念。** 延迟以控制器每周期生成的state sequence和接收command sequence差计算，单位是控制循环数而非真实毫秒；阈值注释中的20ms/100ms依赖实际循环周期。控制周期抖动、任务overrun、序列更新频率改变时，固定循环阈值不必然等于固定真实时间。
+6. **GPIO数据目前未执行。** decoder读取16位digital output mask，但把mask转为boolean数组的代码注释掉；controlTask中的digital/analog输出写入均为TODO。虽解码了4路模拟输出，但没有可见的物理输出调用。故不能把ROS侧发送GPIO命令描述成控制器已应用；反过来，当前代码也没有提供GPIO命令有效性和物理量程验收证据。
+7. **速度控制是占位实现。** controlTask支持识别模式3并调用velocity子程序，但该子程序的安全限值为TODO，`$setVelCmd`注释掉，明确记录not yet implemented并返回错误。ROS侧宣称/导出的接口不能等同于控制器侧已实现该模式。
+8. **错误复位与重新接入缺少冷却/人工确认门控。** controlTask错误分支清理运动、清除错误标志、重置sequence并重置socket；源码对“重新接受新命令前增加延迟（如1000ms）”明确标记TODO。需要确认错误原因是否锁存、重新连接是否需要重新使能/人工确认，以及连续故障是否会形成快速重连循环。
+9. **STOP语义不是独立安全功能。** 程序错误分支调用VAL3运动停止API并resetMotion；未由该代码证明安全PLC、急停、STO、保护停止等独立安全功能的状态、诊断覆盖或性能等级。软件STOP不能替代风险评估和安全回路。
+
+### D. 整改建议
+
+1. 在header解码后校验magic、version、message type、header size、payload size和实际datagram长度之间的完整一致性；对固定协议版本明确payload必须为47字节，拒绝额外/缺失字段。
+2. 为每个float字段建立接收端白名单：有限性、量纲、单位、上下限、最大变化率、控制周期关系；在VAL3调用运动API前再次校验，不能依赖ROS端防护。
+3. 明确`isInRange`对NaN/±Inf、边界相等、机型/工具/用户坐标和软限位的真实语义；通过VAL3编译和CS9台架测试确认，必要时先做显式有限性检查。
+4. 增加目标与当前关节位置的单周期增量、速度、加速度和jerk门控；将控制器配置、机器人型号、负载/工具参数及限位来源纳入可追溯配置。
+5. 以uint16模运算定义序列新鲜度，区分新包、重复包、乱序包、回绕、重启新代际和远端重放；增加连接nonce/epoch或握手机制，避免重启后旧包被误认为新包。
+6. 将序列循环阈值转换为明确的真实时间预算，并纳入任务周期、overrun、接收时刻与命令时间戳；超时策略应按运动模式和风险分析确定。
+7. 在GPIO功能正式开放前完成digital mask映射、analog物理量程、断线默认状态和STOP时IO保持/归零策略；在当前未实现状态下，接口应明确禁用并返回可观测错误。
+8. 未实现的velocity/torque/acceleration模式应在ROS导出、控制器解码和控制器执行三层一致拒绝，避免“可识别但不可执行”的接口契约。
+9. 对通信/解码/运动错误采用锁存故障、明确复位条件、重新使能门控和重连冷却；将普通软件STOP与安全急停/STO分开验收。
+
+### E. 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-273 | VAL3 header/payload长度一致性 | 错误header size、payload size、实际datagram长度均拒绝；固定版本payload=47 | VAL3单测/网络注入 | 未执行 |
+| SERVO-274 | float32解码非有限值拒绝 | NaN、±Inf、极端有限值在VAL3运动API前拒绝 | CS9仿真与负向测试 | 未执行 |
+| SERVO-275 | isInRange边界语义 | 各型号关节上下限、NaN/Inf、工具/用户坐标行为经验证 | VAL3运行测试与机型限位矩阵 | 未执行 |
+| SERVO-276 | 位置单周期增量门控 | 范围内超大目标跳变按速度/加速度/jerk约束拒绝或安全规划 | CS9台架/HIL轨迹记录 | 未执行 |
+| SERVO-277 | uint16序列回绕/重放/乱序 | 重复、乱序、跨回绕、控制器重启旧包均按代际策略处理 | 65535→0边界注入 | 未执行 |
+| SERVO-278 | 命令超时真实时间语义 | 不同任务周期/overrun下，运动和静止超时满足经批准的ms预算 | 周期测量与断包故障注入 | 未执行 |
+| SERVO-279 | GPIO接收与安全状态 | digital mask正确映射，analog量程有效，STOP/故障状态符合IO策略 | CS9 I/O仿真与台架 | 未执行 |
+| SERVO-280 | 未实现模式端到端拒绝 | velocity/torque等未实现模式在ROS导出和VAL3执行层一致拒绝 | 接口枚举测试及控制器日志 | 未执行 |
+| SERVO-281 | 错误锁存与重连门控 | 故障原因可追踪，复位/重新使能/冷却条件可验证，无自动危险重启 | 故障注入与状态机测试 | 未执行 |
+| SERVO-282 | 安全功能独立性验证 | 软件STOP与急停/保护停止/STO边界清晰，安全功能按适用标准验证 | 风险评估、安全回路图与认证证据 | 未执行 |
+
+### F. 本节来源记录（#1837–#1843）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1837 | [VAL3 decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | header/payload解码、字段映射、消息长度和有效标志 |
+| #1838 | [VAL3 decodeHeader.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx) | magic/version/header校验 |
+| #1839 | [VAL3 readData.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx) 与 [readDataOnce.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx) | UDP固定长度读取及无数据/长度错误分支 |
+| #1840 | [VAL3 controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 序列延迟、命令模式、超时、STOP和错误恢复 |
+| #1841 | [VAL3 updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | isInRange、目标接近TODO、movejSync控制 |
+| #1842 | [VAL3 computeSequenceDelay.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) 与 [getNextSequenceNumber.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx) | uint16序列生成、回绕和延迟计算 |
+| #1843 | [VAL3 RobotCommand.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotCommand/RobotCommand.dtx)、[updateJointVelocityControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx) 与 [VAL3 README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md) | 6轴命令/IO结构、velocity未实现、控制器版本与测试机型范围 |
