@@ -598,3 +598,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli诊断功能生命周期闭环、VAL3任务调度与ROS 2上层暴露 | 固定ICube bd658e2审查start.pgx、ros2_server.pjx、sio.cfx、StaubliHardwareInterface::read/export_state_interfaces、官方diagnostics demo与README。发现start.pgx的supervision/diagnostics task为TODO，实际只启动controlTask；VAL3工程Program/Types清单没有诊断task/消息类型；硬件接口read只消费RobotState，未调用read_diagnostic_data，未导出DiagnosticData字段或ROS 2诊断topic；官方diagnostics demo仅Coming soon，README明确诊断支持在后续版本加入。诊断socket 11001只是配置，不是功能完成证据。新增§9.3.79、SERVO-423–SERVO-432、来源#1960–#1966。VAL3/CS9、ROS 2运行、UDP抓包、实时性/HIL/实机测试全部未执行；21-02继续进行中。 |
+
+
+| 2026-11-08 | 21-02/Stäubli运行模式、安全状态与监督信号语义映射 | 固定ICube bd658e2核对VAL3 updateState的workingMode码表与安全状态推导、C++ OperationMode/SafetyStatus枚举、wire直传、HardwareInterface映射和overview文档。发现VAL3模式0–4（invalid/manual/test/auto-local/auto-remote）与C++ UNKNOWN/MANUAL/AUTOMATIC/REMOTE枚举不一致，Test被映射为AUTOMATIC、Auto Local映射为REMOTE、Auto Remote数值4超出枚举；VAL3将所有非零SafetyStatus置bEStopped，导致SS1/SS2/等待重启均被导出为estop_pressed；bBrakeReleased直接取isPowered，motion_possible只由power与非E-stop推导。新增§9.3.80、SERVO-433–SERVO-442、来源#1967–#1974。未执行CS9安全状态HIL、跨语言测试或实机安全验证。 |
