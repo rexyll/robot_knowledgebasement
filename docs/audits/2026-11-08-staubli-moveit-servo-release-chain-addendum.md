@@ -747,3 +747,43 @@ SERVO-710仍未取得Bloom执行输入不可变revision/源归档SHA；SERVO-713
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/gbp.conf
 - https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/package.xml
 - §9.3.119、§9.3.123。
+
+
+## 9.3.125 Debian测试门控的精确行级复核与任务表闭环（2026-11-08）
+
+### 1. 精确行级复核
+
+重新读取固定分支 `debian/jazzy/noble/moveit_servo` 的 `debian/rules`、`debian/control` 和 `package.xml`，Blob SHA与§9.3.124记录一致。关键行号如下：
+
+| 文件 | 行 | 原始规则/字段 | 审计含义 |
+|---|---:|---|---|
+| debian/rules | 20 | `ifneq ($(filter nocheck,$(DEB_BUILD_OPTIONS)),)` | 只有DEB_BUILD_OPTIONS包含nocheck时进入关闭测试的分支 |
+| debian/rules | 21 | `BUILD_TESTING_ARG=-DBUILD_TESTING=OFF` | 通过CMake参数关闭BUILD_TESTING |
+| debian/rules | 47 | `override_dh_auto_test:` | 覆盖debhelper默认测试目标 |
+| debian/rules | 53 | `dh_auto_test || true` | 测试命令非零退出码被shell OR列表吞掉，不会单独令该recipe失败 |
+| debian/control | 5 | Build-Depends中ament-cmake-gtest、moveit-resources-panda-moveit-config、ros-testing标注`<!nocheck>` | nocheck配置下这些测试相关构建依赖可不安装 |
+
+### 2. 证据解释与边界
+
+- `nocheck`关闭路径与`dh_auto_test || true`是两个独立的弱化门控：前者可不运行测试；后者意味着即使执行测试且测试命令返回非零，Debian测试目标也可能仍返回成功。
+- 当前源码只证明规则允许上述行为；没有Build Farm实际job环境、完整命令行和console log，不能判断2026-11-05/06的具体amd64/arm64构建是否设置nocheck、是否运行测试、测试数量或结果。
+- ROS状态页中的Building/Testing/Main是仓库阶段/包版本状态，不是测试套件通过报告。后续不得将其写成测试通过、覆盖率达标或Servo功能验证通过。
+- `debian/control`的25/25运行依赖模板映射结果仍只针对源码模板；`${shlibs:Depends}`与`${misc:Depends}`需在实际deb control中展开后才能验证最终闭包。
+
+### 3. 任务表闭环
+
+21章验收任务表新增：
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-715 | 固定Noble Debian包装分支，核对control/changelog/rules/gbp.conf并逐项映射package.xml的25项depend/exec_depend | 已完成（静态Git文件核验；不等于实际deb/构建测试验收） |
+| SERVO-716 | 取得amd64/arm64真实Build Farm job环境和console log，核验DEB_BUILD_OPTIONS、测试是否执行、测试结果、失败容错及工件关联 | 未执行 |
+
+SERVO-710、SERVO-713、SERVO-714维持原状态；不因本轮行级核验而提前关闭。下一步优先取得具体Jenkins job/build元数据和console log；若Build Farm日志不可读，则应明确记录访问限制，不以状态页替代。
+
+### 4. 来源
+
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/rules
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/control
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/package.xml
+- §9.3.124。
