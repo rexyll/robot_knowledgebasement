@@ -46,7 +46,7 @@
 
 ## 审计状态
 
-- 00-01 全库资产盘点：进行中。
+- 00-01 全库资产盘点：进行中。2026-11-08交叉核查发现Stäubli专项记录在根计划、专项报告、厂商档案、本索引及第00章日志之间未同步；详见[专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)。在完成逐节同步和来源复核前，不以根计划摘要替代专项报告正文。
 - 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 260 个 Blob、212 份 Markdown、142 份 knowledge Markdown、67 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
 - 标题/结构检查：原 112 份知识文件保留历史标题、章节结构和开篇检查记录；当前 142 份资产的统一结构扫描覆盖率尚未重新计算。后续新增文件存在专题审查/结构检查记录，但尚未统一汇总为当前覆盖率。
 - 全文结构扫描：96/120 是旧快照统计，不能作为当前 142 份资产的覆盖率；本轮只做 Git Tree/Blob 元数据对账，当前统一结构扫描需重新执行。结构扫描不等于专业审稿或 claim-level 验收。
@@ -108,3 +108,5 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.56；本轮核对ROS UDP最新消息快照覆盖、消费者慢读时序号跳跃、旧状态staleness策略、RobotCommand复用最近RobotState序号，以及MSG_DONTWAIT遇would_block后数据包被丢弃但send仍返回true的错误语义。sender身份校验和接收线程优先级/CPU affinity仍有TODO；新增SERVO-188–SERVO-202。突发/慢读/背压/故障注入及CS9/HIL/实机验证均未执行。
+
+- [2026-11-08 Stäubli专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)：根 TaskPlan 已记录至 §9.3.111，但专项报告正文至 §9.3.101、厂商档案至 §9.3.87、本索引至 §9.3.56、第00章日志至 §9.3.38；记录各载体 SHA、待同步范围及 Build Farm 证据限制。该差异核查不代表 Stäubli 工程验收完成，也不改变 00-01 的进行中状态。
