@@ -359,3 +359,12 @@ SERVO-720已完成（静态核对）；SERVO-721/722/723未执行。未修改ICu
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - https://github.com/moveit/moveit2/issues/3887
 - 专项追加件§9.3.130。
+
+
+## 29. MoveItCpp调用路径与Stäubli现场适用性边界（§9.3.131）
+
+本轮在MoveIt当前main分支核对`MoveItCpp::initialize()`：PlanningScene初始化成功后会调用`startWorldGeometryMonitor()`；当前main的`stopWorldGeometryMonitor()`仍保留if/else if单次只释放一个subscriber的实现。对当前可见PR列表未找到可确认修复#3897的PR。该证据只说明通用MoveItCpp默认路径与当前上游实现，不证明Stäubli应用采用该路径。
+
+本项目仓库未包含ICube应用源码、部署launch/YAML、目标PlanningSceneMonitor实例及stop调用点。SERVO-722因此保持未执行/阻塞，需目标版本标识、脱敏启动参数、monitor构造及start/stop调用代码、启停时topic graph才能判定现场触发条件。SERVO-721本轮补齐实验规程但未执行；SERVO-723未执行；新增SERVO-724追踪上游修复PR、Jazzy backport和正式二进制发布。未修改上游、未应用补丁、未执行实机/安全验证。
+
+详见专项追加件§9.3.131及厂商档案§128.82。
