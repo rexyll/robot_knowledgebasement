@@ -592,3 +592,6 @@
 | 2026-11-08 | 21-02/Stäubli普通I/O、GPIO与工具末端执行器 | 固定ICube bd658e2审查Xacro GPIO、HardwareInterface读写、UDP消息、VAL3 decode/controlTask/updateState/encode及TX2-60L工具帧配置。发现VAL3数字/模拟输出执行TODO、数字mask映射被注释；输入valid flags固定false且编码TODO；C++无效输入时保留旧值；tool0仅静态坐标变换，无夹爪/吸盘驱动和反馈；普通GPIO不属于安全I/O。新增§9.3.76、SERVO-393–SERVO-402、来源#1936–#1944。 | 来源#1936–#1944；专项审计§9.3.76 |
 
 | 2026-11-08 | 21-02/Stäubli通信协议与跨语言序列化一致性 | 固定ICube bd658e2审查C++ FrameHeader/消息序列化、little-endian/float32策略、VAL3 encode/decode头和RobotState/Command字段。发现VAL3 encodeHeader payload_size重复写sequence；C++ FrameHeader/RobotState校验不足、DiagnosticData先校验旧header；VAL3 command长度错误标志可能被decodeHeader覆盖；VAL3 F/T后三分量写入注释。固定RobotState 132/124、RobotCommand 55/47字节。新增§9.3.77、SERVO-403–SERVO-412、来源#1945–#1953。 | 来源#1945–#1953；专项审计§9.3.77 |
+
+
+| 2026-11-08 | 21-02/Stäubli诊断数据通道真实生产端、连接准入与Mock测试边界 | 固定ICube bd658e2核对DIAGNOSTIC_DATA消息、RobotDriver连接等待、诊断subscriber、Mock发送和测试夹具。发现connect创建诊断subscriber后将diag_interface_ready硬编码true，没有等待/读取真实诊断首帧；CS9类型校验被注释，固件版本从未被本次连接验证的缓存打印；is_connected仅检查socket/subscriber ready；Mock可发送74字节诊断帧且测试夹具每4ms发送，但未检索到固定提交VAL3服务端对应诊断编码/发送实现，Mock不能证明CS9生产端可用。新增§9.3.78、SERVO-413–SERVO-422及来源#1954–#1959。C++/VAL3/CS9抓包、诊断异常注入、HIL/实机测试全部未执行；21-02继续进行中，Stäubli未验收。 |
