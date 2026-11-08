@@ -1348,3 +1348,18 @@
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - 专项追加件§9.3.123。
+
+
+### Stäubli专项审查新增记录（§9.3.124，MoveIt Servo Noble Debian依赖映射与测试失败处理）
+
+- 固定release repository分支debian/jazzy/noble/moveit_servo当前HEAD为04da341a35a97633b11a95ac1600b1995bcbacc3（2025-12-05 20:45:20 UTC，message为Generated debian files for noble，GitHub verification为unsigned）。核对debian/gbp.conf指向release/jazzy/moveit_servo/2.12.4-1；debian/changelog顶部记录2.12.4-1noble，2025-12-04 23:00 UTC。
+- package.xml含25项depend/exec_depend；静态转换并与debian/control的binary Package Depends比较，25/25均有对应Debian ROS依赖，另有ros-jazzy-ros-workspace及${shlibs:Depends}/${misc:Depends}。该结论只针对源码控制模板，不是实际deb最终Depends字段核验，且不补足Stäubli config包自身缺失的moveit_servo exec_depend。
+- debian/rules允许DEB_BUILD_OPTIONS=nocheck时关闭BUILD_TESTING；override_dh_auto_test中的dh_auto_test || true容忍测试失败继续构建。因此即使包进入Build Farm成功/Testing，也不能推断测试套件全通过；实际DEB_BUILD_OPTIONS与console log尚未取得。
+- SERVO-715静态Debian控制文件/依赖映射核验已完成；SERVO-716真实Build Farm测试执行及结果核验未执行。SERVO-710/714未完成，SERVO-713部分取证未完成；Stäubli工程级验收仍未通过。
+
+来源：
+- https://github.com/ros2-gbp/moveit2-release/commit/04da341a35a97633b11a95ac1600b1995bcbacc3
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/control
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/rules
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/changelog
+- 专项追加件§9.3.124。
