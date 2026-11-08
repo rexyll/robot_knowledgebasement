@@ -344,3 +344,18 @@ SERVO-719仍部分取证：workflow/job元数据已梳理，但三个Servo测试
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - 专项追加件§9.3.129。
+
+
+## 28. MoveIt 2.12.4 PlanningSceneMonitor世界几何订阅停止缺陷（2026-11-08追加）
+
+上游issue `moveit/moveit2#3897`（open，创建于2026-09-29）报告ROS Jazzy/Ubuntu 24.04/MoveIt binary 2.12.4/FastRTPS下，同时启用CollisionObject与PlanningSceneWorld两个订阅后，一次`stopWorldGeometryMonitor()`只停止CollisionObject；PlanningSceneWorld仍继续更新，第二次stop才使其停止。issue作者报告单次stop路径3/3复现、double-stop对照3/3通过；这些是issue作者的复现数据，不是本项目实测。
+
+固定2.12.4源码commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`：`startWorldGeometryMonitor()`分别创建两个subscriber；`stopWorldGeometryMonitor()`以if/else if实现reset，两个subscriber同时存在时单次调用只释放第一个。静态实现与issue描述一致。若Stäubli部署满足双topic启用且单次stop生命周期切换，则存在残留PlanningSceneWorld订阅风险；但现场调用点尚未确认，不能推断必然漏检/碰撞或CS9安全失效。
+
+SERVO-720已完成（静态核对）；SERVO-721/722/723未执行。未修改ICube/MoveIt上游、未应用补丁；原发布链任务状态不变。Jazzy后续发布issue #3887仍open，不能视为2.12.5已发布或#3897已修复。
+
+来源：
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/issues/3887
+- 专项追加件§9.3.130。
