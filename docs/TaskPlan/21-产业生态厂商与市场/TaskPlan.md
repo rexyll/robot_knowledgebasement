@@ -1605,7 +1605,7 @@ OccupancyMapMonitor的start/stop逐个委托插件，析构会再次stop；插�
 
 | 子项 | 验收对象 | 状态 |
 |---|---|---|
-| U11 | 旧void与新bool MiddlewareHandle派生类、下游Mock/fixture源码编译迁移 | 静态接口差异已确认；编译矩阵未执行 |
+| U11 | 旧void与新bool MiddlewareHandle派生类、下游Mock/fixture源码编译迁移 | 已确认公共接口源兼容性变化，并发现作者维护的2.12.4旧void fixture；迁移编译未执行 |
 | U12 | 旧/新头文件与二进制库ABI兼容性 | 未执行；ABI状态未知 |
 | U13 | updater在initialize中部分创建subscription/timer/callback后返回false | 未执行 |
 | U14 | initialize成功后setParams返回false的资源回收 | 未执行 |
@@ -1617,3 +1617,10 @@ PR #3909把public纯虚接口 `OccupancyMapMonitor::MiddlewareHandle::initialize
 失败回收方面，PR在initialize返回false时continue跳过setParams/addUpdater，局部updater句柄随循环迭代结束而销毁，但没有统一stop/rollback契约。第三方插件若在initialize中创建资源后返回false，或initialize成功而setParams失败，是否安全依赖插件自身析构和资源所有权。PR新增fake测试没有创建订阅、定时器或在途回调，不能证明这些路径已清理。此处登记为测试覆盖/契约缺口，不认定为已证实泄漏。
 
 SERVO-727静态审查已完成，U11-U15未执行；SERVO-726动态插件生命周期验证也未执行。详见专项追加件§9.3.141。
+
+
+#### SERVO-727补充证据（§9.3.142）
+
+已检查PR作者维护的外部公开复现仓库`Yuhx141/ros2-upstream-issue-reproducers`固定commit `9630a900f2d323b3b45c1976df8fe722b809f7a7`。PROVENANCE记录MoveIt 2.12.4 runtime；两个OccupancyMap场景目录通过CMake find_package链接安装的MoveIt occupancy-map-monitor包。两个目录复用同一份`occupancy_init_probe.cpp`（Blob SHA `4a5dd5b5ffb1cc30da67c55a0c037e5eeea63a60`），其中FakeMiddleware仍以旧`void initializeOccupancyMapUpdater(...) override`实现公共接口。切换至PR #3909的新bool接口时，该fixture需迁移override并传播初始化结果。
+
+这是作者维护的公开复现fixture，而非独立商业下游或Stäubli/ICube现场代码。U11已获得具体旧签名迁移样例；实际修改fixture并编译仍未执行，ABI状态仍未知。详见审计追加件§9.3.142。
