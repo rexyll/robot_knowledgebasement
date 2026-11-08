@@ -94,3 +94,20 @@ ROS 2官方Build Farm文档说明，release job分为source与binary类型；sou
 - metadata_reconciliation_scope：仅刷新该文件的Blob SHA与UTF-8大小，明确不做claim-level审查。
 
 README中的清单说明已补充此单行刷新范围。该操作只维护Git Tree元数据一致性，不改变该资产的`unaccepted_claim_level_review_pending`状态，也不代表142份资产的所有Blob SHA/大小均已在本日重新刷新。其他资产仍须按全库盘点流程逐项对账。
+
+## 9. ROS Jazzy状态页最新快照同步（2026-11-08追加）
+
+本轮重新读取ROS官方状态页并确认：
+- Noble amd64页面生成时间2026-11-08 03:56:07 -0800，building/testing仍为`2.12.4-1noble.20261105.184638`，main仍为`2.12.4-1noble.20261006.040508`。
+- Noble arm64页面生成时间2026-11-08 04:23:04 -0800，building/testing仍为`2.12.4-1noble.20261106.111556`，main仍为`2.12.4-1noble.20261006.043301`。
+- main pool目录仍列出两份10月6日旧deb，没有发现新版本进入main的证据。InRelease/Release.gpg仍未进行密码学验签，Packages stanza、deb control和SHA256未取得。
+
+本轮同步载体：
+- 专项追加件新增§9.3.113；
+- 厂商档案新增§128.64；
+- 本README更新追加件索引；
+- 第00章00-01执行日志追加本轮快照复核；
+- 根TaskPlan更新至v8.86；
+- 资产清单中《主要厂商.md》一行刷新Blob SHA/UTF-8大小。
+
+**任务状态不变：** SERVO-713仍为部分取证；SERVO-710/714仍未完成；00-01及21-02继续进行中。此轮仅刷新发行状态证据与文档追踪，不构成APT安全、功能、VAL3/CS9、HIL或实机验收。
