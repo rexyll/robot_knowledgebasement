@@ -110,3 +110,5 @@
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.56；本轮核对ROS UDP最新消息快照覆盖、消费者慢读时序号跳跃、旧状态staleness策略、RobotCommand复用最近RobotState序号，以及MSG_DONTWAIT遇would_block后数据包被丢弃但send仍返回true的错误语义。sender身份校验和接收线程优先级/CPU affinity仍有TODO；新增SERVO-188–SERVO-202。突发/慢读/背压/故障注入及CS9/HIL/实机验证均未执行。
 
 - [2026-11-08 Stäubli专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)：根 TaskPlan 已记录至 §9.3.111，但专项报告正文至 §9.3.101、厂商档案至 §9.3.87、本索引至 §9.3.56、第00章日志至 §9.3.38；记录各载体 SHA、待同步范围及 Build Farm 证据限制。该差异核查不代表 Stäubli 工程验收完成，也不改变 00-01 的进行中状态。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：补齐主报告后续§9.3.102–§9.3.111，记录Jazzy发行版与Noble工件、release tag/源码子树一致性、Bloom/rosdistro历史，以及Build Farm任务名仅为候选、APT签名/Packages/deb元数据和实际job/build日志仍缺失的证据边界。
