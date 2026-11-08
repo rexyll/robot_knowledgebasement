@@ -124,3 +124,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.124；核对Noble Debian packaging分支的control/changelog/rules/gbp.conf与package.xml依赖映射（25/25）；发现debian/rules可通过nocheck关闭测试，并以dh_auto_test || true容忍测试失败，因此Build Farm构建成功不能作为测试全通过证据。真实deb字段及Jenkins测试日志仍缺。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.125，记录Noble Debian规则精确行号：rules 20–21通过nocheck关闭BUILD_TESTING，47/53行的dh_auto_test || true吞掉测试命令非零退出；control第5行将若干测试依赖标记<!nocheck>。真实Build Farm环境和console log仍缺，不能判断实际是否运行或通过测试。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.126，核对build.ros2.org实际部署的ros2/ros_buildfarm_config分支，确认Jazzy Noble amd64/arm64 release配置均关闭package tests；追踪到Build Farm `skip_tests`→`nocheck`→`dpkg-buildpackage -Pnocheck`，并确认MoveIt Servo 2.12.4的三个CMake测试目标由BUILD_TESTING控制。具体job XML/console log及上游其他CI结果仍缺。
