@@ -1356,6 +1356,7 @@
 - package.xml含25项depend/exec_depend；静态转换并与debian/control的binary Package Depends比较，25/25均有对应Debian ROS依赖，另有ros-jazzy-ros-workspace及${shlibs:Depends}/${misc:Depends}。该结论只针对源码控制模板，不是实际deb最终Depends字段核验，且不补足Stäubli config包自身缺失的moveit_servo exec_depend。
 - debian/rules允许DEB_BUILD_OPTIONS=nocheck时关闭BUILD_TESTING；override_dh_auto_test中的dh_auto_test || true容忍测试失败继续构建。因此即使包进入Build Farm成功/Testing，也不能推断测试套件全通过；实际DEB_BUILD_OPTIONS与console log尚未取得。
 - SERVO-715静态Debian控制文件/依赖映射核验已完成；SERVO-716真实Build Farm测试执行及结果核验未执行。SERVO-710/714未完成，SERVO-713部分取证未完成；Stäubli工程级验收仍未通过。
+- 资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA 06c8d61a50aeaf9ca4e378e0207cc871224d1bec、UTF-8大小518,450 bytes；仅刷新单一资产Git元数据，不代表claim-level审查完成或全库清单重算。
 
 来源：
 - https://github.com/ros2-gbp/moveit2-release/commit/04da341a35a97633b11a95ac1600b1995bcbacc3
