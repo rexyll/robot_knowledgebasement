@@ -261,3 +261,19 @@ SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进�
 复核debian/rules与control的精确行号：rules第20–21行在DEB_BUILD_OPTIONS含nocheck时设置BUILD_TESTING=OFF；第47行定义override_dh_auto_test，第53行执行dh_auto_test || true；control第5行将ament-cmake-gtest、moveit-resources-panda-moveit-config、ros-testing等构建依赖标注<!nocheck>。这证明包装规则允许跳过测试或忽略测试命令失败，但不证明具体Build Farm构建实际走了哪条路径。SERVO-715已完成静态核验，SERVO-716仍需具体job环境与console log。
 
 来源：moveit2-release debian/jazzy/noble/moveit_servo/debian/rules、debian/control；专项追加件§9.3.125。
+
+
+## 24. 2026-11-08 Build Farm实际部署配置的MoveIt Servo测试门控复核（§9.3.126）
+
+读取`ros2/ros_buildfarm_config`仓库README确认`ros2`为部署到build.ros2.org的实际配置分支；当前HEAD `e8ac988037437c0150a5e7a91cd80395cd1aea91`于2026-11-02提交。Jazzy `index.yaml`把default/unv8分别映射为Noble amd64/arm64 release配置，两份release配置均为`include_test_dependencies:false`与`run_package_tests:false`。Build Farm `release_job.py:770`将其转换为`skip_tests=true`；`binarydeb_job.py:128–146`设置nocheck环境/build profile并调用`dpkg-buildpackage -Pnocheck`。MoveIt Servo 2.12.4 CMakeLists `if(BUILD_TESTING)`内的三个gtest目标因此不在该release binary build配置路径中构建/注册。
+
+该结论是实际部署配置和Build Farm执行代码的静态链路证据，不是2026-11-05/06具体Jenkins job XML/console log；其它上游CI是否运行测试尚未核对。SERVO-717静态链路核验完成；SERVO-716更新为部分取证（配置禁测已证实，具体job实例日志仍缺）。SERVO-710/714未完成，SERVO-713部分取证，Stäubli工程级验收未通过。
+
+来源：
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/README.md
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/index.yaml
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/jazzy/release-build.yaml
+- https://github.com/ros2/ros_buildfarm_config/blob/ros2/jazzy/release-ubuntu-arm64-build.yaml
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/release_job.py
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/binarydeb_job.py
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
