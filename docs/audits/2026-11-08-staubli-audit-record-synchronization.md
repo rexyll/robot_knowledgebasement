@@ -379,3 +379,21 @@ SERVO-720已完成（静态核对）；SERVO-721/722/723未执行。未修改ICu
 厂商档案`knowledge/ecosystem/主要厂商.md`新增§128.82，更新后Blob SHA为`3cbf7533aa19f76d7eb4d21a6cfb2f646294d284`，UTF-8大小530615 bytes。该项为单文件元数据刷新，不代表claim-level验收或整库清单重算。
 
 来源：专项追加件§9.3.131；厂商档案§128.82。
+
+
+## 30. MoveIt #3897候选修复PR #3907及Jazzy发行状态（2026-11-08追加）
+
+上游issue #3897仍open；本轮发现PR #3907明确Fixes #3897，但PR仍open、未合并，目标为main，head SHA为`821818f4ffeaa7564459faed2cbddbfb604f9dcb`。其stop函数diff一次性reset两个subscriber，并增加单次stop后topic列表双端点移除测试；该测试不直接计数消息回调，也未覆盖完整生命周期矩阵。PR作者自报Ubuntu 24.04/Jazzy测试通过，但head SHA的Formatting和CI workflow run均为failure，jobs接口返回0项，具体失败原因无法核验，且没有review approval记录。
+
+当前MoveIt main源文件blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`仍保留if/else if停止实现，说明#3907尚未进入main。Jazzy正式状态页amd64/arm64 MoveIt Servo Main仍分别为`2.12.4-1noble.20261006.040508`和`2.12.4-1noble.20261006.043301`；production pool也仍只列2026-10-06的2.12.4-1 deb。Jazzy发布issue #3887仍open，未发现#3907进入正式回移/发行的证据。
+
+本轮更新厂商档案§128.83。文件更新后的Blob SHA和UTF-8大小在资产清单单行刷新记录中列示；此操作仅维护Git元数据，不代表claim-level审查或整库清单重算。SERVO-720完成；SERVO-721/723未执行；SERVO-722未执行/阻塞；SERVO-724持续跟踪。没有修改MoveIt/ICube上游或应用补丁，也没有进行VAL3/CS9/SRS/HIL/FAT/SAT/实机验证。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/issues/3887
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
