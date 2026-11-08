@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.02  
+> 版本：v9.03  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.129，厂商档案新增§128.80。2026-11-08官方ROS Jazzy amd64/arm64状态页生成时间刷新至05:56:04/05:43:04（UTC−8），B/T仍为11月5/6日构建、M仍为10月6日构建；生产main pool目录未见11月新工件。SERVO-718已完成，SERVO-719部分取证；SERVO-716/713部分取证，SERVO-710/714未完成。APT签名/完整Packages/deb control/SHA256、具体Jenkins release job日志和Stäubli目标Ubuntu 24.04安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.130，厂商档案新增§128.81。新增MoveIt 2.12.4 PlanningSceneMonitor双订阅停止缺陷：上游issue #3897报告一次stop仅释放CollisionObject订阅，固定2.12.4源码if/else if结构与报告一致；SERVO-720静态核验已完成，SERVO-721/722/723未执行，现场触发条件未确认。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1185,3 +1185,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 2026-11-08 | v9.01 | 00-01/21-02继续Stäubli审查至§9.3.128：对MoveIt 2.12.4精确源码SHA检索到5个Actions run与13个check-runs，区分CI矩阵成功、source/tutorial/format/lint成功与release job失败。下载两个关键industrial_ci job及4个相关job日志均HTTP 410，steps接口空、artifacts列表空；不据此推断测试失败或未运行。SERVO-719仍部分取证，三个Servo测试逐项colcon/XML/console证据仍缺。新增专项§9.3.128、厂商档案§128.79、同步报告§26、README索引及第00/21章日志，根计划升至v9.01。厂商档案`knowledge/ecosystem/主要厂商.md`新增§128.79后，资产清单对应行刷新为Blob SHA `b639f21d4f6403dbe1bc791cd85e379071fa91fd`、UTF-8大小524,243 bytes；仅刷新单一资产Git元数据，不代表claim-level审查完成或整库清单重算。未执行目标APT安装、VAL3/CS9/HIL/实机验证；未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。 | GitHub Actions runs/check-runs/log API；专项追加件§9.3.128 |
 | 2026-11-08 | v9.02 | 00-01/21-02继续Stäubli MoveIt Servo Jazzy发布链核查至§9.3.129：ROS官方amd64/arm64状态页生成时间刷新至05:56:04/05:43:04（UTC−8），但B/T仍为11月5/6日构建，M仍为10月6日构建；生产main pool目录仍仅列2026-10-06 amd64/arm64二进制（674,492/615,538 bytes）。记录页面刷新但版本未变化，不推断Testing或Main晋级；APT索引正文/签名/deb control/SHA256和具体Jenkins job日志仍缺。新增专项追加件§9.3.129、厂商档案§128.80、同步报告§27和README索引；更新21章/00章记录并刷新清单中已登记文件元数据。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成；未执行目标APT安装、VAL3/CS9/HIL/实机验证；未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。 | ROS Jazzy official status pages and production main pool; §9.3.129; vendor profile §128.80 |
+
+| 2026-11-08 | v9.03 | 00-01/21-02继续Stäubli审查至§9.3.130：发现MoveIt 2.12.4上游issue #3897报告`stopWorldGeometryMonitor()`双订阅停止缺陷；固定源码commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`的start函数默认创建CollisionObject与PlanningSceneWorld两个subscriber，stop函数使用if/else if依次reset，静态实现与issue复现描述一致。新增SERVO-720静态核验已完成；SERVO-721目标环境复现、SERVO-722 Stäubli调用点核查、SERVO-723修复回归均未执行。新增专项追加件§9.3.130、厂商档案§128.81、同步报告§28、README索引及第21章验收任务。未确认现场触发条件，不推断必然漏检/碰撞或CS9安全失效；未修改ICube/MoveIt上游，未应用补丁。原SERVO-710/713/714/716/719状态不变；未执行apt安装运行、VAL3/CS9/HIL/实机验证，Stäubli工程级验收未通过，TODO-EXT-001未授权合并。 | moveit/moveit2#3897；MoveIt 2.12.4源码；专项追加件§9.3.130 |
