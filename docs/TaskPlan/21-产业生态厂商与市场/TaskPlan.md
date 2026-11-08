@@ -560,3 +560,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli运动命令float32线级数值、周期与STOP/IO校验 | 固定ICube bd658e2增量审查serialization.hpp/messages.cpp/messages.hpp/HardwareInterface/RobotDriver：double统一缩窄float32但无转换前后finite/范围检查与量化预算；controller_period、运动参考、模拟输出共享该路径；STOP参考非零仅WARN，普通STOP write仍可携带GPIO值；协议单位注释rad/rad/s与HardwareInterface的rad2deg转换不一致（与§9.3.33既有问题交叉关联）。新增§9.3.63、SERVO-263–SERVO-272、来源#1832–#1836。所有新增测试未执行，未做C++/VAL3黄金向量、CS9 I/O仿真、HIL或实机验证；21-02继续进行中，Stäubli未验收。 | 来源#1832–#1836；Stäubli专项审计§9.3.63 |
+
+
+| 2026-11-08 | 21-02/Stäubli VAL3命令接收、解码与控制器侧门控 | 固定ICube bd658e2审查CS9/VAL3服务端：55字节固定接收、header magic/version/type校验、float32字段解码、position isInRange、sequence delay门控。发现header声明payload length未在解码后独立核对；解码后无period/运动/analog字段finite和物理范围检查；position目标接近TODO；重复sequence未拒绝、回绕/乱序缺少代际策略，staleness仍有TODO；GPIO mask映射和GPIO输出执行均TODO；velocity分支仅占位并报未实现；错误复位后重连冷却/重新使能门控TODO。新增§9.3.64、SERVO-273–SERVO-282、来源#1837–#1843。全部VAL3编译、CS9仿真、网络注入、HIL/实机验收未执行。 | 来源#1837–#1843；专项审计§9.3.64 |
