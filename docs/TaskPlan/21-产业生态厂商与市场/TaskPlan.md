@@ -951,3 +951,21 @@
 | SERVO-653 | trajectory_execution.allowed_start_tolerance实际值及逐关节覆盖参数快照 | 未执行 |
 | SERVO-654 | 当前完整JointState的时间新鲜度、缺轴、延迟、反馈跳变及起点偏差拒绝测试 | 未执行 |
 | SERVO-655 | MoveGroup与Servo双路径场景变化、弱网/场景丢失、CS9/HIL/实机整体验收 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli Servo距离阈值碰撞缩放算法、停止语义与参数生效边界审查 | 固定ICube提交bd658e2核对staubli_servo.yaml：配置选择collision_check_type=threshold_distance，阈值为self 10mm/scene 20mm，检测频率5Hz、命令周期4ms；同时保留collision_distance_safety_factor=1000和min_allowable_collision_distance=10mm，但二者注释属于stop_distance算法参数，不能视为当前阈值算法已使用的停止距离/安全因子。对照MoveIt公开上游CollisionMonitor实现，阈值算法参考为指数速度缩放、真实collision标志置零；Servo计算层将缩放乘到关节增量并标记DECELERATE/HALT状态，但不等于控制柜专用STOP或CS9安全停止。目标MoveIt二进制版本/补丁尚未冻结，公开main/Humble源码仅作为实现参考。新增§9.3.100、SERVO-656–SERVO-665、来源#2134–#2135，全部未执行；未进行目标版本参数读取、算法边界、调度/弱网、控制器/UDP/VAL3、CS9/HIL或实机停止测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.100，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-656 | 冻结目标MoveIt Servo包版本、源码commit、二进制构建选项与补丁集 | 未执行 |
+| SERVO-657 | 读取目标版本collision_check_type及全部碰撞参数的声明、默认值、最终值和启动日志 | 未执行 |
+| SERVO-658 | 验证threshold_distance/stop_distance参数选择、未选参数处理和配置错误闭锁 | 未执行 |
+| SERVO-659 | 自碰撞/场景碰撞距离跨越阈值、趋近零和实际碰撞时的缩放曲线边界测试 | 未执行 |
+| SERVO-660 | collision结果、距离结果、Allowed Collision Matrix及padding模型一致性 | 未执行 |
+| SERVO-661 | 碰撞监测线程与Servo计算线程并发时缩放更新原子性、旧值保持与调度抖动 | 未执行 |
+| SERVO-662 | 碰撞后HALT_FOR_COLLISION状态、输出位置数组和下游控制器接收行为 | 未执行 |
+| SERVO-663 | 碰撞状态与JTC hold、硬件STOP、VAL3 stopMove/resetMotion映射及禁止自动续动 | 未执行 |
+| SERVO-664 | 障碍在检测周期之间出现/消失、场景锁竞争和弱网条件下最坏检测时延 | 未执行 |
+| SERVO-665 | Servo碰撞检测到CS9/HIL/实机物理静止的时间戳链、停止距离和安全功能独立性验收 | 未执行 |
