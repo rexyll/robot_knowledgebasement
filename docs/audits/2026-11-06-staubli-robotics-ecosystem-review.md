@@ -3878,3 +3878,84 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1841 | [VAL3 updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | isInRange、目标接近TODO、movejSync控制 |
 | #1842 | [VAL3 computeSequenceDelay.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) 与 [getNextSequenceNumber.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx) | uint16序列生成、回绕和延迟计算 |
 | #1843 | [VAL3 RobotCommand.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotCommand/RobotCommand.dtx)、[updateJointVelocityControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx) 与 [VAL3 README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md) | 6轴命令/IO结构、velocity未实现、控制器版本与测试机型范围 |
+
+
+## 9.3.65 VAL3同步控制循环的采样率对齐、命令刷新与overrun处置（2026-11-08）
+
+### A. 审查基线与范围
+
+- 上游固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 本节在§9.3.53、§9.3.55与§9.3.64基础上，进一步把VAL3同步任务周期、机器人型号采样周期、ros2_control更新周期、MoveIt Servo发布周期和movejSync刷新状态放在同一时序链路中核对。
+- 另对照Stäubli CS9实时VAL3/Fieldbus技术文档TSS.000.014.04-A（2021-07-06）。该文件描述CS9扫描顺序、同步任务周期与overrun语义；其配置/固件适用性仍须以目标机器人实际版本和交付文档复核。
+- 来源#1844–#1849。仅固定提交与配置的静态审查；未进行VAL3实时跟踪、周期抖动测量、CPU预算测量、控制器日志/状态采集、CS9 HIL或实机测试。
+
+### B. 采样周期配置链
+
+1. **默认三层均为4ms，但依赖人工维护。** VAL3 `start.pgx`将`l_nCtrlPeriod=0.004`并通过`taskCreateSync`创建controlTask；`controllers.yaml`的Controller Manager `update_rate=250`，即4ms；MoveIt Servo配置`publish_period=0.004`，即4ms。TX2-60L文档采样时间亦为4ms（250Hz），这组默认参数在名义周期上相互匹配。
+2. **MR型号未自动继承更快采样周期。** `available_models.rst`将TX2-60L MR列为1ms（1kHz）机器人采样时间；同时说明当前VAL3 app默认250Hz，需要手动改`start.pgx`并同步修改ROS 2 control参数，文档仅指出MR在2ms（500Hz）下有成功测试记录。当前launch无基于`robot_model`选择不同Controller Manager rate的逻辑，仍加载同一份250Hz `controllers.yaml`；VAL3源码也固定4ms。因此选择MR型号并不会自动完成采样周期对齐。
+3. **Servo发布周期是独立配置项。** 即使按文档将MR的VAL3周期和Controller Manager周期改成2ms，当前`staubli_servo.yaml`仍为4ms发布周期（low_latency_mode=false）。启用MoveIt Servo时，命令源仍按4ms节拍发布，而硬件更新循环可能为2ms；这不一定构成安全故障，但会改变每个硬件周期是否有新命令、插值/保持与端到端延迟，需要被明确设计和测试。文档要求同步调整ROS控制参数，却没有把Servo发布周期纳入型号适配清单。
+4. **机器人伺服周期与VAL3/ROS周期不是同一参数。** MR机器人内部1ms采样、VAL3应用2ms测试周期、ROS控制器更新周期和Servo发布周期应分别记录；频率数值相同也不证明相位同步、时钟同步或每周期数据交换成功。需要指定允许的整数分频/倍频关系与端到端最大延迟，不得用单一`update_rate`代表完整控制链。
+5. **启动时序没有执行周期配置一致性检查。** `start.pgx`读取VAL3版本并记录Boxcar delay，检查monitor speed低于100%时只告警并继续；未见对机器人型号采样时间、VAL3 task period、ROS update rate或Servo publish period进行协商/校验。Boxcar delay只被记录，没有在该程序中与控制周期或命令年龄预算形成计算关系。
+
+### C. 单周期内的执行顺序与反馈延迟
+
+1. `controlTask`每轮按固定顺序执行：检查上轮overrun标志→读取机器人状态→递增本机状态sequence→将上一轮`l_nSequenceDelay`写入状态→编码并发送RobotState→读取最多两次UDP命令→解码与计算序列延迟→校验命令模式/模式切换→调用位置/速度控制例程→处理错误→更新previous mode→`delay(0)`让出当前任务片段。
+2. **状态发送早于本轮命令接收和运动更新。** 本轮RobotState中的物理状态由开头的`updateState()`取得，`nControlMode`和`nSequenceDelay`也在接收新命令前写入；当前轮随后接受的命令和`movejSync`更新，要到下一轮状态报文才反映其新的模式/运动结果。因此状态反馈是周期流水线，不是本轮命令执行后的同步确认；按默认4ms周期，单是这一调度顺序就引入最多一个控制周期量级的状态呈现滞后（实际端到端值仍需测量）。
+3. **没有新UDP命令时仍使用上次有效命令。** `readData`未报错且本轮无新帧时，`controlTask`保留`robot_command_msg.robotCommand.bIsValid`，后续仍按该缓存命令模式调用运动例程；staleness分支与stream检查仍留有TODO。当前用状态sequence差和阈值间接检测旧命令，不是基于命令时间戳/lease的独立失效机制。
+4. **接收队列单轮最多读取两次。** `readData`将`l_nMaxAttempts`固定为2；一次周期内至多调用两次`sioGet`，有新数据后再读到空缓冲区则退出。它不是排空直到无数据的循环，也没有对已读到的多个命令按时间戳/代际选取的显式策略；突发流量或生产速率持续高于消费速率时是否累积排队/扩大命令年龄需通过目标CS9 UDP行为和压力测试确认，不能仅凭静态代码断言已发生积压。
+
+### D. movejSync刷新状态与overrun处置
+
+1. **movejSync自身的刷新超时状态没有被上层升级。** `updateJointPositionControl`将`movejSyncState()==1`定义为movejSync仍在运行但上一命令未按时刷新；然而对应日志语句被注释，代码没有设置`x_bError`或转入停止分支。状态2被注释为因急停、moveHold或stopMove导致命令锁定，对应日志与错误设置也均被注释。当前仅`-2`会在本函数内明确触发stopJointPositionControl并返回错误。
+2. `controlTask`另有基于sequence delay的阈值（运动中>5、静止时>25）可触发错误/STOP，但它与movejSync内部状态机是两条不同检测路径。movejSync状态1/2未被显式采纳，不能把sequence阈值视为已完整覆盖底层刷新超时和命令锁定状态。
+3. **overrun被观测但不直接触发控制降级。** CS9文档说明同步任务每指定周期运行一次；若任务执行超过周期，当前周期结束，下一周期取消，并在后续执行周期通过创建任务时绑定的布尔值报告overrun。应用在controlTask循环顶部只记录日志、清除`bIsOverrun`并累加`nOverruns`，未因overrun本身设置错误、切换STOP或禁止继续提交运动参考。
+4. **运行计数不会反映被取消的扫描次数。** 状态sequence在controlTask每次实际执行时才递增；被调度器取消的周期没有执行该递增语句。序列延迟以本机已执行的状态sequence和命令sequence作差，因而不能天然表示墙钟经过时间；overrun期间被跳过的扫描可能不体现在sequence差中，形成时间年龄低估。该机制性风险与§9.3.53相互关联，本节补充其对状态回报、刷新判定及周期配置对齐的影响。
+5. `nOverruns`只在VAL3端计数，当前RobotState字段没有专用overrun计数/时间戳，诊断任务仍为TODO；故没有可见的ROS实时overrun遥测通道。日志/控制器文件可作为事后证据，但不能替代在线故障门控和可量化的连续性能指标。
+6. **实时预算尚未建立。** Stäubli CS9文档说明CPU扫描顺序为系统同步任务、IO Refresh任务、VAL3同步任务、VAL3异步任务；同步任务每次最多执行3000行VAL3指令，且同步任务消耗较多CPU资源。3000行是任务序列执行行数上限，不是本应用的WCET、CPU利用率或4ms预算证明。当前controlTask把状态采集、序列化、UDP发送/接收、解码、日志、模式切换和运动命令刷新放在同一同步任务路径，没有分阶段耗时、最坏执行时间、余量或抖动统计。
+7. `start.pgx`只在monitor speed低于100%时输出Warning，随后仍会创建同步控制任务；是否会影响该机型控制算法/性能必须按控制器配置测量，不能把warning等同于task周期已被强制保持或校验。
+
+### E. 风险判断（静态推导，尚未复现）
+
+- 对TX2-60L MR直接使用随附默认配置，会让1ms机器人采样时间与4ms VAL3/ROS/Servo名义节拍不同；手动修改其中一层后，其他层可能仍保留旧周期。
+- 命令接收、模式改变、运动命令更新发生在本轮状态发送之后，ROS观察到的模式/运动反馈滞后于该轮输入；上层不能将同一轮状态帧当作本轮命令的执行确认。
+- movejSyncState的刷新超时和锁定状态没有上升到控制任务错误门控；仅依赖另外一条sequence-delay路径不足以证明所有刷新异常都能触发STOP。
+- overrun路径记录与计数但不立即门控运动；跳过的任务周期不会递增应用sequence，序列差不能代替真实elapsed-time watchdog。
+- 没有执行时间分解和周期余量证据，无法从源码证明当前状态/通信/运动控制/日志在所有支持机型及I/O配置下都能满足周期deadline。
+- 上述均为配置/源码与官方时序文档的组合分析，不表示本轮已经测得周期超限、发生movejSync刷新故障或机器人未停止。
+
+### F. 整改建议
+
+1. 将机器人型号及伺服周期、VAL3 task周期、Controller Manager更新率、MoveIt Servo发布率、DDS/UDP延迟预算组成版本化配置矩阵；启动时比对配置并拒绝未知/不兼容组合，避免仅依赖人工修改。
+2. 对MR等不同伺服周期机型提供型号专用参数/launch配置；如果使用500Hz硬件更新，应同步评估并配置MoveIt Servo publish_period、JTC/Controller Manager以及下游VAL3周期；明确2ms测试结果不等于1ms全链路运行已验收。
+3. 定义命令接收与状态回报的周期相位：增加命令sequence/epoch、执行接受/拒绝状态、状态采样sequence与实际采样时间；明确当前周期先发状态后处理命令的流水线延迟。
+4. 对movejSyncState==1与==2建立明确、可验证的状态机：刷新超时按安全要求转入错误/停止或受控降级；命令锁定必须识别E-stop/Hold/stopMove来源并禁止继续误报正常刷新，恢复需重新验证运动许可。
+5. overrun应进入独立安全策略：至少记录真实遗漏周期数/时间、停止或禁止提交陈旧运动命令、要求重新同步；不能只清除布尔值后继续照常运行。在线遥测需暴露overrun计数、最近事件时间、连续事件和任务执行余量。
+6. 以单调时间或控制器真实时钟测量接收、解码、状态采样、发送和运动API阶段耗时；将sequence差仅作为辅助计数，不作为唯一的墙钟命令年龄证明。
+7. 建立WCET/周期预算和压力工况矩阵，覆盖最大I/O刷新配置、网络正常/异常、日志节流、最坏状态数据量、运动命令、overrun连续发生以及不同CS9硬件/固件版本；记录高分位与最坏值并保留deadline margin。
+8. 明确controlTask创建/应用停止/重启的任务生命周期：验证停止流程是否终止同步任务、socket和运动调用是否存在在途执行；通过taskStatus/受控任务终止与资源屏障确认无旧任务跨重启运行。
+
+### G. 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-283 | 型号/VAL3/ROS/Servo周期矩阵 | 每个支持型号都有完整周期与分频关系，启动配置自动校验 | 机型参数矩阵、启动负向测试 | 未执行 |
+| SERVO-284 | TX2-60L MR默认配置适配 | MR型号不再静默沿用不匹配的默认周期；1ms/2ms方案和限制明确 | MR配置测试、目标控制器测量 | 未执行 |
+| SERVO-285 | MoveIt Servo周期联动 | 修改硬件/VAL3更新率时，Servo publish_period同步配置或显式验证分频 | ROS graph与端到端频率跟踪 | 未执行 |
+| SERVO-286 | movejSync刷新超时状态1门控 | 状态1触发明确告警/停止/降级，不继续当作正常刷新 | 刷新延迟故障注入与运动记录 | 未执行 |
+| SERVO-287 | movejSync锁定状态2门控 | E-stop/Hold/stopMove下状态2被识别，恢复需重新授权 | 安全模式/锁定状态矩阵 | 未执行 |
+| SERVO-288 | overrun安全处置与在线遥测 | overrun可锁存、计数、测时并触发批准的门控策略 | 连续overrun注入与ROS诊断记录 | 未执行 |
+| SERVO-289 | 漏失扫描的墙钟年龄计算 | 任务overrun/跳周期不会低估命令真实年龄 | 可控周期跳变和时钟/序列对照 | 未执行 |
+| SERVO-290 | 状态/命令流水线延迟 | 状态sequence、命令接收、模式提交和运动API时间线可关联，最大滞后有预算 | 报文抓包与控制器时间戳跟踪 | 未执行 |
+| SERVO-291 | CS9控制循环WCET与抖动 | 最坏工况下阶段耗时、周期余量及连续运行deadline符合批准指标 | CS9实时跟踪、压力测试及报告 | 未执行 |
+| SERVO-292 | VAL3同步任务停止/重启屏障 | 应用stop/重启后无旧controlTask继续访问socket或运动API | task状态跟踪、反复启停故障注入 | 未执行 |
+
+### H. 本节来源记录（#1844–#1849）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1844 | [VAL3 start.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx)；[stop.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx) | task period、taskCreateSync、monitor speed、Boxcar delay及应用停止逻辑 |
+| #1845 | [VAL3 controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | 单周期执行顺序、状态先发/命令后收、overrun处理、序列和STOP逻辑 |
+| #1846 | [VAL3 updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | movejSync状态1/2/−2与刷新处理 |
+| #1847 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml)；[staubli_servo.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/staubli_servo.yaml) | ROS Controller Manager与MoveIt Servo周期配置 |
+| #1848 | [available_models.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/available_models.rst) | TX2-60L 4ms、MR 1ms、MR 500Hz测试说明 |
+| #1849 | [Stäubli CS9 Real Time Val3/Fieldbus TSS.000.014.04-A (2021-07-06)](https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf) | CS9单scan任务顺序、同步任务周期、3000行限制与overrun跳过下一周期的厂商技术说明 |
