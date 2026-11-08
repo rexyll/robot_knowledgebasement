@@ -4611,3 +4611,76 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1935 | [bringup quickstart @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/bringup.rst) | 加速度接口只是joint limiter参数通道，不是运动控制模式 |
 
 **验证边界：** 本节仅为固定提交静态源码/配置审查。未运行controller_manager、spawner、switch_controller、MoveIt、混合接口测试、claim竞争测试、VAL3编译/仿真、CS9/HIL或实机验证。ros2_control框架的接口claim能力不等于项目实现全局控制源仲裁；混合接口行为为静态逻辑推导。SERVO-383–SERVO-392全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.76 普通I/O、GPIO、末端工具与运动控制命令协调及互锁（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+审查ROS 2 GPIO接口导出、硬件接口read/write、UDP命令序列化、VAL3命令解码/控制循环、VAL3状态采集/编码、Xacro I/O映射和TX2-60L模型配置。发现一个明确的端到端功能断点：C++硬件接口把数字/模拟输出写入UDP RobotCommand；VAL3解码程序读取数字输出bitmask和模拟输出数值，但数字输出mask到VAL3布尔数组的转换被注释，控制任务中数字/模拟输出执行仍是TODO。反向输入链也不完整：VAL3 updateState将数字/模拟输入valid标志固定为false，编码程序对数字输入mask和模拟输入字段仍留TODO；因此仓库当前不能证明GPIO输入/输出在真实机器人上可用。与此同时，C++ update_state在valid flag为false时不刷新GPIO输入缓存，旧值可能保留，若上层误将其视为实时输入则产生陈旧状态风险。
+
+### 静态源码事实
+
+1. TX2-60L robot_model.yaml配置16路数字输入、16路数字输出、2路模拟输入、2路模拟输出。HardwareInterface限制数字I/O各不超过16路、模拟I/O各不超过4路；数量检查仅验证范围，不验证具体控制器端子编号、电气类型、输入输出方向、模块安装或现场接线。
+2. staubli_r2c_gpios.xacro按配置数量导出digital_input_N/analog_input_N状态接口及digital_output_N/analog_output_N命令接口；这些是普通GPIO软件接口，不是安全I/O接口。supervision GPIO虽暴露safety_status/estop_pressed等状态字段，也不代表安全I/O接线或安全功能控制权。
+3. StaubliHardwareInterface::export_state_interfaces只导出数字/模拟输入，不导出普通数字/模拟输出状态接口（相关代码注释掉）；export_command_interfaces导出数字/模拟输出命令接口。
+4. HardwareInterface::write()每个控制周期将数字输出命令按>0.5阈值转换为bool，并把模拟输出double原值写入RobotCommandMessage；本地未见对模拟输出的范围、单位、分辨率、斜率、变化率或NaN/Inf进行校验，也没有按通道配置不同量程/电气制式。数字输出采用阈值化而不是严格0/1验证。
+5. RobotCommandMessage协议结构包含16位数字输出mask和4个模拟输出float；C++序列化完整写出这些字段，说明主机侧协议确实携带输出命令，但不代表VAL3控制器侧已经驱动实际端子。
+6. VAL3 decodeRobotCommandMsg.pgx读取数字输出mask和4路模拟输出数值；但把mask转换为数字输出布尔数组的代码被注释掉，VAL3端没有完成数字输出命令映射。模拟输出数值读入robotCommand结构，但未见后续应用到VAL3模拟输出端子的实现。
+7. VAL3 controlTask.pgx的“Execute GPIO commands”区明确保留两条TODO：根据命令写数字输出、写模拟输出。因此即便ROS侧write成功且UDP数据报已发送，不能推断机器人I/O端子已改变。
+8. VAL3 updateState.pgx将bValidDigitalInputs和bValidAnalogInputs固定为false；未见从控制器输入端子读取数据。VAL3 encodeRobotStateMsg.pgx生成digital input flags时仅初始化为0，明确标记TODO；数字输入bitmask写入被注释，模拟输入字段编码同样留TODO。因此输入方向也没有完成端到端采集/传输。
+9. C++ RobotStateMessage协议结构有digital_inputs和analog_inputs数组及valid flags；RobotStateMessage反序列化会按valid flags解析数据。HardwareInterface::update_state仅在has_digital_inputs/has_analog_inputs为true时更新缓存；当flag为false时不会清零或标记数据无效，也没有单独导出GPIO freshness/validity接口，历史输入值可能继续留在state interface中。
+10. 由于VAL3当前固定valid flags=false，静态代码路径下ROS输入缓存初始化为0后不会被真实输入更新；如果未来偶发收到一次有效输入后valid flag再次变false，缓存将保持上一次有效值。上层无法通过现有GPIO state interface区分“当前输入为0”和“当前输入无新数据/无效/陈旧”。
+11. RobotDriver helper prepare_robot_command_message()将STOP命令与数字输出false、模拟输出0.0一并初始化；但HardwareInterface::write()在STOP模式仍从GPIO command interfaces读取并写入输出值。故普通STOP帧不自动等同于清空全部GPIO；send_stop_all_command()若走helper清IO路径，也仍只是普通UDP命令且缺少远端执行确认。必须分别定义运动STOP、过程I/O复位、设备断电和安全停机语义。
+12. 运动控制和GPIO输出复用同一个RobotCommandMessage/UDP发送周期，协议中没有独立I/O command ID、更新确认、输出锁存状态、写入事务或运动命令与工具动作的同步屏障。即使二者在同一数据报中发送，也没有VAL3实际I/O动作已完成的ACK。
+13. 控制任务在每轮先发布机器人状态、再接收并执行新命令；因此状态消息不能确认同周期I/O命令已经应用。也没有输出回读或输出状态镜像，无法从当前ROS接口确认夹爪开闭、电磁阀动作、吸盘真空建立或释放完成。
+14. robot_model.yaml中的end_effector配置只定义tool0相对link_6的静态xyz/rpy变换；tx2_60l与tx2_60l_med的工具Z偏置分别为0.07m和0.1344m。此项属于几何坐标配置，不包含夹爪/吸盘驱动器、工具供电、气路、真空、开合行程、抓取确认、工具I/O点位或负载状态管理。
+15. 本轮未发现与末端工具配套的通用工具控制器、夹爪Action、工具I/O映射清单、工具状态反馈或与轨迹点同步执行的工具事件调度。不能将tool0坐标帧存在解释为末端执行器可控或抓取功能已实现。
+16. 普通GPIO接口未在Xacro或驱动代码中声明安全类别、双通道、诊断覆盖率、失效安全状态或安全PLC映射。普通数字输出不能用于替代急停、安全门、STO、SS1/SS2或保护停止通道；普通GPIO软件互锁也不能构成安全功能。
+17. 现有协议序列化测试可以验证数字/模拟输出字段的字节编码，但不能证明VAL3端子动作、输入采样、I/O电气正确性、端到端延迟或掉线时输出的物理状态。当前硬件测试没有真实I/O端子、工具负载、断线或失电故障验证。
+18. 本轮未执行ROS构建、VAL3编译/加载、CS9仿真、I/O模块配置读取、现场接线核对、HIL或实机端子测量。上述“未实现/缺少证据”均基于固定提交静态源码，不对具体机器人现场I/O硬件是否安装作否定判断。
+
+### 风险与整改要求
+
+- 补齐VAL3数字输出mask解码、数字/模拟输出端子映射和实际写入；补齐数字/模拟输入采样、valid flag和协议编码；为每个通道建立型号/控制器/模块/端子映射表。
+- 为GPIO增加每通道validity、sample timestamp、sequence、quality和staleness状态；无效输入必须显式报告，不得保留旧值并让消费者误判为当前状态。
+- 为模拟输出建立按硬件通道定义的工程单位、量程、分辨率、上下限、NaN/Inf拒绝、斜率/变化率限制和安全默认值；数字输出严格校验0/1及初始化策略。
+- 将I/O命令与运动命令分离定义：独立命令ID/ACK/状态回读；如必须同一周期原子提交，需VAL3侧明确事务处理和执行确认，不能仅凭UDP帧共载推断同步。
+- 定义STOP、ERROR、disconnect、shutdown和安全停止时每路普通输出的策略（保持、复位、去能、阀门安全态），逐路按工具风险设计；不得对所有通道一律清零，气动/真空工具失电可能造成负载坠落。
+- 建立夹爪/吸盘/工具驱动抽象：工具型号、I/O映射、供电/气路、状态反馈、开合/真空建立确认、抓取检测、超时、失败恢复及与机器人轨迹的同步事件。
+- 对工具动作与轨迹设置互锁：只有机器人位于允许区域、速度/姿态符合工艺条件且工具状态有效时执行；工具动作完成/失败需有反馈，禁止把输出命令写入成功当作夹持完成。
+- 将普通GPIO与安全I/O在硬件、软件命名、接口、配置和验收文档中严格隔离；安全功能必须由经设计验证的安全控制器/安全I/O实现，并以制造商安全资料及独立验证为证据。
+- 增加I/O单元测试、协议往返测试、VAL3仿真/HIL、逐点端子测试、模拟量校准、断线/短路/过量程/通信中断/电源掉电/重启输出状态测试，以及工具负载保持和释放风险评估。
+- 在端到端测试完成前，兼容矩阵应将该驱动普通GPIO标记为“接口框架已声明、VAL3端到端实现未证实”，不能标记为真实I/O已支持；tool0只标记为几何坐标帧配置。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-393 | VAL3数字输出实现 | 解码16位mask并映射到真实控制器数字输出端子，逐点HIL验证 | 未执行 |
+| SERVO-394 | VAL3模拟输出实现 | 4路模拟输出写入、单位/量程/分辨率和限幅校验 | 未执行 |
+| SERVO-395 | VAL3数字输入采集 | 逐点采样、valid flag、bitmask编码和端到端反馈 | 未执行 |
+| SERVO-396 | VAL3模拟输入采集 | 4路模拟输入采样、标定、valid flag和编码 | 未执行 |
+| SERVO-397 | GPIO有效性与陈旧值 | 输入无效/超时/断链时显式标记invalid并阻止旧值被误用 | 未执行 |
+| SERVO-398 | STOP/故障I/O策略 | 每路输出在STOP/ERROR/disconnect/shutdown下保持/复位/去能策略验证 | 未执行 |
+| SERVO-399 | 工具末端执行器控制 | 建立夹爪/吸盘工具映射、控制接口、状态反馈及动作确认 | 未执行 |
+| SERVO-400 | 工具动作与运动互锁 | 验证安全工艺区域、运动状态、工具反馈和超时失败处理 | 未执行 |
+| SERVO-401 | 普通I/O与安全I/O隔离 | 审核电气图、I/O模块、安全回路，证明普通GPIO不承担安全功能 | 未执行 |
+| SERVO-402 | I/O端到端验收 | CS9/HIL/实机逐点测试，覆盖电气异常、掉电、断网及工具负载状态 | 未执行 |
+
+### 本节来源记录（#1936–#1944）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1936 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | GPIO接口导出、write输出打包、read输入缓存更新 |
+| #1937 | [staubli_r2c_gpios.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_gpios.xacro) | 普通数字/模拟GPIO接口声明 |
+| #1938 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | VAL3控制循环GPIO写入TODO |
+| #1939 | [decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | 数字输出mask解码后布尔映射代码被注释，模拟输出值仅解码 |
+| #1940 | [updateState.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | 数字/模拟输入valid flags固定false |
+| #1941 | [encodeRobotStateMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | 输入bitmask和模拟量编码TODO |
+| #1942 | [messages.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | UDP协议I/O字段定义 |
+| #1943 | [robot_driver_helpers.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp) | helper STOP初始化时清除普通输出的行为 |
+| #1944 | [robot_model.yaml TX2-60L @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/robot_model.yaml) | 普通I/O数量及tool0静态偏置配置 |
+| 
+**验证边界：** 本节仅为固定提交静态源码/配置审查。ROS侧GPIO接口和UDP字段存在，但VAL3侧数字/模拟输出应用及输入采集/编码留有TODO，因此不能宣称真实I/O端到端可用。普通STOP帧与helper STOP清I/O行为不同；工具帧只定义几何变换，不代表夹爪/吸盘可控。未执行ROS构建、VAL3编译/加载、CS9仿真、I/O模块/接线核验、HIL或实机逐点测试。SERVO-393–SERVO-402全部未执行；普通GPIO不构成安全I/O；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
