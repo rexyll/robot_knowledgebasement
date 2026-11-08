@@ -725,7 +725,7 @@ gbp.conf将Noble Debian包装分支的上游源树指向MoveIt Servo release tag
 在debian/rules中发现：
 
 1. 当DEB_BUILD_OPTIONS包含nocheck时，BUILD_TESTING_ARG被设置为-DBUILD_TESTING=OFF；同时debian/control中的部分测试Build-Depends使用<!nocheck>标记。
-2. override_dh_auto_test目标执行dh_auto_test，但命令以|| true结束；文件中的echo注释明确说明，即使测试失败，也不会取消构建。
+2. override_dh_auto_test目标执行的原始命令为dh_auto_test || true；该shell写法会忽略dh_auto_test的非零退出状态。文件中的echo注释也明确说明，即使测试失败，也不会取消构建。
 
 因此，即使未来取得Build Farm的binary build成功记录，也不能仅凭该成功状态推断MoveIt Servo测试套件全部通过：测试可能因nocheck未启用，也可能执行后返回失败但未阻断Debian包构建。必须另取实际job环境中的DEB_BUILD_OPTIONS、console log和测试结果，才能判断测试是否运行及其结果。当前尚未取得这些job记录，本节不推断任何测试实际失败或实际被跳过。
 
