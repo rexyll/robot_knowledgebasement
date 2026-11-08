@@ -84,3 +84,13 @@ ROS 2官方Build Farm文档说明，release job分为source与binary类型；sou
 - 按官方ros_buildfarm实现推导出amd64与arm64的binary job标识，但build.ros2.org页面/API仍不可读取；未取得build number、result、source revision或console log。
 
 本次追加件及厂商档案已同步到§9.3.112 / §128.63。上述证据将SERVO-713推进为“部分取证取得”，但仍不标记完成；SERVO-710（APT签名、Packages stanza、deb control/SHA256）和SERVO-714（生产main产物最终一致性）仍未完成。直接下载deb和访问Packages/InRelease签名内容本轮失败，不作密码学/包元数据通过结论。详细记录见`docs/audits/2026-11-08-staubli-moveit-servo-release-chain-addendum.md`。
+
+## 8. 资产清单Git元数据刷新（2026-11-08追加）
+
+本轮新增厂商档案§128.62–§128.63后，回查`docs/audits/2026-11-03-knowledge-asset-inventory.csv`发现《主要厂商.md》仍保存旧Blob SHA和文件大小。现已将该资产行更新为：
+- 当前Blob SHA：`47cec733256e1a226d3e548cda520a93969d23a0`
+- UTF-8文件大小：501,796 bytes（按当前文件文本UTF-8编码长度计算）
+- metadata_reconciled_date：2026-11-08
+- metadata_reconciliation_scope：仅刷新该文件的Blob SHA与UTF-8大小，明确不做claim-level审查。
+
+README中的清单说明已补充此单行刷新范围。该操作只维护Git Tree元数据一致性，不改变该资产的`unaccepted_claim_level_review_pending`状态，也不代表142份资产的所有Blob SHA/大小均已在本日重新刷新。其他资产仍须按全库盘点流程逐项对账。
