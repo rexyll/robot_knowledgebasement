@@ -704,3 +704,43 @@
 | SERVO-510 | 密钥预配、轮换与吊销 | 未执行 |
 | SERVO-511 | 安全审计与告警 | 未执行 |
 | SERVO-512 | 独立功能安全边界验收 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli协议v2规范自洽性复核 | 审计报告已补充§9.3.87：核验36字节帧头偏移和111/127字节长度，指出VAL3侧所有u64 ID/时间戳/tick无损表示、TIME_SYNC门槛及ROBOT_STATE/DIAGNOSTIC_DATA/SETPOINT_STREAM/STOP_REQUEST负载schema尚未冻结。新增SERVO-513–SERVO-522，全部未执行；仅文档核算，未运行VAL3/CS9/SRS/HIL测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.87，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-513 | 36字节帧头规范单一化 | 未执行 |
+| SERVO-514 | v2全部u64字段清单 | 未执行 |
+| SERVO-515 | VAL3身份u64无损表示 | 未执行 |
+| SERVO-516 | VAL3时间戳/tick无损表示 | 未执行 |
+| SERVO-517 | u64跨端边界黄金向量 | 未执行 |
+| SERVO-518 | 时间同步准入门槛 | 未执行 |
+| SERVO-519 | tick回绕/重启与同步失效 | 未执行 |
+| SERVO-520 | ROBOT_STATE/DIAGNOSTIC_DATA schema | 未执行 |
+| SERVO-521 | SETPOINT_STREAM schema | 未执行 |
+| SERVO-522 | STOP_REQUEST schema与终态 | 未执行 |
+
+
+
+| 2026-11-08 | 21-02/Stäubli FTP管理通道与VAL3部署安全审查 | 固定ICube bd658e2确认使用普通ftplib.FTP，代码未实现FTPS/TLS和证书验证；username/password为普通字符串ROS参数且默认字符串均为default（不据此断言控制器接受默认登录）；应用目录先删除后递归上传，忽略删除返回值，无暂存/哈希/回滚；SIO配置上传默认开启，覆盖/usr/configs/sio.cfx且随包IP固定192.168.0.1；脚本失败仍可能继续覆盖SIO且未给出可靠非零退出状态。新增§9.3.88、SERVO-523–SERVO-535、来源#2028–#2035。全部未执行；未实测CS9 FTP服务/TLS、路径映射、配置激活、回滚或现场部署。 |
+
+### Stäubli专项审查新增验收任务（§9.3.88，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-523 | FTP安全传输通道 | 未执行 |
+| SERVO-524 | FTP凭据生命周期 | 未执行 |
+| SERVO-525 | FTP连接超时与资源清理 | 未执行 |
+| SERVO-526 | 部署前安全准入 | 未执行 |
+| SERVO-527 | VAL3应用staging与原子切换 | 未执行 |
+| SERVO-528 | 部署manifest与远端完整性 | 未执行 |
+| SERVO-529 | SIO配置备份和显式批准 | 未执行 |
+| SERVO-530 | fail-fast与退出状态 | 未执行 |
+| SERVO-531 | FTP目录操作错误语义 | 未执行 |
+| SERVO-532 | 手动/自动路径一致性 | 未执行 |
+| SERVO-533 | FTP工具Python故障注入 | 未执行 |
+| SERVO-534 | 应用和SIO部署回滚实测 | 未执行 |
+| SERVO-535 | 现场部署审计记录 | 未执行 |
