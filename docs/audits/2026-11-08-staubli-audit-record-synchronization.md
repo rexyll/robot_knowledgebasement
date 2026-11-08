@@ -121,3 +121,12 @@ README中的清单说明已补充此单行刷新范围。该操作只维护Git T
 - 本次仅刷新该文件Blob SHA/大小和元数据说明；不做claim-level内容验收，不表示其余141项已在本轮重算。
 
 README已同步说明：2026-11-08对同一资产行随§128.62–§128.64两轮内容更新刷新元数据。该资产仍处于静态厂商审查进行中状态。
+
+
+## 11. ROS Jazzy APT lists目录快照复核（2026-11-08追加）
+
+本轮继续核对MoveIt Servo发布供应链，直接检查ROS官方APT lists目录：ros2-testing Noble amd64 InRelease/Packages目录时间为2026-11-06 13:15，Packages 8,406,600 bytes；arm64 InRelease/Packages目录时间为2026-11-07 11:29，Packages 8,381,795 bytes。ros2生产main amd64 Packages目录时间为2026-10-06 08:57；arm64 InRelease/Packages目录时间为2026-10-06 08:59。因此testing索引快照比生产main更新，不能把testing的较新索引视为生产main已同步。
+
+尝试读取Packages/InRelease原文时，网页读取器返回不支持application/octet-stream，故未取得moveit_servo完整Packages stanza、SHA256/Depends，也未验证InRelease签名；没有读取deb control或执行Ubuntu 24.04 APT安装。读取通道错误不等于源文件损坏或签名失败。
+
+本轮新增专项追加件§9.3.114、厂商档案§128.65，并更新审计README。厂商档案修改后资产清单需再次刷新该文件单行Blob SHA/UTF-8大小；这仍只是元数据维护，不是claim-level验收。SERVO-710/714未完成，SERVO-713仍部分取证；00-01/21-02继续进行中。
