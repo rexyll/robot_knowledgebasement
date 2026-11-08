@@ -1580,3 +1580,20 @@ SERVO-724继续跟踪PR更新、失败原因/日志、修复后CI、review/merge
 - 未执行SERVO-721/723/725动态测试；SERVO-722现场集成证据仍缺/阻塞。未修改上游、未应用补丁或执行VAL3/CS9/HIL/SAT/实机验收。
 
 详见专项追加件§9.3.139。
+
+
+### Stäubli专项审查新增任务（SERVO-726，OccupancyMapUpdater初始化契约与生命周期）
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| U1-U3 | initialize成功/失败、setParams失败的隔离与资源清理 | 未执行 |
+| U4-U5 | 内置PointCloud/DepthImage updater参数初始化顺序 | 静态源码已核对；动态测试未执行 |
+| U6-U9 | 重复stop、stop/start、重复start、析构二次stop | 未执行 |
+| U10 | 成功/失败插件混合加载与独立启动停止 | 未执行 |
+| 现场适用性 | Stäubli/ICube是否启用Octomap及具体sensor plugin、参数、executor | 未确认，现场配置证据缺失 |
+
+main当前调用顺序为setMonitor -> initialize -> setParams -> addUpdater。MiddlewareHandle初始化钩子返回void，ROS实现忽略OccupancyMapUpdater::initialize()的bool结果；PR #3909拟改为bool并拒绝初始化失败的updater，修复Issue #3902，但PR仍Open且CI失败。PR作者自报测试不能替代本项目验证。
+
+Issue #3901是独立的接口契约冲突：头文件注释声称initialize假定setParams已调用，但内置PointCloud/DepthImage插件的setParams使用node_，而node_在initialize中设置；因此不能简单把setParams前移。PR #3909保留initialize后setParams，只处理失败状态传播，未解决#3901文档/API契约问题。
+
+OccupancyMapMonitor的start/stop逐个委托插件，析构会再次stop；插件stop实现不同，monitor层没有统一在途回调退出确认。已形成U1-U10测试矩阵，动态测试未执行。现场是否启用Octomap尚未确认，不推断该问题已影响Stäubli部署。详见审计追加件§9.3.140。
