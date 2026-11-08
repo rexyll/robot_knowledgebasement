@@ -6340,3 +6340,71 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2094 | [Jazzy JTC参数与发行说明](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html)及[Humble至Jazzy release notes](https://control.ros.org/jazzy/doc/ros2_controllers/doc/release_notes.html) | 参数默认值、只读约束及功能版本边界 |
 
 **验证边界：** 完成固定上游提交配置、C++命令路径、VAL3 STOP/位置控制分支、状态映射及测试树静态审查，并参考Jazzy官方文档解释JTC行为。没有执行cancel/preempt action测试、JTC减速取消测试、VAL3编译、CS9/SRS、HIL或实机停止测试。SERVO-597–SERVO-607全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## §9.3.96 FollowJointTrajectory容差、超时、执行失败与故障恢复闭环审查
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`；JTC语义按ROS 2 Control Jazzy官方文档解释。仅为静态源码与配置审查。
+
+### 9.3.96.1 JTC容差配置与轨迹成功条件
+
+- `controllers.yaml`配置六轴position command、position/velocity state，`constraints.stopped_velocity_tolerance=0.01`、`goal_time=0.0`。没有为六轴显式配置`trajectory`或`goal`误差容差，也没有在配置文件中冻结任何按型号/负载确定的容差来源。来源#2095。
+- Jazzy JTC参数文档规定未配置的每关节trajectory/goal容差默认0；对容差而言0表示不执行该误差限制，而不是零误差要求。Action goal可携带逐关节path_tolerance/goal_tolerance并覆盖默认值；值0表示沿用默认值，-1表示擦除默认限制。MoveIt controller映射文件只声明FollowJointTrajectory action名称和六轴列表，没有定义误差容差；当前未取得实际运行时发送的FollowJointTrajectory Goal，因此不能推定MoveIt每次都不发送容差。来源#2096–#2097。
+- `goal_time=0.0`在Jazzy参数语义中表示终点后等待时间可能无限长；不是“严格准时”或“立即超时”。配置也没有设置JTC的`action_execution_timeout`，其默认0为禁用绝对wall-clock超时；`cmd_timeout`默认0亦禁用输入超时。若终点位置误差长期存在，不能依赖这些默认配置保证action有限时间结束。来源#2096。
+- `stopped_velocity_tolerance=0.01`只定义轨迹终点的速度停止阈值，不会自动形成路径位置误差限制，也不构成功能安全停止判据。项目VAL3 updateState使用`$getJntSpeedCmd()`取得近似关节速度；源码注释将其描述为approximation。因此，JTC看到的velocity state不能未经验证就等同于独立测量的实际轴速度/静止传感器。来源#2098。
+- `allow_nonzero_velocity_at_trajectory_end=true`与stopped_velocity_tolerance=0.01并存。官方参数文档说明前者允许轨迹最后一个点具有非零速度；但其与最终action成功条件、velocity tolerance和VAL3位置型命令接口的组合语义，仍需目标Jazzy二进制版本的测试确认，不能把参数允许非零终点速度解释为机器人允许带速结束生产任务。来源#2095–#2096。
+- JTC action返回SUCCESS表示控制器按其配置的轨迹/状态容差完成目标；不等于独立安全静止、CS9安全状态合格或工艺允许交接。MoveIt映射配置未提供独立验收层。
+
+### 9.3.96.2 故障传播与硬件错误回调
+
+- HardwareInterface::read在RobotDriver读状态失败或状态更新失败时返回ERROR；write在驱动未连接、机器人错误/控制模式INVALID、NaN命令、发送失败时返回ERROR。机器人处于错误状态时write会尝试调用send_stop_all_command，但没有检查该STOP发送调用的返回值。来源#2099。
+- HardwareInterface::on_error在驱动连接时调用send_stop_all_command，但同样忽略发送结果，随后返回CallbackReturn::SUCCESS。因而回调返回成功仅表示插件回调没有报告自身处理失败，不能证明STOP数据报已成功发送或机器人已经停止。来源#2099–#2100。
+- on_shutdown仅在state_msg_.control_state不等于STOP时尝试发送STOP，然后断开连接；发送结果未被用于决定回调结果。生命周期shutdown路径不应作为唯一停止保障。来源#2099。
+- JTC在path/goal tolerance违例时会abort action并保持当前位置；该软件行为与HardwareInterface错误回调的STOP尝试是两条不同路径。action abort不必然触发hardware on_error；不能假设所有轨迹容差失败都会自动执行VAL3 STOP。来源#2097、#2099。
+- RobotDriver的UDP发送成功与VAL3命令接受/执行确认之间没有协议级确认闭环；本节沿用§9.3.95及既有SERVO-564，不重复定义命令ACK方案。网络断开时，on_error/on_shutdown尝试发送STOP也可能无法送达。来源#2100。
+
+### 9.3.96.3 故障恢复、静止与重新授权
+
+- VAL3 updateState的关节速度来自`$getJntSpeedCmd()`近似值；位置来自`herej()`。位置和速度状态虽被导出给ros2_control，但不能仅凭接口名称认定其精度、带宽、采样时延和零速判定已经满足安全或工艺验收。来源#2098。
+- updateState映射safety_status、EStop、workingMode/Hold状态和motion_possible；其中motion_possible源码仍只以drive powered且未EStop为条件，未将Hold状态纳入计算。恢复准入必须独立核对safety_status、operation_mode/status、motion_possible、in_motion、反馈新鲜度、控制器生命周期和操作员重新授权。来源#2098及§9.3.93。
+- 项目当前没有静态证据证明FollowJointTrajectory失败后存在统一的恢复状态机：没有已冻结的故障分类→停止策略→静止确认→安全状态复核→人工/上层授权→重新规划状态转换表。不得把action abort后重发轨迹当作故障恢复。
+- 目标关节位置/速度误差阈值必须从目标机器人型号、负载、工具、安装姿态、工艺节拍、测量精度和安全风险评估导出；不可直接采用JTC默认值作为工业验收标准。
+
+### 9.3.96.4 测试覆盖与结论
+
+- 现有test_robot_driver覆盖UDP mock连接、状态读取、状态陈旧检测及恢复；mock周期发送的状态样本将in_motion置为false，速度值由固定测试数组产生。它不执行MoveIt/JTC action，也不验证轨迹容差、action timeout、goal abort、硬件on_error后的STOP送达与VAL3执行。来源#2101。
+- test_staubli_hardware_interface覆盖接口导出、生命周期和mock硬件读写等，但未发现FollowJointTrajectory端到端容差/超时/故障恢复集成测试。来源#2102。
+- **静态结论：** 目前JTC对路径/目标误差缺少配置级默认限值；goal_time=0可能无限等待，action_execution_timeout/cmd_timeout未启用；停止速度阈值使用VAL3近似速度状态，精度与独立静止判据未验证；HardwareInterface错误路径虽然尝试发送STOP，但忽略发送结果，且JTC tolerance abort并不等同于硬件错误回调。项目没有证据形成action失败到机器人静止、重新授权和安全恢复的闭环。
+- **验证边界：** 未运行目标Jazzy JTC action、MoveIt轨迹执行、误差/超时注入、UDP断链、HardwareInterface on_error、VAL3编译、CS9/SRS、HIL或实机测试。新增任务全部未执行。
+
+### 9.3.96.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-608 | 六轴path/goal tolerance来源与默认值冻结 | 未执行 |
+| SERVO-609 | MoveIt运行时FollowJointTrajectory容差Goal抓取 | 未执行 |
+| SERVO-610 | goal_time=0无限等待与有限时限策略 | 未执行 |
+| SERVO-611 | action_execution_timeout与cmd_timeout配置验证 | 未执行 |
+| SERVO-612 | stopped_velocity_tolerance与VAL3速度反馈精度 | 未执行 |
+| SERVO-613 | 非零终点速度与action成功条件联合验证 | 未执行 |
+| SERVO-614 | path/goal tolerance违例时JTC abort/hold行为 | 未执行 |
+| SERVO-615 | HardwareInterface read/write ERROR到on_error的实际传播 | 未执行 |
+| SERVO-616 | on_error/on_shutdown STOP发送失败与网络断链测试 | 未执行 |
+| SERVO-617 | action失败、STOP、静止确认与安全状态闭环 | 未执行 |
+| SERVO-618 | 故障分类、恢复状态机与人工重新授权 | 未执行 |
+| SERVO-619 | 机器人型号/负载/工具工况的误差阈值工程论证 | 未执行 |
+
+### 本节来源记录（#2095–#2102）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2095 | [controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | 六轴JTC命令/状态接口、goal_time与stopped_velocity_tolerance、非零终点速度 |
+| #2096 | [ROS 2 Control Jazzy JTC参数文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html) | trajectory/goal容差默认值、goal_time、stopped_velocity_tolerance、cmd/action timeout |
+| #2097 | [ROS 2 Control Jazzy JTC用户文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html) | Action goal容差覆盖、容差违例abort/hold、成功条件 |
+| #2098 | [VAL3 updateState.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | 近似关节速度、位置与Safety/Hold/motion_possible状态 |
+| #2099 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read/write ERROR、STOP尝试、on_error/on_shutdown结果处理 |
+| #2100 | [robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | STOP UDP发送与无执行确认边界 |
+| #2101 | [test_robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | mock状态、陈旧检测与恢复测试范围 |
+| #2102 | [test_staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | 硬件接口测试范围及action集成缺口 |
+
+**验证边界：** 完成固定上游提交的JTC配置、HardwareInterface错误回调、RobotDriver发送路径、VAL3状态映射与现有测试树静态审查，并以Jazzy官方文档核对参数语义。没有执行任何action、VAL3、CS9/SRS、HIL或实机测试。SERVO-608–SERVO-619全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
