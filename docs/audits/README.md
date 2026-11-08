@@ -105,3 +105,6 @@
 
 
 - [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.55；本轮核对VAL3 SIO timeout=-1、readData双次连续sioGet、0/负返回值错误折叠、sioSet完整帧写入要求，以及状态采集/序列化/发送/接收/运动API/日志共用4ms同步任务片段。源码注释的non-blocking意图不等于CS9实测WCET；未测量SIO调用、socket激活和控制循环尾部延迟（SERVO-175–SERVO-187）。所有SRS/CS9网络注入、任务跟踪、HIL或实机验证未执行。
+
+
+- [2026-11-06 Stäubli Robotics CS9/VAL3/ICube ROS 2生态专项审查](2026-11-06-staubli-robotics-ecosystem-review.md)：静态审查推进至§9.3.56；本轮核对ROS UDP最新消息快照覆盖、消费者慢读时序号跳跃、旧状态staleness策略、RobotCommand复用最近RobotState序号，以及MSG_DONTWAIT遇would_block后数据包被丢弃但send仍返回true的错误语义。sender身份校验和接收线程优先级/CPU affinity仍有TODO；新增SERVO-188–SERVO-202。突发/慢读/背压/故障注入及CS9/HIL/实机验证均未执行。
