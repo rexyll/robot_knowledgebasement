@@ -1081,3 +1081,28 @@
 - MoveIt `moveit_ros/moveit_servo/CMakeLists.txt` 标签 `2.12.4`，GitHub Blob SHA `6ec080d195798ba22e319def3da08c2e36a7d54f`。
 - ICube `staubli_moveit_config/launch/staubli_moveit.launch.py` 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，Blob SHA `5bcf90f5de19f79fdaad3fa32f5b948c5e575648`。
 - ICube `staubli_moveit_config/package.xml` 同一固定提交，Blob SHA `35d0d2937fdd1cfbce80fa4725f6aae99d45c8bf`。
+
+
+### Stäubli专项审查新增记录（§9.3.107，Jazzy bloom发布记录与源码标签/二进制构建版本对应）
+
+本轮进一步读取ROS官方GitHub组织下的release repository `ros2-gbp/moveit2-release` 的README，并提取Jazzy发行条目：
+
+- README记录 `moveit (jazzy) - 2.12.4-1`，该次发布通过 `bloom-release --ros-distro jazzy moveit --edit` 执行，时间为 `Fri, 05 Dec 2025 20:54:11 -0000`；本次release package list明确包括 `moveit_servo`。
+- 同一Jazzy发布条目记录：rosdistro版本 `2.12.3-1`、old version `2.12.2-1`、new version `2.12.4-1`；工具版本包含 bloom 0.13.0、catkin_pkg 1.1.0、rosdep 0.26.0、rosdistro 1.0.1、vcstools 0.1.42。
+- 与MoveIt上游标签 `2.12.4` 下 `moveit_servo/package.xml` 的 `<version>2.12.4</version>` 对应；ROS生产pool目录中的Noble二进制构建文件名版本线为 `2.12.4-1noble.20261006...`。因此可建立“Jazzy bloom发行版本2.12.4-1 → 上游源包版本2.12.4 → 2026-10-06 Noble二进制构建修订”的版本链路。
+- ROS Index页面当前仓库摘要显示的2.15.2属于上游仓库当前分支/仓库摘要，不能替代Jazzy发行记录；将其误读为当前Jazzy Noble APT二进制版本会造成版本错配。
+- 生产与testing仓库必须区分：生产 `packages.ros.org/ros2/ubuntu` 主索引目录展示2026-10-06快照；`packages.ros.org/ros2-testing/ubuntu` 路径展示较新的2026-11-06/07快照。testing目录的时间更新不代表生产main索引或候选包同步更新，不得在目标环境中混用source URI或将testing构建视为已发布生产包。
+- 证据边界：已经交叉核对release README、源码标签和pool构建文件的版本线与包归属；未能取得deb control `Depends`/SHA256，未验证InRelease签名链、Packages stanza、APT候选，也未在目标Ubuntu环境运行apt/rosdep/launch。
+
+### Stäubli专项审查新增验收任务（§9.3.107）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-700 | 从ros2-gbp/moveit2-release固定README记录中核对Jazzy bloom发行日期、new version 2.12.4-1及moveit_servo包归属，并与上游2.12.4源码标签交叉验证 | 已完成（静态发布记录/源码核对） |
+| SERVO-701 | 固定release repository对应Jazzy发行提交/分支，追溯blooom release输入、source package版本、Noble构建任务与pool中20261006 deb工件的构建日志和revision | 未执行 |
+| SERVO-702 | 在部署清单中固定生产APT URI与suite/component/architecture/keyring，不得引用ros2-testing路径；对目标系统实际sources配置和apt policy执行审计 | 未执行 |
+| SERVO-703 | 获取生产main的amd64/arm64 InRelease及Packages索引，验证签名链和索引摘要，并与testing索引做快照隔离记录 | 未执行 |
+
+发布链证据定位：
+- Release repository：`https://github.com/ros2-gbp/moveit2-release/blob/master/README.md`，读取时README Blob SHA `d88be71a3ec60d425251f19e4abe60e1a899cdd1`；Jazzy条目标题 `moveit (jazzy) - 2.12.4-1`。
+- 上游源码：`https://github.com/moveit/moveit2/tree/2.12.4/moveit_ros/moveit_servo`；package.xml Blob SHA `0f00c9ec3b85b0322b96124cd714cf9d280473fb`，CMakeLists Blob SHA `6ec080d195798ba22e319def3da08c2e36a7d54f`。
