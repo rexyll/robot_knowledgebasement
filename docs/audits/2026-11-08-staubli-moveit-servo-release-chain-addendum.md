@@ -77,3 +77,77 @@ ROS 2 Build Farm官方文档区分release source与binary job，并说明binary 
 - VAL3编译、CS9/SRS、现场控制器、HIL/FAT/SAT或真实机器人安全/运动验证。
 
 未修改ICube上游，未批准合并TODO-EXT-001。Stäubli仍未通过工业级验收。
+
+## 9.3.112 ROS Jazzy官方状态页、building/testing/main工件与架构级发布链核验
+
+### 1. ROS官方状态页的当前记录
+
+本轮于2026-11-08读取ROS 2 Build Farm生成的Jazzy package status页面，确认`moveit_servo`发布版本仍为`2.12.4-1`。页面列出的三个仓库顺序为B/T/M；点击页面图例确认其分别指向`building`、`testing`和`main`。
+
+| 目标 | 状态页快照 | building（B） | testing（T） | main（M） |
+| --- | --- | --- | --- | --- |
+| Ubuntu Noble amd64（N64） | 2026-11-08 03:56:07 -0800 | `2.12.4-1noble.20261105.184638` | `2.12.4-1noble.20261105.184638` | `2.12.4-1noble.20261006.040508` |
+| Ubuntu Noble arm64（Nv8） | 2026-11-08 04:03:04 -0800 | `2.12.4-1noble.20261106.111556` | `2.12.4-1noble.20261106.111556` | `2.12.4-1noble.20261006.043301` |
+
+来源：
+- <https://repo.ros2.org/status_page/ros_jazzy_default.html>
+- <https://repo.ros2.org/status_page/ros_jazzy_unv8.html>
+- B/T/M仓库入口可由页面图例链接分别核验：<https://repo.ros2.org/ubuntu/building/>、<https://repo.ros2.org/ubuntu/testing/>、<https://repo.ros2.org/ubuntu/main/>
+
+### 2. building与main目录中的实际deb工件
+
+在官方仓库pool目录中直接读取到如下文件条目：
+
+| 仓库 | 架构 | 文件名 | 大小 | 目录时间 |
+| --- | --- | --- | ---: | --- |
+| building | amd64 | `ros-jazzy-moveit-servo_2.12.4-1noble.20261105.184638_amd64.deb` | 673,950 bytes | 2026-11-05 18:58 |
+| building | arm64 | `ros-jazzy-moveit-servo_2.12.4-1noble.20261106.111556_arm64.deb` | 617,952 bytes | 2026-11-06 11:29 |
+| main | amd64 | `ros-jazzy-moveit-servo_2.12.4-1noble.20261006.040508_amd64.deb` | 674,492 bytes | 2026-10-06 04:18 |
+| main | arm64 | `ros-jazzy-moveit-servo_2.12.4-1noble.20261006.043301_arm64.deb` | 615,538 bytes | 2026-10-06 04:45 |
+
+来源：
+- <https://repo.ros2.org/ubuntu/building/pool/main/r/ros-jazzy-moveit-servo/>
+- <https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/>
+
+这与状态页逐架构B/T/M版本相互吻合：两种架构的较新deb已进入building目录，状态页显示同版本也已进入testing；main目录仍只有2026-10-06的旧版本文件。浏览器读取器拒绝直接展开deb二进制，当前未读取deb control字段或计算SHA256。
+
+### 3. 对Build Farm执行链的证据解释
+
+ROS `ros_buildfarm`官方release job文档说明：
+- source/binary release job负责创建源码包与二进制包；
+- source/binary job完成上传后由`import-package`任务导入building仓库；
+- 每个架构的所有binary job结束后，系统自动触发`sync-packages-to-testing`；只有满足sync criteria才会把building中的对应架构源码/二进制包同步到testing；
+- `sync-packages-to-main`需手动触发。
+
+参考：<https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst>
+
+因此，当前状态页及pool目录是比“只根据包版本推测job存在”更强的证据：它们显示amd64、arm64新版本均已进入building，且两种架构对应的同版本均已出现在testing；这支持两架构release binary产物已构建、导入并通过testing同步准入的结论。它仍不等于已取得Jenkins job result/console log，亦不代表功能运行、目标CS9适配或整机安全测试通过。
+
+### 4. 按官方实现推导的架构级Jenkins job标识
+
+`ros_buildfarm/common.py`中的`get_binarydeb_job_name`、`get_release_binary_view_name`和`get_short_arch`定义job命名；`amd64`缩写为`64`，`arm64`缩写为`v8`。对Jazzy/default/Noble目标的候选job标识为：
+
+- amd64：`Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary`
+- arm64：`Jbin_uNv8__moveit_servo__ubuntu_noble_arm64__binary`
+
+参考源码：
+- <https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/common.py>
+- <https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/status_page.py>
+
+本轮按上述view/job路径尝试打开build.ros2.org页面及API，仍未能取得Jenkins页面或JSON结果；未获得build number、job result、source revision、console log和各构建步骤详情。故上述两个标识是由官方实现确定的job名称/查询路径，不在本记录中冒充“已读取Jenkins构建详情”。
+
+### 5. APT生产main与密码学验证边界
+
+`repo.ros2.org/ubuntu/main/dists/noble/`目录列表显示`InRelease`（4,679 bytes）、`Release`（3,797 bytes）、`Release.gpg`（833 bytes）均标记为2026-10-06 09:01；`packages.ros.org/ros2/ubuntu/dists/noble/`目录检索结果同样显示2026-10-06 09:01的InRelease/Release/Release.gpg文件。当前可确认这些索引/签名文件名及目录时间，但网页读取器不支持展开这些二进制/签名内容，官方packages.ros.org索引下载也发生超时，因此：
+- 未验证InRelease或Release.gpg签名；
+- 未取得main生产仓库完整Packages/Packages.gz stanza；
+- 未取得两种架构deb的SHA256、Filename、Size与Depends字段的完整APT记录；
+- 未读取deb control元数据、未与上游源码/packaging生成关系做端到端哈希核验；
+- 未在目标Ubuntu 24.04系统执行apt update、apt policy、apt install、rosdep、launch或servo_node运行。
+
+### 6. SERVO任务状态更新
+
+- **SERVO-713：部分取证取得，任务仍未完成。** 已确认building与testing均存在两架构的2.12.4-1新构建版本，并确定官方实现导出的两个Jenkins候选job名称；Jenkins job元数据、build number、source revision和console log仍缺。
+- **SERVO-710：未完成。** 生产APT InRelease/Release签名验证、Packages stanza与deb SHA256/control元数据仍缺。
+- **SERVO-714：未完成。** 新构建尚未进入main生产仓库；main仍显示amd64 `20261006.040508`、arm64 `20261006.043301`。最终生产APT包/源码/构建产物哈希对应关系未核验。
+- 未修改ICube上游，未进行干净Jazzy安装/构建、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli仍保持静态审查未验收状态。
