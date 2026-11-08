@@ -744,3 +744,20 @@
 | SERVO-533 | FTP工具Python故障注入 | 未执行 |
 | SERVO-534 | 应用和SIO部署回滚实测 | 未执行 |
 | SERVO-535 | 现场部署审计记录 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli ROS 2 bringup启动编排、就绪门控与失败传播审查 | 固定ICube bd658e2发现spawner和ready辅助进程均以OnProcessExit触发后续动作但不检查退出码；ready节点无超时/取消，仅以robot_description与joint_states首次到达作为条件；两topic统一请求TRANSIENT_LOCAL，joint_states发布端若为VOLATILE则存在QoS不兼容风险；ready不验证硬件/控制器ACTIVE、状态新鲜度或运动许可；use_sim_time未一致传播，bringup脚本直接依赖未在package.xml显式声明。新增§9.3.89、SERVO-536–SERVO-544、来源#2036–#2040。全部未执行；未运行ROS 2 launch、Jazzy QoS集成、colcon或CS9/HIL/实机验证。 |
+
+### Stäubli专项审查新增验收任务（§9.3.89，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-536 | spawner退出码门控 | 未执行 |
+| SERVO-537 | 控制器状态确认 | 未执行 |
+| SERVO-538 | MoveIt ready成功门控 | 未执行 |
+| SERVO-539 | Ready超时与取消 | 未执行 |
+| SERVO-540 | Topic QoS兼容性 | 未执行 |
+| SERVO-541 | Ready与运动许可分层 | 未执行 |
+| SERVO-542 | use_sim_time一致性 | 未执行 |
+| SERVO-543 | Bringup直接运行依赖 | 未执行 |
+| SERVO-544 | Bringup启动故障注入 | 未执行 |
