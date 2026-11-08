@@ -4763,3 +4763,65 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1953 | [test_message_serialization.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp) | C++内部roundtrip测试，缺少跨语言golden vectors和异常帧覆盖 |
 
 **验证边界：** 本节仅为固定提交静态源码审查。已定位VAL3 encodeHeader重复写sequence字段的payload_size缺陷、C++头字段校验遗漏、DiagnosticData校验顺序错误、VAL3长度错误标志覆盖风险和F/T后三分量未写入。尚未通过VAL3编译、CS9运行或网络抓包复现。C++单元测试源码已审阅但本轮未执行；无跨语言黄金帧、HIL或实机证据。SERVO-403–SERVO-412全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.78 诊断数据通道的真实生产端、连接准入与Mock测试覆盖边界（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节聚焦独立诊断UDP通道的端到端闭环：CS9/VAL3生产端、ROS 2诊断subscriber、连接阶段有效性门控、控制器/固件兼容判断，以及Mock与测试夹具是否能够证明真实诊断链路可用。
+
+**结论：当前固定提交中可以确认C++侧定义了DIAGNOSTIC_DATA消息、74字节序列化格式、诊断UDP socket/subscriber及读取函数；Mock服务器也能主动发送该消息。但在本轮检索的固定提交VAL3服务端Serialization/ros2_server代码范围内，未检索到对应的诊断帧编码/发送实现。更关键的是，RobotDriver::connect()虽然创建诊断subscriber并等待其socket ready，却将diag_interface_ready硬编码为true，没有调用read_diagnostic_data()；因此连接成功不要求收到任何真实诊断帧。随后控制器类型检查仍被注释，固件版本只从current_diagnostic_data_缓存打印。该缓存初始构造值为UNKNOWN/0.0.0，reset_data()只将消息头置INVALID，不会刷新诊断内容。由此，连接日志中的固件版本不构成来自控制器的有效识别证据，诊断socket ready也不等于诊断数据链路ready。**
+
+### 端到端静态证据
+
+1. types.hpp定义MessageType::DIAGNOSTIC_DATA=0x03；messages.hpp定义DiagnosticDataMessage，包含控制器类型、三段固件版本、最多10条错误日志和control_task_status。messages.cpp定义固定总长度74字节，即8字节header+66字节payload。payload按controller type(1)、firmware version(3)、10个error_code(20)、10个timestamp(40)、control_task_status(2)排列。该布局目前由C++ serializer/deserializer自洽实现，但没有找到VAL3端对应黄金帧来证明跨语言一致。
+2. RobotDriver::connect()创建RealTimeSocketSubscriber<DiagnosticDataMessage>并检查subscriber is_ready；首次报文等待循环只调用read_robot_state()，诊断分支明确保留TODO，随后直接令diag_interface_ready=true。连接超时日志中的“Diagnostic message valid”因此不是诊断帧已收到/已验证的事实。
+3. connect()后续兼容性分支中，CS9 controller type校验整段被注释；firmware版本日志读取current_diagnostic_data_，但连接流程没有先成功调用read_diagnostic_data()填充它。不能把日志中的版本号作为固件识别或兼容性准入依据。
+4. read_diagnostic_data()本身有独立subscriber读取、消息类型检查和diagnostic_staleness_timeout_检查（默认100ms），但connect()没有调用它；本轮审查范围内也未发现周期read/write路径调用它。is_diagnostic_msg_valid()仅检查message_type==DIAGNOSTIC_DATA，不验证protocol_version、controller enum有效性、固件支持范围或诊断字段语义。
+5. RobotDriver::is_connected()检查control/diagnostics socket connected及interface/subscriber ready，不检查诊断帧是否曾到达、最近一帧年龄或当前诊断缓存有效性。diagnostic subscriber的传输就绪不能替代应用层数据就绪。
+6. reset_data()把current_diagnostic_data_的sequence_number清零并将message_type置INVALID，但没有重置诊断字段、接收时间或诊断版本状态；因此任何后续诊断兼容判断都必须以成功接收的新一代有效帧为前提，不能沿用断开前缓存。
+7. MockRobotServer::send_mock_diagnostic_data()把DiagnosticDataMessage序列化后直接经独立diagnostics_socket发送；测试夹具test_staubli_hardware_interface.hpp每4ms发送一次Mock状态和诊断数据。该夹具证明的是Mock能够构造并发送C++定义的诊断帧，不证明CS9/VAL3真实产生该帧，也不证明RobotDriver连接流程实际消费或校验它。
+8. test_mock_robot_server.cpp的诊断相关用例仅覆盖未初始化时发送失败；本轮可见测试没有覆盖真实诊断首帧等待、缺失/陈旧诊断、未知controller type、固件不兼容、错误协议版本或断线重连后的诊断代际隔离。
+9. 对固定提交VAL3服务端Serialization及ros2_server相关文件进行定向检索，找到encodeHeader、encodeRobotStateMsg及RobotCommand解码路径，但未检索到DIAGNOSTIC_DATA对应的VAL3编码/发送实现。该结论限定于本轮检索的固定提交公开源码范围；不能据此推断控制器内部未公开程序的实现状态，须由厂商受控资料或目标CS9抓包确认。
+10. 本节与§9.3.60相互关联但关注点不同：§9.3.60记录双通道状态/诊断一致性与采样关联缺失；本节进一步确认诊断生产端证据缺口、连接成功条件被硬编码绕过、Mock发送路径与真实控制器路径之间的证据断层，以及诊断数据不能作为控制器身份/固件准入依据。
+
+### 风险与整改要求
+
+- 将“诊断socket/subscriber ready”与“收到一帧有效诊断数据”分成不同状态；连接准入必须等待真实诊断首帧并校验来源、magic、protocol version、message type、payload size和datagram长度。
+- 删除diag_interface_ready硬编码true；在诊断首帧缺失、错误、超时或过期时连接必须失败或进入明确的受限诊断状态，不得打印默认版本后继续宣称兼容性已确认。
+- 恢复并完善CS9 controller type allowlist校验；UNKNOWN及未知枚举值默认拒绝。固件版本必须来自当前连接代际成功接收的诊断帧，并与经验证的兼容矩阵比较；未确认的版本不得自动放行。
+- 明确VAL3诊断消息生产端责任：若诊断帧由CS9侧VAL3程序生成，补齐诊断数据采集、错误日志快照、时间戳单位/回绕、任务状态位、序号策略、发送周期与UDP端口配置；若由控制器其他受控服务生成，取得接口规范及版本证据。
+- 为DiagnosticDataMessage建立C++/VAL3共享golden vectors，明确错误日志是按条目交错(AoS)还是按字段分区(SoA)编码，固定时间戳单位、最多条数、空槽表示、错误码含义、control_task_status位定义和版本兼容策略。
+- read_diagnostic_data()必须在连接握手中真实执行；连接后按明确周期更新诊断缓存，并向上层暴露有效位、接收时间/age、数据源代际及兼容性状态；不得将普通诊断字段用作安全功能或安全停机证明。
+- disconnect/reset/reconnect必须清空诊断有效性和代际信息；旧连接的延迟数据报不得满足新连接的首帧门控。
+- 增加诊断通道测试：无首帧、首帧延迟、错误magic/version/type/length、未知controller enum、固件过旧/未知、错误日志边界、重复/乱序、陈旧数据、断网重连和旧代际数据报；同时覆盖Mock与真实VAL3/CS9抓包证据。
+- 将Mock诊断测试明确标记为协议单元/集成测试，不得作为CS9真实诊断生产端、固件兼容或工程验收证据。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-413 | CS9诊断生产端 | 获取VAL3/控制器受控接口证据，确认诊断帧实际生产程序、发送周期和端口 | 未执行 |
+| SERVO-414 | 诊断wire schema | 明确74字节帧、66字节payload、错误日志布局/时间戳/状态位并建立规范 | 未执行 |
+| SERVO-415 | 诊断首帧连接门控 | 删除diag_interface_ready硬编码，连接必须收到并验证首帧 | 未执行 |
+| SERVO-416 | 控制器身份校验 | 恢复CS9 allowlist，拒绝UNKNOWN及未知controller enum | 未执行 |
+| SERVO-417 | 固件兼容准入 | 仅使用当前连接代际有效诊断帧校验固件版本和支持矩阵 | 未执行 |
+| SERVO-418 | 诊断帧协议校验 | 逐帧校验magic/version/type/payload/datagram长度和来源 | 未执行 |
+| SERVO-419 | 诊断运行期新鲜度 | 周期读取并向上层暴露age/validity，陈旧时显式降级 | 未执行 |
+| SERVO-420 | 诊断重连代际隔离 | reset/reconnect清除旧缓存，拒绝旧连接延迟帧 | 未执行 |
+| SERVO-421 | 诊断异常测试 | 覆盖缺帧、错帧、未知型号/固件、错误日志边界、乱序和陈旧 | 未执行 |
+| SERVO-422 | Mock与真实端证据分层 | Mock协议测试与VAL3/CS9生产端、抓包/HIL验收分开记录 | 未执行 |
+
+### 本节来源记录（#1954–#1959）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1954 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect诊断首帧等待、diag_interface_ready硬编码、控制器类型检查注释、固件版本打印、read_diagnostic_data和is_connected |
+| #1955 | [robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | 独立诊断socket/subscriber、缓存、staleness API与NetworkConfig端口 |
+| #1956 | [mock_robot_server.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/mock_robot_server.cpp) | Mock诊断报文序列化及独立UDP发送路径 |
+| #1957 | [test_mock_robot_server.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_mock_robot_server.cpp) | 诊断Mock测试仅覆盖未初始化发送失败 |
+| #1958 | [test_staubli_hardware_interface.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp) | Mock fixture每4ms发送状态与诊断数据 |
+| #1959 | [messages.hpp / messages.cpp / types.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver) | DIAGNOSTIC_DATA类型、74字节消息及字段布局/序列化定义 |
+
+**验证边界：** 本节仅为固定提交静态源码与测试源码审查；未执行C++构建/单元测试、VAL3编译、CS9仿真、真实诊断UDP抓包、控制器型号/固件核验、HIL或实机测试。未检索到VAL3诊断编码/发送实现不等于证明未公开控制器程序中不存在该能力。Mock诊断发送不能证明真实CS9诊断链路。SERVO-413–SERVO-422全部未执行；Stäubli仍处于静态审查阶段，未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
