@@ -3746,3 +3746,65 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1829 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | STOP与普通命令发送、限位TODO |
 | #1830 | [ICube robot_driver.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | Driver命令接口契约 |
 | #1831 | [ros2_control Jazzy HardwareComponentInterface API](https://control.ros.org/jazzy/doc/api/classhardware__interface_1_1HardwareComponentInterface.html) | prepare为非实时准备，perform在实时更新循环执行且应快速完成 |
+
+
+## 9.3.63 运动命令float32线格式数值边界、控制周期与STOP/IO校验（2026-11-08）
+
+### A. 审查基线与证据范围
+
+- 上游固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- 本节是对§9.3.1、§9.3.32和§9.3.33的增量审查，不重复认定已记录的DoF越界、NaN/Inf、关节限位或周期字段缺少策略；本轮聚焦这些double值进入固定float32 wire字段时的二次边界，以及STOP/IO字段是否经过同一校验链。
+- 核对`serialization.hpp`、`messages.cpp`、`messages.hpp`、`staubli_hardware_interface.cpp`、`robot_driver.cpp`及固定协议字段布局。来源#1832–#1836。仅静态源码审查；未执行构建、单测、数值注入、VAL3编译、SRS/CS9仿真、HIL或实机测试。
+
+### B. 关键源码事实
+
+1. **double到float32缩窄没有线级防护。** `serialize_type(const double&)`直接执行`static_cast<float>(value)`后写入4字节；没有在转换前检查有限性、float32可表示范围、转换后是否仍有限，也没有拒绝溢出或报告精度损失。即使上层某字段曾检查double有限性，有限但超出float32可表示范围的值仍可能在缩窄阶段失去有效数值表示；接近float32精度分辨率的不同double也可能编码成相同wire值。不得将double内存精度当作控制器实际收到的精度。
+2. **RobotCommand存在多个共享该缩窄函数的字段。** `controller_period`、6个`command_reference`和4个`analog_outputs`均按float32写入。当前序列化函数不对这些字段实施统一有限性/范围检查；HardwareInterface的NaN检查只针对运动参考数组，且在此前章节已记录其不覆盖Inf和其他数值字段。
+3. **周期字段的有效范围未在序列化边界定义。** `write()`将ROS period转换为毫秒double后赋给`controller_period`；消息成员默认值为-1.0。RobotCommand serializer直接缩窄并写出，没有拒绝负值、零、非有限值或超出协议/控制器允许范围的周期。该项是线级字段校验缺口，不据此推断VAL3必然按异常周期运动；VAL3消费语义及超时策略仍需目标版本验证。
+4. **模拟输出没有数值范围/有限性门控。** HardwareInterface将配置的模拟输出命令直接复制到4元素数组，serializer再转换为float32；本轮可见写入路径没有对NaN、Inf、float32溢出或硬件电压/电流量程进行拒绝。具体模拟量程必须按CS9 I/O模块、接线和用户配置确认，不能凭通用协议猜测。
+5. **STOP参考检查不等于完整STOP报文校验。** `send_robot_command()`只在command_type为STOP时遍历command_reference；若任一项非零仅WARN，仍继续发送。它没有在发送入口统一检查command_type合法枚举、controller_period、analog_outputs或digital_outputs的安全策略。HardwareInterface的STOP分支会清零运动参考，但之后仍将GPIO输出命令写入同一消息；因此STOP运动模式本身不等于模拟/数字IO归零。专用`send_stop_all_command()`与普通STOP write路径必须继续保持语义区分。
+6. **消息注释与实际单位仍有契约冲突。** `RobotCommandMessage`注释把position/velocity reference描述为rad和rad/s，而HardwareInterface在写入command_reference前执行`rad2deg()`。§9.3.33已记录单位映射和VAL3关节限位问题；本轮补充要求将“ROS接口单位、C++内存单位、float32 wire单位、VAL3解码后单位”定义为一份唯一协议契约，并用独立黄金向量验证，不能仅靠局部注释推断。
+7. **STOP与普通命令必须采用不同但完整的验证策略。** STOP应允许明确规定的安全周期/参考值，但不能因STOP而跳过报文类型、线级数值和IO安全策略；普通运动命令必须在double层和float32转换后都验证。任何校验失败都应在发送前拒绝，并明确是否触发独立安全停止路径，不能将“本地send函数返回true”视为控制器接受或执行。
+
+### C. 风险判断（静态推导，尚未复现）
+
+- double→float32缩窄可能引入不可表示值或量化；目前没有代码层的转换后验证及精度预算。
+- controller_period、模拟输出与运动参考共用缩窄器，但校验覆盖不一致，可能出现运动参考已过初筛而其他字段携带非有限/超范围数值的报文。
+- STOP普通写入路径允许GPIO字段继续生效，且发送层对非零STOP参考仅告警；若上层把STOP误当作“所有输出归零”，可能产生控制语义误判。
+- 协议注释单位与硬件接口转换不一致，会使独立客户端、VAL3实现、日志和测试黄金向量对同一数值产生不同解释。
+- 以上为源码可确认的校验缺口和风险推导，不证明实际CS9已接收异常数值、发生输出变化或产生机械运动。
+
+### D. 整改建议
+
+1. 将wire序列化改为显式受检转换：先检查double有限性，再检查float32可表示范围，转换后再次检查有限性；为位置、速度、周期、模拟输出定义字段级允许范围。
+2. 建立float32量化误差预算，覆盖典型小增量、最大关节角、最大速度、极值与边界邻域；对不能满足控制分辨率的协议值应拒绝或调整线格式，而非静默舍入。
+3. 明确controller_period合法区间、单位、默认值和STOP专用语义；拒绝负值、零（若不允许）、非有限值和超控制器范围值，并由VAL3端重复校验。
+4. 按具体I/O模块定义模拟输出物理量程、单位、缩放、饱和值及断线策略；数字输出NaN/Inf的转换行为也需显式定义，不能依赖浮点比较结果。
+5. 在RobotDriver统一发送入口校验命令枚举、运动参考、控制周期和全部IO字段；普通STOP参考非零应拒绝或由明确兼容策略处理，不能仅WARN。将运动STOP、IO保持、IO归零、急停/安全回路定义为不同操作。
+6. 修正文档单位契约，给出rad↔deg转换责任边界，并建立C++/VAL3独立逐字节黄金向量，验证边界值、符号、精度和拒绝行为。
+7. 将校验失败、停止请求发送失败、控制器确认停止失败分别记录；不得将UDP本地发送成功视为安全动作已完成。
+
+### E. 新增验收任务（均未执行）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-263 | double→float32有限性与范围 | NaN、±Inf、float32上溢边界在序列化前/转换后均按策略拒绝 | 序列化单测与逐字节结果 | 未执行 |
+| SERVO-264 | float32量化误差预算 | 关节位置/速度典型增量和边界值的量化误差满足控制精度预算 | 独立数值分析与黄金向量 | 未执行 |
+| SERVO-265 | controller_period线级校验 | 负、零、非有限、极小/极大周期按协议策略拒绝或明确定义 | ROS→C++→VAL3字段测试 | 未执行 |
+| SERVO-266 | analog_outputs数值和物理量程 | 非有限、上溢、越模块量程值在发送前拒绝/按批准策略限幅 | I/O模块配置与仿真/台架测试 | 未执行 |
+| SERVO-267 | STOP完整报文契约 | STOP参考、周期、数字/模拟IO均满足独立STOP策略；非法报文不发送 | 发送入口单测与UDP抓包 | 未执行 |
+| SERVO-268 | STOP与IO语义隔离 | motion STOP、IO保持、IO归零和安全急停行为分别定义并验证 | CS9 I/O仿真及安全评审 | 未执行 |
+| SERVO-269 | 命令单位契约一致性 | ROS rad、C++内部表示、wire float32及VAL3解码单位唯一且一致 | C++/VAL3独立黄金向量 | 未执行 |
+| SERVO-270 | 非有限值跨层拒绝 | 运动参考、周期、模拟输出在硬件接口和Driver发送入口均有防御性检查 | 单元测试/故障注入 | 未执行 |
+| SERVO-271 | 序列化失败的发送门控 | 任一字段校验失败时不调用UDP send，错误原因可观测 | mock socket调用次数与负向测试 | 未执行 |
+| SERVO-272 | CS9端到端边界验收 | 认可型号/固件下验证数值边界、STOP/IO行为与控制器反馈 | SRS/HIL/FAT/SAT记录 | 未执行 |
+
+### F. 本节来源记录（#1832–#1836）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1832 | [ICube serialization.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp) | double缩窄为float32、无转换后校验及量化路径 |
+| #1833 | [ICube messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp) | RobotCommand 55字节布局、字段序列化及STOP默认值 |
+| #1834 | [ICube messages.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | command_reference单位注释、controller_period与IO字段契约 |
+| #1835 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ROS周期、运动参考及GPIO字段写入路径 |
+| #1836 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | STOP参考仅警告、发送入口缺少字段级统一校验 |
