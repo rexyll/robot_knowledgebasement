@@ -73,3 +73,14 @@ ROS 2官方Build Farm文档说明，release job分为source与binary类型；sou
 本轮新增追加件路径：`docs/audits/2026-11-08-staubli-moveit-servo-release-chain-addendum.md`。追加件对§9.3.102–§9.3.111给出逐节摘要和任务边界；主报告旧文件未被重写。厂商档案和README现有旧条目仍保留，新增的末尾入口明确指向最新追加件。
 
 **尚未解决：** 没有取得Build Farm真实job页面/API、build number/result/source revision/console log；没有取得生产APT签名、完整Packages stanza、deb control和SHA256；未执行干净ROS Jazzy环境安装、构建与Servo启动。静态审查材料同步完成不等于专项工程验收完成。
+
+## 7. 新增Build Farm二进制仓库证据（2026-11-08追加）
+
+本轮在ROS官方Jazzy status page、Build Farm `building`与生产`main` pool目录中取得了比此前候选job名更强的证据：
+
+- amd64：状态页B/T均为`2.12.4-1noble.20261105.184638`，M为`2.12.4-1noble.20261006.040508`；building目录列出对应新deb（673,950 bytes），main目录列出旧deb（674,492 bytes）。
+- arm64：状态页B/T均为`2.12.4-1noble.20261106.111556`，M为`2.12.4-1noble.20261006.043301`；building目录列出对应新deb（617,952 bytes），main目录列出旧deb（615,538 bytes）。
+- ROS ros_buildfarm官方说明明确：release job产物导入building；每架构binary jobs结束后满足sync criteria会自动同步到testing；testing到main需手动触发。因此本轮可确认两种架构的较新产物已在building，并在status page中与testing版本一致；生产main仍为10月6日旧版本。
+- 按官方ros_buildfarm实现推导出amd64与arm64的binary job标识，但build.ros2.org页面/API仍不可读取；未取得build number、result、source revision或console log。
+
+本次追加件及厂商档案已同步到§9.3.112 / §128.63。上述证据将SERVO-713推进为“部分取证取得”，但仍不标记完成；SERVO-710（APT签名、Packages stanza、deb control/SHA256）和SERVO-714（生产main产物最终一致性）仍未完成。直接下载deb和访问Packages/InRelease签名内容本轮失败，不作密码学/包元数据通过结论。详细记录见`docs/audits/2026-11-08-staubli-moveit-servo-release-chain-addendum.md`。
