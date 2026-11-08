@@ -1554,3 +1554,55 @@ U11从“静态接口差异已确认”细化为“已找到作者维护的MoveI
 - https://github.com/Yuhx141/ros2-upstream-issue-reproducers/blob/9630a900f2d323b3b45c1976df8fe722b809f7a7/PROVENANCE.json
 - https://github.com/moveit/moveit2/pull/3909
 - 专项追加件§9.3.141。
+
+
+### §9.3.143 PR #3909 失败初始化单测未验证 updater 析构与资源回收
+
+#### 1. 直接源码证据
+
+PR #3909 的 \`RejectsUpdaterWhenInitializationFails\` 测试：
+- 在测试作用域内创建 \`auto updater = std::make_shared<RecordingUpdater>(state, false)\`；
+- Mock middleware 的 \`loadOccupancyMapUpdater\` 返回该同一个shared_ptr；
+- middleware初始化钩子通过 \`value->initialize(nullptr)\` 返回false；
+- monitor构造循环因此continue，跳过\`setParams()\`与后续登记；
+- 测试结束前局部变量\`updater\`仍持有shared_ptr所有权。
+
+因此该测试的断言\`calls == {"initialize"}\`及\`started == false\`只证明失败后未配置、未启动；由于测试自身仍持有对象，无法证明monitor拒绝后updater已析构，也没有观察析构计数、弱引用失效、ROS graph资源清理或回调静默。
+
+#### 2. 已证实的覆盖边界
+
+- **已覆盖**：initialize返回false后，monitor不会调用setParams/start（基于测试记录序列）。
+- **未覆盖**：monitor拒绝后是否释放最后一个updater所有权；updater析构是否关闭其创建的subscription/timer/filter；在途回调是否退出；资源是否仍引用monitor。
+- **未覆盖**：initialize成功但setParams返回false的资源回收。当前PR测试中的RecordingUpdater::setParams固定返回true。
+- **未覆盖**：initialize在部分创建资源后返回false。RecordingUpdater::initialize只记录调用并返回布尔值，不创建ROS资源。
+- **限制**：即使后续证明shared_ptr释放并触发析构，也仍需检查具体updater析构是否对所有异步资源执行安全shutdown；对象析构本身不能自动证明在途回调静默。
+
+这属于PR回归测试的明确覆盖缺口；不是已经证明的资源泄漏或use-after-free。
+
+#### 3. 建议的补充测试设计（SERVO-727 U13/U14细化）
+
+1. 使用仅由monitor持有的updater实例；测试夹具不得在monitor构造后保留强引用。通过weak_ptr观察对象是否在拒绝后失效，或使用独立析构计数器。
+2. fake updater在initialize中创建可观察资源（优先用ROS subscription/timer；另可用RAII sentinel模拟资源拥有权），随后返回false；断言析构/rollback被执行，资源从ROS graph消失。
+3. initialize成功并创建资源，随后setParams返回false；断言该对象同样不被登记/启动，且资源完成清理。
+4. 引入回调计数与屏障：在stop/析构后发布旧topic消息，验证回调不再进入，并验证没有回调访问已销毁monitor。
+5. 多updater混合场景：失败updater清理后，成功updater仍可正常启动/停止。
+
+推荐验收证据：对象析构计数、weak_ptr expired、ROS graph订阅者数量前后对照、回调计数、线程/执行器静默窗口及ASan/TSan结果。具体ROS图与并发断言须在目标RMW/executor运行，不能用纯单元mock替代。
+
+#### 4. PR #3909 当前调用顺序澄清
+
+PR #3909当前head \`3fc0594f708730008da2c4b3709368ade65302f2\`保留\`initialize()\`先于\`setParams()\`。作者在PR评论中称已在该commit修正先前发现的内置updater顺序回归；CodeRabbit评论仍指出#3901要求的接口契约顺序与当前调用顺序不一致。不能把曾经的顺序回归描述成当前head仍存在的错误；当前问题是#3901公开契约与内置插件依赖顺序需要上游统一，而#3902失败结果传播是另一个问题。
+
+#### 5. SERVO-727状态
+
+- U13细化为“失败对象析构/资源清理”：PR现有测试明确未验证；目标ROS资源与回调动态测试未执行。
+- U14细化为“setParams(false)对象析构/资源清理”：现有测试未覆盖，动态测试未执行。
+- U11源码兼容性变化已确认，外部旧签名fixture已定位，最小C++17探针已复现编译错误；完整fixture迁移构建未执行。
+- U12 ABI工具检查未执行。
+- U15混合插件隔离/资源计数未执行。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3909
+- https://github.com/moveit/moveit2/issues/3901
+- https://github.com/moveit/moveit2/issues/3902
+- 专项追加件§9.3.141–§9.3.142。
