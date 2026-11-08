@@ -184,3 +184,45 @@ ROS `ros_buildfarm`官方release job文档说明：
 - <https://repo.ros2.org/status_page/ros_jazzy_unv8.html>
 - <https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/>
 - 上述来源本轮读取时间：2026-11-08。页面可能继续更新，引用的时间戳是页面自身生成时间，不是本地查询时刻。
+
+
+## 9.3.114 2026-11-08 ROS Jazzy APT索引目录快照复核：testing索引较新，生产main索引仍旧
+
+### 1. 本轮新增的索引目录证据
+
+| 仓库 | 架构/索引 | 目录时间 | 文件大小 |
+| --- | --- | --- | ---: |
+| ros2-testing | Jazzy Noble amd64 InRelease | 2026-11-06 13:15 | 4,679 bytes |
+| ros2-testing | Jazzy Noble amd64 Packages | 2026-11-06 13:15 | 8,406,600 bytes |
+| ros2-testing | Jazzy Noble arm64 InRelease | 2026-11-07 11:29 | 4,679 bytes |
+| ros2-testing | Jazzy Noble arm64 Packages | 2026-11-07 11:29 | 8,381,795 bytes |
+| ros2 production main | Jazzy Noble amd64 Packages | 2026-10-06 08:57 | 约7.9 MB（目录显示） |
+| ros2 production main | Jazzy Noble arm64 InRelease/Packages | 2026-10-06 08:59 | InRelease 4,679 bytes；Packages约7.9 MB |
+
+目录来源：
+- ros2-testing lists：<https://repo.ros2.org/ubuntu/testing/lists/>
+- ros2 production lists：<https://packages.ros.org/ros2/ubuntu/lists/>
+
+testing目录快照日期比production main新约一个月；该证据与§9.3.113状态页B/T/M分离一致。目录时间和文件存在只证明仓库列表中有这些索引文件，不证明索引签名有效、包记录字段正确或deb可安装。
+
+### 2. Packages/InRelease原文访问结果
+
+尝试通过网页读取器打开testing amd64/arm64 Packages、production amd64 Packages及production InRelease原文。读取器对Packages与InRelease返回application/octet-stream不支持，arm64 Packages URL亦不可访问。因此本轮仍未取得可供逐字段复核的moveit_servo完整APT stanza，也没有对InRelease执行密码学验签。
+
+本轮没有取得moveit_servo在amd64/arm64 Packages中的Version、Filename、Size、SHA256、Depends完整记录；没有下载deb并读取DEBIAN/control；没有使用ROS官方keyring执行gpgv/APT验证；没有在Ubuntu 24.04执行apt update、apt-cache policy、安装或servo_node启动。
+
+不能把目录索引时间当作Packages记录的包版本，也不能把InRelease文件存在当作签名通过。
+
+### 3. SERVO任务状态
+
+- SERVO-710：仍未完成。APT签名验证、生产main Packages stanza、deb control/SHA256未取得。
+- SERVO-713：仍为部分取证。building/testing双架构工件证据成立；本轮增加testing/production索引目录时间差证据，但Jenkins job/build number/source revision/console log仍未直接取得。
+- SERVO-714：仍未完成。生产main索引快照与工件仍是2026-10-06版本，未完成最终deb/源码/构建产物一致性核验。
+- 未修改ICube上游，未进行干净Jazzy安装/运行、VAL3编译、SRS、CS9、HIL/FAT/SAT或实机验证；TODO-EXT-001仍未授权合并。
+
+### 4. 本节来源与读取边界
+
+- ROS testing lists目录：<https://repo.ros2.org/ubuntu/testing/lists/>
+- ROS production lists目录：<https://packages.ros.org/ros2/ubuntu/lists/>
+- ros_buildfarm release job流程：<https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst>
+- 网页读取器对Packages/InRelease二进制内容的访问错误只说明本次读取通道不支持，不说明源文件损坏、签名无效或服务器拒绝APT客户端。
