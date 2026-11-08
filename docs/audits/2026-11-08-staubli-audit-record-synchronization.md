@@ -147,3 +147,12 @@ ROS官方Jazzy状态页仍显示：amd64页面生成时间2026-11-08 03:56:07 -0
 同步载体：专项追加件§9.3.115；厂商档案§128.66；审计README；根TaskPlan v8.88；00-01与21-02章节TaskPlan执行日志。厂商档案更新后，资产清单对应行已刷新为Blob SHA f5b00f49ec86b448a6cbf653b25ad13af938c61c、UTF-8大小506,424 bytes、metadata_reconciled_date=2026-11-08。该动作只刷新单一文件Git元数据，不代表claim-level验收或全库元数据重算。
 
 SERVO-713仍部分取证、未完成；SERVO-710/714仍未完成。APT签名、Packages完整记录、deb control/SHA256、Jazzy目标环境安装运行、VAL3/CS9/SRS/HIL/实机验证仍未完成。00-01/21-02保持进行中，Stäubli未通过工程验收，TODO-EXT-001仍未授权合并。
+## 14. ROS Jazzy状态页刷新与Servo binary pool精确文件核对（2026-11-08追加）
+
+新增专项追加件§9.3.116与厂商档案§128.67。amd64官方状态页本轮生成时间更新为2026-11-08 04:36:03 -0800，moveit_servo B/T仍为2.12.4-1noble.20261105.184638、M仍为2.12.4-1noble.20261006.040508；arm64页面仍为04:23:04 -0800，B/T为2.12.4-1noble.20261106.111556、M为2.12.4-1noble.20261006.043301。
+
+building pool直接列出amd64新deb（完整文件名ros-jazzy-moveit-servo_2.12.4-1noble.20261105.184638_amd64.deb，673,950 bytes，目录时间11-05 18:58）和arm64新deb（ros-jazzy-moveit-servo_2.12.4-1noble.20261106.111556_arm64.deb，617,952 bytes，目录时间11-06 11:29）；production main pool仍仅列10-06旧deb（amd64 674,492 bytes、arm64 615,538 bytes）。点击deb链接后读取通道不支持application/octet-stream，未取得包内control/哈希；testing pool目录也未直接取得可读响应，testing版本仍以状态页T列为证。
+
+厂商档案更新后，资产清单中该文件单行已刷新为Blob SHA 7a58b297e73046ca65956547c2098dea54b6540c、UTF-8大小507502 bytes。仅为单一资产元数据刷新，不代表claim-level验收或全库重算。
+
+SERVO-713仍部分取证、未完成；SERVO-710/714未完成。APT签名/Packages完整记录、deb control/SHA256、真实Jenkins build日志、目标Jazzy安装运行、VAL3/CS9/SRS/HIL/实机验证仍缺。
