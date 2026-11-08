@@ -368,3 +368,14 @@ SERVO-720已完成（静态核对）；SERVO-721/722/723未执行。未修改ICu
 本项目仓库未包含ICube应用源码、部署launch/YAML、目标PlanningSceneMonitor实例及stop调用点。SERVO-722因此保持未执行/阻塞，需目标版本标识、脱敏启动参数、monitor构造及start/stop调用代码、启停时topic graph才能判定现场触发条件。SERVO-721本轮补齐实验规程但未执行；SERVO-723未执行；新增SERVO-724追踪上游修复PR、Jazzy backport和正式二进制发布。未修改上游、未应用补丁、未执行实机/安全验证。
 
 详见专项追加件§9.3.131及厂商档案§128.82。
+
+
+## 29. SERVO-722现场适用性证据盘点（2026-11-08追加）
+
+对`robot_knowledgebasement`当前main完整树执行路径筛查，Stäubli/ICube/MoveIt/Servo命中项均为审计/同步文档；未发现ICube源代码、Stäubli集成包、launch/YAML参数、部署清单或运行日志。读取MoveIt上游当前main的`stopWorldGeometryMonitor()`仍可见if/else if依次reset两个subscriber；issue #3897仍open且无评论。由于没有Stäubli目标部署版本和调用链材料，无法判断现场是否满足双topic同时启用及单次stop条件。
+
+因此SERVO-722记为部分取证，而非完成：仓库证据范围与上游当前main结构已核查，现场适用性仍未定。后续需要目标部署源码/提交SHA、launch/YAML、部署配置导出、topic graph、节点日志和生命周期操作记录。SERVO-721动态复现及SERVO-723修复回归未执行。
+
+厂商档案`knowledge/ecosystem/主要厂商.md`新增§128.82，更新后Blob SHA为`3cbf7533aa19f76d7eb4d21a6cfb2f646294d284`，UTF-8大小530615 bytes。该项为单文件元数据刷新，不代表claim-level验收或整库清单重算。
+
+来源：专项追加件§9.3.131；厂商档案§128.82。
