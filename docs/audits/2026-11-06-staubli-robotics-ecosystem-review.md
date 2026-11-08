@@ -5309,7 +5309,7 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 
 ### v2 基础帧头规范（设计建议，非上游实现）
 
-v2采用固定32字节基础头；所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
+v2采用固定32字节基础头；由于v1固定8字节头无法承载v2扩展字段，建议v2先使用单独UDP端口/独立控制器服务端点完成握手和能力协商；不得让只支持v1的解码器尝试按v1结构解析v2帧。所有多字节整数均为little-endian；不允许直接`memcpy`C++结构体或依赖编译器padding。v2.0的`header_size`必须精确为32；将来扩展须通过新minor/schema协商，未协商扩展一律拒绝。
 
 | 偏移 | 字段 | 类型 | 字节数 | 约束 |
 |---:|---|---|---:|---|
@@ -5333,6 +5333,8 @@ v2采用固定32字节基础头；所有多字节整数均为little-endian；不
 | 0x03 | DIAGNOSTIC_DATA | 控制器→主机 | 诊断快照与错误记录 |
 | 0x10 | SESSION_HELLO | 主机→控制器 | host_nonce[16]、min_version u8、max_version u8、reserved u16、feature_bits u64、host_monotonic_ns u64；共36字节 |
 | 0x11 | SESSION_ACCEPT | 控制器→主机 | echo_host_nonce[16]、controller_nonce[16]、controller_tick_hz u32、feature_bits u64、max_datagram_size u16、max_command_lifetime_ms u32；共50字节；boot_id/session_id置于头部 |
+| 0x12 | TIME_SYNC_REQUEST | 主机→控制器 | exchange_id u32、host_t1_monotonic_ns u64；共12字节 |
+| 0x13 | TIME_SYNC_REPLY | 控制器→主机 | exchange_id u32、echo_host_t1_ns u64、controller_t2_receive_tick u64、controller_t3_send_tick u64；共28字节；主机记录本地t4，用多次样本估算时钟映射与不确定度 |
 | 0x20 | COMMAND_REQUEST | 主机→控制器 | 28字节事务前缀 + command body |
 | 0x21 | COMMAND_EVENT | 控制器→主机 | 32字节阶段事件；每个事件关联原command_id/session |
 | 0x22 | COMMAND_STATUS_QUERY | 主机→控制器 | command_id u64；查询控制器事务保留表 |
@@ -5354,7 +5356,7 @@ v2采用固定32字节基础头；所有多字节整数均为little-endian；不
 | 24 | command_body_size | u16 | 2 |
 | 26 | reserved | u16 | 2 |
 
-随后紧跟command body。首版joint motion body沿用已经明确的47字节字段顺序：controller_period float32(4)、motion_cmd_type u8(1)、六轴参考值float32[6](24)、digital_outputs_mask u16(2)、analog_outputs float32[4](16)。因此该示例COMMAND_REQUEST payload为28+47=75字节。deadline须使用握手期间建立的host monotonic与controller tick映射，并在映射误差超过协商阈值时拒绝运动命令；不能把两个设备的墙钟直接比较。
+随后紧跟command body。首版joint motion body沿用已经明确的47字节字段顺序：controller_period float32(4)、motion_cmd_type u8(1)、六轴参考值float32[6](24)、digital_outputs_mask u16(2)、analog_outputs float32[4](16)。因此该示例COMMAND_REQUEST payload为28+47=75字节。deadline须使用SESSION_ACCEPT后反复执行TIME_SYNC_REQUEST/REPLY建立的host monotonic与controller tick映射：主机记录t1/t4，控制器返回t2/t3及tick频率；通过多个往返样本估算偏移、往返延迟和映射不确定度，并在不确定度超过协商阈值时拒绝运动命令。不能把两个设备的墙钟直接比较。
 
 **COMMAND_EVENT固定32字节：** command_id u64、event_sequence u32、stage u8、reason_code u16、event_flags u8、controller_tick u64、active_command_id u64。事件阶段至少覆盖RECEIVED、VALIDATED、ACCEPTED、APPLIED、COMPLETED、REJECTED、EXPIRED、CANCELED、ABORTED、STOPPED、UNKNOWN_OUTCOME。相同(session_id, command_id, stage, event_sequence)事件允许重发并由主机去重；事件序号不替代command_id。
 
