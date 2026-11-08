@@ -1182,7 +1182,7 @@
 | SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 已完成（commit、父版本README和diff三方核验） |
 | SERVO-710 | 取得Bloom执行时上游源码不可变revision/归档校验值，并完成release tag包目录与上游2.12.4源码包目录的完整tree比对 | 未执行 |
 | SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 已完成（54个tree条目、43个blob逐项比较；路径/mode/type/blob SHA全部一致，双方tree均未截断） |
-| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 未执行 |
+| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 部分取证（候选job名与B/T工件已核对；Jenkins直接元数据/日志未取得，任务未完成） |
 | SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
 
 本节来源：
@@ -1220,3 +1220,18 @@
 
 
 | 2026-11-08 | 21-02 | MoveIt Servo Jazzy发布链继续核验：新增ROS testing与生产main APT lists目录快照对照。testing Noble amd64/arm64索引分别为2026-11-06/07，生产main仍为2026-10-06；Packages/InRelease二进制原文无法通过当前网页读取通道展开，因此不宣称签名、stanza、SHA256或Depends已验证。新增专项审计§9.3.114与厂商档案§128.65；SERVO-710/714仍未完成，SERVO-713部分取证；不改变未执行的VAL3/CS9/HIL/实机验收状态。 | ROS官方APT lists目录；专项追加件§9.3.114；厂商档案§128.65 |
+
+### Stäubli专项审查新增记录（§9.3.115，Build Farm job命名算法与状态页复核）
+
+- 直接核对ros_buildfarm/common.py中的get_release_source_view_name、get_sourcedeb_job_name、get_release_binary_view_prefix、get_release_binary_view_name、get_binarydeb_job_name和get_short_arch实现。
+- 推导候选source job：Jsrc_uN__moveit_servo__ubuntu_noble__source；amd64 binary：Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary；arm64 binary：Jbin_uNv8__moveit_servo__ubuntu_noble_arm64__binary。它们仅是算法推导候选名，不代表Jenkins真实job已确认存在或成功。
+- 尝试打开上述候选job的/api/json端点，读取通道未能访问；未取得job配置、build number、result、source revision、artifact fingerprint或console log。
+- ROS Jazzy状态页最新可读快照仍为amd64 2026-11-08 03:56:07 -0800、arm64 04:23:04 -0800；moveit_servo B/T分别为2026-11-05 amd64和2026-11-06 arm64构建，M仍为2026-10-06旧版本。
+- SERVO-713调整为部分取证但未完成；SERVO-710/714仍未完成。未取得APT签名、完整Packages stanza、deb control/SHA256，未执行Ubuntu 24.04 apt/rosdep/colcon/launch/servo_node运行；未执行VAL3/CS9/SRS/HIL/FAT/SAT/实机验证。Stäubli仍未通过工程验收，TODO-EXT-001仍未授权合并。
+
+本节来源：
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/common.py
+- https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- 专项追加件§9.3.115。
