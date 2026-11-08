@@ -574,3 +574,91 @@ production main包目录可读取的索引搜索结果仍列出旧deb：amd64 67
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - https://repo.ros2.org/ubuntu/testing/pool/main/r/ros-jazzy-moveit-servo/
 - https://rsync.osuosl.org/pub/ros2/pool/main/r/ros-jazzy-moveit-servo/
+
+
+## 9.3.122 Build Farm Jenkins视图、job命名规则与当前发布状态复核（2026-11-08）
+
+### 1. 当前ROS Jazzy状态页
+
+本轮重新直接打开官方规范状态页并定位`moveit_servo`：
+
+| 架构 | 页面生成时间（-0800） | B | T | M |
+|---|---|---|---|---|
+| amd64 | 2026-11-08 04:36:03 | `2.12.4-1noble.20261105.184638` | 同B | `2.12.4-1noble.20261006.040508` |
+| arm64 | 2026-11-08 04:43:04 | `2.12.4-1noble.20261106.111556` | 同B | `2.12.4-1noble.20261006.043301` |
+
+与§9.3.121相比，页面生成时间和`moveit_servo`构建版本未变化。B/T仍为11月5/6日构建，M仍为10月6日旧构建。该状态页给出包版本阶段快照，不提供Jenkins具体build number、source revision或console log。
+
+### 2. Build Farm官方job命名规则复核
+
+重新读取`ros-infrastructure/ros_buildfarm:master/ros_buildfarm/common.py`，核对函数：
+
+- `get_sourcedeb_job_name()`：source job名称由source view、ROS包名、OS、codename组成。
+- `get_binarydeb_job_name()`：binary job名称由release build view、ROS包名、OS、codename和架构组成。
+- `get_release_source_view_name()` / `get_release_binary_view_name()`：分别决定source与binary view前缀。
+- Noble缩写为`N`，Ubuntu缩写为`u`；amd64缩写为`64`，arm64缩写为`v8`；`default` release build name不追加后缀。
+
+按当前官方命名实现推导，候选具体job应为：
+
+| 类型 | 候选job名 | 推导边界 |
+|---|---|---|
+| Noble source | `Jsrc_uN__moveit_servo__ubuntu_noble__source` | source view不区分amd64/arm64 |
+| Noble amd64 binary | `Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary` | default build view |
+| Noble arm64 binary | `Jbin_unv8_uNv8__moveit_servo__ubuntu_noble_arm64__binary` | unv8 build view |
+
+**更正此前简化记录：** arm64 binary候选的view前缀是`Jbin_unv8_uNv8`，不是`Jbin_uNv8`。此前候选名未作为真实job证据；本节给出按当前源码函数展开后的正确候选名。
+
+### 3. Jenkins首页可见证据及其边界
+
+本轮直接打开`https://build.ros2.org/`，Jenkins首页可读，显示以下视图入口：
+
+- `Jsrc_uN`：Jazzy Ubuntu Noble source视图；
+- `Jbin_uN64`：Jazzy Ubuntu Noble amd64 binary视图；
+- `Jbin_unv8_uNv8`：Jazzy Ubuntu Noble arm64 binary视图。
+
+首页的执行器/队列区也展示其他包在这些平台视图下的job活动，说明这些平台视图正在被Jenkins使用。但首页未显示`moveit_servo`具体job；本轮直接访问上述三个候选job页面、视图页面和API端点时，读取通道超时或拒绝访问。因此：
+
+- **已核实：** Jenkins首页可见三个对应平台视图入口；Build Farm源码可推导候选job命名。
+- **未核实：** `moveit_servo`三个具体job是否存在、job配置是否启用、是否曾触发。
+- **未取得：** build number、result、timestamp、source revision、console log、上传工件路径和import-package记录。
+- **不得推断：** 候选job存在或不存在、成功或失败；Jenkins首页未列出包名不是不存在证据。
+
+### 4. Build Farm发布流程的证据含义
+
+ROS Build Farm官方release job文档说明：source job从GBP release仓库tag取源码及OS-specific packaging信息，生成source package；binary job通过`apt source`获取source package并调用`apt-src build`生成binary package；产物进入building repository；满足sync criteria后自动从building同步到testing；testing到main的sync需人工触发。
+
+因此，状态页B/T同版本只能证明状态页将相同版本显示在building/testing阶段；M仍为旧版本说明本轮未观察到production main晋级。它不替代source/binary job日志，也不等于目标机安装、Servo运行或Stäubli控制器兼容性验证。
+
+### 5. Production main pool目录复核与大小更正
+
+本轮重新直接读取production main pool目录，仍列出：
+
+- amd64 deb：2026-10-06 04:18，674,492 bytes；
+- arm64 deb：2026-10-06 04:45，615,538 bytes；
+- amd64/arm64 dbgsym：分别30,362,802 / 30,002,110 bytes；
+- `.dsc`：2025-12-06，1,564 bytes；
+- `.debian.tar.xz`：2025-12-06，16,152 bytes；
+- `.orig.tar.gz`：2025-12-06，**65,705 bytes**。
+
+更正§9.3.120/§128.71中记录的`.orig.tar.gz`大小65,707 bytes：本轮直接目录读数为65,705 bytes，后续资产记录采用本轮可见目录值。该更正仅针对目录展示的文件大小，不表示已下载或校验源包内容。
+
+ROS testing pool目录与直接Packages.gz URL本轮仍无法由读取通道访问。production main目录元数据仍与状态页M列10月6日构建对应；未取得testing具体二进制工件正文、APT stanza、InRelease签名验证或deb SHA256。
+
+### 6. 任务状态与下一步
+
+- SERVO-710：未完成。APT Packages/InRelease正文与签名、deb control、SHA256仍缺。
+- SERVO-713：部分取证、未完成。发布声明、rosdistro/release ref、package.xml文件级关联、Build Farm命名源码和平台视图入口已核实；具体package job/build证据仍缺。
+- SERVO-714：未完成。production main仍为10月6日旧构建，未观察到晋级。
+- 未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行测试；未执行VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。
+- Stäubli工业级验收仍未通过；ICube上游未修改；`TODO-EXT-001`仍未授权合并。
+
+### 7. 来源
+
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- https://build.ros2.org/
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/common.py
+- https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst
+- https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst
+- https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
+- https://repo.ros2.org/ubuntu/testing/pool/main/r/ros-jazzy-moveit-servo/
