@@ -798,3 +798,20 @@
 | SERVO-563 | 实时周期与反馈年龄联合测试 | 未执行 |
 | SERVO-564 | 命令发送确认语义 | 未执行 |
 | SERVO-565 | 网络威胁与状态完整性 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli ROS 2控制周期字段与VAL3实际周期一致性审查 | 固定ICube bd658e2追踪controller_period：C++ write将ROS period写入命令，VAL3 decodeRobotCommandMsg解析到nRemoteCtrlPeriod，但固定项目内该字段仅声明/初始化/解码，没有后续逻辑消费；VAL3 start.pgx另行固定taskCreateSync周期为4ms，controlTask以delay(0)循环；运动中/静止状态分别用5/25个循环的sequence delay阈值，对应20/100ms的换算依赖4ms周期恒定；monitor speed低于100%只告警仍启动，overrun仅计数。新增§9.3.92、SERVO-566–SERVO-574、来源#2057–#2062。全部未执行；未编译VAL3，未做CS9/SRS/实机周期测量。 |
+
+### Stäubli专项审查新增验收任务（§9.3.92，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-566 | controller_period端到端消费 | 未执行 |
+| SERVO-567 | 主机与机器人周期契约 | 未执行 |
+| SERVO-568 | VAL3实际周期测量 | 未执行 |
+| SERVO-569 | 序列延迟墙钟阈值 | 未执行 |
+| SERVO-570 | 监控速度准入门控 | 未执行 |
+| SERVO-571 | overrun故障闭环 | 未执行 |
+| SERVO-572 | period字段异常注入 | 未执行 |
+| SERVO-573 | 250Hz假设验证 | 未执行 |
+| SERVO-574 | 周期与网络时延联合验收 | 未执行 |
