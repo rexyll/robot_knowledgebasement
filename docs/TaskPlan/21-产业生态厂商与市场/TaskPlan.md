@@ -931,3 +931,23 @@
 | SERVO-641 | 10mm/20mm阈值与实际速度、制动性能、端到端延迟的工程论证 | 未执行 |
 | SERVO-642 | launch_servo启用门、Servo输出控制器接线及故障时闭锁/暂停行为 | 未执行 |
 | SERVO-643 | SRDF自碰撞、场景障碍、场景陈旧/丢失及真实停止行为的CS9/HIL/实机验收 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli MoveGroup/Servo Planning Scene同步、场景变更轨迹监测与执行起点一致性审查 | 固定ICube提交bd658e2并核对MoveIt 2 Jazzy源码：Servo YAML未显式设置monitored_planning_scene_topic，Jazzy Servo默认订阅/planning_scene；MoveGroup PSM默认发布monitored_planning_scene。Servo非primary初始化时请求一次/get_planning_scene场景快照，但调用方未检查请求成功与否；PlanningSceneInterface的applyPlanningScene/applyCollisionObjects经ApplyPlanningScene服务更新MoveGroup，MoveIt接口明确提示其他PSM需订阅MoveGroup monitored scene才能收到服务更新，构成Servo场景可能陈旧的条件性风险。MoveGroup PlanExecution存在场景几何/TF更新回调、默认trajectory_monitoring=true、100Hz剩余路径碰撞复检和invalidated错误停止路径；重规划参数来自action请求，项目未冻结客户端策略。Jazzy TrajectoryExecutionManager默认allowed_start_tolerance=0.01rad并等待完整当前状态，但项目未显式冻结有效参数。新增§9.3.99、SERVO-644–SERVO-655、来源#2123–#2133。全部未执行；未进行ROS topic graph、Apply服务更新传播、轨迹失效/重规划、起点偏差、CS9/HIL或实机验证。 |
+
+### Stäubli专项审查新增验收任务（§9.3.99，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-644 | MoveGroup/Servo实际解析后的场景topic、namespace、remap与订阅者图冻结 | 未执行 |
+| SERVO-645 | Servo非primary启动时/get_planning_scene初始快照成功、失败、超时及运动闭锁 | 未执行 |
+| SERVO-646 | applyPlanningScene/applyCollisionObjects/applyAttachedCollisionObjects更新传播至MoveGroup与Servo的端到端测试 | 未执行 |
+| SERVO-647 | /planning_scene topic与ApplyPlanningScene服务两种对象更新路径的一致性对照 | 未执行 |
+| SERVO-648 | MoveGroup monitored_planning_scene与Servo本地PSM场景内容/更新时间/ACM一致性 | 未执行 |
+| SERVO-649 | 场景更新与规划完成、controller goal发送并发时的竞争窗口测试 | 未执行 |
+| SERVO-650 | PlanExecution几何/TF更新触发、trajectory_monitoring有效值及剩余waypoint复检 | 未执行 |
+| SERVO-651 | 场景更新后轨迹失效、执行停止请求、JTC/UDP/VAL3停止链路响应测试 | 未执行 |
+| SERVO-652 | planning_options.replan开关、重试次数/延迟、环境变化错误与恢复授权验证 | 未执行 |
+| SERVO-653 | trajectory_execution.allowed_start_tolerance实际值及逐关节覆盖参数快照 | 未执行 |
+| SERVO-654 | 当前完整JointState的时间新鲜度、缺轴、延迟、反馈跳变及起点偏差拒绝测试 | 未执行 |
+| SERVO-655 | MoveGroup与Servo双路径场景变化、弱网/场景丢失、CS9/HIL/实机整体验收 | 未执行 |
