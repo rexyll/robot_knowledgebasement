@@ -145,3 +145,5 @@
 
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.133，固定MoveIt 2.12.4源码确认startWorldGeometryMonitor先调用stop；初始双topic后restart为`planning_scene_world_topic=""`时旧world subscriber可能保留。澄清对象析构后成员会销毁，不扩大描述为永久泄漏；新增SERVO-725配置切换矩阵，尚未执行动态测试。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.134，复核候选修复PR #3907仍open且behind，Formatting/CI workflow失败、jobs明细与review approval缺失；未发现Jazzy backport，正式Main二进制仍为2.12.4-1，SERVO-724持续跟踪。
