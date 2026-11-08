@@ -118,3 +118,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.121；补充moveit2-release README发布批次声明、ROS Jazzy双架构状态页再核验及Debian源包读取失败边界。发布声明与release ref关联已核实；源包正文/签名/校验和、Jenkins真实构建日志、APT完整索引与二进制元数据仍未取得。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.122；新增Build Farm Jenkins平台视图存在性核验、source/binary候选job命名公式及具体job访问失败边界；更正production main目录`.orig.tar.gz`大小为65,705 bytes。平台视图可见不等于moveit_servo具体job或构建成功，APT签名/Packages/deb哈希仍未取得。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy 2.12.4-1发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：专项审计推进至§9.3.123；重读ROS Jazzy amd64/arm64规范状态页，amd64页面刷新至04:56:18 -0800、arm64为04:43:04 -0800；两架构moveit_servo的B/T/M版本字段未变化，Main仍为10月6日旧构建。该记录不代表取得APT正文/验签、deb哈希或Jenkins package job日志。
