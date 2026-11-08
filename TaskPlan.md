@@ -5,7 +5,7 @@
 > 版本：v8.58  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.88。§9.3.87已完成协议v2规范自洽性复核，指出所有u64 ID/时间戳/tick的VAL3无损表示、时间同步准入阈值和ROBOT_STATE/DIAGNOSTIC_DATA/SETPOINT_STREAM/STOP_REQUEST schema仍未冻结；SERVO-513–SERVO-522全部未执行。§9.3.88静态审查固定上游FTP管理与VAL3部署：普通ftplib.FTP无应用层TLS/证书验证，用户名/密码为普通ROS参数且默认字符串均为default；应用上传先删目标目录再逐项上传、忽略删除失败且无staging/校验/回滚；SIO配置默认开启覆盖，随包端点硬编码192.168.0.1；脚本失败不fail-fast且无明确退出状态/try-finally。新增SERVO-523–SERVO-535全部未执行；没有真实CS9 FTP/配置生效/回滚验证，未达到工业级验收。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
+> 当前状态：执行中；当前主章节为 00（知识治理与分类体系），主任务节点为 00-01（知识资产基线与主张级审计）。第 21 章 21-02（代表厂商与产品线档案）并行推进，Stäubli专项审查当前至§9.3.89。§9.3.87已完成协议v2规范自洽性复核，指出所有u64 ID/时间戳/tick的VAL3无损表示、时间同步准入阈值和ROBOT_STATE/DIAGNOSTIC_DATA/SETPOINT_STREAM/STOP_REQUEST schema仍未冻结；SERVO-513–SERVO-522全部未执行。§9.3.88静态审查固定上游FTP管理与VAL3部署：普通ftplib.FTP无应用层TLS/证书验证，用户名/密码为普通ROS参数且默认字符串均为default；应用上传先删目标目录再逐项上传、忽略删除失败且无staging/校验/回滚；SIO配置默认开启覆盖，随包端点硬编码192.168.0.1；脚本失败不fail-fast且无明确退出状态/try-finally。新增SERVO-523–SERVO-535全部未执行；没有真实CS9 FTP/配置生效/回滚验证，未达到工业级验收。§9.3.89静态审查bringup启动编排：spawner/ready进程OnProcessExit未检查退出码、ready无超时且只检查topic首次到达、joint_states的TRANSIENT_LOCAL请求存在QoS兼容风险、ready不等于硬件ACTIVE或运动许可、use_sim_time传播不一致、脚本直接依赖未在package.xml声明；新增SERVO-536–SERVO-544，全部未执行，未运行ROS 2/Jazzy集成测试。第 25 章作为跨章节产品化主线并行推进。所有节点仍按交付物和验收证据判定，不因文件存在或局部修订自动完成。
 
 ---
 
@@ -1089,3 +1089,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v8.57 | 修订当前状态摘要：§9.3.86将§9.3.85协议v2草案的32字节头/107字节样例修订为36字节头/111字节样例，packet_sequence采用u64；当前Stäubli专项审查节点明确为§9.3.86。 | Stäubli专项审计§9.3.85–§9.3.86 |
 
 | 2026-11-08 | v8.58 | 21-02计划与审计进度对齐，并推进Stäubli §9.3.88：先补录审计报告已有§9.3.87协议v2规范自洽复核及SERVO-513–SERVO-522（全部未执行）；随后固定ICube bd658e2审查普通FTP凭据/传输、VAL3应用先删后传无回滚、SIO配置默认覆盖、脚本错误处理/路径文档/测试缺口。新增§9.3.88、来源#2028–#2035及SERVO-523–SERVO-535，全部未执行；未连接CS9、未进行FTP抓包/配置覆盖/回滚实测、VAL3编译、HIL或实机验收。Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.87–§9.3.88 |
+
+| 2026-11-08 | v8.59 | 00-01/21-02继续Stäubli ROS 2 bringup启动编排审查：固定ICube bd658e2确认spawner与MoveIt ready进程的OnProcessExit处理均未检查退出码；ready辅助程序无超时/取消，topic首次到达不证明硬件/控制器ACTIVE或运动许可；joint_states请求TRANSIENT_LOCAL存在与VOLATILE发布端不兼容风险；use_sim_time未一致传播，rclpy/sensor_msgs/std_msgs未在bringup package.xml显式声明。新增§9.3.89、来源#2036–#2040及SERVO-536–SERVO-544，全部未执行。仅静态审查，未运行ROS 2 launch、QoS/仿真集成、colcon、CS9/HIL或实机验收；Stäubli仍未验收，TODO-EXT-001仍未授权合并。 | Stäubli专项审计§9.3.89；来源#2036–#2040；第21章TaskPlan |
