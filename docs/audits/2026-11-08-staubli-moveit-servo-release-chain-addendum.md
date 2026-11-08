@@ -1501,3 +1501,48 @@ PR #3909在middleware返回false后由构造器执行continue，因而跳过setP
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp
 - 专项追加件§9.3.140。
+
+
+### §9.3.142 作者维护的外部复现夹具对 MiddlewareHandle 源码迁移的实证
+
+#### 1. 外部复现仓库及构建依赖
+
+检查仓库：`https://github.com/Yuhx141/ros2-upstream-issue-reproducers`，固定审查commit `9630a900f2d323b3b45c1976df8fe722b809f7a7`。
+
+- 仓库README说明其收录ROS 2上游issue复现器和保存证据，默认launcher source `/opt/ros/jazzy/setup.bash`。
+- `PROVENANCE.json`记录MoveIt 2 runtime release为2.12.4，planning-scene source reference为`002f40e58ebf5322c89468f5049867791e5f67fd`，并声明process map verified。
+- 两个场景目录`OCC-params-after-initialize`与`OCC-failed-initialize-starts`均有CMake工程；CMake通过`find_package(moveit_ros_occupancy_map_monitor REQUIRED)`链接安装的MoveIt occupancy-map-monitor包，而不是把MoveIt源码直接vendor进该fixture。
+- 两个目录的`occupancy_init_probe.cpp`具有相同Blob SHA `4a5dd5b5ffb1cc30da67c55a0c037e5eeea63a60`，是同一实现被两个场景目录复用，不能计作两个独立下游实现。
+
+#### 2. 旧签名直接使用证据
+
+该复现fixture中的`FakeMiddleware`继承`OccupancyMapMonitor::MiddlewareHandle`，实现：
+
+```cpp
+void initializeOccupancyMapUpdater(OccupancyMapUpdaterPtr updater) override
+{
+  updater->initialize(nullptr);
+}
+```
+
+这段实现满足其所记录MoveIt 2.12.4旧接口，但不能满足PR #3909将该纯虚方法变更为bool后的新接口。若将该复现工程切换到包含PR #3909变更的头文件/库，fixture需要把override签名改为bool，并返回`updater->initialize(...)`的结果或等效状态；否则无法满足新纯虚接口。
+
+这是一项可定位到源码、构建依赖和测试版本的API迁移实证，能够强化SERVO-727的U11设计。证据级别必须保持准确：它是PR作者维护的公开复现工程，不是独立商业产品、不是Stäubli/ICube集成，也不是第三方量产部署；不据此估算受影响下游数量。
+
+#### 3. 与PR #3909兼容性结论的关系
+
+- PR #3909仍把公开纯虚接口由void改为bool，MIGRATION.md说明custom middleware handles需迁移。
+- 该外部复现fixture提供了一个具体的旧签名实现，证明迁移要求不仅是理论上的派生类推演。
+- 源码兼容性差异确认；未在该仓库复制后应用PR #3909并运行编译，因此“迁移后可成功构建”仍未验证。
+- 二进制ABI仍未用ABI checker或混合版本加载实验确认。
+
+#### 4. SERVO-727状态调整
+
+U11从“静态接口差异已确认”细化为“已找到作者维护的MoveIt 2.12.4外部复现fixture旧void override；已确认需源码迁移；fixture升级编译仍未执行”。U12 ABI检查、U13 initialize(false)部分资源回收、U14 setParams(false)资源回收、U15混合插件隔离仍未执行。
+
+来源：
+- https://github.com/Yuhx141/ros2-upstream-issue-reproducers/tree/9630a900f2d323b3b45c1976df8fe722b809f7a7/moveit2/OCC-params-after-initialize
+- https://github.com/Yuhx141/ros2-upstream-issue-reproducers/blob/9630a900f2d323b3b45c1976df8fe722b809f7a7/moveit2/OCC-params-after-initialize/occupancy_init_probe.cpp
+- https://github.com/Yuhx141/ros2-upstream-issue-reproducers/blob/9630a900f2d323b3b45c1976df8fe722b809f7a7/PROVENANCE.json
+- https://github.com/moveit/moveit2/pull/3909
+- 专项追加件§9.3.141。
