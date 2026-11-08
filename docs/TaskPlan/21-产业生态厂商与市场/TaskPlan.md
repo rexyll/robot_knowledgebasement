@@ -1209,7 +1209,7 @@
 | 任务 | 验收对象 | 状态 |
 |---|---|---|
 | SERVO-712 | 对moveit_servo完整release tag package tree与上游moveit2 2.12.4/moveit_ros/moveit_servo目录进行递归tree/blob比较，输出差异清单或完全一致证据 | 已完成（43个blob逐项一致；路径/mode/type/blob SHA零差异） |
-| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 未执行 |
+| SERVO-713 | 获取ROS Build Farm Jazzy/Noble moveit_servo amd64、arm64具体job、源码revision、build status、工件名和日志，核对与debian/jazzy/noble/moveit_servo分支及2.12.4-1noble工件的对应关系 | 部分取证（状态页B/T与building/main pool文件清单已核对；Jenkins直接job/build元数据与日志未取得，任务未完成） |
 | SERVO-714 | 取得生产main仓库Packages/InRelease和实际deb，校验签名、SHA256、control字段及依赖闭包，并与Build Farm工件对应 | 未执行 |
 
 本节来源：
