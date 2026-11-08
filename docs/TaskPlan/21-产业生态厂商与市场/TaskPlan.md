@@ -870,3 +870,23 @@
 | SERVO-605 | Action终态与实测机器人静止一致性 | 未执行 |
 | SERVO-606 | 取消、抢占、停止全过程日志关联 | 未执行 |
 | SERVO-607 | 取消后恢复、重新授权与禁止自动续动 | 未执行 |
+
+
+| 2026-11-08 | 21-02/Stäubli FollowJointTrajectory容差、超时、执行失败与故障恢复闭环审查 | 固定ICube bd658e2静态审查发现六轴JTC未显式配置trajectory/goal误差容差（Jazzy默认0代表不限制）；goal_time=0可能无限等待，action_execution_timeout/cmd_timeout未启用；stopped_velocity_tolerance=0.01使用VAL3近似速度状态，独立静止判据未验证；HardwareInterface read/write ERROR会尝试STOP，但on_error/on_shutdown忽略STOP发送结果；JTC tolerance abort不等于硬件错误回调或VAL3 STOP。现有mock测试仅覆盖通信/状态陈旧等，不覆盖action容差/超时/停止恢复闭环。新增§9.3.96、SERVO-608–SERVO-619、来源#2095–#2102，全部未执行；未进行JTC/MoveIt action、UDP故障注入、VAL3/CS9/SRS/HIL/实机验证。 |
+
+### Stäubli专项审查新增验收任务（§9.3.96，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-608 | 六轴path/goal tolerance来源与默认值冻结 | 未执行 |
+| SERVO-609 | MoveIt运行时FollowJointTrajectory容差Goal抓取 | 未执行 |
+| SERVO-610 | goal_time=0无限等待与有限时限策略 | 未执行 |
+| SERVO-611 | action_execution_timeout与cmd_timeout配置验证 | 未执行 |
+| SERVO-612 | stopped_velocity_tolerance与VAL3速度反馈精度 | 未执行 |
+| SERVO-613 | 非零终点速度与action成功条件联合验证 | 未执行 |
+| SERVO-614 | path/goal tolerance违例时JTC abort/hold行为 | 未执行 |
+| SERVO-615 | HardwareInterface read/write ERROR到on_error的实际传播 | 未执行 |
+| SERVO-616 | on_error/on_shutdown STOP发送失败与网络断链测试 | 未执行 |
+| SERVO-617 | action失败、STOP、静止确认与安全状态闭环 | 未执行 |
+| SERVO-618 | 故障分类、恢复状态机与人工重新授权 | 未执行 |
+| SERVO-619 | 机器人型号/负载/工具工况的误差阈值工程论证 | 未执行 |
