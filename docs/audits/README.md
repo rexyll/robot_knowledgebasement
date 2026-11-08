@@ -164,4 +164,4 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.141，审查PR #3909将public MiddlewareHandle纯虚接口从void改为bool的下游源码迁移要求，区分源码兼容性与未验证的二进制ABI；补充initialize(false)/setParams(false)后的资源回收契约缺口及SERVO-727 U11-U15验证矩阵。静态审查完成，编译/ABI/动态资源测试未执行。
 
 
-- [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.142，审查PR作者维护的外部MoveIt 2.12.4复现工程，确认两个OccupancyMap场景目录共用同一份旧void签名MiddlewareHandle fixture，并以安装的moveit_ros_occupancy_map_monitor包构建；将其作为U11源码迁移样例，明确不属于独立商业部署或Stäubli现场证据。迁移编译及ABI测试未执行。
+- [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.142，审查PR作者维护的外部MoveIt 2.12.4复现工程，确认两个OccupancyMap场景目录共用同一份旧void签名MiddlewareHandle fixture，并以安装的moveit_ros_occupancy_map_monitor包构建；将其作为U11源码迁移样例，明确不属于独立商业部署或Stäubli现场证据。独立C++17最小override探针已复现conflicting return type；完整fixture迁移编译及ABI测试未执行。
