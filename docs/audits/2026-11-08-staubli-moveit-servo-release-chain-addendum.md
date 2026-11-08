@@ -696,3 +696,54 @@ ROS testing pool目录与直接Packages.gz URL本轮仍无法由读取通道访�
 - https://repo.ros2.org/status_page/ros_jazzy_default.html
 - https://repo.ros2.org/status_page/ros_jazzy_unv8.html
 - §9.3.122（Build Farm视图与候选job命名证据边界）
+
+
+## 9.3.124 MoveIt Servo Jazzy Noble Debian packaging branch依赖映射与测试失败处理审查（2026-11-08）
+
+### 1. 固定Debian packaging分支证据
+
+通过GitHub REST提交历史读取release repository分支debian/jazzy/noble/moveit_servo，当前分支HEAD为04da341a35a97633b11a95ac1600b1995bcbacc3，提交时间2025-12-05 20:45:20 UTC，提交说明为Generated debian files for noble。GitHub提交验证字段为verified=false / unsigned；本轮不将其描述为已签名提交。
+
+| 文件 | Git Blob SHA | 静态核验内容 |
+|---|---|---|
+| debian/control | 18376b30cd01762eeb8902dd1f9ec885f332fe62 | Build-Depends与二进制包Depends模板 |
+| debian/changelog | 9f8356f7fa8fcc077349b5a65f923c8a5a6d33b6 | 顶部版本2.12.4-1noble，2025-12-04 23:00 UTC，记录class_loader warning修复 |
+| debian/rules | f1664b24a5eaabf636fc54e391b022ab8dec99d2 | Debian dh build/test规则及测试容错行为 |
+| debian/gbp.conf | 6cb989121b7dffb6295ef3632449059daadeee2d | upstream-tag=release/jazzy/moveit_servo/2.12.4-1；upstream-tree=tag |
+| package.xml | 0f00c9ec3b85b0322b96124cd714cf9d280473fb | 上游ROS包的depend与exec_depend声明 |
+
+gbp.conf将Noble Debian包装分支的上游源树指向MoveIt Servo release tag；changelog记录的二进制包装版本为2.12.4-1noble。此处固定的是当前可读取的Git分支与文件Blob，不等于已取得2025-12-05 Build Farm实际checkout的分支快照或上传工件来源证明。
+
+### 2. Debian运行依赖模板与package.xml映射
+
+- 从package.xml提取25项depend/exec_depend，并按ROS Debian包名规则映射为ros-jazzy-*；debian/control的二进制包Depends模板包含全部25项，无缺项。
+- Debian Depends模板另包含ros-jazzy-ros-workspace，以及尚待实际构建时展开的${shlibs:Depends}和${misc:Depends}。因此当前核验是源码控制文件之间的静态映射，不是已下载二进制包的最终Depends结果。
+- 此结果支持MoveIt Servo自身的Debian packaging运行依赖声明；它不补上Stäubli应用层staubli_moveit_config/package.xml对moveit_servo的显式exec_depend缺口，两者是不同的依赖边。
+
+### 3. Debian测试规则中的非阻断行为
+
+在debian/rules中发现：
+
+1. 当DEB_BUILD_OPTIONS包含nocheck时，BUILD_TESTING_ARG被设置为-DBUILD_TESTING=OFF；同时debian/control中的部分测试Build-Depends使用<!nocheck>标记。
+2. override_dh_auto_test目标执行dh_auto_test，但命令以|| true结束；文件中的echo注释明确说明，即使测试失败，也不会取消构建。
+
+因此，即使未来取得Build Farm的binary build成功记录，也不能仅凭该成功状态推断MoveIt Servo测试套件全部通过：测试可能因nocheck未启用，也可能执行后返回失败但未阻断Debian包构建。必须另取实际job环境中的DEB_BUILD_OPTIONS、console log和测试结果，才能判断测试是否运行及其结果。当前尚未取得这些job记录，本节不推断任何测试实际失败或实际被跳过。
+
+### 4. 新增任务与证据边界
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-715 | 固定Noble Debian packaging分支HEAD，核对control/changelog/rules/gbp.conf，并将package.xml 25项depend/exec_depend与Debian Depends模板逐项映射 | 已完成（仅静态Git文件核验；不代表实际deb字段或构建测试已验收） |
+| SERVO-716 | 获取amd64/arm64实际Build Farm job环境与console log，确认DEB_BUILD_OPTIONS、测试是否执行、测试结果及失败是否被容错，并与B/T工件关联 | 未执行 |
+
+SERVO-710仍未取得Bloom执行输入不可变revision/源归档SHA；SERVO-713仍未取得具体Jenkins job/build元数据及日志；SERVO-714仍未取得实际APT Packages stanza、InRelease签名、deb内DEBIAN/control与SHA256。未执行Ubuntu 24.04安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证。Stäubli工程级验收仍未通过；未修改ICube上游；TODO-EXT-001仍未授权合并。
+
+### 5. 来源
+
+- https://github.com/ros2-gbp/moveit2-release/commit/04da341a35a97633b11a95ac1600b1995bcbacc3
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/control
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/changelog
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/rules
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/debian/gbp.conf
+- https://github.com/ros2-gbp/moveit2-release/blob/debian/jazzy/noble/moveit_servo/package.xml
+- §9.3.119、§9.3.123。
