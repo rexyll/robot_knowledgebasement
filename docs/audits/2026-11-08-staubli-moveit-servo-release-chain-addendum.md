@@ -1536,7 +1536,15 @@ void initializeOccupancyMapUpdater(OccupancyMapUpdaterPtr updater) override
 - 源码兼容性差异确认；未在该仓库复制后应用PR #3909并运行编译，因此“迁移后可成功构建”仍未验证。
 - 二进制ABI仍未用ABI checker或混合版本加载实验确认。
 
-#### 4. SERVO-727状态调整
+
+
+#### 5. C++ override 返回类型兼容性最小编译核验
+
+为避免只依赖接口推理，本轮使用g++在独立C++17最小示例中复现：基类声明纯虚`virtual bool initializeOccupancyMapUpdater(int) = 0`，派生类仍声明旧签名`void initializeOccupancyMapUpdater(int) override`。执行`g++ -std=c++17 -fsyntax-only`后，编译器报错`conflicting return type specified`，并指向基类bool返回方法。该结果直接验证C++语言层面的override不兼容。
+
+限制：这是最小语言级编译探针，不是ROS/MoveIt完整工作区构建，也没有把外部复现工程切换到PR #3909头文件后实际编译；U11完整fixture迁移编译仍未完成。
+
+#### 6. SERVO-727状态调整
 
 U11从“静态接口差异已确认”细化为“已找到作者维护的MoveIt 2.12.4外部复现fixture旧void override；已确认需源码迁移；fixture升级编译仍未执行”。U12 ABI检查、U13 initialize(false)部分资源回收、U14 setParams(false)资源回收、U15混合插件隔离仍未执行。
 
