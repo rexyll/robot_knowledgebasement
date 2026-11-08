@@ -282,3 +282,21 @@ SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进�
 ## 24.1 厂商档案资产清单单行元数据刷新
 
 因厂商档案新增§128.77，资产清单中 knowledge/ecosystem/主要厂商.md 对应行刷新为Blob SHA 2fe0efb498d2aad2651999435792b697b4f1e9be、UTF-8大小521,359 bytes。该操作仅刷新单一文件Git元数据，不代表claim-level复核完成或全库资产清单重新计算。
+
+
+## 25. 2026-11-08 MoveIt Servo上游CI与ROS release binary测试路径区分（§9.3.127）
+
+审查MoveIt上游`2.12.4` commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`的GitHub Actions `ci.yaml`：在pull_request/merge_group及push jazzy时运行industrial_ci；未设置`NOT_TEST_BUILD=true`或`BUILD_TESTING=OFF`。与2025-12-05上游CI运行时间相容的industrial_ci代码将NOT_TEST_BUILD默认设为false，并在target workspace执行`colcon test`和`colcon test-result --verbose`；ament_cmake_test默认BUILD_TESTING=ON。三个MoveIt Servo测试目标及ROS launch test入口均位于CMake `if(BUILD_TESTING)`块。
+
+取得同一源码SHA对应的Actions run 19975338753：2025-12-05 20:37:49至21:35:56 UTC；`jazzy-ci + ikfast + clang-tidy`和`jazzy-ci + ccov`两个矩阵job均success。该结果证明上游CI矩阵整体成功，但本轮没有取得逐测试XML/控制台输出，不声称三个测试各有独立验收报告。
+
+结论边界：§9.3.126所述正式ROS Jazzy release binary build禁用package tests仍成立；上游PR/branch CI是另一条会运行colcon测试的路径。不得将前者扩张为“MoveIt上游完全没有测试”，也不得将后者的整体success等同于生产APT包的安装/集成/安全验证。
+
+SERVO-718静态测试路径核验已完成；SERVO-719部分取证（同SHA run和两job状态已取得，逐测试结果XML仍缺）。SERVO-716仍部分取证，SERVO-710/713/714保持未完成或部分取证。未执行Stäubli Ubuntu 24.04安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证。
+
+来源：
+- https://github.com/moveit/moveit2/actions/runs/19975338753
+- https://github.com/moveit/moveit2/blob/2.12.4/.github/workflows/ci.yaml
+- https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/tests/source_tests.sh
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
+- 专项追加件§9.3.127。
