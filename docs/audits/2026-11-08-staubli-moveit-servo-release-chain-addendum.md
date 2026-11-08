@@ -1257,3 +1257,17 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://api.github.com/repos/moveit/moveit2/actions/runs/36755746603/jobs
 - https://api.github.com/repos/moveit/moveit2/actions/runs/36755746261/jobs
 - https://api.github.com/repos/moveit/moveit2/pulls/3907/reviews
+
+
+### §9.3.136 PR #3907 PlanningSceneMonitor回归测试覆盖边界（2026-11-08）
+
+- 对PR #3907的`planning_scene_monitor_test.cpp` diff进行行级复核。新增测试创建PlanningSceneMonitor，启动CollisionObject与PlanningSceneWorld两个topic，先通过`getMonitoredTopics()`确认两个topic均登记，再调用一次`stopWorldGeometryMonitor()`，最后再次读取topic列表并断言两个topic均不存在。
+- 该测试直接覆盖“单次stop后两个subscriber均从monitor topic列表移除”的核心回归断言；它不是单纯检查函数返回值，且与PR修复中无条件reset两个subscriber的实现相对应。
+- 测试没有发布消息并观察两个订阅回调计数，也没有覆盖stop后的持续消息静默、重复stop、restart配置切换、单topic/空topic组合或octomap monitor停止。故它对#3897的资源登记/移除回归有针对性，但不能替代SERVO-721/725要求的消息行为与完整生命周期矩阵。
+- PR页面仍显示Open；本轮Actions workflow已确认Formatting与CI均failure，jobs明细为空，reviews为空。测试源码审查不改变PR门禁状态，也不构成测试通过结论。
+- SERVO-724持续进行中；SERVO-721、SERVO-723、SERVO-725动态验证未执行；SERVO-722现场集成证据仍缺。未修改上游/ICube，未应用补丁，未执行目标环境、VAL3/CS9/SRS/HIL或实机验证。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907/files
+- https://github.com/moveit/moveit2/pull/3907
+- 专项追加件§9.3.136。
