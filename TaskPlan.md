@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.06  
+> 版本：v9.07  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.133，厂商档案新增§128.84。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮发现上游PR #3907明确Fixes #3897，但PR open/未合并、Formatting与CI workflow均failure且job明细不可读；Jazzy正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；新增SERVO-725，固定2.12.4源码显示start入口先stop，双topic转为空world topic时旧订阅可能保留；已形成restart矩阵，尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.133，厂商档案新增§128.84。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，Formatting与CI workflow均failure、jobs明细缺失、无review approval；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；新增SERVO-725，固定2.12.4源码显示start入口先stop，双topic转为空world topic时旧订阅可能保留；已形成restart矩阵，尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1197,3 +1197,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 
 | 2026-11-08 | v9.06 | 00-01/21-02继续Stäubli PlanningSceneMonitor生命周期适用性审查至§9.3.133：固定MoveIt 2.12.4源码Blob SHA fd07db53761d533f2f6e7f33189063a18000c9a9，核对析构函数、startWorldGeometryMonitor与stopWorldGeometryMonitor调用链。发现start入口先stop；在原先CollisionObject与PlanningSceneWorld双topic均启用时，restart若将planning_scene_world_topic置空，旧world subscriber可能因if/else if stop未释放且新配置不覆盖而在monitor存活期间保留。若新world topic非空则后续赋值替换；对象析构时成员会销毁，故不描述为析构后的永久泄漏。新增SERVO-725重启配置切换矩阵（静态推导完成、动态测试未执行）、专项§9.3.133、厂商档案§128.84、同步报告§31、README索引。SERVO-721/723/725未执行，SERVO-722现场源码/配置缺失仍受阻，SERVO-724持续跟踪PR #3907及Jazzy发行。未修改MoveIt/ICube上游、未应用补丁；未执行VAL3/CS9/SRS/HIL/FAT/SAT/实机验证，Stäubli工程级验收未通过，TODO-EXT-001仍未授权合并。 | MoveIt 2.12.4 PlanningSceneMonitor源码Blob fd07db53761d533f2f6e7f33189063a18000c9a9；PR #3907/#3897；专项追加件§9.3.133 |
+
+| 2026-11-08 | v9.07 | 00-01/21-02继续MoveIt #3897候选修复PR审查至§9.3.134：PR #3907仍open/未合并、base main、head 821818f4ffeaa7564459faed2cbddbfb604f9dcb、mergeable_state=behind，最后更新于2026-09-30；PR diff双subscriber分别reset并新增getMonitoredTopics topic-list测试，作者自报Jazzy四项测试通过但未独立复测。Actions Formatting与CI workflow均failure且jobs接口空，reviews为空；Mergify/WIP/CodeRabbit success不代表required CI或维护者approval。base:jazzy搜索未发现#3907 backport，issue #3887可见清单未列该PR；ROS Jazzy amd64/arm64 Main仍为2026-10-06的2.12.4-1，production main pool仍列旧deb，当前MoveIt main仍保留if/else if实现。SERVO-724持续跟踪；SERVO-721/723/725未执行，SERVO-722现场证据仍缺/阻塞。新增专项§9.3.134、厂商档案§128.85、同步报告§32和README索引；未修改上游/ICube、未应用补丁，Stäubli工程级验收未通过。 | moveit/moveit2#3907/#3897/#3887；GitHub Actions metadata；ROS Jazzy status pages；专项追加件§9.3.134 |
