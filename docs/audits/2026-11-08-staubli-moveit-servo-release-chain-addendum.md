@@ -1010,3 +1010,39 @@ HTTP 410只说明当前GitHub日志下载接口已无法提供这些job日志；
 - ROS Jazzy arm64状态页：https://repo.ros2.org/status_page/ros_jazzy_unv8.html （页面生成时间05:43:04 -0800，`moveit_servo`第1175行）
 - ROS生产main pool目录：https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - §9.3.128及此前MoveIt Servo发布链追加记录。
+
+
+### 9.3.130 MoveIt 2.12.4 PlanningSceneMonitor世界几何订阅停止缺陷（2026-11-08）
+
+#### 1. 上游报告与固定版本源码
+
+- 上游问题：`moveit/moveit2#3897`，标题为`stopWorldGeometryMonitor() leaves the PlanningSceneWorld subscription active`，创建于2026-09-29，状态仍为open。报告环境为ROS Jazzy、Ubuntu 24.04、MoveIt binary 2.12.4、FastRTPS。
+- issue作者给出的复现步骤：同时启用CollisionObject与PlanningSceneWorld两个topic并分别发布消息；调用一次`stopWorldGeometryMonitor()`后，CollisionObject不再更新，但PlanningSceneWorld仍可替换受监控world；再次调用stop后第二个topic才停止。报告的单次stop路径3/3次复现，double-stop对照3/3次通过。这是上游issue作者报告的结果，本项目没有独立执行该复现。
+- 固定MoveIt 2.12.4 tag解析到commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`。该版本`planning_scene_monitor.cpp`第1291–1316行分别创建两个独立subscriber：`collision_object_subscriber_`与`planning_scene_world_subscriber_`；第1339–1353行的stop实现先检查并reset collision subscriber，使用`else if`才检查/reset planning-scene-world subscriber。两个subscriber同时存在时，一次调用只会执行第一个分支，第二个subscriber保留。该静态源码结构与issue描述一致。
+- 同一函数在`startWorldGeometryMonitor()`开始处先调用stop；它随后根据非空topic分别创建两类订阅。默认参数两类topic均非空，因此默认启动路径同时创建两个subscriber。需要注意：这证明默认API调用的订阅组合满足缺陷触发前提，不等于证明Stäubli应用所有运行状态都实际调用该函数、或已发生现场安全事件。
+
+#### 2. 对Stäubli审查的影响
+
+- 该缺陷位于MoveIt PlanningSceneMonitor世界几何监测层，不是Stäubli VAL3驱动或CS9安全功能本身。
+- 如果Stäubli部署使用MoveIt 2.12.4、同时启用两个world-geometry输入，并在生命周期切换/关闭场景监测时只调用一次stop，则PlanningSceneWorld仍可能继续更新场景；调用方可能误以为监测已完全停止。对场景重置、感知输入切换、生命周期退出和测试清理均构成状态管理风险。
+- 该问题与此前§9.3.99（MoveGroup/Servo Planning Scene同步）及§9.3.98（场景输入来源缺口）相关，但不是同一缺陷。不能据此直接推断碰撞检测必然漏检、机器人必然发生碰撞，亦不能把PlanningSceneMonitor stop语义等同于硬件急停/CS9安全停止。
+- issue仍open且没有comments；本轮没有发现可引用的已合并修复或Jazzy 2.12.5二进制发布证据。另有MoveIt issue #3887（“jazzy release 2.12.5+”）仍open，描述Jazzy上次release为2025-12、建议发布后续bugfix；该issue不是#3897缺陷修复PR，也不能据此认定2.12.5已发布。
+
+#### 3. 新增验收任务
+
+- SERVO-720：固定MoveIt 2.12.4源码并核对issue #3897报告与stop/start实现——已完成（上游issue元数据、复现描述及源码分支结构静态对应）。
+- SERVO-721：在目标Ubuntu 24.04/Jazzy二进制环境中，对两个订阅均启用时执行单次stop、double-stop、restart/stop重复调用，记录topic graph与回调计数——未执行。
+- SERVO-722：核对Stäubli实际启动参数、PlanningSceneMonitor实例及所有start/stop调用点，判定缺陷触发条件是否成立；如条件成立，形成上游修复/版本升级或本地补丁评估——未执行。
+- SERVO-723：在固定修复版本或经审查补丁上增加回归测试，覆盖两个订阅分别停止、重复stop、restart、空topic组合及octomap monitor停止语义——未执行。
+
+#### 4. 状态边界
+
+SERVO-720仅完成静态核验。SERVO-721/722/723未执行；未修改ICube上游、未修改MoveIt上游，也未应用本地补丁。MoveIt 2.12.4的风险作为条件性缺陷记录，Stäubli现场适用性仍待目标系统调用链确认。原SERVO-710/713/714/716/719状态不变；未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验证，Stäubli工程级验收仍未通过，`TODO-EXT-001`仍未授权合并。
+
+#### 5. 来源
+
+- 上游Issue #3897：https://github.com/moveit/moveit2/issues/3897
+- 固定MoveIt 2.12.4源码：https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- 固定tag commit：https://github.com/moveit/moveit2/commit/1ade0e9dcf50dbbbc3a984b995c786cf12736235
+- Jazzy后续发布跟踪Issue #3887：https://github.com/moveit/moveit2/issues/3887
+- 关联既有审查：§9.3.98、§9.3.99、§9.3.129。
