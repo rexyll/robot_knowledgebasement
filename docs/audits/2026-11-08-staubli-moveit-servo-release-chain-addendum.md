@@ -861,3 +861,74 @@ SERVO-710仍未取得Bloom执行输入源码revision/源归档SHA；SERVO-713仍
 - https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/binarydeb_job.py
 - https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
 - §9.3.124–§9.3.125。
+
+
+## 9.3.127 MoveIt Servo 2.12.4上游GitHub Actions CI测试路径与实际运行记录（2026-11-08）
+
+### 1. 上游CI工作流定义
+
+固定上游 `moveit/moveit2@2.12.4`（commit `1ade0e9dcf50dbbbc3a984b995c786cf12736235`），其 `.github/workflows/ci.yaml` Blob SHA为 `9261e40b65ea161e801fc21b5f7ecdf97276aa63`。该工作流配置：
+
+- 触发事件包括 `pull_request`、`merge_group`、`workflow_dispatch`，以及向 `jazzy` 分支的 `push`。
+- CI job矩阵包括 `jazzy-ci + ccov` 和 `jazzy-ci + ikfast + clang-tidy` 两个配置；两个矩阵项均执行 `uses: ros-industrial/industrial_ci@master`。
+- 工作流环境设置 `TARGET_CMAKE_ARGS` 为构建类型、编译警告和链接参数，没有设置 `BUILD_TESTING=OFF`；矩阵环境也没有设置 `NOT_TEST_BUILD=true`。
+
+### 2. Industrial CI测试阶段的执行语义
+
+核对与上游CI运行时间相容的 `ros-industrial/industrial_ci` 源码：其`master`在2025-12-05前最后相关基准提交为 `eb3ea328ff056aa2435d5b3493e7e2929c310f8e`（2025-09-11）。`source_tests.sh`、`env.sh`、`colcon.sh`对应Blob SHA分别为：
+
+- `source_tests.sh`：`0936540e38453c385676e205654d22bc21fc30c9`
+- `env.sh`：`81fe7f20396f050f0e56ff77f5438572cda58aec`
+- `colcon.sh`：`7ca44096aaa52bd7843a9c3392d6dbc6d500f156`
+
+相关执行逻辑：
+
+1. `env.sh` 将 `NOT_TEST_BUILD` 默认设置为 `false`。
+2. `source_tests.sh` 在 `NOT_TEST_BUILD != true` 时调用 `ici_test_workspace`，即默认不跳过target workspace测试。
+3. `workspace.sh` 的测试阶段调用 `builder_run_tests`，随后调用 `builder_test_results`。
+4. `colcon.sh` 对ROS 2使用 `colcon test`，并调用 `colcon test-result --verbose` 获取测试结果。
+5. `ament_cmake_test-extras.cmake` 中 `option(BUILD_TESTING "Build the testing tree." ON)`，而该CI工作流没有覆盖此默认值。
+
+因此，MoveIt 2.12.4上游GitHub Actions的industrial_ci CI路径没有像ROS release binary build那样显式禁用package tests；按工作流配置和runner默认逻辑，target workspace会进入colcon测试阶段。
+
+### 3. MoveIt Servo测试注册关系
+
+在 `moveit_ros/moveit_servo/CMakeLists.txt`（Blob SHA `6ec080d195798ba22e319def3da08c2e36a7d54f`）第117–146行，三个测试可执行目标和ROS测试入口都位于 `if(BUILD_TESTING)` 内：
+
+| 可执行目标 | 对应ROS测试入口 |
+|---|---|
+| `moveit_servo_utils_test` | `tests/launch/servo_utils.test.py` |
+| `moveit_servo_cpp_integration_test` | `tests/launch/servo_cpp_integration.test.py` |
+| `moveit_servo_ros_integration_test` | `tests/launch/servo_ros_integration.test.py` |
+
+所以在上述上游CI的默认测试配置中，这三个测试目标会被配置/注册到测试工作区；这与Jazzy release binary build使用 `nocheck` 并关闭 `BUILD_TESTING` 的路径不同。
+
+### 4. 对应2.12.4源码提交的实际GitHub Actions运行
+
+GitHub Actions API返回与上游2.12.4 commit SHA完全相同的运行记录：
+
+- Run ID：`19975338753`；工作流名称 `CI`；事件 `push`；head SHA `1ade0e9dcf50dbbbc3a984b995c786cf12736235`。
+- 创建时间：2025-12-05 20:37:49 UTC；结束时间：2025-12-05 21:35:56 UTC；整体结论 `success`。
+- `jazzy-ci + ikfast + clang-tidy (delta)` job ID `57290019178`：`success`。
+- `jazzy-ci + ccov` job ID `57290019180`：`success`。
+
+该记录证明上游2.12.4源码提交的两项CI矩阵job整体通过。结合工作流和runner配置，CI没有选择跳过target workspace测试；但GitHub API在本轮没有提供逐测试测试报告，且运行未保存可下载的test-results artifact（工作流只在失败条件下上传该类artifact）。因此不将整体workflow成功伪装成三项Servo测试分别有独立的测试报告/逐用例证据，也不把它当作Jazzy Noble正式release deb测试。
+
+### 5. 对§9.3.126结论的限定与任务状态
+
+- §9.3.126的结论仍成立：ROS Build Farm Jazzy正式release binary build配置对Noble amd64/arm64均设置 `run_package_tests:false`，对应release二进制构建不运行MoveIt Servo这三个package tests。
+- 本节补充另一条独立测试路径：MoveIt上游2.12.4 GitHub Actions CI通过industrial_ci默认运行target workspace测试；该SHA对应的整体CI矩阵已成功。
+- SERVO-718：已完成（静态核对CI workflow、runner默认测试语义、CMake测试注册关系和同SHA运行记录）。
+- SERVO-719：部分取证（已取得同SHA CI run与两项job成功记录；逐测试控制台输出/测试XML不可读或未归档，尚未取得三个测试入口各自的独立结果）。
+- SERVO-716仍部分取证：release binary job的具体Jenkins XML/console log仍缺；SERVO-710/713/714保持未完成或部分取证。未执行Ubuntu 24.04实际apt安装、VAL3/CS9/SRS/HIL/FAT/SAT或Stäubli实机验证。Stäubli工程级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
+
+### 6. 来源
+
+- https://github.com/moveit/moveit2/blob/2.12.4/.github/workflows/ci.yaml
+- https://github.com/moveit/moveit2/actions/runs/19975338753
+- https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/tests/source_tests.sh
+- https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/env.sh
+- https://github.com/ros-industrial/industrial_ci/blob/eb3ea328ff056aa2435d5b3493e7e2929c310f8e/industrial_ci/src/builders/colcon.sh
+- https://github.com/ament/ament_cmake/blob/f91f816a51ad3c048d81b4115eece44c5a063137/ament_cmake_test/ament_cmake_test-extras.cmake
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/CMakeLists.txt
+- §9.3.126。
