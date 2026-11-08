@@ -4471,3 +4471,73 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1917 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | mock 4ms状态与单次read/write测试边界 |
 
 **验证边界：** 本节仅为固定提交静态源码/配置审查。未运行ROS构建、JTC action集成测试、VAL3编译/仿真、CS9实时测量或实机轨迹。250Hz/4ms均为配置值，不是测量结果；协议字段存在不代表VAL3实际使用；movejSync状态1/2的处理缺口为源码静态发现。SERVO-363–SERVO-372全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.74 FollowJointTrajectory路径容差、目标容差、超时、取消/抢占与实际运动状态一致性（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节审查ROS 2 joint_trajectory_controller参数、MoveIt FollowJointTrajectory控制器映射、StaubliHardwareInterface读写与错误处理、RobotDriver STOP发送路径和现有硬件测试。结论：仓库把FollowJointTrajectory action委托给ROS 2 joint_trajectory_controller，未实现自定义轨迹Action服务器或Action结果到VAL3执行确认的桥接。控制器配置显式设置stopped_velocity_tolerance=0.01、goal_time=0.0，但未显式设置逐关节path_tolerance/goal_tolerance；硬件接口不接收Action goal/cancel/abort语义，只周期读写关节状态/命令。因而Action成功/取消/超时与机器人真实停止、到达目标、故障锁存之间没有仓库内可追溯的事务闭环。具体Action运行时语义还依赖部署的ROS 2 Jazzy及joint_trajectory_controller版本，本轮未运行验证。
+
+### 静态源码事实
+
+1. `staubli_bringup/config/controllers.yaml`配置controller_manager 250Hz，joint_trajectory_controller命令接口position、状态接口position/velocity；action_monitor_rate=20Hz，allow_partial_joints_goal=false，interpolate_from_desired_state=true，allow_nonzero_velocity_at_trajectory_end=true。
+2. 同一配置的constraints仅显式包含stopped_velocity_tolerance=0.01和goal_time=0.0，没有显式声明每关节path_tolerance、goal_tolerance或容差超时策略。不能将stopped_velocity_tolerance误读为位置误差容差；它针对停止速度判定。未显式配置的默认值/Action结果语义应以实际部署的ROS 2 Jazzy及JTC版本为准，本轮未通过运行时参数转储或Action测试确认。
+3. goal_time=0.0是配置值；本轮不将其直接解释成“没有任何超时”或“永不超时”，因为JTC对零值及容差默认值的实际解释需要按部署版本验证。应通过运行时参数、接口文档和超时注入测试明确goal_time tolerance、路径/目标容差和结果码。
+4. MoveIt的moveit_controllers.yaml将joint_trajectory_controller映射为FollowJointTrajectory action，action_ns为follow_joint_trajectory，覆盖joint_1至joint_6；没有在该文件中定义path_tolerance、goal_tolerance或cancel处理逻辑。该文件只是控制器路由配置，不是机器人执行确认机制。
+5. launch_robot_control.launch.py默认start_controller=none，先将joint_trajectory_controller以inactive方式加载，只有显式start_controller参数匹配时才通过ros2 control set_controller_state激活。launch脚本没有等待Action server可用并执行端到端健康检查的专用验收流程。
+6. 仓库没有自定义FollowJointTrajectory action server、goal callback、cancel callback、preemption policy或Action结果映射代码。Action服务由ROS 2 JTC外部包提供；仓库内的StaubliHardwareInterface仅实现read()/write()及command mode switch，不知道某条ROS轨迹的goal UUID、取消请求、轨迹点索引或最终Action状态。
+7. HardwareInterface::read()读取RobotDriver最新RobotState并更新硬件状态；write()将当前position command转为Staubli度单位并发送RobotCommand。write()返回OK只代表本地发送路径返回成功，不能证明VAL3已接受、movejSync已应用或机械臂已到达目标；状态回读也没有和某个Action goal ID关联。
+8. write()遇到连接断开、缓存错误状态/INVALID控制状态、NaN命令或send_robot_command失败时返回hardware_interface::return_type::ERROR；非STOP模式遇错误时还调用send_stop_all_command。但代码未向JTC提供具体失败关节、当前轨迹点、实际跟随误差或可关联的Action abort原因。
+9. HardwareInterface::on_error()在driver connected时只发送STOP请求并返回SUCCESS；不等待控制器STOP ACK、不等待新的状态帧确认静止，也不验证所有关节速度低于停止阈值。它不能作为FollowJointTrajectory取消或goal超时后的停止完成确认。
+10. on_shutdown()依赖缓存state_msg_.control_state判断是否发送STOP，随后断开连接；缓存状态可能与当前真实运动状态不同。该路径不与Action cancel/abort状态同步，也不返回Action级取消结果。
+11. perform_command_mode_switch()检查切换到JOINT_POSITION时的缓存error_state和motion_possible，但没有验证状态新鲜度、当前轨迹是否已完成/取消、Action server是否仍有活动goal或是否已经确认机器人停止。控制模式切换不是轨迹抢占/取消协议。
+12. `allow_nonzero_velocity_at_trajectory_end=true`允许控制器接受终点非零速度的轨迹配置；这与应用层“动作完成必须停稳”的要求可能冲突。仓库没有提供每类任务的终点速度策略或动作完成前的独立静止确认。
+13. `interpolate_from_desired_state=true`表明JTC按期望状态插补的配置选择；硬件反馈接口只提供最新状态。当前仓库没有针对期望状态与实测状态长时间偏离时的统一路径容差/目标容差监测和故障恢复策略。
+14. 现有test_staubli_hardware_interface.cpp主要验证接口数量、mock状态读取、一次位置命令写入和生命周期；没有构造FollowJointTrajectory action server/client，没有验证goal接受/拒绝、path tolerance violation、goal tolerance violation、goal_time超时、cancel、抢占、Action result code或机器人停止确认。
+15. 本轮没有执行ROS 2/JTC运行时测试、Action测试、故障注入、VAL3编译、CS9仿真或实机测试。不能据静态配置判断部署版本对缺省容差和取消语义的具体行为，也不能宣称Action取消后机器人已停止。
+
+### 风险与整改要求
+
+- 明确Action层与硬件层责任边界：JTC负责轨迹Action协议/插补；硬件接口负责周期命令/状态；VAL3负责命令接受/运动执行；另建可追溯的命令/轨迹ID和执行状态反馈链。
+- 显式配置每个关节的path_tolerance、goal_tolerance、goal_time，并按目标应用区分连续轨迹终点与必须停稳的任务终点；禁止依赖未记录的JTC默认值。
+- 固化ROS 2 Jazzy与joint_trajectory_controller准确版本，导出运行时参数并验证零值、未配置容差、非法容差、目标超时及错误码语义。
+- 将Action goal ID/轨迹ID/点索引映射到周期命令序号；控制器回传命令接收、应用、执行完成或拒绝状态，Action完成必须基于反馈和明确的误差/静止条件，而非仅依赖本地write成功。
+- 设计取消/抢占状态机：收到cancel/新goal后停止继续发送旧轨迹点，明确平滑停止或受控停止策略；等待控制器确认和新鲜状态达到停止判据，再返回符合实际情况的Action结果。通信中断时不得伪报取消成功。
+- 分离path tolerance、goal position tolerance、stopped velocity tolerance、控制器内部运动状态和安全停止确认；逐轴计算误差并定义超限持续时间、迟滞、恢复及故障锁存行为。
+- 为终点非零速度配置建立策略：若应用要求交付/递物/抓取前静止，应拒绝非零终点速度或追加独立停稳阶段；若允许连续衔接，Action完成语义必须明确为轨迹段结束而非机器人静止。
+- 对mode switch、hardware ERROR、controller deactivation、ROS shutdown和网络断开统一进行Action清理与机器人停止状态管理，验证不同故障顺序下不会留下悬挂goal或旧命令继续执行。
+- 增加JTC Action集成测试和CS9/HIL测试，覆盖完整六轴/部分关节拒绝、路径/目标容差、goal超时、cancel、抢占、控制器故障、UDP断链、STOP无ACK、状态陈旧、终点非零速度和静止确认。
+- 将Action测试报告与实机运动停止/停止距离/安全回路验证分开；FollowJointTrajectory action成功或取消不构成安全功能认证。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-373 | JTC版本与运行时参数 | 固化ROS 2 Jazzy/JTC版本并导出全部运行时容差/超时参数 | 未执行 |
+| SERVO-374 | 路径容差配置 | 六轴显式path_tolerance及超限持续时间/错误码测试 | 未执行 |
+| SERVO-375 | 目标容差配置 | 六轴显式goal_tolerance与目标完成判据测试 | 未执行 |
+| SERVO-376 | goal_time超时语义 | 验证goal_time=0及正值/缺省值的版本行为和Action结果 | 未执行 |
+| SERVO-377 | Action取消与停止闭环 | cancel后旧目标不再下发，STOP/静止反馈确认后才返回准确结果 | 未执行 |
+| SERVO-378 | 新goal抢占策略 | 活动轨迹被新goal抢占时验证旧goal结果、过渡轨迹和状态同步 | 未执行 |
+| SERVO-379 | 跟随误差与Action结果 | 期望/实测逐轴误差、速度误差、容差超限和Action abort关联 | 未执行 |
+| SERVO-380 | 终点速度策略 | 验证allow_nonzero_velocity_at_trajectory_end与应用停稳要求的配置边界 | 未执行 |
+| SERVO-381 | 生命周期/通信故障清理 | controller deactivate、hardware ERROR、shutdown、UDP断链下清理goal并验证停止状态 | 未执行 |
+| SERVO-382 | 端到端Action验收 | 在CS9/目标型号执行goal、cancel、抢占、超时和停止确认HIL/实机验收 | 未执行 |
+
+### 本节来源记录（#1918–#1926）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1918 | [controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | JTC容差/超时、终点速度、Action监控参数 |
+| #1919 | [moveit_controllers.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml) | MoveIt FollowJointTrajectory路由配置 |
+| #1920 | [launch_robot_control.launch.py @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/launch/launch_robot_control.launch.py) | 控制器inactive加载和显式激活流程 |
+| #1921 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | read/write错误返回、STOP请求、生命周期和模式切换 |
+| #1922 | [robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | UDP命令发送、状态读取与连接管理 |
+| #1923 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp) | mock生命周期/read/write测试覆盖边界 |
+| #1924 | [README.md @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md) | 上游ROS 2 Jazzy/Ubuntu 24.04适用边界 |
+| #1925 | [joint_trajectory_controller ROS 2 Jazzy documentation](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html) | 应核对的Action、容差和取消语义官方版本文档 |
+| #1926 | [FollowJointTrajectory action definition](https://docs.ros.org/en/ros2_packages/jazzy/api/control_msgs/action/FollowJointTrajectory.html) | Action goal/result/error语义基准 |
+
+**验证边界：** 本节仅为固定提交静态源码/配置审查。未运行JTC Action server/client、参数转储、goal/cancel/preemption/容差超时测试、VAL3编译、CS9仿真或实机验证。未显式配置path_tolerance/goal_tolerance不等于JTC一定没有默认行为；goal_time=0的实际语义需按部署版本确认。Action成功/取消不证明机械臂已静止或安全功能已动作。SERVO-373–SERVO-382全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
