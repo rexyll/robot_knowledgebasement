@@ -151,3 +151,5 @@
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.135，通过GitHub连接器独立复核PR #3907的Formatting与CI workflow均completed/failure，两个jobs查询均为空、reviews为空；只确认workflow级失败，具体job/step/原因未知，PR仍Open。SERVO-724继续跟踪，动态验证与现场适用性核验仍未完成。
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.136，逐行复核PR #3907新增双topic单次stop回归测试：topic-list断言覆盖subscriber移除，但未覆盖发布后回调静默、重复stop、restart、单topic/空topic及octomap矩阵；这些动态验证仍未执行。
+
+- [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.137，复核PR #3907仍Open，CodeRabbit提示含Docstring Coverage warning但非维护者审批；Formatting/CI仍失败，Jazzy backport未发现；MoveIt main仍保留双subscriber if/else if stop缺陷。
