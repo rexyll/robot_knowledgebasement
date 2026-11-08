@@ -662,3 +662,37 @@ ROS testing pool目录与直接Packages.gz URL本轮仍无法由读取通道访�
 - https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - https://repo.ros2.org/ubuntu/testing/pool/main/r/ros-jazzy-moveit-servo/
+
+
+## 9.3.123 ROS Jazzy moveit_servo 双架构状态页刷新（2026-11-08）
+
+### 1. 本轮直接读取的状态页快照
+
+本轮重新打开ROS官方Jazzy规范状态页，并在页面内定位 moveit_servo 行：
+
+| 架构 | 页面生成时间（-0800） | Building（B） | Testing（T） | Main（M） |
+|---|---|---|---|---|
+| amd64 | 2026-11-08 04:56:18 | 2.12.4-1noble.20261105.184638 | 与B相同 | 2.12.4-1noble.20261006.040508 |
+| arm64 | 2026-11-08 04:43:04 | 2.12.4-1noble.20261106.111556 | 与B相同 | 2.12.4-1noble.20261006.043301 |
+
+与§9.3.122相比，amd64页面生成时间从04:36:03刷新至04:56:18（-0800）；arm64仍为04:43:04。两架构的B/T/M版本字段均未变化。该快照继续显示B/T为11月5日和11月6日构建，而M仍指向10月6日旧构建；因此本轮未观察到 moveit_servo 进入production Main的新版本。
+
+### 2. 证据范围与禁止推断
+
+- 已直接核验：amd64与arm64官方状态页页面生成时间，以及 moveit_servo 的B/T/M版本字符串。
+- 未核验：具体Jenkins package job配置、build number、result、构建时间、source revision、console log、上传工件指纹与import-package记录；§9.3.122中的job候选名仍只是按 ros_buildfarm/common.py 命名逻辑推导的候选。
+- 本轮没有取得APT InRelease/Packages正文、moveit_servo完整Packages stanza、签名验证结果、.deb内DEBIAN/control、SHA256或依赖闭包。因此不得将状态页B/T条目等同于生产Main可安装性，也不得写成APT签名或二进制完整性已通过。
+- 未执行Ubuntu 24.04目标环境的APT候选/安装、rosdep依赖解析、colcon构建或servo_node启动测试；未执行VAL3编译/仿真、CS9/SRS/HIL/FAT/SAT或实机测试。
+
+### 3. 任务状态与后续门槛
+
+- SERVO-710：未完成；Bloom执行输入的不可变源码revision/完整归档校验值仍缺。
+- SERVO-713：部分取证、未完成；仍需取得moveit_servo实际Jenkins job/build证据和构建工件对应关系。
+- SERVO-714：未完成；仍需取得生产Main APT签名、完整包记录、deb control/SHA256及依赖闭包。
+- Stäubli工程级验收仍未通过；未修改ICube上游；TODO-EXT-001仍未授权合并。
+
+### 4. 来源
+
+- https://repo.ros2.org/status_page/ros_jazzy_default.html
+- https://repo.ros2.org/status_page/ros_jazzy_unv8.html
+- §9.3.122（Build Farm视图与候选job命名证据边界）
