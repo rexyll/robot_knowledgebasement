@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v8.97  
+> 版本：v8.98  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.124，厂商档案新增§128.75。最新ROS Jazzy状态页显示amd64/arm64的moveit_servo B/T/M版本字段未变化，Main仍为10月6日旧构建。静态核对Noble Debian packaging分支发现package.xml 25项depend/exec_depend均映射至control Depends模板，但debian/rules可通过nocheck关闭测试，且dh_auto_test失败不阻断包构建；SERVO-715已完成静态核验，SERVO-716及SERVO-710/714未完成，SERVO-713部分取证。真实APT签名/包哈希、Jenkins测试日志和目标Ubuntu 24.04安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube上游，TODO-EXT-001仍未授权合并，Stäubli未通过工程级验收。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.125，厂商档案新增§128.76。MoveIt Servo Noble Debian包装静态核验已确认25项上游depend/exec_depend映射到control Depends模板；rules第20–21行可由nocheck关闭BUILD_TESTING，第47/53行dh_auto_test || true容忍测试命令失败，control第5行测试依赖标注<!nocheck>。SERVO-715静态核验完成；SERVO-716未执行，SERVO-710/714未完成、SERVO-713部分取证。实际Build Farm job环境/日志、APT签名/Packages正文、deb control/SHA256及目标Ubuntu 24.04安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube上游，TODO-EXT-001仍未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1176,3 +1176,5 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-08 | v8.96 | 00-01/21-02继续Stäubli MoveIt Servo Jazzy发布链审查至§9.3.123：刷新ROS官方amd64/arm64规范状态页，amd64页面生成时间更新至04:56:18 -0800、arm64仍为04:43:04 -0800；两架构moveit_servo的B/T/M版本字段均未变化（amd64 B/T为2.12.4-1noble.20261105.184638、M为2.12.4-1noble.20261006.040508；arm64 B/T为2.12.4-1noble.20261106.111556、M为2.12.4-1noble.20261006.043301），未观察到Main晋级。新增专项§9.3.123、厂商档案§128.74、同步报告§21及00/21章日志，更新审计README。资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA 403007ce8e50dab4b3a2af3ddceebd7e63e5364a、UTF-8大小516,870 bytes；该操作仅维护Git元数据，不代表claim-level复核或整库清单重算。APT InRelease/Packages正文/签名、完整Packages stanza、deb control/SHA256/依赖闭包及Jenkins具体package job/build number/result/source revision/console log仍缺；SERVO-710/714未完成、SERVO-713部分取证未完成。未执行Ubuntu 24.04安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证；未修改ICube上游，TODO-EXT-001仍未授权合并，Stäubli工程级验收未通过。 | ROS Jazzy官方状态页default/unv8；专项追加件§9.3.123；厂商档案§128.74；同步核查报告§21 |
 
 | 2026-11-08 | v8.97 | 00-01/21-02继续Stäubli MoveIt Servo Jazzy供应链审查至§9.3.124：读取release repository的Noble Debian packaging分支HEAD 04da341a35a97633b11a95ac1600b1995bcbacc3（2025-12-05 20:45:20 UTC，unsigned），核对debian/control/changelog/rules/gbp.conf与package.xml；25项depend/exec_depend均映射到control的Depends模板，另含ros-workspace和shlibs/misc占位符。新发现debian/rules可通过DEB_BUILD_OPTIONS=nocheck关闭测试，且dh_auto_test || true容忍测试失败不阻断包构建；故Build Farm成功状态不证明测试全通过。SERVO-715静态核验完成；新增SERVO-716用于核验真实job测试环境与日志，未执行。新增专项§9.3.124、厂商档案§128.75、同步报告§22并更新README与00/21章节日志；资产清单中knowledge/ecosystem/主要厂商.md对应行已刷新为Blob SHA 06c8d61a50aeaf9ca4e378e0207cc871224d1bec、UTF-8大小518,450 bytes；仅刷新单一资产Git元数据，不代表claim-level审查完成或全库清单重算。实际deb内DEBIAN/control、SHA256、APT签名、具体Jenkins job/build/test日志仍缺；SERVO-710/714未完成，SERVO-713部分取证未完成。未执行目标Ubuntu 24.04安装运行、VAL3/CS9/SRS/HIL/FAT/SAT或实机验证；未修改ICube上游，TODO-EXT-001仍未授权合并，Stäubli工程级验收未通过。 | moveit2-release Debian packaging branch；专项追加件§9.3.124；厂商档案§128.75；同步报告§22 |
+
+| 2026-11-08 | v8.98 | 00-01/21-02继续Stäubli MoveIt Servo发布链审查至§9.3.125：对Noble Debian包装规则进行精确行级复核，debian/rules第20–21行可通过DEB_BUILD_OPTIONS=nocheck关闭BUILD_TESTING，第47/53行dh_auto_test || true容忍测试命令非零退出，control第5行将测试相关Build-Depends标记<!nocheck>。这说明源码包装规则允许跳过或不阻断测试，但未取得具体Jenkins job环境/console log，不能判断实际构建是否运行或通过测试。将SERVO-715（静态文件与25项依赖映射）及SERVO-716（真实job测试行为）写入21章权威验收表；715已完成、716未执行。新增专项§9.3.125、厂商档案§128.76、同步报告§23、README索引和00/21章日志。SERVO-710/714未完成、SERVO-713部分取证；APT验签/完整Packages/deb control/SHA256、真实Build Farm日志、Ubuntu 24.04安装运行、VAL3/CS9/HIL/实机验证仍缺。未修改ICube上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。 | moveit2-release Debian rules/control；专项追加件§9.3.125；厂商档案§128.76；同步报告§23 |
