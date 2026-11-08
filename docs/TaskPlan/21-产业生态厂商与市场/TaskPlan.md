@@ -663,7 +663,7 @@
 | SERVO-485 | 协议升级、配对部署与回滚 | 未执行 |
 
 
-| 2026-11-08 | 21-02/Stäubli协议v2数据模型与跨端序列化设计基线 | 固定ICube bd658e2发现VAL3 encodeHeader把sequence重复写入payload_size，C++ RobotState反序列化未校验头部字段，C++测试未与VAL3做黄金向量互操作。定义v2 32字节帧头、LE字段、命令事务/会话/事件模型、VAL3 64位ID high/low word表示、严格报文长度和认证tag规则，构造107字节离线COMMAND_REQUEST黄金向量。新增§9.3.85、SERVO-486–SERVO-498、来源#2010–#2018。全部未执行；v1问题未修复，未在VAL3/CS9/HIL/实机验证。 |
+| 2026-11-08 | 21-02/Stäubli协议v2数据模型与跨端序列化设计基线 | 固定ICube bd658e2发现VAL3 encodeHeader把sequence重复写入payload_size，C++ RobotState反序列化未校验头部字段，C++测试未与VAL3做黄金向量互操作。定义v2 32字节帧头、LE字段、命令事务/会话/事件模型、VAL3 64位ID high/low word表示、严格报文长度和认证tag规则；补充TIME_SYNC_REQUEST/REPLY时钟映射、v2独立端点失败闭锁与认证密钥建立要求，构造107字节离线COMMAND_REQUEST黄金向量。新增§9.3.85、SERVO-486–SERVO-498、来源#2010–#2018。全部未执行；v1问题未修复，未在VAL3/CS9/HIL/实机验证。 |
 
 ### Stäubli专项审查新增验收任务（§9.3.85，全部未执行）
 
