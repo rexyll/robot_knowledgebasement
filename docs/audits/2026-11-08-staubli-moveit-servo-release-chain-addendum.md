@@ -226,3 +226,50 @@ testing目录快照日期比production main新约一个月；该证据与§9.3.1
 - ROS production lists目录：<https://packages.ros.org/ros2/ubuntu/lists/>
 - ros_buildfarm release job流程：<https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst>
 - 网页读取器对Packages/InRelease二进制内容的访问错误只说明本次读取通道不支持，不说明源文件损坏、签名无效或服务器拒绝APT客户端。
+
+## 9.3.115 ROS 2 Build Farm release job命名复核与Jazzy状态页再确认（2026-11-08）
+
+### 1. 由ros_buildfarm当前实现重新推导任务标识
+
+本轮直接读取ros-infrastructure/ros_buildfarm的ros_buildfarm/common.py，核对以下实现：
+- get_release_source_view_name()：source view前缀由ROS发行版首字母大写加src构成；Ubuntu Noble短码为uN。
+- get_sourcedeb_job_name()：source job命名格式为{source_view}__{package}__{os}_{codename}__source。
+- get_release_binary_view_prefix()：binary view前缀由发行版首字母大写加bin构成；release build名default映射为空后缀。
+- get_release_binary_view_name()：将Ubuntu Noble与amd64/arm64分别缩写为uN64与uNv8。
+- get_binarydeb_job_name()：binary job命名格式为{binary_view}__{package}__{os}_{codename}_{arch}__binary。
+
+据此得到以下源码算法推导的候选标识：
+
+| 类型 | 候选job标识 | 证据状态 |
+|---|---|---|
+| Jazzy source | Jsrc_uN__moveit_servo__ubuntu_noble__source | 由当前ros_buildfarm源码函数推导，尚未从Jenkins目录/API直接确认 |
+| Jazzy amd64 binary | Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary | 同上 |
+| Jazzy arm64 binary | Jbin_uNv8__moveit_servo__ubuntu_noble_arm64__binary | 同上 |
+
+源码：https://github.com/ros-infrastructure/ros_buildfarm/blob/master/ros_buildfarm/common.py。ROS 2官方文档给出的release job通用格式及Rolling/Noble/amd64示例也与上述结构一致：https://github.com/ros2/ros2_documentation/blob/rolling/source/The-ROS2-Project/Contributing/Build-Farms.rst。
+
+重要限制：命名算法只证明“如果按当前配置生成该job，其名称应如何构成”，不证明Jenkins上该job实际存在、曾执行或成功。尝试访问三个候选job的Jenkins /api/json端点时，当前读取通道返回不可访问；未取得job配置、build number、result、source revision、artifact fingerprint或console log。不得将候选标识写成已确认job。
+
+### 2. ROS Jazzy官方状态页的最新可读快照
+
+本轮重新打开两份官方状态页，页面自身生成时间仍分别为：
+
+| 页面 | 页面生成时间（-0800） | moveit_servo B | T | M |
+|---|---|---|---|---|
+| Noble amd64 ros_jazzy_default.html | 2026-11-08 03:56:07 | 2.12.4-1noble.20261105.184638 | 2.12.4-1noble.20261105.184638 | 2.12.4-1noble.20261006.040508 |
+| Noble arm64 ros_jazzy_unv8.html | 2026-11-08 04:23:04 | 2.12.4-1noble.20261106.111556 | 2.12.4-1noble.20261106.111556 | 2.12.4-1noble.20261006.043301 |
+
+来源：https://repo.ros2.org/status_page/ros_jazzy_default.html；https://repo.ros2.org/status_page/ros_jazzy_unv8.html。
+
+本轮快照没有显示main晋级：两架构main仍是2026-10-06版本。页面生成时间是页面自身时间戳，不等于本地查询时刻；不得把它描述为2026-11-08晚间的实时刷新。
+
+### 3. 当前证据矩阵与SERVO任务状态
+
+- SERVO-713：部分取证，仍未完成。已确认官方状态页B/T版本与先前building/testing工件证据一致；本轮进一步由ros_buildfarm源码精确推导source及两个架构binary job候选名。仍缺Jenkins直接job页面/API、build number、最终result、source revision和console log。
+- SERVO-710：未完成。仍未验证生产main的InRelease/Release签名，未取得moveit_servo完整Packages stanza、SHA256/Depends/Filename/Size，也未读取deb的DEBIAN/control。
+- SERVO-714：未完成。main仍是10月6日旧工件；未取得生产main最终deb的哈希及与源码、Bloom输入、Build Farm构建产物的端到端对应关系。
+- 未执行Ubuntu 24.04目标环境的apt update/policy/install、rosdep、colcon、launch_servo=true/false或servo_node运行；未执行VAL3编译、CS9/SRS、HIL/FAT/SAT或实机验证。未修改ICube上游，TODO-EXT-001仍未授权合并。
+
+### 4. 本轮读取边界
+
+Jenkins API端点不可访问仅表示本轮读取通道未能取得页面/JSON，不证明job不存在或失败。状态页显示B/T版本一致可支持“该版本已进入building与testing仓库”的结论，但不能替代Jenkins执行日志、APT签名验证、包元数据核验或目标系统安装测试。Stäubli工程验收状态保持未通过。
