@@ -203,3 +203,21 @@ SERVO-710/714未完成；SERVO-713部分取证、未完成。目标Ubuntu 24.04�
 - 厂商档案资产清单对应行刷新为Blob SHA `52fbf4732b5af143a541cf2f8c493780adda2002`、UTF-8大小514,147 bytes。该刷新仅为Git元数据维护，不构成claim-level验收或全库重算。
 
 SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进行中。未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工业级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
+
+
+## 20. Build Farm Jenkins平台视图与候选job证据边界同步（2026-11-08追加）
+
+本轮新增专项追加件§9.3.122、厂商档案§128.73。重新读取ROS Jazzy amd64/arm64规范状态页，页面生成时间04:36:03/04:43:04（-0800），moveit_servo版本仍为B/T 11月5/6日构建、M 10月6日旧构建。Build Farm当前`common.py`命名函数已重新核对；按源码推导Noble source候选`Jsrc_uN__moveit_servo__ubuntu_noble__source`、amd64 binary候选`Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary`、arm64 binary候选`Jbin_unv8_uNv8__moveit_servo__ubuntu_noble_arm64__binary`。本轮纠正此前arm64候选前缀遗漏`unv8`的简写。
+
+Jenkins首页可见`Jsrc_uN`、`Jbin_uN64`、`Jbin_unv8_uNv8`平台视图入口；但moveit_servo具体job未出现在首页执行器/队列片段中，候选job页面、视图页面及API访问超时或拒绝。视图入口存在不证明包级job存在；候选名不证明job成功或失败。仍缺具体job配置、build number/result/timestamp/source revision/console log及import-package记录。
+
+Build Farm release文档说明source job、binary job、building→testing sync criteria和testing→main人工sync流程；仅为流程语义证据。production main pool仍列10月6日amd64/arm64 deb（674,492/615,538 bytes）；本轮直接目录显示`.orig.tar.gz`大小65,705 bytes，纠正§9.3.120/§128.71此前记录65,707 bytes。未下载或校验源包内容。testing pool和Packages.gz本轮仍无法读取。
+
+同步载体：
+- 专项追加件新增§9.3.122；
+- 厂商档案新增§128.73；
+- 审计README更新索引；
+- 第00章、第21章TaskPlan追加执行记录；
+- 厂商档案资产清单行刷新为最新Blob SHA及UTF-8大小（见本轮核验值），仅元数据维护，不代表claim-level验收。
+
+SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进行中。未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。Stäubli工业级验收仍未通过；未修改ICube上游；`TODO-EXT-001`仍未授权合并。
