@@ -6686,3 +6686,58 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2135 | [MoveIt Servo servo_calcs.cpp公开上游实现](https://moveit.picknik.ai/humble/api/html/servo__calcs_8cpp_source.html) | collision_velocity_scale应用到关节增量、DECELERATE/HALT状态码的实现参考；不是目标部署版本证明 |
 
 **验证边界：** 已完成固定ICube提交的Servo配置静态核对和公开上游算法参考核对。未对目标部署MoveIt二进制作版本/补丁比对，未运行碰撞算法边界、ROS调度、控制器输出、UDP/VAL3停止、CS9/HIL或实机停止测试；SERVO-656–SERVO-665全部未执行。
+
+
+## §9.3.101 Servo可选启动路径的依赖闭包、版本来源与部署可复现性
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节仅审查仓库内可追溯的manifest、launch和README；不假定操作者的ROS环境中预装了未声明的软件包。
+
+### 9.3.101.1 Servo启动路径与package manifest不闭合
+
+- `staubli_moveit_config/launch/staubli_moveit.launch.py`声明launch参数 `launch_servo`，默认值为false；Servo节点使用 `package="moveit_servo"`、`executable="servo_node"`，并由 `IfCondition(launch_servo)`控制是否启动。
+- 同一提交的 `staubli_moveit_config/package.xml`声明了 `moveit_configs_utils`、`moveit_kinematics`、`moveit_planners`、`moveit_ros_move_group`、`moveit_ros_warehouse`、`moveit_ros_visualization`及controller manager等运行依赖，但没有声明 `moveit_servo`。
+- 在本次对该固定提交的仓库代码搜索中，除上述launch引用外，没有找到其他package manifest声明 `moveit_servo`。因此，仅根据本仓库manifest运行README中的 `rosdep install --ignore-src --from-paths . -y -r`，无法保证Servo包进入依赖安装集合。若用户将 `launch_servo:=true`，运行环境可能因找不到 `moveit_servo` 包而无法启动该节点。
+- 这是一项**条件性依赖闭包缺陷**：若部署镜像/系统包清单另行安装了MoveIt Servo，则现场可能正常；但这属于仓库外部隐式前置条件，当前仓库没有将其声明或验证。不能仅凭普通MoveGroup成功启动推断Servo路径也可复现。
+
+### 9.3.101.2 MoveIt版本与二进制来源仍未锁定
+
+- 根README声明项目面向ROS 2 Jazzy / Ubuntu 24.04；README安装流程从 `/opt/ros/jazzy/setup.bash`加载ROS环境，随后克隆驱动仓库、执行rosdep和colcon build。它没有给出MoveIt 2 Jazzy补丁版本、Debian包版本、源代码commit、构建选项或overlay优先级。
+- `staubli_moveit_config/package.xml`使用未带版本约束的ROS包依赖；仓库未提供专用MoveIt源码锁文件、`vcs`导入清单或可复现容器镜像摘要。因此MoveIt Servo参数声明、碰撞监测算法及节点接口实际来自哪一个二进制/源码版本，无法由该提交单独确定。
+- MoveIt官方源代码安装说明区分Jazzy stable分支与main开发分支，并明确main用于开发、API不稳定；官方二进制安装页面也说明Jazzy存在发行包安装路径。部署应明确选择并固定其中一种供应方式，避免系统Debian、源码overlay和工作空间中的同名包混用。来源#2136–#2137。
+- 当前证据只能确认项目以Jazzy为目标，不足以把上一节采用的公开main/Humble算法参考认定为现场Jazzy实际运行代码。
+
+### 9.3.101.3 部署可复现性与安全闭锁要求
+
+- Servo默认关闭意味着MoveGroup基础路径与Servo路径是两套不同的可选部署组合。CI至少应分别构建/启动 `launch_servo:=false` 和 `launch_servo:=true`，并在干净Jazzy环境验证依赖安装，不得依赖开发机预装包。
+- manifest补齐后，还需记录目标 `moveit_servo`包的版本/源码commit、安装来源、二进制构建选项、参数描述与运行时解析值；若采用源码overlay，应记录完整`vcs import`清单及所有仓库commit。
+- Servo启动失败、依赖缺失、参数不兼容、PlanningScene初始化失败时，必须明确阻止任何上层将系统标记为Servo就绪或允许Servo控制输入。launch进程存在不等于Servo已完成初始化，更不等于机器人运动许可成立。
+- 在依赖闭包和版本锁定完成前，不能把Servo路径纳入可复现的交付基线；不应通过人工在目标机器上临时apt安装来掩盖manifest缺失。
+
+### 9.3.101.4 结论与验证边界
+
+- **静态确认：** Servo launch节点受 `launch_servo`控制且默认关闭；launch引用 `moveit_servo/servo_node`，但 `staubli_moveit_config/package.xml`未声明 `moveit_servo`运行依赖；README声明Jazzy但没有锁定MoveIt具体版本/commit。
+- **未验证：** 未在干净Jazzy容器执行rosdep、colcon build及两种launch组合；未确认目标APT仓库当前可用包版本；未检查现场overlay优先级、`ros2 pkg prefix moveit_servo`和实际二进制来源；未运行节点启动失败注入与运动许可闭锁测试。
+- 上游README将该驱动标识为开发中的原型、非工业就绪软件，并提示在MANUAL模式先测试、AUTO模式保持监督及急停可用。这与本审查的保守验收结论一致。来源#2138。
+- **本节新增任务全部未执行；不对上游仓库进行修改。** 用户此前要求的合并约束保持不变，TODO-EXT-001未获授权。
+
+### 9.3.101.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-666 | 为Servo启动路径补齐显式moveit_servo运行依赖，并验证rosdep依赖闭包 | 未执行 |
+| SERVO-667 | 在干净ROS Jazzy环境分别验证launch_servo=false/true的安装、启动和退出行为 | 未执行 |
+| SERVO-668 | 冻结MoveIt Servo来源：APT包版本或源码commit、构建选项、补丁与overlay优先级 | 未执行 |
+| SERVO-669 | 生成并审查MoveIt/Servo完整vcs依赖清单及可复现环境镜像/软件包清单 | 未执行 |
+| SERVO-670 | 对照目标二进制读取Servo参数描述、默认值、YAML覆盖值和最终运行值 | 未执行 |
+| SERVO-671 | 缺失moveit_servo包、节点启动失败、参数声明不兼容时的启动失败闭锁与就绪状态验证 | 未执行 |
+| SERVO-672 | 将MoveGroup-only与MoveGroup+Servo两种部署组合纳入CI矩阵并保存版本/日志证据 | 未执行 |
+
+### 本节来源记录（#2136–#2138）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2136 | [MoveIt 2源代码安装说明](https://moveit.ai/install-moveit2/source/) | Jazzy stable与main开发分支的区分、源码安装/依赖导入流程 |
+| #2137 | [MoveIt 2二进制安装说明](https://moveit.ai/install-moveit2/binary/) | Jazzy发行版二进制安装渠道 |
+| #2138 | [ICube Stäubli driver README](https://github.com/ICube-Robotics/staubli_driver_ros2) | ROS Jazzy目标、原型/非工业就绪声明与上机测试注意事项 |
+
+**验证边界：** 已静态核对固定提交的README、launch和package.xml，并检索仓库中moveit_servo引用；未运行干净环境安装/构建/launch测试，也未访问任何CS9或实机。SERVO-666–SERVO-672全部未执行。
