@@ -518,3 +518,6 @@
 
 
 | 2026-11-08 | 00-01 | 对MoveIt Servo Jazzy APT索引目录执行独立快照复核：ros2-testing Noble amd64索引更新于2026-11-06 13:15、arm64更新于2026-11-07 11:29；生产ros2 main amd64/arm64索引仍为2026-10-06。尝试读取Packages/InRelease原文时网页读取器不支持application/octet-stream，未取得完整moveit_servo stanza/签名/deb元数据，不把读取器限制解释为源文件或签名故障。新增专项审计§9.3.114、厂商档案§128.65并更新索引/同步核查；SERVO-710/714未完成、SERVO-713部分取证，00-01继续进行中。 | ROS官方testing/production lists目录；专项审计§9.3.114；厂商档案§128.65 |
+
+
+| 2026-11-08 | 00-01 | 因厂商档案新增§128.65，再次核对并刷新资产清单中knowledge/ecosystem/主要厂商.md唯一对应行：Blob SHA 03ff74bcb3fd064529137fbd2407e7eeac85ceb8、UTF-8大小505,182 bytes。同步核查报告追加第12节，记录本次单行元数据刷新及不改变claim-level验收状态的边界。仅维护该文件元数据，不表示其余141项已重算。 | 当前main Blob SHA；资产清单CSV；同步核查报告§12 |
