@@ -4222,3 +4222,61 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1880 | [ros2_control Controller Manager documentation](https://control.ros.org/rolling/doc/ros2_control/controller_manager/doc/userdoc.html) | Controller Manager错误处理/控制器生命周期参考；具体行为须按部署版本验证 |
 
 **验证边界：** 本节为固定提交静态审查。未执行VAL3编译、CS9仿真、ROS 2 lifecycle/Controller Manager集成测试、UDP STOP丢包、急停/HOLD/制动故障注入、HIL或实机测试；SERVO-323–SERVO-332全部未执行。不能据此声称实现具备安全停止或安全复位能力。Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.70 机器人安全状态、急停/保护停止、制动反馈与软件运动许可边界（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节检查VAL3状态采集/编码、C++协议枚举与反序列化、ROS 2硬件状态接口和运动命令路径。结论是：当前驱动提供的是控制器安全状态的遥测映射和部分软件运动门控，不能据此认定具备经认证的安全功能，也不能把普通UDP STOP、VAL3 stopMove/resetMotion或ROS 2 ERROR当成急停、安全停止或安全复位的等价物。
+
+### 静态源码事实
+
+1. updateState.pgx将nSafetyStatus赋值为VAL3 esStatus()；源码注释列出0=无安全停止、1=等待安全重启、2=SS1、3=SS2、4=等待WMS重启。bEStopped却被实现为nSafetyStatus != 0，bWaitAck只对状态1置位。因此该布尔量实际表示“任何非零安全状态”，并不严格等于急停按钮物理触点状态。C++ SafetyStatus枚举按0–4保留这些数值；estop_pressed由状态标志位解码，字段命名会造成语义过度简化。
+2. updateState.pgx将bDrivePowered = isPowered()，并直接令bBrakeReleased = bDrivePowered。这不是独立的制动器位置/释放反馈；上游overview也将brakes_released解释为“即power ON”。不能据此证明每个轴的制动器已释放、已抱闸或反馈线路健康。
+3. bMotionPossible当前实现为bDrivePowered and (!bEStopped)。更严格的and (nRobotStatus == 0)条件在下一行被注释；workingMode(x_state.nRobotStatus)读取模式及模式状态，但当前运动许可表达式没有使用nRobotStatus。源码注释显示自动模式status=2为Hold，因而仅凭当前表达式不能证明HOLD状态被完整纳入VAL3侧运动许可。
+4. updateJointPositionControl.pgx在位置控制入口检查x_robotState.bMotionPossible，失败则调用stopJointPositionControl并设置错误；但它依赖上游派生布尔值，不直接检查nSafetyStatus、nRobotMode、nRobotStatus或独立安全输入。控制循环其他分支及速度控制路径也需独立验证，不能将位置路径的单点检查外推为全命令族安全门控。
+5. encodeRobotStateMsg.pgx把bEStopped写入状态flags bit 5；C++ messages.cpp将该bit反序列化为estop_pressed。safety_status枚举原值同时单独传输，因此应用应优先解释完整枚举，不应只依赖estop_pressed。
+6. C++ StaubliHardwareInterface把operation_mode、operation_mode_status、safety_status、brakes_released、motion_possible、in_motion、in_error、estop_pressed和wait_for_ack作为ROS 2 state interfaces导出。导出遥测接口本身不构成硬件安全互锁。当前write()运动门控主要检查缓存error_state与control_state==INVALID；没有在每次运动写入前独立校验新鲜的safety_status、estop_pressed、brakes_released、operation_mode和operation_mode_status组合。STOP模式也不等于安全功能已动作。
+7. 上游overview说明operation_mode_status的含义依赖operation mode，需查VAL3文档；C++保留的OperationModeStatus枚举已注释，状态值以原始uint8映射。当前代码没有形成跨模式、穷尽且默认拒绝未知值的安全许可判定表。VAL3注释给出Automatic Local/Remote的status 0=Move、1=connection movement、2=Hold；不应将不同模式的status数值混为同一语义。
+8. 现有仓库代码未提供可证明的安全PLC/安全I/O配置、急停双通道接线、保护停止回路、STO/SS1/SOS安全功能参数、PL/SIL计算、制动器独立诊断、响应时间或安全认证证据。本轮只能确认软件接口读取esStatus()并导出状态，不能推断硬件安全架构、性能等级或认证状态。
+
+### 风险与整改要求
+
+- 将“急停按钮状态”“安全停止类型/阶段”“等待人工重启”“保护停止/安全功能状态”拆成有明确来源和有效性语义的字段；未知枚举值、通信超时和无效状态必须按禁止运动处理。
+- 制动器状态不能用isPowered()冒充独立反馈。明确每轴制动控制输出、反馈输入、释放/抱闸确认、失电行为和诊断覆盖；无独立反馈时字段应命名为推导值并标注不可用于安全判定。
+- 建立显式软件运动许可矩阵：安全状态必须为允许态、E-stop未触发、保护停止已按规定复位、模式/模式状态允许、驱动/制动状态有效、状态帧未过期、无故障锁存，并通过显式授权/重新使能。对未知/过渡/HOLD/WAIT状态默认拒绝运动。
+- 在ROS 2 read与write两侧统一应用新鲜度与许可门控，命令模式切换也必须核验同一状态代际；缓存状态、仅有motion_possible=true或本地socket connected不能作为独立安全许可。
+- 将普通UDP STOP、VAL3运动停止、控制器保护停止、急停及安全驱动功能分别定义。安全功能必须由制造商安全手册、控制器安全配置和独立安全回路证据确认；软件网络命令仅作为普通控制/补充请求，不可替代安全回路。
+- 在目标CS9、机器人型号和选配安全硬件上验证急停/保护停止/SS1/SS2/HOLD/手动自动切换/WMS重启/制动器异常/安全通信故障；测量触发至停止响应、停止距离、制动动作和复位条件，并按风险评估与适用标准形成证据。未完成前不得宣称满足任何PL/SIL或工业安全等级。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-333 | SafetyStatus语义与未知值 | 枚举、未知值、过渡状态映射完整且默认拒绝运动 | 未执行 |
+| SERVO-334 | E-stop字段语义 | 物理急停触点与广义安全停止状态分离，验证编码/解码 | 未执行 |
+| SERVO-335 | 制动器反馈真实性 | 独立核验制动输出、反馈、失电抱闸及单轴异常 | 未执行 |
+| SERVO-336 | motion_possible推导 | 覆盖SS1/SS2/WMS/HOLD/手动/自动/过渡模式，移除遗漏门控 | 未执行 |
+| SERVO-337 | operation_mode_status矩阵 | 按每种模式定义有效状态、未知值及允许运动组合 | 未执行 |
+| SERVO-338 | ROS 2读写安全门控 | read/write/mode switch使用同代际新鲜安全状态，未知/过期即拒绝 | 未执行 |
+| SERVO-339 | 普通STOP与安全停止区分 | 证明UDP STOP不承担安全功能，明确独立安全通道与失效策略 | 未执行 |
+| SERVO-340 | 急停/保护停止故障注入 | 覆盖急停、SS1、SS2、保护停止、HOLD、重启授权和通信故障 | 未执行 |
+| SERVO-341 | 制动器与停止性能验证 | 目标型号实测制动反馈、响应时间、停止距离和故障诊断 | 未执行 |
+| SERVO-342 | 安全架构/标准证据包 | 获取制造商安全手册、选配配置、风险评估及PL/SIL证据；无证据不得宣称认证 | 未执行 |
+
+### 本节来源记录（#1881–#1888）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1881 | [updateState.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | esStatus、isPowered、制动/运动许可及workingMode状态采集 |
+| #1882 | [encodeRobotStateMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | EStopped布尔量编码为status flags bit 5 |
+| #1883 | [types.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp) | SafetyStatus、OperationMode和StatusFlag枚举 |
+| #1884 | [messages.hpp / messages.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication) | 状态帧反序列化与estop_pressed字段映射 |
+| #1885 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | ROS 2安全监督state interface导出及write门控 |
+| #1886 | [overview.rst @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/overview.rst) | 上游对安全状态、制动状态和模式状态的公开解释 |
+| #1887 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx) | 位置控制对motion_possible的依赖及停止分支 |
+| #1888 | [RobotState.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx) | 安全状态、制动、运动许可和有效字段的数据结构 |
+
+**验证边界：** 本节仅为固定提交静态源码/上游文档审查。未执行VAL3编译、CS9仿真、实际安全I/O核验、急停/保护停止/SS1/SS2/HOLD/制动器故障注入、停止时间/距离测量、HIL或实机验证。没有取得制造商安全手册及具体配置证据，不对PL/SIL、STO/SS1/SS2实现等级或任何安全认证作判断。SERVO-333–SERVO-342全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
