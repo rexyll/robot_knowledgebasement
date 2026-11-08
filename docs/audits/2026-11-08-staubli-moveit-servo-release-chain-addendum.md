@@ -408,3 +408,60 @@ production main包目录可读取的索引搜索结果仍列出旧deb：amd64 67
 ### 5. 结论
 
 本轮修正了状态页时间顺序的表述：带?q=RED的2026-11-07 18:03页面早于规范URL的2026-11-08 04:23快照，不能视为新版本快照。最新可直接读取的规范页面仍显示双架构B/T相同、M为10月6日旧版本。ROS Build Farm文档说明发布流水线阶段，但具体job运行证据仍缺。Stäubli工程级验收继续保持未通过。
+
+## 9.3.119 Jazzy moveit_servo 2.12.4-1 的 rosdistro 与 release-source 对应关系核验（2026-11-08）
+
+### 1. rosdistro 发布声明
+
+读取 `ros/rosdistro` 仓库当前 `master` 上的 `jazzy/distribution.yaml`，定位 `moveit` release stanza：
+
+- release repository：`https://github.com/ros2-gbp/moveit2-release.git`
+- release version：`2.12.4-1`
+- package list 明确包含 `moveit_servo`
+- tag template：`release/jazzy/{package}/{version}`
+- source repository：`https://github.com/ros-planning/moveit2.git`，source version 为 `main`
+- 本次读取的 distribution.yaml Blob SHA：`9dba523bb0a975f9a36bd96440a406b4f1d14e1b`
+
+按该模板展开，moveit_servo 对应的 release ref 为 `release/jazzy/moveit_servo/2.12.4-1`。GitHub Contents API 能从该 ref 读取 `README.md` 和 `package.xml`，因此该 ref 可解析；这属于release仓库ref与文件可读证据，不等于Build Farm某次构建成功。
+
+### 2. 上游源码版本与release ref的文件级交叉核对
+
+读取 `moveit/moveit2` 仓库 tag `2.12.4` 下的 `moveit_ros/moveit_servo/package.xml`，其内容声明包名 `moveit_servo`、包版本 `2.12.4`。再读取release ref `release/jazzy/moveit_servo/2.12.4-1` 根目录 `package.xml`，其Git Blob SHA与上游tag文件完全相同：
+
+- 上游 `moveit/moveit2@2.12.4:moveit_ros/moveit_servo/package.xml`：`0f00c9ec3b85b0322b96124cd714cf9d280473fb`
+- release ref `release/jazzy/moveit_servo/2.12.4-1:package.xml`：`0f00c9ec3b85b0322b96124cd714cf9d280473fb`
+
+这证明两个定位点的package.xml文件字节内容相同；不把单文件相同扩大为整个源码树或Debian packaging完全相同。既有§9.3.111关于release tag与上游包子树的树级比较仍作为独立证据，不在本节重复推导。
+
+### 3. Debian修订号与ROS包版本的区分
+
+上游 `package.xml` 的软件包版本是 `2.12.4`；rosdistro release stanza与Bloom发布记录使用 `2.12.4-1`。后缀 `-1` 属于发行打包修订版本，不应误写成上游package.xml版本。release ref的名称也采用完整发行版本 `2.12.4-1`。
+
+本轮未能从该release ref读取 `debian/changelog` 或 `debian/control`（对应路径返回404），因此没有取得该版本Debian源包修订内容、依赖控制字段或源包哈希。未据此推断其Debian packaging内容。
+
+### 4. 证据分级与未闭环项
+
+| 层级 | 本轮结果 | 证据边界 |
+|---|---|---|
+| rosdistro声明 | 已确认Jazzy release仓库、版本、包清单和tag模板 | 不证明构建结果 |
+| release ref | `release/jazzy/moveit_servo/2.12.4-1`可读取 | 不证明Jenkins job成功 |
+| 上游源码 | 上游tag 2.12.4的moveit_servo package.xml已读取 | 单文件比对不替代整个源码树审计 |
+| release-source关联 | 两处package.xml Blob SHA完全相同 | 不证明Debian packaging、source package和binary package字节相同 |
+| Build Farm | 仍无真实job配置、build number、result、source revision和console log | SERVO-713仅部分取证 |
+| APT工件 | 仍未取得testing/main完整Packages stanza、InRelease签名验证、deb control与SHA256 | SERVO-710/714未完成 |
+
+### 5. 任务状态
+
+- SERVO-710：未完成。APT索引正文、签名验证、完整Packages stanza、deb control与SHA256仍缺。
+- SERVO-713：部分取证、未完成。rosdistro声明、release ref及package.xml文件级关联已核实；真实Jenkins job/build记录仍缺。
+- SERVO-714：未完成。production main是否晋级仍以状态页M列与main pool工件为准；本节未取得新晋级证据。
+- 未执行Ubuntu 24.04 apt update/policy/install、rosdep、colcon、Servo运行测试；未执行VAL3、CS9/SRS、HIL/FAT/SAT或实机验证。
+- Stäubli工业级验收仍未通过；ICube上游未修改；`TODO-EXT-001`仍未授权合并。
+
+### 6. 来源
+
+- https://github.com/ros/rosdistro/blob/master/jazzy/distribution.yaml
+- https://github.com/ros2-gbp/moveit2-release/tree/release/jazzy/moveit_servo/2.12.4-1
+- https://github.com/ros2-gbp/moveit2-release/blob/release/jazzy/moveit_servo/2.12.4-1/package.xml
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/package.xml
+- https://github.com/ros2-gbp/moveit2-release/blob/master/README.md
