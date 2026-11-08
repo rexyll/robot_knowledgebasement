@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.12  
+> 版本：v9.13  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.139，厂商档案新增§128.90。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；SERVO-725已完成更细的生命周期静态分析：区分双topic活动时直接start重配置与显式stop后restart；前者切换为仅CollisionObject/双空topic时旧PlanningSceneWorld subscriber可能残留，后者因start入口再次stop会清理残留；测试矩阵已修订，动态验证尚未执行。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.140，厂商档案新增§128.91。MoveItCpp通用初始化路径会启动world geometry monitor，当前main stop仍保留if/else if缺陷；本轮复核上游PR #3907明确Fixes #3897，但PR仍open/未合并且behind，本轮通过GitHub连接器再次确认Formatting run 36755746603与CI run 36755746261均completed/failure；两个jobs查询均返回空数组，失败job/step/原因未知；reviews为空且PR仍Open；未发现Jazzy backport，正式main二进制仍为2.12.4-1。仓库缺少ICube现场源码/部署参数，SERVO-722未执行且受阻；SERVO-721/723仍未执行，SERVO-724持续跟踪PR review/CI/merge与Jazzy backport/发行；SERVO-725已完成更细的生命周期静态分析：区分双topic活动时直接start重配置与显式stop后restart；动态验证尚未执行。新增SERVO-726审查OccupancyMapUpdater初始化失败隔离与插件stop/start生命周期：main忽略initialize()失败结果，PR #3909拟修复但仍Open且CI失败；#3901接口文档与内置插件实际依赖顺序冲突，现场Octomap插件配置未确认。SERVO-718已完成，SERVO-719/716/713部分取证，SERVO-710/714未完成。APT索引验签/完整Packages/deb control/SHA256、具体Jenkins日志、目标安装运行仍缺；未执行VAL3/CS9/SRS/HIL/实机验证。未修改ICube/MoveIt上游，TODO-EXT-001未授权合并，Stäubli工程级验收未通过。
 
 ---
 
@@ -1222,3 +1222,13 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 - https://github.com/moveit/moveit2/pull/3907
 - https://github.com/moveit/moveit2/issues/3897
 - 专项追加件§9.3.139。
+
+
+### §9.3.140 OccupancyMapMonitor updater初始化与停止生命周期审查
+
+- main构造updater顺序为setMonitor→initialize→setParams→addUpdater；MiddlewareHandle初始化钩子返回void，ROS实现忽略initialize()的bool结果，失败updater仍可能继续配置、登记并在startMonitor时启动。Issue #3902仍Open。
+- PR #3909拟将初始化钩子改为bool并跳过失败updater；仍Open/未合并，head 3fc0594f708730008da2c4b3709368ade65302f2相对main ahead 2 / behind 3；CI/Formatting均failure，jobs/artifacts为空，reviews为空。作者自报Jazzy测试不能视为本项目验证。
+- Issue #3901仍Open：头文件注释说initialize前应已setParams，但内置PointCloud/DepthImage updater的setParams读取node_，node_由initialize设置；不能简单交换顺序。PR #3909保留initialize→setParams，仅修复初始化失败传播，没有解决接口契约文档问题。
+- stopMonitor逐个调用updater stop，析构再次stop；PointCloud stop删除filter/subscriber并置空，DepthImage stop调用subscription.shutdown()。接口没有统一在途回调退出确认，重复start/stop与回调静默需按插件动态验证。
+- 新增SERVO-726及U1-U10矩阵。Stäubli现场是否启用Octomap及sensor plugin未确认；动态测试未执行。未修改上游/ICube或应用补丁，工程级验收未通过。
+- 详见专项追加件§9.3.140。
