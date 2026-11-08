@@ -4280,3 +4280,66 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1888 | [RobotState.dtx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx) | 安全状态、制动、运动许可和有效字段的数据结构 |
 
 **验证边界：** 本节仅为固定提交静态源码/上游文档审查。未执行VAL3编译、CS9仿真、实际安全I/O核验、急停/保护停止/SS1/SS2/HOLD/制动器故障注入、停止时间/距离测量、HIL或实机验证。没有取得制造商安全手册及具体配置证据，不对PL/SIL、STO/SS1/SS2实现等级或任何安全认证作判断。SERVO-333–SERVO-342全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+
+## 9.3.71 控制器/机器人型号/安全选配配置一致性与启动前适配性检查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节检查上游README、VAL3安装说明、机器人型号YAML、URDF/Xacro配置加载器、ROS 2 Control硬件描述、VAL3启动程序和SIO网络配置。结论：仓库具备机器人几何/运动学/动力学和部分传感器、普通I/O的型号配置机制，但没有建立控制器固件/VAL3版本/机器人型号/安全选配/制动反馈/安全I/O之间的可验证配置契约。不能把“模型文件可加载”视为“目标机器人及其安全选配已兼容”。
+
+### 静态源码与文档事实
+
+1. 上游README明确写明驱动基于ROS 2 Jazzy/Ubuntu 24.04，面向CS9控制器，旧版本控制器不支持；README将当前项目描述为早期POC/原型，并明确不是industry-ready软件。README quickstart示例使用TX2-60L，但示例不构成所有型号兼容性验证。
+2. VAL3安装说明限定CS9和VAL3 8.x.x或更高版本；称已在TX2-60L上测试，并“应当”兼容大多数6DoF Stäubli机器人。这是上游文档中的预期兼容性描述，不是逐型号编译、仿真或实机验收证据。
+3. VAL3安装依赖motion、velocity addons；alter和advCtrlFunctions虽随机器人提供，但若其license处于demo模式，代码会在2小时后停止工作。仓库没有启动前对addon是否安装、版本、授权模式和剩余授权时间进行机器可读检查的证据。
+4. 仓库可见的型号配置包括tx2_60l和tx2_60l_med的robot_model.yaml。字段覆盖joint torque sensor、F/T sensor、末端执行器坐标及普通数字/模拟I/O数量；不包含CS控制器代际、VAL3版本、addon/授权、急停/安全门回路、安全选配、STO/SS1/SS2、制动器反馈或安全PLC配置。两个YAML均将joint torque sensor和F/T sensor设为false；I/O数量配置相同，但末端工具偏置不同。不能把这两份模型配置当成安全选配档案。
+5. URDF主入口按robot_model拼接config目录，并允许覆盖robot_model、kinematics、dynamics、joint_limits、meshes等文件；配置选择是静态文件路径机制，不会向机器人控制器查询型号/序列号/控制器固件/安全选件，也没有运行期配置指纹比对。
+6. staubli_helpers.xacro的check_robot_model_config仅验证joint_names/link_names非空、link数量等于joint数量+1，以及末端执行器父链接是否匹配末端连杆或F/T传感器帧。未校验控制器型号、VAL3/API版本、addon/授权、安全I/O映射、机器人序列号或安全选配。
+7. r2c/staubli.r2c.xacro将模型配置中的普通I/O数量传入StaubliHardwareInterface，监督GPIO仅导出operation_mode、operation_mode_status、safety_status、control_sequence_delay、brakes_released、motion_possible、in_motion、in_error、estop_pressed、wait_for_ack；没有模型级安全I/O点位/双通道/安全选件映射。数字/模拟I/O数量上限检查不等于安全I/O配置校验。
+8. URDF中的use_soft_limits、safety_position_margin、safety_velocity_margin、safety_k_position、safety_k_velocity用于ROS侧joint soft limit/safety_controller描述；它们不是CS9安全控制器参数，也不能替代安全PLC、安全驱动、STO或经验证的安全功能。
+9. VAL3 start程序读取getVersion("System")并截取首字符，但没有据此拒绝不兼容版本；monitor speed低于100%时仅警告，未阻止启动。随后设置控制周期0.004秒、调用stopMove/resetMotion/autoConnectMove(true)并创建同步控制任务。启动流程没有核验目标机器人型号、控制器代际、addon授权状态或安全配置清单。
+10. sio.cfx示例固定控制器远端IP为192.168.0.1，control/diagnostics端口分别11000/11001，UDP超时配置为-0.001；它是通信socket配置，不包含安全通道、冗余链路或安全输入输出配置。
+11. 本轮没有找到目标型号与安全选配对应的制造商配置导出、控制器安全参数快照、I/O电气图、双通道安全回路图、制动器反馈清单或安全验收记录。缺少这些材料意味着安全选配状态未知，不等于设备一定没有相应硬件。
+
+### 风险与整改要求
+
+- 建立每台机器人唯一的适配清单：准确型号/变体、序列号、控制器型号与硬件版本、CS9软件版本、VAL3版本、addon名称/版本/授权模式、机器人轴配置、工具/外设、普通I/O及安全I/O、急停/保护停止/安全选件、制动器反馈与制造商安全手册版本。
+- 将软件支持矩阵拆为“源码声明支持”“文档声称兼容”“已构建”“VAL3已编译/加载”“CS9仿真通过”“目标实机通过”六种证据等级；TX2-60L之外的型号不得仅因6DoF就标记通过。
+- 增加启动前兼容性检查：校验控制器代际、VAL3版本范围、必需addon及license状态、型号/轴数/配置hash、协议版本；未知或不匹配时禁止进入运动模式并输出可诊断原因。
+- 将普通I/O、功能性监督GPIO和安全I/O严格分层；安全I/O必须由制造商电气图、控制器安全配置导出和现场逐点核对，禁止通过普通ROS GPIO或UDP状态字段推定安全通道完整。
+- 为每种机器人型号/控制器/安全选配组合维护版本化配置包和签名/哈希；运行时读取可获得的身份信息并与部署清单比对，未能读取的项目必须标为人工核验，而不是默认匹配。
+- 对demo license、monitor speed异常、启动时stop/reset、自动连接运动等条件制定启动门槛、报警、授权和审计日志；不得把普通启动成功作为安全功能验证。
+- 为TX2-60L、TX2-60L MED及后续型号分别建立CS9/VAL3/插件/安全选件兼容矩阵，并以真实配置、编译日志、仿真记录、实机验收报告作为通过证据。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-343 | 控制器/VAL3兼容性矩阵 | 记录CS9硬件、软件、VAL3版本与支持范围，未知版本默认拒绝运动 | 未执行 |
+| SERVO-344 | 机器人型号覆盖矩阵 | 区分TX2-60L已测试与其他6DoF型号的文档预期/实测证据 | 未执行 |
+| SERVO-345 | Addon与license启动检查 | 验证motion/velocity/alter/advCtrlFunctions版本、授权模式和到期行为 | 未执行 |
+| SERVO-346 | 安全选配配置清单 | 逐台登记急停、保护停止、安全PLC、安全I/O、STO/SS1/SS2与制动反馈 | 未执行 |
+| SERVO-347 | 模型配置schema扩展 | 将控制器、VAL3、轴配置、传感器、I/O、安全选配及配置版本纳入schema | 未执行 |
+| SERVO-348 | Xacro配置校验增强 | 对轴数、型号、传感器、普通I/O和安全配置做一致性检查，拒绝未知组合 | 未执行 |
+| SERVO-349 | 普通I/O与安全I/O隔离 | 证明普通GPIO/ROS接口不会被误用为安全通道，建立独立点位映射 | 未执行 |
+| SERVO-350 | 启动前身份与配置指纹 | 对机器人/控制器身份、配置hash、VAL3/addon版本进行核对和审计 | 未执行 |
+| SERVO-351 | 软限位与安全功能边界 | 验证ROS soft limits不被文档或代码误称为安全控制器/安全功能 | 未执行 |
+| SERVO-352 | 型号/选配实机验收包 | 为目标型号和安全选件形成配置导出、I/O核对、仿真及实机证据 | 未执行 |
+
+### 本节来源记录（#1889–#1897）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1889 | [上游README @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md) | CS9支持边界、Jazzy平台、POC/非工业就绪声明与TX2-60L quickstart |
+| #1890 | [VAL3 README @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md) | CS9/VAL3版本、TX2-60L测试、6DoF预期兼容及addon/license要求 |
+| #1891 | [TX2-60L robot_model.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/robot_model.yaml) | 型号能力、传感器标志、工具偏置和普通I/O配置 |
+| #1892 | [TX2-60L MED robot_model.yaml @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l_med/robot_model.yaml) | MED变体配置差异及其不含安全选配字段 |
+| #1893 | [staubli.urdf.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/staubli.urdf.xacro) | 型号配置路径、soft limit参数和ROS控制描述入口 |
+| #1894 | [staubli.r2c.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/staubli.r2c.xacro) | 普通I/O数量及supervision GPIO导出 |
+| #1895 | [staubli_helpers.xacro @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro) | 模型配置加载与有限校验规则 |
+| #1896 | [start.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx) | VAL3版本读取、monitor speed警告、4ms任务启动流程 |
+| #1897 | [sio.cfx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx) | UDP control/diagnostics socket网络配置，不含安全通道定义 |
+
+**验证边界：** 本节为固定提交静态源码和上游文档审查。未执行各型号Xacro展开、ROS构建、VAL3编译/加载、CS9版本/addon/license现场核验、控制器安全配置导出、I/O逐点检查、CS9仿真、HIL或实机验收。TX2-60L之外的型号兼容性仍是上游文档预期而非本轮实测。安全选配信息缺失不能解释为设备没有安全硬件，也不能解释为已具备安全功能。SERVO-343–SERVO-352全部未执行；Stäubli专项仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
