@@ -3362,3 +3362,63 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1801 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write将最近有效状态序号写入命令序号、controller_period字段 |
 | #1802 | [ICube VAL3 computeSequenceDelay/getNextSequenceNumber @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/tree/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm) | VAL3状态/命令序号差和uint16回绕 |
 | #1803 | [ICube test_rt_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | 现有测试覆盖staleness/序号跳号，但未覆盖慢读/突发/背压/丢包门控 |
+
+
+## 9.3.57 ROS 2状态新鲜度计时的时钟源、时间跳变与超时语义
+
+### A. 固定审查基线
+
+- 上游仓库：ICube-Robotics/staubli_driver_ros2
+- 固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`
+- 重点文件：`real_time_socket_subscriber.cpp/.hpp`、`robot_driver.cpp`、`staubli_hardware_interface.cpp`。
+- ROS发行版基线：ROS 2 Jazzy；时钟API以Jazzy `rclcpp::Clock` 文档为准。
+
+### B. 接收时间戳与年龄计算使用默认System Time
+
+1. `RealTimeSocketSubscriber::update_message()`在UDP接收线程成功反序列化后，执行`msg.reception_timestamp = rclcpp::Clock().now()`。
+2. `read_message()`再次构造默认`rclcpp::Clock()`并计算`now() - msg.reception_timestamp`；Jazzy API明确默认构造参数为`RCL_SYSTEM_TIME`。因此这不是单调时钟计时，而是系统墙钟时间差。
+3. `RobotDriver::read_robot_state()`将该差值与`state_staleness_timeout_`比较；达到阈值才拒绝状态。ROS硬件`read()`进一步把失败映射为`hardware_interface::return_type::ERROR`。
+4. 当前接收和读取两侧使用相同默认时钟类型，未发现时钟类型不匹配导致的比较异常；问题在于该时钟可受系统时间校准/手动调整影响，不能提供严格单调的经过时间。
+5. 若系统墙钟向后跳，计算出的消息年龄可能变小甚至为负，`age >= timeout`在更长时间内不成立，旧状态可能被继续接受；若墙钟向前跳，则可能提前判定状态过期并触发硬件ERROR。这是由计时实现推导出的风险路径，不代表已经在目标机发生。
+6. `RobotDriver::connect()`的连接超时循环同样使用默认`rclcpp::Clock().now()`与开始时间作差，因此连接超时也受墙钟跳变影响；其等待间隔另由`rclcpp::sleep_for`执行，不能据此认为超时计时已改用steady clock。
+
+### C. 与ROS时间、仿真时间和控制周期的边界
+
+- 当前代码直接构造独立的`rclcpp::Clock()`，而非从Node获取已绑定TimeSource的`get_clock()`；Jazzy文档指出默认类型是System Time。不能因为系统启用了`use_sim_time`就假定这些独立Clock自动跟随`/clock`。
+- ROS 2时钟类型语义区分：`RCL_SYSTEM_TIME`对应系统时钟，`RCL_STEADY_TIME`为单调递增时钟，`RCL_ROS_TIME`可受ROS时间源影响。超时、消息年龄、watchdog和性能预算应选用明确且一致的单调时间基准；仿真/rosbag时间则应作为独立语义处理，不能混用。
+- 此处的`reception_timestamp`是本机接收时刻，不是控制器生成时间，也不是跨网络端到端命令年龄。改为steady clock只能可靠计算本机接收后的驻留时间，不能替代§9.3.56提出的跨端命令生成/接收/应用年龄协议。
+- `StaubliHardwareInterface::write()`收到的`period`被换算成毫秒写入`controller_period`；VAL3消费与否、周期偏差和端到端命令deadline仍按§9.3.32、§9.3.56相关验收项处理，不在本节重复推断。
+
+### D. 整改建议
+
+1. 为接收消息附加本机`std::chrono::steady_clock::time_point`或明确标注为`RCL_STEADY_TIME`的接收时间；在读取侧使用同一时钟域计算age。优先通过可注入时钟接口实现，避免每次临时构造时钟对象。
+2. 对连接超时、状态/诊断staleness、重连冷却和本机watchdog统一使用steady clock；墙钟仅用于日志展示和可追溯的UTC事件时间。
+3. 若需要仿真时间，应显式区分ROS时间与steady elapsed time：仿真暂停/回拨不得意外使真实通信超时无限延长，也不得把仿真时间戳直接与steady time相减。
+4. 定义负年龄处理策略。采用单调时钟后仍应检测异常时间戳、未初始化值和时钟实例不一致；不应把负年龄默认当作“新鲜”。
+5. 连接超时、状态新鲜度和诊断新鲜度应各自配置阈值，并记录当前时钟类型、年龄、阈值、重复帧周期数和拒绝原因。
+6. 此项只提出驱动软件计时整改，不替代VAL3命令deadline、CS9独立安全链或机械停止确认；任何故障门控策略须经风险分析与目标控制器验证。
+
+### E. 新增验收任务（SERVO-203–SERVO-212）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-203 | 接收时间戳时钟类型 | 明确记录接收时间使用的clock type，并与读取侧一致 | 单测/诊断输出 | 未执行 |
+| SERVO-204 | 墙钟向后跳变 | 状态age不因系统时间回拨而变小或负值 | 可控时钟注入测试 | 未执行 |
+| SERVO-205 | 墙钟向前跳变 | 墙钟校准不导致状态被误判过期 | 可控时钟注入测试 | 未执行 |
+| SERVO-206 | steady-clock年龄单调性 | 无新帧时age持续单调增加，跨线程读写安全 | 单测/压力测试 | 未执行 |
+| SERVO-207 | 连接超时单调性 | connect timeout不受墙钟前跳/回拨影响 | 假时钟/超时测试 | 未执行 |
+| SERVO-208 | ROS use_sim_time隔离 | /clock暂停、回拨、快进不会破坏真实通信watchdog | 仿真时钟集成测试 | 未执行 |
+| SERVO-209 | 负年龄与无效时间戳 | 未初始化、异常或不一致时间戳被显式拒绝并诊断 | 边界单测 | 未执行 |
+| SERVO-210 | 重复帧与消息年龄 | 相同序号重复读取时age仍按steady time增长，不重置接收时刻 | 单测/突发测试 | 未执行 |
+| SERVO-211 | staleness到硬件ERROR传播 | 达到配置阈值时read返回ERROR，故障恢复和重新授权符合定义 | ros2_control集成测试 | 未执行 |
+| SERVO-212 | 时间跳变故障矩阵 | 前跳、回拨、NTP校准、仿真暂停/回拨均有确定行为 | ROS集成测试报告 | 未执行 |
+
+### F. 本节来源记录（#1804–#1807）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1804 | [ICube real_time_socket_subscriber.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp) | 接收线程使用默认`rclcpp::Clock().now()`记录本机接收时间；读取时再次使用默认Clock计算age |
+| #1805 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect timeout与state staleness均依赖默认Clock时间差 |
+| #1806 | [ICube real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | MessageStatus仅保存Duration年龄，接口未显式表达时钟域 |
+| #1807 | [ROS 2 Jazzy rclcpp::Clock API](https://api.nav2.org/jazzy/html/classrclcpp_1_1Clock.html) | 默认构造参数为RCL_SYSTEM_TIME；与RCL_STEADY_TIME单调时钟语义区分 |
+
