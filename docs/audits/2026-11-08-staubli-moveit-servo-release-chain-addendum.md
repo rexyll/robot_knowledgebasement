@@ -1305,3 +1305,18 @@ PR [#3907](https://github.com/moveit/moveit2/pull/3907)把两个subscriber都改
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp
 - 专项追加件§9.3.137。
+
+
+### §9.3.138 PR #3907失败workflow的artifact可用性检查（2026-11-08）
+
+- 对Formatting run `36755746603`与CI run `36755746261`分别调用GitHub Actions workflow artifacts接口，两个run均返回空artifacts数组。
+- 与此前jobs接口空数组结果合并判断：当前连接器可见证据中没有可下载的workflow artifacts，也没有可读job/step记录；因此不能从现有GitHub Actions接口确定失败发生在哪个步骤或原因。不得臆测为编译、测试、格式化或基础设施故障。
+- 两个workflow仍为completed/failure。该artifact检查不改变失败状态，不构成重新运行或修复CI。PR #3907仍open、未合并，reviews/inline threads仍为空；CodeRabbit评论仅是辅助自动评论。
+- SERVO-724继续进行中，需等待PR作者/维护者更新workflow并提供可读失败信息，或新head触发可检查的CI；随后才可评估修复、review、merge与Jazzy backport。SERVO-721/723/725目标动态验证未执行，SERVO-722现场证据仍缺。
+- 未修改上游/ICube、未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验证。
+
+来源：
+- https://api.github.com/repos/moveit/moveit2/actions/runs/36755746603/artifacts
+- https://api.github.com/repos/moveit/moveit2/actions/runs/36755746261/artifacts
+- https://github.com/moveit/moveit2/pull/3907
+- 专项追加件§9.3.138。
