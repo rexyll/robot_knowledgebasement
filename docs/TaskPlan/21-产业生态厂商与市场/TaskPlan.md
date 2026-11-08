@@ -1013,3 +1013,24 @@
 | SERVO-683 | 分别构建仅MoveGroup和MoveGroup+Servo镜像，比较最终包清单、镜像digest及SBOM | 未执行 |
 | SERVO-684 | 在固定Jazzy二进制版本下启动servo_node，验证可执行文件、参数文件、节点命名空间及退出码 | 未执行 |
 | SERVO-685 | 将Jazzy包版本、rosdep解析结果、APT仓库快照/版本锁与CI日志归档，作为部署可复现性证据 | 未执行 |
+
+
+### Stäubli专项审查新增记录（§9.3.104，发行包工件证据与索引一致性）
+
+继续核对MoveIt Servo Jazzy发行包时，发现需要把“发行记录”“构建池工件”“APT索引可安装性”拆开处理：
+
+- ROS 2官方仓库的 `ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/` 搜索索引显示存在 `ros-jazzy-moveit-servo` 的 Noble 构建工件，包版本线为 `2.12.4-1`，搜索索引列出的构建日期为2026-10-06；MoveIt Jazzy发行记录亦列出 `moveit_servo` 属于2.12.4-1发行包集。该证据支持“官方仓库构建过该包”，而非“目标机器当前APT索引一定可见/可安装”。
+- 同一目录经网页open读取时返回的文件列表却显示2026-06-17的旧工件时间，与搜索索引中的2026-10-06结果不一致；ROS Jazzy状态页搜索结果显示2026-11-07日期，但open页面内容实际呈现2025-11-11的旧快照。说明网页搜索索引、目录缓存与状态页快照存在时间不一致，不能拿缓存页的内容冒充当前APT仓库元数据。
+- 目前未直接读取目标Ubuntu 24.04/amd64的APT `Packages`索引条目，未确认具体 `Architecture`、`Filename`、`Depends`、仓库签名/索引快照，也未执行 `apt policy`、`apt install`、`rosdep resolve` 或 `rosdep install`。所以SERVO-680/681仍未执行；不能把工件存在等同于目标架构候选包可安装。
+- ROS发行版包的二进制版本由MoveIt发行流程提交至ROS发行版，并由ROS构建基础设施构建、分发；发行记录版本号不等于APT构建修订时间戳。部署复现必须保存实际Packages元数据、APT源配置与索引快照。
+- 结论边界：官方发行/构建工件证据已进一步增强；目标机APT候选、依赖闭包、安装与运行仍未验证。固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79` 的 `staubli_moveit_config/package.xml` 缺少 `moveit_servo` 的显式运行依赖这一静态发现不变；未修改ICube上游。
+
+### Stäubli专项审查新增验收任务（§9.3.104，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-686 | 从ROS Jazzy Noble主仓库签名APT索引中提取 `ros-jazzy-moveit-servo` 的完整Packages stanza，保存Version、Architecture、Filename、Size、SHA256、Depends及索引日期 | 未执行 |
+| SERVO-687 | 在干净Ubuntu 24.04目标架构环境验证APT源、InRelease签名链、Packages索引和 `apt-cache policy ros-jazzy-moveit-servo`，记录候选版本与来源 | 未执行 |
+| SERVO-688 | 下载并校验SERVO-686对应deb的SHA256与包控制元数据，确认包架构、文件清单、servo_node可执行文件路径和运行时依赖 | 未执行 |
+| SERVO-689 | 将APT Packages元数据、rosdistro发行记录、deb构建修订号与moveit2-release仓库版本对应，形成可追溯的软件供应链记录 | 未执行 |
+| SERVO-690 | 对照搜索索引、目录缓存、状态页快照和APT实际索引，记录数据时间戳与来源差异，禁止以搜索摘要替代安装候选证据 | 未执行 |
