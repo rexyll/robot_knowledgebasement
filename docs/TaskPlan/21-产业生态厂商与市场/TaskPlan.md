@@ -1275,3 +1275,16 @@
 - https://github.com/ros-infrastructure/ros_buildfarm/blob/master/doc/jobs/release_jobs.rst
 - https://repo.ros2.org/ubuntu/main/pool/main/r/ros-jazzy-moveit-servo/
 - 专项追加件§9.3.118。
+
+### Stäubli专项审查新增记录（§9.3.119，rosdistro release ref与上游package.xml关联）
+
+- rosdistro Jazzy moveit release stanza声明release仓库、版本2.12.4-1、包含moveit_servo，tag模板为release/jazzy/{package}/{version}；source仓库为moveit/moveit2。
+- release ref `release/jazzy/moveit_servo/2.12.4-1`可读取；其根package.xml与上游tag 2.12.4中的moveit_ros/moveit_servo/package.xml Blob SHA相同（0f00c9ec3b85b0322b96124cd714cf9d280473fb）。package.xml版本为2.12.4，-1是发行修订号。Debian changelog/control本轮未取得；不推断Debian packaging或工件完整性。
+- 此证据仅闭合rosdistro声明与release ref的文件级关联，不是Build Farm构建成功证明。SERVO-713仍部分取证、未完成；真实Jenkins job/build日志仍缺。SERVO-710/714未完成；APT正文、签名、Packages stanza、deb control/SHA256仍缺。
+- 未执行Ubuntu 24.04 apt/rosdep/colcon/Servo运行、VAL3、CS9/SRS、HIL/FAT/SAT或实机验证；Stäubli工程验收仍未通过。
+
+来源：
+- https://github.com/ros/rosdistro/blob/master/jazzy/distribution.yaml
+- https://github.com/ros2-gbp/moveit2-release/tree/release/jazzy/moveit_servo/2.12.4-1
+- https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/moveit_servo/package.xml
+- 专项追加件§9.3.119。
