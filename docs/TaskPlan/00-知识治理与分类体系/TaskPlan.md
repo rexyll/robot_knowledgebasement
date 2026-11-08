@@ -521,3 +521,5 @@
 
 
 | 2026-11-08 | 00-01 | 因厂商档案新增§128.65，再次核对并刷新资产清单中knowledge/ecosystem/主要厂商.md唯一对应行：Blob SHA 03ff74bcb3fd064529137fbd2407e7eeac85ceb8、UTF-8大小505,182 bytes。同步核查报告追加第12节，记录本次单行元数据刷新及不改变claim-level验收状态的边界。仅维护该文件元数据，不表示其余141项已重算。 | 当前main Blob SHA；资产清单CSV；同步核查报告§12 |
+
+| 2026-11-08 | 00-01 | 继续MoveIt Servo Jazzy 2.12.4-1供应链审查：直接核对ros_buildfarm/common.py中的source/binary job命名函数，推导Jazzy/Noble的source候选Jsrc_uN__moveit_servo__ubuntu_noble__source、amd64候选Jbin_uN64__moveit_servo__ubuntu_noble_amd64__binary、arm64候选Jbin_uNv8__moveit_servo__ubuntu_noble_arm64__binary；三个Jenkins /api/json端点均未由读取通道访问，未取得真实job/build日志，不把候选名当作job存在/成功证据。重新核对ROS Jazzy status page：amd64页面03:56:07 -0800、arm64页面04:23:04 -0800，B/T仍分别为11月5日/6日新版本，M仍为10月6日旧版本。新增专项追加件§9.3.115、厂商档案§128.66、审计README及同步核查第13节；更新厂商资产清单单行Blob SHA为f5b00f49ec86b448a6cbf653b25ad13af938c61c、UTF-8大小506,424 bytes。SERVO-713仍部分取证、未完成；SERVO-710/714未完成。未取得APT签名/Packages/deb元数据，未执行Jazzy安装运行、VAL3/CS9/HIL/实机验证；00-01保持进行中。 | ros_buildfarm/common.py；ROS Jazzy官方状态页；专项追加件§9.3.115；厂商档案§128.66；同步核查报告§13；资产清单CSV |
