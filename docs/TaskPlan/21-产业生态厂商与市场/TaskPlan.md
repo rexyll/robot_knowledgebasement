@@ -545,3 +545,6 @@
 
 
 | 2026-11-08 | 21-02/Stäubli RobotDriver连接首帧等待与诊断通道旁路 | 固定ICube bd658e2审查RobotDriver::connect：首帧等待while循环即使控制状态有效也无break，固定sleep 500ms，直到timeout退出；默认硬件初始化传入5000ms，导致首帧成功后仍可能等待完整窗口，timeout小于500ms时单次sleep也会超调。诊断就绪变量被硬编码true，read_diagnostic_data调用留在TODO/注释中，不能证明诊断首帧有效。新增§9.3.58、来源#1808–#1811及SERVO-213–SERVO-222。仅静态控制流结论，未做连接延迟测量、UDP首帧故障注入、并发取消、ROS集成、CS9 HIL或实机验证；21-02继续进行中。 | 来源#1808–#1811；专项审计§9.3.58 |
+
+
+| 2026-11-08 | 21-02/Stäubli连接、断开与重连线程生命周期审查 | 固定ICube bd658e2核对RobotDriver、RealTimeSocketSubscriber、UDPSocketImpl及StaubliHardwareInterface。RobotDriver的接口shared_ptr成员在connect/disconnect中直接赋值/reset，读写入口直接读取，类内没有生命周期互斥锁/状态机；若调用方并发执行读写和disconnect，存在同一shared_ptr成员数据竞争风险。UDP stop仅io_service.stop()+join，disconnect随后close；start重用io_service并覆盖callback，缺少连接代际隔离；接收handler遇错误仍调用callback并可能重新arm。并发start/stop/join、错误重试、异常回滚与deactivate资源语义均需实测。新增§9.3.59、SERVO-223–SERVO-232及来源#1812–#1816。全部测试未执行；未证明实机线程故障或运动安全失效，Stäubli仍未验收。 | 来源#1812–#1816；专项审计§9.3.59 |
