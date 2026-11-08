@@ -588,3 +588,5 @@
 | 2026-11-08 | 21-02/Stäubli FollowJointTrajectory容差、超时、取消与抢占 | 固定ICube bd658e2审查JTC controllers.yaml、MoveIt FollowJointTrajectory映射、launch控制器激活、HardwareInterface read/write/on_error及mock测试。发现未显式配置逐轴path/goal tolerance；goal_time=0需按部署JTC版本验证；硬件接口不持有Action goal/cancel/abort语义；错误处理只发STOP不等待ACK/静止；终点非零速度允许；无Action集成测试。新增§9.3.74、SERVO-373–SERVO-382、来源#1918–#1926。Action运行时/CS9/HIL/实机未测试。 | 来源#1918–#1926；专项审计§9.3.74 |
 
 | 2026-11-08 | 21-02/Stäubli多控制器并发与控制权仲裁 | 固定ICube bd658e2审查controllers.yaml、launch加载激活、MoveIt映射、Xacro接口声明、HardwareInterface接口导出和prepare/perform切换。发现默认仅一个运动控制器且inactive加载；模式解析只看start_interfaces首个匹配项，stop_interfaces忽略；混合position/velocity校验TODO；加速度接口仅用于限幅器，速度/力矩模式拒绝；缺少外部命令源owner/session epoch全局仲裁；现有测试无模式切换/claim竞争覆盖。新增§9.3.75、SERVO-383–SERVO-392、来源#1927–#1935。 | 来源#1927–#1935；专项审计§9.3.75 |
+
+| 2026-11-08 | 21-02/Stäubli普通I/O、GPIO与工具末端执行器 | 固定ICube bd658e2审查Xacro GPIO、HardwareInterface读写、UDP消息、VAL3 decode/controlTask/updateState/encode及TX2-60L工具帧配置。发现VAL3数字/模拟输出执行TODO、数字mask映射被注释；输入valid flags固定false且编码TODO；C++无效输入时保留旧值；tool0仅静态坐标变换，无夹爪/吸盘驱动和反馈；普通GPIO不属于安全I/O。新增§9.3.76、SERVO-393–SERVO-402、来源#1936–#1944。 | 来源#1936–#1944；专项审计§9.3.76 |
