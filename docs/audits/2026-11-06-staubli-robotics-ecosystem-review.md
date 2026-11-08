@@ -5105,3 +5105,86 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1991 | [real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | MessageStatus字段定义、缓存读取与staleness检查的调用契约 |
 
 **验证边界：** 本节为固定提交bd658e2静态源码/测试源码审查；未执行C++构建、单元测试、UDP重复/乱序/伪造来源/回绕/旧包注入、CS9控制器重启、VAL3仿真、HIL或实机测试。重复帧刷新接收时间、调用层忽略new_message/lost_packages、乱序覆盖缓存和回绕公式偏差均可由固定源码直接核对；“重复帧可续命”的系统级影响仍需运行时故障注入确认。SERVO-453–SERVO-462全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## 9.3.83 ROS 2命令发送、VAL3接收/执行与状态反馈的端到端关联审查（固定上游提交 bd658e2，2026-11-08）
+
+### 审查范围与结论
+
+本节从ROS 2 HardwareInterface::write出发，贯通RobotDriver、RealTimeSocketInterface、UDP、VAL3 read/decode/controlTask、movejSync和周期状态回传，判断单条命令是否能够被追踪到接收、接受、应用、执行和完成。固定上游为ICube提交bd658e2d266e315d2ee35f985fb352ea88306b79。
+
+**结论：当前链路没有单命令级端到端确认。主机write成功最多表示本机send路径返回成功，不证明数据报到达控制器；VAL3解码成功只将内部bIsValid置true，没有把该命令的ID/接受结果回传；控制器状态帧没有last accepted/applied command ID、命令结果码或完成事件。状态帧的sequence是控制器状态周期序号，nSequenceDelay只是状态发送序号与收到的命令序号之差，不能作为精确命令ACK。controlTask每轮先采样并发布状态，再读取、解码和执行新命令，因此该轮发出的状态帧不能确认本轮随后读到的新命令。HardwareInterface::write在send_robot_command返回true后即返回OK；现有硬件接口mock测试也只断言write返回OK，mock线程只发送状态/诊断帧，没有读取并核对刚发送的命令，更没有模拟执行或目标完成。**
+
+### 端到端链路审查
+
+1. **ROS 2写入侧构造命令。** StaubliHardwareInterface::write检查RobotDriver本地连接/接口ready，使用最近一次有效RobotState序号填入RobotCommand header；把ros2_control period转换为毫秒，写入command type、关节参考值和普通GPIO输出。该sequence不是独立命令序号，而是最近状态帧序号（详见§9.3.67/§9.3.82）。
+2. **send_message没有等待远端结果。** RobotDriver::send_robot_command只检查control_interface是否ready，然后调用RealTimeSocketInterface::send_message。后者依次序列化并调用Socket::send；其返回true后立刻向上层返回true。没有等待控制器响应、没有 outstanding command map、没有命令超时/重试事务、没有ACK回调，也没有按命令ID关联后续状态。
+3. **UDP发送结果不是控制器收件确认。** UDP无连接握手；底层send_to成功只表示本地网络栈接受了该datagram，不表示控制器应用读取。并且would_block丢包仍返回true的问题已在§9.3.81确认，因此本节的send成功语义甚至不能一概解释为数据报已交给内核；必须修复底层语义并增加应用层确认。
+4. **VAL3解码有效标记不向主机回报。** decodeRobotCommandMsg先检查固定帧长度、header、消息类型，再解析命令字段；成功后将robotCommand.bIsValid设true，失败分支设置错误/STOP。这个bIsValid是VAL3本地内存字段，没有对应的ROS 2反馈字段、命令ID ACK、拒绝原因码或回传程序。
+5. **状态帧在接收本周期新命令前发布。** controlTask每轮先调用updateState，递增状态header序号，写入此前保存的sequence delay、bInError和nControlMode，然后encode/send状态；之后才调用readData、decodeRobotCommandMsg、更新l_nCmdMode并调用运动子程序。因此发送出去的当前状态帧对应本轮命令处理前的采样/控制模式快照，不能确认稍后才收到的这条命令已经被接收或应用。新命令最多在后续状态周期通过模式/运动状态间接反映，但没有命令ID关联。
+6. **nControlMode只表达控制模式，不是命令接受结果。** VAL3把l_nCmdMode写入RobotState.nControlMode；该值是STOP/position/velocity等模式，不包含本次command sequence、目标值摘要、accepted/rejected状态、执行错误码或目标完成标志。相同模式下连续发送不同目标时，该字段不能区分命令实例。
+7. **nSequenceDelay只是粗粒度序列差。** computeSequenceDelay用当前状态发送sequence减去收到的RobotCommand header sequence，并执行16位回绕修正；该结果用于控制周期延迟阈值并在后续状态帧报告。它不报告精确命令ID是否被接受、是否应用、何时开始执行、是否拒绝以及拒绝原因；控制器出错或命令模式被改写时也没有面向主机的事务结果。
+8. **机器人状态遥测可反映运动，不等于命令完成ACK。** updateState采样herej()作为关节位置，以isSettled()反推bInMotion，使用$getJntSpeedCmd()获得近似关节速度、getJointForce()获得估算关节力/力矩；状态帧回传这些字段。它们可以描述某时刻机器人状态，但没有关联具体command ID，也没有目标轨迹ID、最终误差、成功/失败终态或完成时间。位置控制子程序中“检查目标是否足够接近当前位置”仍为TODO。
+9. **movejSync状态没有形成完整执行结果上报。** updateJointPositionControl调用$movejSync并读取$movejSyncState：-2明确进入停止/错误处理；1（上一命令未及时刷新）和2（安全停止/hold导致命令锁定）分支只保留注释，没有设置x_bError或将具体状态上报到主机。于是即使VAL3内部能观察到刷新/锁定状态，ROS 2上层也没有与当前命令ID关联的结果事件。
+10. **普通STOP同样没有命令确认和静止确认。** 主机send_stop_all_command与普通运动命令共用control_interface UDP发送通道；返回true没有控制器收到STOP的证明。VAL3下一周期解析STOP后执行stopMove/resetMotion，但主机没有STOP accepted ACK、停止动作完成ACK或基于新鲜速度/位置反馈的停止确认。此处与§9.3.81交叉引用，不将普通STOP描述为安全急停。
+11. **HardwareInterface::write返回OK的语义过宽。** write只要send_robot_command返回true便返回hardware_interface::return_type::OK。它没有检查控制器是否接受、当前命令是否被VAL3应用、movejSync是否刷新成功或实际关节是否达到目标。因此write OK不能被解释为机器人运动已成功。
+12. **命令错误/拒绝缺少可关联的原因码。** VAL3 decode失败、模式转换非法、机器人仍在运动、motion_possible为false、位置超限、movejSync error等情况会在VAL3侧置error/STOP、日志输出或复位socket；但状态协议没有包含本次command ID及其rejected reason。主机可能看到一般性in_error/control_state变化或sequence delay异常，但无法可靠判定是哪条命令导致，也无法区分decode rejection、mode rejection、motion rejection和执行失败。
+13. **现有测试未覆盖命令端到端闭环。** test_staubli_hardware_interface.cpp的LifecycleTransitions测试启动mock robot，mock线程每4ms只发送固定关节状态和诊断数据；测试修改位置命令接口值后调用write并只断言返回OK。mock线程未读取新命令，也未验证消息字段、到达时间或执行结果。test_robot_driver.cpp主要覆盖连接、断连、状态读取与staleness；test_rt_socket_interface.cpp覆盖双向序列化/收发，但不模拟VAL3接受/执行/完成ACK。现有测试不能证明命令端到端成功。
+14. **MockRobotServer能够读取命令，但不等于测试完成了应用层闭环。** get_last_received_command()提供读取最近命令的测试辅助接口；固定提交相关单元测试仅验证未初始化时失败，没有展示hardware.write之后由mock主动读取、确认ID、执行运动模型并回传对应command result的测试。
+15. **上层FollowJointTrajectory结果与底层命令ACK应分层。** ros2_control/JointTrajectoryController可基于自身状态接口和轨迹容差形成action层结果；这不代表Staubli UDP协议已有controller-side per-command ACK。必须区分Action goal accepted/canceled/result、硬件write周期命令发送结果、控制器命令accepted/applied和机械运动完成这四层语义。
+
+### 风险判断
+
+- **高：write OK被误读为控制器已接受/执行。** 当前OK只覆盖本地调用链返回成功，且底层would_block可能误报true（§9.3.81）。
+- **高：无法对单条命令定位失败。** 状态帧仅有控制模式、遥测和序列延迟，无命令ID/结果原因码；ROS 2无法建立一一对应的请求—响应因果链。
+- **高：状态反馈在时序上不确认同一周期的新命令。** 状态先采样并发送，再读命令并执行，当前状态帧天然早于本轮新命令解析/应用。
+- **高：执行刷新异常可能被吞没。** movejSyncState 1/2分支不报错，VAL3可继续走控制循环，但主机得不到该命令刷新失败/锁定的明确信息。
+- **中高：命令完成不可由普通状态字段直接判定。** bInMotion、joint position和velocity是周期遥测，不是附带目标容差、命令ID和终态的完成事件。
+- **高：STOP没有端到端确认。** 本地发送成功、控制器处理STOP以及机械系统实际静止是三个不同事件；当前协议只尝试第一个，且底层send语义还受§9.3.81影响。
+
+### 整改要求
+
+- 为每条命令生成独立command_id/sequence，并绑定controller boot ID/session epoch、发送时间、deadline、command type和目标数据摘要；禁止继续以状态帧sequence作为命令唯一身份。
+- 定义分阶段响应：RECEIVED、DECODED、ACCEPTED、APPLIED/STARTED、REJECTED（原因码）、COMPLETED、ABORTED/STOPPED。每个响应必须携带相同command_id/epoch及控制器时间/周期标识。
+- 修改RobotState或引入专用CommandStatus消息，报告last_received_command_id、last_accepted_command_id、last_applied_command_id、active_command_id、last_terminal_command_id及结果原因；状态帧不得只回传模式或延迟差来暗示接受。
+- 调整控制周期顺序或新增独立ACK发送：状态遥测可以保留先采样再发送，但当前周期收到/处理命令后必须发送针对该command_id的结果，不可把此前状态帧当作本次命令ACK。
+- 把decode成功与运动许可/模式转换/运动子程序启动分开：解码有效仅代表格式有效；控制器须在校验会话、序号、deadline、安全/操作模式、范围和运动控制状态后才返回ACCEPTED。
+- movejSync各状态（-2、-1、0、1、2）建立规范化结果映射；对1/2必须定义明确保持、受控停止、拒绝或降级策略，并向主机报告，不得只保留注释。
+- COMPLETED必须定义工程准则：目标位置误差、速度阈值、稳定持续时间、路径/时间容差、取消/抢占和控制器状态；不能仅凭bInMotion=false或单周期位置相近判断完成。
+- STOP事务应有独立command ID、优先级、接收确认和停止确认；停止确认基于新鲜状态、速度/settled等观测，并有超时与故障处理。仍需独立安全回路，不得用软件ACK替代安全功能。
+- RobotDriver维护有界outstanding命令表、超时、重复ACK/乱序ACK处理、重发幂等性、断线取消及session隔离；不允许网络恢复后自动重放已过期运动命令。
+- 修复并明确UDP send返回值；本机send成功、远端接收和控制器接受必须采用不同状态/指标。任何write OK文档/日志应准确表述其语义。
+- 扩充测试：write发出命令后mock读取并校验payload/ID；依次模拟收到、拒绝、接受、应用、完成、取消、STOP及丢包/乱序/延迟ACK；验证状态帧不提前确认新命令、旧session ACK不匹配当前命令、movejSync异常能映射到ROS层。
+- 在CS9/HIL和实机测试中用抓包、VAL3日志、command_id时间线、关节位置/速度曲线、目标误差和控制器状态证明各阶段时延与因果关系；独立记录STOP请求、控制器确认和机械静止三个时刻。
+
+### 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 验收要求 | 状态 |
+|---|---|---|---|
+| SERVO-463 | 独立命令身份 | command ID、session epoch、deadline和目标摘要贯穿主机/VAL3 | 未执行 |
+| SERVO-464 | 分阶段控制器ACK | RECEIVED/DECODED/ACCEPTED/APPLIED/REJECTED可追踪 | 未执行 |
+| SERVO-465 | ACK与状态帧时序 | 状态先发后收情况下，本周期新命令不得被旧状态帧误确认 | 未执行 |
+| SERVO-466 | movejSync结果映射 | -2/-1/0/1/2状态策略明确并反馈到ROS 2 | 未执行 |
+| SERVO-467 | 命令完成准则 | 目标误差、速度、稳定时间、容差和取消/抢占终态定义完整 | 未执行 |
+| SERVO-468 | STOP接收及停止确认 | 分离本机send、控制器接收和机械静止确认，带超时策略 | 未执行 |
+| SERVO-469 | RobotDriver事务关联 | outstanding command表、ACK匹配、超时、断线和旧epoch隔离 | 未执行 |
+| SERVO-470 | write语义与发送结果 | write OK语义准确，UDP丢弃/失败不再被误报成功 | 未执行 |
+| SERVO-471 | Mock端到端命令闭环测试 | mock实际读取命令并模拟接受/应用/完成/拒绝结果 | 未执行 |
+| SERVO-472 | CS9/HIL命令因果链验收 | 抓包、VAL3日志、命令ID、运动反馈和STOP确认时间线完整 | 未执行 |
+
+### 本节来源记录（#1992–#2001）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1992 | [controlTask.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) 与 [computeSequenceDelay.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx) | 状态先发后收命令、nControlMode/sequence delay语义及命令执行顺序 |
+| #1993 | [RobotState.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotState/RobotState.dtx)、[RobotStateMsg.dtx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Types/RobotStateMsg/RobotStateMsg.dtx)与C++ [messages.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp) | 状态协议有遥测/模式字段，但没有command ID、ACK阶段或终态结果 |
+| #1994 | [decodeRobotCommandMsg.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx) | bIsValid仅是VAL3本地解码有效标记，无回传ACK |
+| #1995 | [updateJointPositionControl.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx)与[stopJointPositionControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx) | movejSync状态检查、未门控的1/2状态及缺少目标完成判据 |
+| #1996 | [real_time_socket_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp)与[robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | send_message/RobotDriver命令发送无等待ACK和事务关联 |
+| #1997 | [staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write在send_robot_command返回true后直接返回OK |
+| #1998 | [updateState.pgx @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx)与[encodeRobotStateMsg.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx) | bInMotion、关节遥测和状态字段编码，不带命令终态关联 |
+| #1999 | [test_staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp)与[test_staubli_hardware_interface.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp) | write测试仅断言OK，mock线程仅发送state/diagnostics，不验证命令接收/执行 |
+| #2000 | [test_robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp)与[test_rt_socket_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp) | 连接/状态读取/序列化/UDP双向收发测试的覆盖边界，无命令结果ACK/运动完成闭环 |
+| #2001 | [robot_driver_helpers.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp)与[robot_driver.hpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | STOP辅助函数与get_current_message_sequence复用最近状态序号，不是独立命令ID |
+
+**验证边界：** 本节为固定提交bd658e2静态源码/测试源码审查；未执行C++构建、VAL3编译、真实CS9命令/ACK抓包、控制器执行时序测量、轨迹终态、STOP确认、HIL/FAT/SAT或实机测试。状态先发送后接收命令、协议缺少命令ID/结果字段、write只按本地发送返回值给出OK、movejSync状态1/2未升级错误、测试未核验命令接收与执行均可由固定源码核对。实际运动响应、控制器命令应用时延和物理完成判据仍需在受控设备验证。SERVO-463–SERVO-472全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
