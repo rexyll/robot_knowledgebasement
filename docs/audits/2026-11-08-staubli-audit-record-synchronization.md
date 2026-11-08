@@ -249,3 +249,8 @@ SERVO-710/714未完成，SERVO-713部分取证未完成；00-01/21-02保持进�
 来源：
 - https://github.com/ros2-gbp/moveit2-release/commit/04da341a35a97633b11a95ac1600b1995bcbacc3
 - Debian control/rules/changelog/gbp.conf与package.xml：专项追加件§9.3.124。
+
+
+## 22.1 厂商档案资产清单单行元数据刷新
+
+因新增§128.75，资产清单中 knowledge/ecosystem/主要厂商.md 对应行刷新为Blob SHA 06c8d61a50aeaf9ca4e378e0207cc871224d1bec、UTF-8大小518,450 bytes。该操作仅刷新单一资产Git元数据，不代表claim-level复核完成，也不代表其余资产行已重新计算。
