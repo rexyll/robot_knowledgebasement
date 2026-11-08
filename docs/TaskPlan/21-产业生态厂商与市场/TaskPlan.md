@@ -833,3 +833,21 @@
 | SERVO-583 | 速度控制模式实现一致性 | 未执行 |
 | SERVO-584 | 轨迹采样连续性与丢点行为 | 未执行 |
 | SERVO-585 | Hold/STOP/恢复动态验收 | 未执行 |
+
+| 2026-11-08 | 21-02/Stäubli ROS 2 JTC轨迹采样、期望状态插补与VAL3位置目标时间语义审查 | 固定ICube提交bd658e2核对MoveIt FollowJointTrajectory→JTC→ros2_control write→UDP RobotCommand→VAL3 controlTask/MoveJSync链路：controller_manager配置250Hz，JTC仅输出position，协议无轨迹点time_from_start/源时间戳/速度加速度字段，controller_period虽解析但VAL3未消费；interpolate_from_desired_state=true使新轨迹从上一期望命令而非硬件实测状态插补；JTC插补策略未显式冻结，positions-only输入在Jazzy spline模式下线性插补、速度不连续；允许非零终点速度，goal_time=0可能无限等待，action_monitor_rate 20Hz不是控制采样率；仓库现有mock测试未覆盖FollowJointTrajectory/轨迹插补/丢包/重规划/MoveJSync。新增§9.3.94、SERVO-586–SERVO-596、来源#2072–#2081。全部未执行；未冻结实际Jazzy包版本，未运行JTC/MoveIt集成测试或VAL3/CS9/HIL/实机轨迹测试。 |
+
+### Stäubli专项审查新增验收任务（§9.3.94，全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-586 | ROS 2/JTC依赖版本冻结 | 未执行 |
+| SERVO-587 | JTC waypoint字段与插补策略 | 未执行 |
+| SERVO-588 | interpolate_from_desired_state重规划起点 | 未执行 |
+| SERVO-589 | Hold/暂停/恢复后轨迹重锚定 | 未执行 |
+| SERVO-590 | JTC 250Hz采样与VAL3 4ms任务同步 | 未执行 |
+| SERVO-591 | UDP丢包/延迟/乱序对轨迹采样影响 | 未执行 |
+| SERVO-592 | 非零终点速度与位置型硬件接口 | 未执行 |
+| SERVO-593 | action结束、轨迹结束与实际静止一致性 | 未执行 |
+| SERVO-594 | action取消/抢占/重规划行为 | 未执行 |
+| SERVO-595 | 端到端轨迹时间戳与日志关联 | 未执行 |
+| SERVO-596 | 端到端轨迹跟踪误差与验收闭环 | 未执行 |
