@@ -41,7 +41,7 @@
 
 - [2026-11-06 知识资产 Git Tree 对账与清单刷新](2026-11-06-knowledge-asset-tree-reconciliation.md)：按 main Git Tree 对账 253 个 Blob、205 份 Markdown、142 份 knowledge Markdown；补入漏登的 17 份知识文件并刷新 17 条过期 SHA/大小。仅为元数据对账，不是正文或主张级审查。
 - [2026-11-03 基线盘点与抽样审计](2026-11-03-baseline-inventory.md)：记录初始基线、代表性内容抽样、历史缺口和优先级队列。
-- [2026-11-03 知识资产清单](2026-11-03-knowledge-asset-inventory.csv)：逐项列出 knowledge/ 下 142 份 Markdown 的路径、Git Blob SHA、大小、文件类型、抽样深度、优先级和验收状态。2026-11-08仅对《主要厂商.md》一行刷新Blob SHA与UTF-8大小元数据；不代表全清单元数据均已刷新或该文档主张级验收完成。
+- [2026-11-03 知识资产清单](2026-11-03-knowledge-asset-inventory.csv)：逐项列出 knowledge/ 下 142 份 Markdown 的路径、Git Blob SHA、大小、文件类型、抽样深度、优先级和验收状态。2026-11-08对《主要厂商.md》同一资产行随§128.62–§128.64两轮内容更新刷新Blob SHA与UTF-8大小元数据；不代表全清单元数据均已刷新或该文档主张级验收完成。
 - [2026-11-03 机器人硬件与安全专项来源补充台账](2026-11-03-robot-safety-source-register.md)：记录标准组织、制造商官方规格页和版本边界。
 
 ## 审计状态
