@@ -3422,3 +3422,69 @@ start.pgx请求4ms同步任务；controlTask.pgx每次同步序列依次包含�
 | #1806 | [ICube real_time_socket_subscriber.hpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp) | MessageStatus仅保存Duration年龄，接口未显式表达时钟域 |
 | #1807 | [ROS 2 Jazzy rclcpp::Clock API](https://api.nav2.org/jazzy/html/classrclcpp_1_1Clock.html) | 默认构造参数为RCL_SYSTEM_TIME；与RCL_STEADY_TIME单调时钟语义区分 |
 
+
+
+## 9.3.58 RobotDriver::connect 首帧就绪等待与诊断通道旁路
+
+### A. 固定审查基线
+
+- 上游：`ICube-Robotics/staubli_driver_ros2`
+- 固定提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`
+- 文件：`staubli_robot_driver/src/robot_driver.cpp`、`staubli_robot_driver/src/staubli_hardware_interface.cpp`
+- 重点函数：`RobotDriver::connect(const NetworkConfig&, int timeout_ms)`、`read_robot_state()`、`read_diagnostic_data()`。
+
+### B. 首帧等待循环存在的控制流问题
+
+1. connect先检查control_interface与diagnostics_subscriber的`is_ready()`，随后进入“Wait for the first valid messages”循环。
+2. 循环条件为`rclcpp::Clock().now() - start_connect_time < timeout`。循环体读取一次机器人状态，随后执行`rclcpp::sleep_for(500ms)`。
+3. 即使`cmd_interface_ready`已经为true，循环也没有`break`或成功退出条件；因此成功获得首帧后仍持续等待，直至超时条件不成立。默认硬件接口传入5000ms，正常连接路径可能额外等待接近整个timeout窗口，而不是首帧到达即完成。
+4. 若timeout_ms小于500ms，循环体仍会完整执行一次500ms sleep，连接等待实际时长可能超过请求timeout；一般情况下，固定500ms sleep也会造成最多一个sleep周期量级的超时超调，具体受调度和Clock影响。
+5. 循环终止后仅检查最后一次循环留下的`cmd_interface_ready`。若状态曾有效但最后一次检查因状态过期/读取失败变为false，connect会失败；反之，若最终一次读成功则成功。该语义把“曾经收到有效首帧”错误地实现为“循环退出前最后一次采样必须有效”。
+6. 当前`rclcpp::sleep_for(500ms)`是固定轮询等待；没有基于首帧到达的事件通知，也没有将剩余timeout作为sleep上限。
+
+### C. 诊断通道就绪检查被旁路
+
+1. 同一循环中明确保留TODO：`implement diagnostic data reading once available`。
+2. `diag_interface_ready`被直接赋值为`true`，实际的`read_diagnostic_data(diagnostic_data_msg)`调用被注释。
+3. 因此连接成功条件`cmd_interface_ready && diag_interface_ready`中的诊断项恒为true；此前is_ready()只能证明订阅器/socket层就绪，不能证明已收到有效诊断帧、诊断帧新鲜或诊断内容有效。
+4. 不能据此宣称驱动已经验证诊断通道端到端可用。当前代码把诊断首帧验证明确留作TODO。
+
+### D. 影响与风险边界
+
+- 可直接确认：首帧状态读取成功不会提前结束等待循环；诊断有效性在connect首帧等待阶段被硬编码为true。
+- 可推导风险：启动时间被无谓延长；timeout边界被500ms sleep粒度超调；状态短暂有效后在退出采样点过期会导致连接失败；诊断UDP通道虽已创建并检查subscriber ready，但没有端到端诊断首帧门槛。
+- 尚不能确认：目标现场实际连接延迟、首帧丢失概率、诊断通道是否持续可用，以及上层生命周期管理是否对该延迟有额外容忍。
+- 此问题不等同于机器人安全停止失效；不得将connect失败或连接延迟直接描述为运动中故障。
+
+### E. 整改建议
+
+1. 将连接等待改为明确状态机：控制状态首帧有效即锁存`control_state_seen=true`；若产品要求诊断首帧，则诊断有效也独立锁存，两个必需条件满足后立即退出。
+2. 诊断首帧是否为连接硬门槛必须由产品需求/安全分析确定；若不是硬门槛，应明确标记为degraded/diagnostics unavailable，而不是伪造ready=true。
+3. 用条件变量/事件通知或有界短周期等待代替固定500ms轮询；等待时长必须受剩余deadline约束，且不得因最后一次采样覆盖此前成功状态。
+4. 连接超时统一使用steady clock deadline；每次等待按`min(poll_interval, remaining)`限时，避免sleep越过deadline。
+5. 增加连接阶段结构化诊断：socket连接、subscriber启动、首个有效控制帧、首个有效诊断帧、协议版本校验分别记录耗时和失败原因。
+6. 修复后必须测试：首帧立即到达、延迟到达、控制帧缺失、诊断帧缺失、首帧后中断、timeout<500ms、墙钟前跳/回拨、disconnect并发取消等待。
+
+### F. 新增验收任务（SERVO-213–SERVO-222）
+
+| 编号 | 验收项 | 通过标准 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| SERVO-213 | 控制首帧成功即退出 | 有效控制首帧到达后不再等待完整timeout | 单测/集成测试 | 未执行 |
+| SERVO-214 | 首帧状态锁存 | 曾有效的首帧不会被后续一次采样失败覆盖为“从未就绪” | 状态机单测 | 未执行 |
+| SERVO-215 | 诊断首帧门槛 | 诊断是否必需由配置/需求决定，不得硬编码ready=true | 需求追踪与集成测试 | 未执行 |
+| SERVO-216 | 诊断通道真实读取 | 若诊断为必需，首个有效且新鲜诊断帧才置ready | UDP集成测试 | 未执行 |
+| SERVO-217 | timeout小于轮询间隔 | timeout=1/50/100/499ms时不因固定sleep产生500ms等待 | 假时钟/单测 | 未执行 |
+| SERVO-218 | timeout deadline边界 | 等待不超过deadline加明确调度容差 | 单测/时间测量 | 未执行 |
+| SERVO-219 | 控制帧缺失 | 到期返回失败并明确指出控制首帧缺失 | 故障注入 | 未执行 |
+| SERVO-220 | 诊断帧缺失 | 按已定义策略失败或进入明确降级状态，不伪报ready | 故障注入 | 未执行 |
+| SERVO-221 | 首帧后中断 | 首帧有效后连接判定和后续staleness策略分离 | 集成测试 | 未执行 |
+| SERVO-222 | disconnect取消等待 | 连接等待期间disconnect/生命周期取消可及时退出且资源释放完整 | 并发/生命周期测试 | 未执行 |
+
+### G. 本节来源记录（#1808–#1811）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #1808 | [ICube robot_driver.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | connect首帧等待循环、500ms sleep、没有成功break、诊断ready硬编码 |
+| #1809 | [ICube staubli_hardware_interface.cpp @ bd658e2](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | on_init调用connect并传入5000ms timeout |
+| #1810 | [ROS 2 design: Clock and Time](https://github.com/ros2/design/blob/gh-pages/articles/130_ros_time.md) | Steady Time适用于硬件超时；System/ROS time与steady time用途不同 |
+| #1811 | [ICube RobotDriver API/header](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp) | connect timeout及控制/诊断状态接口定义的交叉核对入口 |
