@@ -1106,3 +1106,29 @@
 发布链证据定位：
 - Release repository：`https://github.com/ros2-gbp/moveit2-release/blob/master/README.md`，读取时README Blob SHA `d88be71a3ec60d425251f19e4abe60e1a899cdd1`；Jazzy条目标题 `moveit (jazzy) - 2.12.4-1`。
 - 上游源码：`https://github.com/moveit/moveit2/tree/2.12.4/moveit_ros/moveit_servo`；package.xml Blob SHA `0f00c9ec3b85b0322b96124cd714cf9d280473fb`，CMakeLists Blob SHA `6ec080d195798ba22e319def3da08c2e36a7d54f`。
+
+
+### Stäubli专项审查新增记录（§9.3.108，MoveIt Jazzy Bloom发布记录的Git提交可追溯性）
+
+本轮继续SERVO-701，对ROS官方release repository `ros2-gbp/moveit2-release` 的当前状态和提交历史进行独立核对：
+
+- GitHub仓库默认分支为 `master`。当前可见最新提交为 `ca9b116837bd3ed6b2de19772aeef8d5c2a82e95`（2026-09-16，提交说明“Updating README.md”），该提交的diff只在README顶部新增MoveIt Rolling 2.15.2-1发布记录；不能把该提交误记为Jazzy 2.12.4-1发布提交。
+- 当前README保留Jazzy 2.12.4-1条目，记录Bloom命令、2025-12-05发布时间、moveit_servo包归属，以及rosdistro 2.12.3-1到release版本2.12.4-1的升级关系。它能证明当前README发布日志包含该记录，但单凭当前文件不能确定该条目最初由哪个Git提交引入，也不能证明Bloom调用所用的完整源仓库快照、release tag或构建farm job ID。
+- GitHub提交检索中，按仓库查询最近提交返回的是2026-09-16的Rolling/Lyrical更新；以“jazzy”或“2.12.4”作为提交文本检索未返回可用的Jazzy发布提交。该检索结果不是历史中不存在该提交的证明，可能受GitHub commit search索引/查询匹配规则限制。
+- 因此SERVO-701不能标记完成。下一步应直接定位README历史版本/对应diff，取得引入Jazzy条目的commit SHA，再追踪Bloom生成的release tag、source repository revision、rosdistro distribution PR/merge commit及build-farm job。若无法形成一一对应关系，应记录为供应链证据缺口，而不是推断commit。
+- 该核对仅针对MoveIt通用Jazzy发布供应链，不代表Stäubli驱动本身已锁定或验证该二进制；固定ICube源码提交仍为 `bd658e2d266e315d2ee35f985fb352ea88306b79`。未修改ICube上游，未进行APT签名/包安装/ROS运行、VAL3、CS9、HIL或实机验证。
+
+### Stäubli专项审查新增验收任务（§9.3.108）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-704 | 从moveit2-release README文件历史定位首次引入Jazzy 2.12.4-1条目的提交SHA、父提交和完整diff | 未执行 |
+| SERVO-705 | 将Bloom发布日志与rosdistro/distribution仓库中Jazzy moveit release tag/version记录对应，保存PR及merge commit | 未执行 |
+| SERVO-706 | 核对MoveIt上游2.12.4源代码tag与release仓库track配置、Bloom生成tag/源包版本之间的映射 | 未执行 |
+| SERVO-707 | 追踪ROS build-farm对应Jazzy/Noble amd64与arm64构建任务、job URL、source revision及二进制构建修订 | 未执行 |
+| SERVO-708 | 将release README、Bloom输入、rosdistro merge、build-farm任务和APT二进制包组成可审计的供应链证据图；无法对应的边明确标记缺失 | 未执行 |
+
+本节来源：
+- `ros2-gbp/moveit2-release` 当前默认分支及提交 `ca9b116837bd3ed6b2de19772aeef8d5c2a82e95`。
+- MoveIt Jazzy 2.12.4-1发布日志（当前README，原始Bloom时间2025-12-05）。
+- GitHub commit search结果；仅作为检索过程记录，不作为历史不存在的证据。
