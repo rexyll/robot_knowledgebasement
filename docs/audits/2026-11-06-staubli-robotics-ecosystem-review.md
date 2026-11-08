@@ -6269,3 +6269,74 @@ MoveIt 2通过`FollowJointTrajectory`向`joint_trajectory_controller`提交轨�
 | #2081 | [项目README](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md)、[Jazzy CI workflow](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/.github/workflows/ci.yml)、[硬件接口测试](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp)与[RobotDriver测试](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | 固定发行版声明、prototype边界和现有测试覆盖范围 |
 
 **验证边界：** 本节完成固定提交的配置、消息结构、C++/VAL3调用链及仓库测试树静态审查，并参考ROS 2 Control Jazzy官方文档解释JTC参数。未安装/冻结目标机器实际二进制包版本，未运行Jazzy构建或JTC/MoveIt action测试，未进行UDP轨迹采样注入、VAL3编译、CS9/SRS、HIL或实机轨迹测试。JTC重规划偏差、waypoint字段实际分布、非零终点速度的MoveJSync表现、action成功与机器人静止的一致性均为待验证项。SERVO-586–SERVO-596全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
+
+
+## §9.3.95 FollowJointTrajectory取消、抢占、停止与恢复链路审查
+
+**审查基线：** ICube-Robotics/staubli_driver_ros2 固定提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。本节为源码静态审查，并用ROS 2 Control Jazzy文档解释JTC action语义；不构成VAL3编译、CS9动作或安全功能验证。
+
+### 9.3.95.1 MoveIt action入口与JTC取消/抢占语义
+
+- MoveIt Simple Controller Manager将 `joint_trajectory_controller/follow_joint_trajectory` 映射为 `FollowJointTrajectory` action，MoveIt配置未定义自有取消协议或单独的机器人STOP映射。调用action cancel只作用于action goal生命周期，不能据此推定机器人控制器已经执行停止。
+- Jazzy JTC文档规定同一时刻最多一个action goal。通过action接口提交新goal抢占当前goal时，旧goal被abort并通知客户端，轨迹按JTC替换规则更新；通过topic接口发送空轨迹则会覆盖当前action goal，但不会abort该action。两种入口的客户端状态语义不同，不能混为一谈。来源#2083、#2092。
+- Jazzy文档说明默认cancel/preempt行为是立即hold当前position；若启用 `constraints.decelerate_on_cancel`，JTC才会基于每轴velocity state与 `max_deceleration_on_cancel` 生成减速轨迹。项目controllers.yaml没有配置该开关或每轴减速度，因而按Jazzy默认值应视为未启用。来源#2082、#2092–#2094。
+- 项目确实导出position与velocity状态接口，但仅满足平滑减速功能的速度反馈前提之一；缺少经过型号、负载、姿态、工具和工艺验证的每轴减速度值。不能凭“存在velocity state interface”就开启平滑减速，也不能把JTC生成的停止轨迹当作CS9安全停止功能。
+- 当前配置的 `goal_time=0.0` 与取消行为是不同问题；取消应按action cancel处理，不能依赖goal超时来停止。JTC的action监测频率也不是VAL3停止确认或机器人静止采样频率。
+
+### 9.3.95.2 JTC保持命令到VAL3的实际执行路径
+
+- 硬件插件的write每个控制周期构造RobotCommandMessage，command_type取当前控制模式；位置模式发送position command_reference。JTC默认hold当前位置时，硬件接口仍处于JOINT_POSITION模式，write并不会因为action取消自动切换成CommandType::STOP。来源#2084。
+- RobotDriver::send_robot_command只校验接口可用性及STOP命令参考值是否为零，随后发送UDP消息；函数没有action goal ID、cancel ID、停止策略或执行完成确认。send_stop_all_command是独立函数，不是JTC cancel回调的显式映射。来源#2085。
+- VAL3 controlTask仅根据接收的command_type区分STOP、JOINT_POSITION和JOINT_VELOCITY。STOP分支会调用对应停止helper，并继续调用 `stopMove()` 与 `resetMotion()`；位置模式则持续调用updateJointPositionControl刷新目标。故JTC取消后若硬件侧继续发送position型hold目标，VAL3仍处于位置控制路径，而不是显式STOP分支。来源#2086–#2088。
+- `stopJointPositionControl` 在MoveJSync状态非-1时调用 `movejSyncEnd()`；`stopJointVelocityControl` 调用 `resetMotion()`。两者helper不同，但controlTask公共STOP分支还会调用stopMove/resetMotion；不得只凭helper差异断言完整STOP路径不一致。来源#2087–#2088。
+- VAL3应用退出程序stop.pgx同样执行stopMove/resetMotion并清空控制socket缓冲区。该应用退出清理路径不等同于FollowJointTrajectory cancel，也不证明控制器已完成机械臂减速或进入安全停止。来源#2089。
+- RobotDriver发送STOP成功仅表示本地通信发送路径接受了数据；协议没有action级停止确认、VAL3运动停止确认或机器人静止确认。该确认缺口与既有SERVO-564命令发送确认语义相关，本节不重复定义协议方案。来源#2085。
+
+### 9.3.95.3 状态反馈、HOLD/急停与恢复边界
+
+- updateState用 `isSettled()`映射in_motion，并通过 `herej()`读取位置；速度通过 `getJntSpeedCmd()`近似取得。源码没有把这些状态与某个FollowJointTrajectory goal/cancel请求关联，因此仅有action canceled结果不足以证明机器人静止。来源#2090。
+- updateState把motion_possible定义为drive powered且未处于EStop；对Hold的单独约束仍留有注释。action cancel、JTC hold、VAL3 Hold、CS9安全状态和机器人物理静止是不同状态维度。恢复前必须独立验证控制模式、Safety状态、运动许可、状态新鲜度及人工授权；不能自动重发取消前的轨迹或缓存目标。来源#2090及既有§9.3.93。
+- 网络丢包/延迟时，cancel或preempt消息并不会形成独立、可确认的取消报文；VAL3可能继续执行最后接收的有效命令。此风险与§9.3.91的UDP可靠性/状态陈旧问题、§9.3.93的缓存目标生命周期问题耦合，需组合故障注入，不应在本节重复声称已验证网络行为。
+
+### 9.3.95.4 测试覆盖与结论
+
+- 固定提交的测试树主要覆盖通信、mock server、硬件接口读写与生命周期；未发现覆盖FollowJointTrajectory action cancel、action preempt、topic覆盖action、JTC decelerate_on_cancel、cancel与UDP丢包/乱序并发、Hold/EStop并发、VAL3 MoveJSync停止时间或action终态与物理静止一致性的集成测试。来源#2091。
+- **静态结论：** 当前链路没有证据表明JTC取消会触发独立VAL3 STOP命令。默认JTC行为是当前位置保持，硬件接口继续发送position命令；只有显式切换到STOP command_type才会进入VAL3 STOP分支。action canceled/aborted仅是ROS action层结果，不等于停止完成，更不等于安全停止。
+- **禁止性结论：** 不得将JTC cancel、position hold、VAL3 stopMove/resetMotion、CS9安全停止或急停统称为“机器人已安全停止”。必须分别记录触发源、命令到达、VAL3动作、速度/位置反馈、控制器安全状态和实际静止判据。
+- **未执行项：** 未冻结目标ROS 2 Control Jazzy二进制版本；未运行JTC action测试、MoveIt cancel/preempt测试、UDP丢包/延迟注入、VAL3编译、CS9/SRS、HIL或实机停止测试。所有新增验收任务均为未执行。
+
+### 9.3.95.5 新增验收任务（全部未执行）
+
+| 任务 | 验收对象 | 状态 |
+|---|---|---|
+| SERVO-597 | FollowJointTrajectory cancel结果与JTC内部状态 | 未执行 |
+| SERVO-598 | Action preempt与新轨迹替换语义 | 未执行 |
+| SERVO-599 | Action与topic轨迹入口冲突行为 | 未执行 |
+| SERVO-600 | decelerate_on_cancel版本/配置/减速度适用性 | 未执行 |
+| SERVO-601 | JTC hold命令与VAL3 STOP命令区分 | 未执行 |
+| SERVO-602 | VAL3 MoveJSync结束、stopMove/resetMotion完成判据 | 未执行 |
+| SERVO-603 | Cancel/STOP与UDP丢包、延迟、乱序并发 | 未执行 |
+| SERVO-604 | Cancel与Hold/EStop/安全恢复并发 | 未执行 |
+| SERVO-605 | Action终态与实测机器人静止一致性 | 未执行 |
+| SERVO-606 | 取消、抢占、停止全过程日志关联 | 未执行 |
+| SERVO-607 | 取消后恢复、重新授权与禁止自动续动 | 未执行 |
+
+### 本节来源记录（#2082–#2094）
+
+| 编号 | 固定来源 | 用途 |
+|---|---|---|
+| #2082 | [controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml) | JTC position command、position/velocity state及未配置平滑取消参数 |
+| #2083 | [moveit_controllers.yaml](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/moveit_controllers.yaml) | MoveIt FollowJointTrajectory action映射 |
+| #2084 | [staubli_hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp) | write将当前控制模式和位置命令写入UDP消息 |
+| #2085 | [robot_driver.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp) | send_robot_command与send_stop_all_command发送语义 |
+| #2086 | [controlTask.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx) | VAL3按command_type分派STOP/位置/速度路径 |
+| #2087 | [stopJointPositionControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx) | MoveJSync结束helper |
+| #2088 | [stopJointVelocityControl.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointVelocityControl.pgx) | resetMotion停止helper |
+| #2089 | [stop.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx) | VAL3应用退出时停止与socket清理 |
+| #2090 | [updateState.pgx](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx) | in_motion、motion_possible、EStop、Hold状态映射 |
+| #2091 | [硬件接口测试](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp)与[RobotDriver测试](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp) | 现有测试范围与action停止路径缺口 |
+| #2092 | [ROS 2 Control Jazzy JTC用户文档](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/userdoc.html) | action preempt、topic覆盖action及hold语义 |
+| #2093 | [Jazzy JTC Decelerate on Cancel](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/decelerate_on_cancel.html) | 平滑取消算法、速度接口与每轴减速度要求 |
+| #2094 | [Jazzy JTC参数与发行说明](https://control.ros.org/jazzy/doc/ros2_controllers/joint_trajectory_controller/doc/parameters.html)及[Humble至Jazzy release notes](https://control.ros.org/jazzy/doc/ros2_controllers/doc/release_notes.html) | 参数默认值、只读约束及功能版本边界 |
+
+**验证边界：** 完成固定上游提交配置、C++命令路径、VAL3 STOP/位置控制分支、状态映射及测试树静态审查，并参考Jazzy官方文档解释JTC行为。没有执行cancel/preempt action测试、JTC减速取消测试、VAL3编译、CS9/SRS、HIL或实机停止测试。SERVO-597–SERVO-607全部未执行；Stäubli仍未达到工业级验收标准，TODO-EXT-001仍未获合并授权。
