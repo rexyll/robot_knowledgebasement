@@ -1099,7 +1099,7 @@
 | 任务 | 验收对象 | 状态 |
 |---|---|---|
 | SERVO-700 | 从ros2-gbp/moveit2-release固定README记录中核对Jazzy bloom发行日期、new version 2.12.4-1及moveit_servo包归属，并与上游2.12.4源码标签交叉验证 | 已完成（静态发布记录/源码核对） |
-| SERVO-701 | 固定release repository对应Jazzy发行提交/分支，追溯blooom release输入、source package版本、Noble构建任务与pool中20261006 deb工件的构建日志和revision | 未执行 |
+| SERVO-701 | 固定release repository对应Jazzy发行提交/分支，追溯bloom release输入、source package版本、Noble构建任务与pool中20261006 deb工件的构建日志和revision | 未执行 |
 | SERVO-702 | 在部署清单中固定生产APT URI与suite/component/architecture/keyring，不得引用ros2-testing路径；对目标系统实际sources配置和apt policy执行审计 | 未执行 |
 | SERVO-703 | 获取生产main的amd64/arm64 InRelease及Packages索引，验证签名链和索引摘要，并与testing索引做快照隔离记录 | 未执行 |
 
