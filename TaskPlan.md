@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.20  
+> 版本：v10.21  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.245 / SERVO-828；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.246 / SERVO-829；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3448,3 +3448,56 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 记录端到端单调时间戳：收包、反序列化、buffer set/get、hardware read/write、send syscall及机器人回执；形成平均/P99/P99.9/最大延迟、jitter、连续丢包和deadline miss指标。
 
 本轮未执行构建、单测、TSAN、网络故障注入、WCET/实时性能测量、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.246 / SERVO-829。
+
+
+### 2026-11-09｜v10.21 本轮推进记录（§9.3.246 / SERVO-829）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮首次将审查范围深入到随仓库提供的 VAL3 CS9 工程，而非仅核对 ROS 侧 C++ 驱动。核查文件包括 `val3/userapp/ros2_server/ros2_server.pjx`、`controlTask.pgx`、`start.pgx`、`stop.pgx`、`Comm/computeSequenceDelay.pgx`、`Comm/readData.pgx`、`Comm/readDataOnce.pgx`、`Comm/resetControlSocket.pgx`、`Comm/sendData.pgx`、`Serialization/decodeHeader.pgx`、`Serialization/decodeRobotCommandMsg.pgx`、`Serialization/encodeRobotStateMsg.pgx`、`updateState.pgx`，以及 ROS 侧 `robot_driver.cpp`。
+
+#### 静态审查发现
+
+1. **仓库确实包含可追溯的 VAL3 工程源文件。** `ros2_server.pjx`声明工程参数版本为 `s8.20.2Cs9_BS4270`，将 `controlTask.pgx`、通信、序列化和运动控制程序纳入工程。该文件是仓库声明的工程目标版本，不等于已在对应 CS9 控制器上成功导入、编译或运行。
+2. **VAL3 控制任务标称周期为4ms。** `start.pgx`将 `l_nCtrlPeriod=0.004`，通过 `taskCreateSync "controlTask", l_nCtrlPeriod, ...`创建同步任务；同时当Monitor Speed低于100%时只记录警告，未见启动门禁阻止控制任务运行。名义250Hz不构成任务抖动、超期率或端到端实时性证据。
+3. **控制任务先发布状态，再读取命令。** `controlTask.pgx`每轮调用 `updateState`、递增状态序列号、编码并发送RobotState，然后调用 `readData`接收RobotCommand，再计算命令序列延迟、判定控制模式并执行运动更新。因而状态帧序号代表VAL3侧已发布的循环计数；命令帧序号与当前状态序号的差被用作控制链路延迟代理，不是独立时钟测量。
+4. **无新UDP数据时旧命令对象会保留。** `readDataOnce.pgx`在 `sioGet`没有读到数据时仅保持 `x_bNewData=false`，不清空传入的命令数组；`readData.pgx`最多尝试读取两次。主循环在没有新消息时明确留下“检查旧命令staleness”的TODO，但随后仍会对上一次 `robot_command_msg`（若仍有效）计算序列延迟。即旧命令并非立即失效，而是依靠后续序列差阈值间接触发STOP/错误处理。
+5. **运行中命令延迟阈值约为20–24ms，静止时约为100–104ms。** 当机器人在运动且 `l_nSequenceDelay > 5`时，VAL3将错误锁存到本轮处理并转STOP；静止时使用 `>25`阈值。注释分别写“>20ms”和“>100ms”，但若每个序号对应4ms周期，严格大于阈值意味着第6/26个序号差才触发，名义边界约24/104ms（实际还受循环相位和序号定义影响）。该边界必须通过VAL3周期实测确认，不能仅凭注释认定恰好20/100ms。
+6. **序列延迟计算使用16位序号回绕修正。** `computeSequenceDelay.pgx`计算 `last_sent-last_received`；当差值小于-60000时加65536处理uint16回绕。其余负差被视为异常并在controlTask触发错误STOP。未见对乱序、重复、过旧但仍在正差窗口内、未来序号及重放帧的独立分类/拒绝策略；控制任务主要依赖延迟阈值和负值检查。
+7. **VAL3接收缓冲处理最多读取两次，不保证每周期排空队列。** `readData.pgx`最多调用两次 `readDataOnce`；后者通过 `sioGet`读取，只有读到完整长度才标记新数据，部分长度则报错。未见显式循环排空所有积压数据或基于序号选择队列中最新合法命令的逻辑。高负载时是否积累旧UDP数据、处理延迟如何演化，需要在目标控制器注入测试。
+8. **命令帧验证有基本结构检查，但没有完整序号新鲜度认证。** `decodeRobotCommandMsg.pgx`检查数据长度、解码头、消息类型，并检查反序列化末尾偏移；`decodeHeader.pgx`检查magic number与protocol version。没有看到命令头序号必须严格递增、在允许窗口内或不得重复的独立验证；命令有效标志只在解码成功后置true。
+9. **VAL3错误路径会尝试停止并重置通信，但停止结果不等于安全停止证明。** 序列延迟过大、负延迟、接收错误或解码失败会设置错误/STOP模式；错误处理调用 `stopMove()`、`resetMotion()`，将命令置无效并重置UDP socket buffer。没有看到STOP完成状态回执、实际速度达到零的确认门禁，也没有证明该普通控制路径等同安全急停/STO。
+10. **STOP后重启依赖新命令和机器人静止状态。** 控制模式从一个非STOP模式直接切换到另一个非STOP模式会被拒绝并进入STOP；从STOP进入新运动模式时，如果 `bInMotion`仍为true则拒绝启动。错误恢复会将命令置无效、重置序列计数并清空socket buffer；但未见显式故障锁存等待人工确认、控制器重启代次/会话ID、主机重连握手或新旧会话隔离协议。当前存在“等待新有效命令”的部分行为，不足以证明完整重连安全状态机。
+11. **VAL3 start/stop任务自身仍有诊断与监督缺口。** `start.pgx`中“Setup supervision/diagnostics task”仍为TODO；启动时清空socket buffer、执行stopMove/resetMotion并启动4ms控制任务。独立 `stop.pgx`执行stopMove/resetMotion并清buffer，但本轮未找到由ROS断连必然触发该VAL3 stop程序的证据。
+12. **安全状态与制动器状态字段存在语义简化。** `updateState.pgx`以 `esStatus()`填安全状态，并将任何非零状态视为EStopped；`bMotionPossible`由drive powered且非EStopped推导；`bBrakeReleased`直接等于drive powered，并非独立制动器反馈。该映射应与Stäubli控制器状态定义/安全手册核对，不能把软件布尔字段当作独立安全传感器或安全回路。
+13. **Monitor Speed低于100%仅告警。** `start.pgx`记录monitor speed不足的warning，继续启动控制任务；没有见到将低速倍率作为周期阈值、时延阈值或命令限速的一致性策略。需确认控制器运行倍率对4ms任务和运动更新语义的实际影响。
+14. **ROS侧命令序号以最近状态序号为基准，丢包只部分反馈。** `RobotDriver::read_robot_state`更新last_valid_sequence_id；硬件接口通过当前有效消息序号构造命令序号，VAL3据此计算状态/命令序号差。ROS侧状态丢包统计目前以warning/统计为主，且SERVO-828已确认UDP发送would_block可能丢弃命令却返回true；因此主机侧“发送成功”与VAL3实际收到并处理之间没有可靠确认闭环。
+15. **测试证据没有覆盖VAL3任务语义。** 仓库可检索到ROS C++ mock robot、socket、消息序列化及RobotDriver测试，但未发现针对VAL3 `controlTask`、`computeSequenceDelay`、4ms任务超期、UDP队列积压/两次读取上限、序号乱序/重复/回绕、超时阈值边界、STOP后旧命令重放和跨会话重连的自动化VAL3仿真测试。本轮只读测试源码，未执行测试。
+
+#### SERVO-829｜VAL3协议时序、命令缓存与断线恢复验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | VAL3工程版本、程序清单及目标CS9声明 | 静态核对完成；目标控制器导入/编译未验证 |
+| DL2 | 4ms同步控制任务与Monitor Speed策略 | 静态核对；周期抖动/WCET未测；低倍率仅警告 |
+| DL3 | 状态序号与主机命令序号的生成/对应关系 | 静态链路核对；端到端时间测量未做 |
+| DL4 | 无新命令时旧命令缓存、staleness与延迟门限 | 旧命令保留；显式staleness TODO；依赖序号差间接STOP |
+| DL5 | 16位序号回绕、乱序、重复、未来序号与重放处理 | 有回绕修正及负差错误；完整新鲜度/单调性校验未见 |
+| DL6 | UDP队列积压、每周期最多两次读取与最新命令选择 | 静态读取上限核对；积压/排队延迟未测 |
+| DL7 | VAL3错误STOP、运动复位、socket清理与停止确认 | 静态路径核对；无停止回执/静止确认闭环 |
+| DL8 | STOP后恢复、主机断连重连、会话隔离与旧命令拒绝 | 部分清buffer/等待新有效命令；完整握手/锁存/会话ID未见 |
+| DL9 | VAL3仿真、时延阈值边界、序号/网络故障及恢复测试 | 未发现充分VAL3专项自动化测试；本轮未执行 |
+| DL10 | CS9目标控制器、VAL3版本兼容、SIL/HIL、FAT/SAT和实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 在VAL3每周期明确命令有效期：新命令必须满足序号单调性、会话代次、允许延迟窗口及有效载荷校验；超时立即使缓存命令失效，不能只依赖旧对象持续有效与间接差值检查。
+- 明确16位序号比较的模运算规则，区分正常回绕、重复帧、乱序、重放、未来序号和超窗口旧帧；主机/VAL3双方使用一致的窗口定义和测试向量。
+- 对UDP接收队列设计有界排空与最新合法命令策略，记录每周期读取数量、队列积压、序号跳变和最大排队延迟；在网络突发/主机停顿后禁止按FIFO继续执行过期运动指令。
+- 统一4ms周期的时间预算：VAL3 task overrun、ROS update周期、UDP接收与发送、控制器状态回执逐段打点；记录WCET、P99/P99.9、最大抖动和连续deadline miss。
+- 将延迟阈值改为经风险分析和实测确定的时间窗，而非注释中的周期数量；分别验证运动中/静止时边界、循环相位、任务倍率和负载影响。
+- 错误STOP后建立显式锁存与恢复协议：停止命令处理、实际运动状态确认、故障原因保留、人工/受控复位、重新交换会话ID、清除双方缓存、状态重新同步、再次许可；拒绝旧会话中的延迟数据包。
+- 统一ROS和VAL3的故障状态、停止请求、停止发送结果、控制器接收确认、停止状态回报；UDP syscall成功不能替代控制器ACK或实测静止状态。
+- 核实 `bBrakeReleased`、`bMotionPossible`、`bEStopped` 与CS9真实状态/安全功能定义；不得以派生软件状态替代独立制动器反馈、安全PLC或STO。
+- 增加VAL3工程级仿真/测试：命令中断、丢包、乱序、重复、重放、16位回绕、突发队列、错误长度、协议版本漂移、控制任务超期、Monitor Speed变化、STOP期间旧命令到达、主机重启/重连、VAL3重启以及恢复握手。
+- 以目标CS9硬件、确切VAL3版本、受控工程包和厂商安全/通信规范完成验证；静态源码和仓库中的工程声明不能代替厂商签核与现场验收。
+
+本轮未执行VAL3 Studio导入/编译、CS9控制器仿真或下载、4ms周期/WCET测量、UDP故障注入、ROS集成测试、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.247 / SERVO-830。
