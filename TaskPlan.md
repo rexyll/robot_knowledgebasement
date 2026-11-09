@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.83  
+> 版本：v9.84  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.208；新增SERVO-791/AV1–AV10：UDP MSG_DONTWAIT的would_block分支明确丢包却返回true，send_message/send_robot_command和硬件write可能误报成功，STOP也可能误判发送成功；无背压计数/阈值。RealTimeSocketInterface复用data_out_且无发送互斥，跨线程并发若存在则有条件性共享缓冲风险，但实际并发未证实。blocking文档与MSG_DONTWAIT实现不一致。命令序号沿用最近有效状态序号，协议意图待CS9规范确认。AV1–AV9固定提交静态源码/测试覆盖核对完成，AV10需错误注入、背压及CS9/HIL证据。未执行构建/单测、UDP压力、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.209；新增SERVO-792/AW1–AW10：hardware write命令序号复用最近一次有效状态帧序号；协议MessageType没有独立ACK/command-result，send_robot_command本机send成功即返回，不等待控制器接收/接受/执行确认；subscriber只跟踪状态帧序号和丢包，不维护待确认命令队列；未发现ACK超时、命令重发、去重或重连清理状态机。命令序号协议意图需CS9/VAL3规范确认，不直接认定重复序号错误。AW1–AW9固定提交静态源码/测试覆盖核对完成，AW10需正式协议规范、控制器端证据和隔离CS9/HIL。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1976,3 +1976,10 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 发现UDP MSG_DONTWAIT的would_block分支明确丢包却返回true，send_message/send_robot_command和硬件write可能误报成功，STOP也可能误判发送成功；无背压计数/阈值。RealTimeSocketInterface复用data_out_且无发送互斥，跨线程并发若存在则有条件性共享缓冲风险，但实际并发未证实。blocking文档与MSG_DONTWAIT实现不一致。命令序号沿用最近有效状态序号，协议意图待CS9规范确认。
 - 新增SERVO-791/AV1–AV10：AV1–AV9固定提交静态源码/测试覆盖核对完成；AV10需错误注入、背压及CS9/HIL证据。未执行构建/单测、UDP压力、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。
 - 更新审计追加件§9.3.208、Stäubli厂商档案§128.146、审计索引及00/21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.209。
+
+### 2026-11-09｜v9.84 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.209，固定ICube提交bd658e2d266e315d2ee35f985fb352ea88306b79核对命令序号来源、协议消息类型、状态序号跟踪、命令发送返回语义和测试覆盖。
+- 发现hardware write命令序号复用最近一次有效状态帧序号；协议MessageType没有独立ACK/command-result，send_robot_command本机send成功即返回，不等待控制器接收/接受/执行确认；subscriber只跟踪状态帧序号和丢包，不维护待确认命令队列；未发现ACK超时、命令重发、去重或重连清理状态机。命令序号协议意图需CS9/VAL3规范确认，不直接认定重复序号错误。UDP send成功不等于控制器执行成功。
+- 新增SERVO-792/AW1–AW10：AW1–AW9固定提交静态源码/测试覆盖核对完成；AW10需正式协议规范、控制器端证据和隔离CS9/HIL。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。
+- 更新审计追加件§9.3.209、Stäubli厂商档案§128.147、审计索引及00/21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.210。
