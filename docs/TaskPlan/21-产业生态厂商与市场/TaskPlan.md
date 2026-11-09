@@ -2993,3 +2993,47 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DD10 | 获取CS9/VAL3正式协议、目标Boost/内核/网卡配置并完成隔离SIL/HIL/FAT/SAT | 未确认，目标证据缺失 |
 
 未执行构建/单测、短/长/截断报文注入、畸形帧/连续错误恢复测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.217。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.217 / SERVO-800）
+
+本轮固定审查ICube提交 bd658e2d266e315d2ee35f985fb352ea88306b79，检查16位序号回绕、重复/倒退/乱序、状态时间戳刷新、RobotDriver消费路径与重连会话隔离。
+
+证据文件：
+- staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp（blob 773cdeb9c4bf6e2dab3cf9e15426e4e954e35dea）
+- staubli_robot_driver/src/real_time_socket_subscriber.cpp（blob e2cd8fc50b2b13d9e31b2c024e90f9da76107622）
+- staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp（blob 330839cb25e53fe961541f29f634722bec4a47c4）
+- staubli_robot_driver/src/real_time_socket_interface.cpp（blob eda0a830cfe0118e07bc3423ad0f455bd50d610c）
+- staubli_robot_driver/src/robot_driver.cpp（blob ede48a314856a455df9d8434f354aaf9fbc47bff）
+- staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp（blob 62c87a6741aa082db4599bb2c048aec0fcd7a464）
+- staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp（blob 9d54374f3b1327f73b5ae276719f27b6a7b62858）
+
+#### 静态审查发现
+
+1. 序号为16位无符号整数。FrameHeader.sequence_number为uint16_t，MAX_FRAME_SEQUENCE_NUMBER为65535，协议序号空间为0..65535。
+2. 回绕丢包公式存在+1偏差。当前公式为(MAX_FRAME_SEQUENCE_NUMBER-last_read_sequence_number_)+new_sequence_number+1。连续回绕65535→0应丢包0，当前得1；65534→0应丢包1，当前得2。这是源码和算术可直接确认的统计缺陷。
+3. 任意倒退序号均被当作回绕。代码仅比较new<last，没有半区间比较、最大前进窗口或乱序拒绝策略。例如last=200收到199，会按回绕报告65535个丢包，并将last_read_sequence_number_更新为199；该帧仍作为邮箱最新帧交给读取端。
+4. 相同序号的帧仍可能替换消息并刷新时间戳。read_message先将邮箱消息赋给调用者msg，再比较序号；相同序号只将status.new_message设为false，并未撤销赋值。接收线程每次deserialize成功均刷新本地reception_timestamp并覆盖邮箱，因此相同序号但payload不同的帧仍可能替换读取内容并刷新staleness年龄。
+5. RobotDriver没有使用new_message做门禁。read_robot_state检查类型和staleness，但不检查status.new_message，也不将接收序号与last_valid_sequence_id_比较；相同序号的重复/重放帧仍可能被复制到current_robot_state_并输出。
+6. 旧序号可能导致状态回退。Subscriber邮箱按最新到达帧覆盖，read_message不拒绝旧序号；RobotDriver只检查消息类型和staleness，故乱序到达的旧帧可能作为新到达的有效状态返回。影响需动态测试，静态审查不证明现场已发生。
+7. 重连没有应用层会话标识。FrameHeader仅含magic、protocol_version、message_type、sequence_number和payload_size，没有session/epoch/nonce。connect重新创建RealTimeSocketInterface/Subscriber，读取序号状态随新对象重置；但帧本身无法绑定当前连接代次，无法单凭协议头识别跨重连延迟到达的旧会话报文。UDP socket关闭/重开后的内核队列及网络延迟行为需在目标OS/网络配置中验证。
+8. 现有test_rt_socket_interface.cpp包含LostPackageDetection，覆盖序号7→9和邮箱中连续收帧后读取最新帧；未见65535→0、65534→0、重复序号不同payload、倒退/乱序、旧帧回放、半区间边界、跨重连旧帧或序号回退后恢复测试。本轮只做静态审查，没有执行测试。
+
+建议：明确控制器序号递增规则；使用经过边界证明的模16位序号比较器，区分回绕、短距离乱序、重复帧和明显旧帧；旧帧不得覆盖最新状态或刷新有效状态年龄；重复序号但payload变化应按协议契约处理；若控制器协议允许，增加连接代次/session token并在握手时绑定。丢包统计、状态更新和安全动作应分别定义，不得把丢包计数直接等同安全策略。
+
+#### SERVO-800｜序号与会话完整性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DE1 | 核对序号位宽、范围与最大值 | 静态核对完成：uint16_t，0..65535 |
+| DE2 | 核对正常回绕丢包公式 | 静态核对完成：65535→0误报1；65534→0误报2 |
+| DE3 | 区分回绕与旧帧/乱序帧 | 静态核对完成：任意new<last均按回绕处理 |
+| DE4 | 核对重复序号是否覆盖消息/刷新时间戳 | 静态核对完成：邮箱更新；read_message先赋值再标记new_message=false |
+| DE5 | 核对RobotDriver是否以new_message/序号门禁 | 静态核对完成：未检查new_message或与last_valid_sequence_id_比较 |
+| DE6 | 核对旧帧是否可能回退输出状态 | 静态核对完成：缺少单调性/乱序拒绝门禁；影响待动态验证 |
+| DE7 | 核对重连会话标识与旧会话帧隔离 | 静态核对完成：协议帧头无session/epoch字段 |
+| DE8 | 核对现有回绕、乱序、重复与重连测试覆盖 | 静态核对完成：仅有基础丢包测试，缺少上述边界场景 |
+| DE9 | 注入回绕边界、重复/倒退/乱序、旧帧回放和跨重连报文，验证状态单调性/时间戳 | 未执行 |
+| DE10 | 获取控制器序号生成规范、会话协议与目标网络配置，并完成隔离SIL/HIL/FAT/SAT | 未确认 |
+
+未执行构建/单测、序号边界注入、乱序/重放/重连测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.218。
