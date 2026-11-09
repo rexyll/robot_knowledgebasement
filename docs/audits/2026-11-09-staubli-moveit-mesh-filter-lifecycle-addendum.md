@@ -1267,7 +1267,7 @@ Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`stopMove()`描述为�
 
 ### 1. 错误状态在本周期内被清除，遥测可能看不到瞬态故障
 
-`controlTask.pgx`每轮循环先调用`updateState())，然后在接收命令之前设置并发送`robot_state_msg.robotState.bInError = l_bError`及`nControlMode = l_nCmdMode`。随后才执行UDP读取、解码、序号延迟检查、命令类型检查、模式转换和运动控制。
+`controlTask.pgx`每轮循环先调用`updateState()`，然后在接收命令之前设置并发送`robot_state_msg.robotState.bInError = l_bError`及`nControlMode = l_nCmdMode`。随后才执行UDP读取、解码、序号延迟检查、命令类型检查、模式转换和运动控制。
 
 若本轮接收/解码/模式转换/控制更新首次置位`l_bError`，同一轮末尾的错误处理会再次执行停止路径、将命令标记无效、清理通信状态，并把`l_bError=false`；只有socket reset失败等发生在清零之后的错误才会继续保留到下一轮。因此本轮新发生且本轮被清除的错误，不会出现在本轮已经发送的状态帧中，也可能不出现在下一轮`bInError`字段中。状态报文最多反映进入本轮时的旧错误快照，而不是本轮最终决策结果。
 
