@@ -174,3 +174,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt MeshFilter/OpenGL worker生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.156，静态核查MeshFilter worker初始化/job异常边界、GLRenderer/GLEW失败回滚、FilterJob异常等待和OpenGL context线程归属；新增SERVO-739/J1-J9，全部未执行，不代表Stäubli现场复现或工程验收。
+
+
+- [2026-11-09 Stäubli DepthImage异步输入缓冲区生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.157，确认默认异步裸指针与NaN CameraInfo提前return构成条件性悬空指针风险；正常内参路径有后续同步队列屏障。新增SERVO-740/K1-K7，尚未ASan复现或现场验证。
