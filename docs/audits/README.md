@@ -316,3 +316,5 @@
 - [2026-11-09 Stäubli控制命令生成、限幅、接口映射与异常发送审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.207。发现驱动发送路径无显式关节限值校验；write仅检查NaN不覆盖Inf；轴数未限制为协议6轴且超6时NaN检查存在固定数组越界路径；混合接口按第一个匹配项决定模式；模拟IO和controller_period缺少驱动侧范围/有限性门禁；STOP非零参考仅warning后仍发送。新增SERVO-790/AU1–AU10，AU1–AU9静态核对完成，AU10需隔离边界验证。
 
 - [2026-11-09 Stäubli命令UDP发送可靠性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.208。发现UDP would_block时数据报被丢弃但UDPSocketImpl::send仍返回true，导致send_message/send_robot_command及硬件write可能误报成功；无背压计数/阈值；RealTimeSocketInterface复用data_out_且无发送互斥（并发调用尚未证实）；blocking文档与MSG_DONTWAIT实现不一致；命令序号沿用最近有效状态序号，协议意图待CS9确认。新增SERVO-791/AV1–AV10，AV1–AV9静态核对完成，AV10需错误注入及CS9/HIL验证。
+
+- [2026-11-09 Stäubli命令序号关联与确认闭环审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.209。发现hardware write命令序号复用最近一次有效机器人状态序号；协议MessageType未定义独立ACK/command-result，send_robot_command不等待控制器接收/接受/执行确认；状态subscriber只跟踪状态帧序号，不关联待确认命令；未发现命令ACK超时、重发、去重或重连清理状态机。命令序号协议意图需CS9/VAL3规范确认。新增SERVO-792/AW1–AW10，AW1–AW9静态核对完成，AW10需协议规范及CS9/HIL证据。
