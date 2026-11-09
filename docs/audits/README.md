@@ -225,3 +225,6 @@
 
 
 - [2026-11-09 Stäubli ICube VAL3停止API语义、movejSync结束调用与停止完成条件审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.173，审查movejSync专用结束API、stopMove/resetMotion立即返回语义、controlTask/stop.pgx复合停止顺序及ROS STOP本地发送与停止确认边界；新增SERVO-756/L1-L16，L1-L15全部未执行，L16现场证据缺失。
+
+
+- [2026-11-09 Stäubli VAL3控制任务错误锁存、模式转换与故障遥测可见性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.174，确认controlTask先发送旧错误/模式快照，再处理本轮命令；部分错误可在同周期错误处理后清除，导致RobotState不保证呈现瞬态故障；控制模式切换会进入错误与socket重置路径。新增SERVO-757/M1-M10，M1-M9全部未执行，M10现场证据缺失。
