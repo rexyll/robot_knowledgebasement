@@ -1462,4 +1462,4 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/issues/3901
 - https://github.com/moveit/moveit2/issues/3902
 - https://github.com/moveit/moveit2/pull/3909
-- 专项审计§9.3.154；厂商档案§128.105。
+- 专项审计§9.3.155；厂商档案§128.106。
