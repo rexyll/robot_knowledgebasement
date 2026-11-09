@@ -237,3 +237,6 @@
 
 
 - [2026-11-09 Stäubli VAL3工作模式编码、ROS OperationMode枚举与运动许可状态一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.177，识别VAL3 workingMode 0-4与ROS OperationMode 0-3枚举语义不一致、operation_mode_status通用HOLD告警、motion_possible未纳入运行模式、movejSync状态2错误处理被注释及WAIT_FOR_WMS未置位wait_for_ack；新增SERVO-760/Q1-Q10，Q1-Q9未执行，Q10现场证据缺失。
+
+
+- [2026-11-09 Stäubli VAL3状态快照与命令执行先后、ROS read/write陈旧状态传播审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.178，审查VAL3先发布状态再接收/执行命令、序号延迟和错误遥测跨周期、ROS read拒绝陈旧状态但不显式使缓存失效、write缺少状态年龄/序号二次门禁；新增SERVO-761/R1-R10，R1-R9未执行，R10现场证据缺失。
