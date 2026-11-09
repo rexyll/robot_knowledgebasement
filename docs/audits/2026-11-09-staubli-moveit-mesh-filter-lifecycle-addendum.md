@@ -1356,9 +1356,9 @@ M1-M9全部未执行，M10现场证据缺失。未执行VAL3/CS9仿真、UDP故�
 
 ### 3. 无新报文时，上一条命令对象仍可能保持有效
 
-`readDataOnce.pgx`在`sioGet()`读到完整长度时才设置`x_bNewData=true)；读到0字节表示本次没有新数据，只有读到部分数据才标记错误。`controlTask.pgx`仅在`l_bNewCmdMessage`为true时调用`decodeRobotCommandMsg()`。没有新报文时，代码保留`robot_command_msg.robotCommand`此前的内容，并在`bIsValid`仍为true时计算序号延迟；“无新报文时检查上一命令陈旧度”的直接分支仍标记为TODO。
+`readDataOnce.pgx`在`sioGet()`读到完整长度时才设置`x_bNewData=true`；读到0字节表示本次没有新数据，只有读到部分数据才标记错误。`controlTask.pgx`仅在`l_bNewCmdMessage`为true时调用`decodeRobotCommandMsg()`。没有新报文时，代码保留`robot_command_msg.robotCommand`此前的内容，并在`bIsValid`仍为true时计算序号延迟；“无新报文时检查上一命令陈旧度”的直接分支仍标记为TODO。
 
-现有控制循环并非完全没有陈旧保护：当`l_bControlActive`为true时，会根据状态序号与命令序号差计算`l_nSequenceDelay)，运动中大于5、静止时大于25会触发STOP/ERROR路径。但这属于按周期序号差推算的保护，不是基于命令接收时间戳的独立超时；其边界依赖状态帧持续发送、循环节拍稳定、序号一致且复位/回绕处理正确。不能把TODO误写成“完全没有陈旧保护”，也不能把序号阈值等同于已验证的墙钟超时。
+现有控制循环并非完全没有陈旧保护：当`l_bControlActive`为true时，会根据状态序号与命令序号差计算`l_nSequenceDelay`，运动中大于5、静止时大于25会触发STOP/ERROR路径。但这属于按周期序号差推算的保护，不是基于命令接收时间戳的独立超时；其边界依赖状态帧持续发送、循环节拍稳定、序号一致且复位/回绕处理正确。不能把TODO误写成“完全没有陈旧保护”，也不能把序号阈值等同于已验证的墙钟超时。
 
 ### 4. ROS侧把序号下降统一当作16位自然回绕
 
