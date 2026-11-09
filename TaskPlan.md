@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.21  
+> 版本：v9.22  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.146，厂商档案新增§128.97。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.147，厂商档案新增§128.98。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1275,3 +1275,18 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/issues/3897
 - https://github.com/moveit/moveit2/pull/3907
 - 专项厂商档案§128.97。
+
+
+### §9.3.147 PR #3907 PlanningSceneMonitor回归测试断言能力边界
+
+- PR #3907新增`StopWorldGeometryMonitorStopsAllSubscriptions`：启动两个world geometry topic、单次stop，再断言`getMonitoredTopics()`不含两个topic。
+- MoveIt main源码Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`显示`getMonitoredTopics()`通过检查PSM成员subscriber指针来组装列表，不是ROS graph查询。故测试证明成员句柄清空，但不能单独证明DDS endpoint立即消失、在途回调退出或scene/world不再被消息更新。
+- 测试未创建publisher、未发布stop前后消息、未spin executor、未观察scene update callback，且`load_octomap_monitor=false`，未覆盖Octomap停止；重复stop/restart/配置切换也未覆盖。属于测试覆盖边界，不否定代码分别reset两个subscriber的修复。
+- 新增SERVO-730/T1-T6：目标Jazzy构建运行、stop前后消息级scene/world更新验证、executor回调退出/重复stop、ROS graph endpoint、Octomap停止、restart/配置矩阵；全部未执行。PR #3907仍Open/未合并；作者测试声明不作为本项目验证。ICube现场版本与配置仍未知。
+- 未修改MoveIt/ICube上游、未应用补丁；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/pull/3907
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
+- 厂商档案§128.98。
