@@ -550,3 +550,6 @@
 
 
 | 2026-11-09 | 00-01 | 继续Stäubli MoveIt感知链路静态审查至§9.3.156：核对MeshFilterBase worker初始化入口、FilterJob异常传播、GLRenderer/GLEW/framebuffer失败回滚及OpenGL context线程归属；发现线程入口/job缺少异常传递与完成通知，GL context登记失败路径无回滚，正常清理依赖worker线程执行deInitialize。新增SERVO-739/J1-J9，覆盖图形后端故障注入、异常job等待、mesh法线缺失、context线程归属、重复构造销毁、stop_ TSan、DepthImage回调静默及现场配置确认；全部未执行。新增专项追加件§9.3.156、厂商档案§128.107和README索引。00-01及21-02继续进行中；未运行ROS构建、TSan/ASan、GL故障注入、CS9/HIL/实机验证；未修改MoveIt/ICube上游、未应用PR #3909，TODO-EXT-001未授权合并。 | MoveIt main mesh_filter/GLRenderer/FilterJob源码；专项追加件§9.3.156；厂商档案§128.107 |
+
+
+| 2026-11-09 | 00-01 | 继续Stäubli MoveIt感知链路至§9.3.157：沿DepthImage回调→MeshFilter默认异步filter→FilterJob裸指针→OpenGL worker读取路径追踪输入缓冲区生命周期。识别NaN CameraInfo分支在异步job入队后、后续getFilteredLabels同步队列屏障前提前return，形成依赖调度时序的条件性悬空指针/潜在UAF路径；同时记录正常内参路径存在隐式队列屏障，避免过度泛化。新增SERVO-740/K1-K7，覆盖worker barrier/ASan、有效与无效标定、owner引用计数、慢渲染压力、修复性能和现场配置核实，全部未执行。更新专项§9.3.157、厂商档案§128.108及审计README。00-01及21-02继续进行中；未运行ASan/ROS动态测试/GPU压力、CS9/HIL或实机验证；未修改MoveIt/ICube上游或应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt main DepthImageUpdater/MeshFilter/FilterJob源码；专项追加件§9.3.157；厂商档案§128.108 |
