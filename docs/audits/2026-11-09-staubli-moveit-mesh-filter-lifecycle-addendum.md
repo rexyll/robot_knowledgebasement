@@ -3600,3 +3600,51 @@ AO1–AO7完成固定提交静态源码/测试覆盖核对；AO8–AO9未执行�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
+
+
+## §9.3.202｜MessageStatus输出初始化与read_message线程安全契约（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，检查`MessageStatus`定义、`RealTimeSocketSubscriber::read_message()`实现、调用方与通信单测。聚焦无消息返回时的输出确定性，以及文档声明的线程安全是否覆盖序号跟踪状态。本节为固定源码静态审查，不代表已复现未定义行为或并发数据竞争。
+
+### 静态发现
+
+1. **MessageStatus有两个字段没有默认初始化。** `new_message`与`lost_packages`均为普通标量成员且没有类内初始值；只有`time_since_received`设置了默认duration。调用方常见写法是`MessageStatus status;`，这不会将前两个成员自动初始化为确定值。
+2. **从未收到过消息时，read_message提前返回但没有写入lost_packages。** 当邮箱`try_get()`为空时，函数先设置`status.new_message=false`；若传入消息的`reception_timestamp`仍为0，则立即返回false。该分支没有给`status.lost_packages`赋值，也没有重置`status.time_since_received`。对默认构造的status，lost_packages保持未初始化；对复用的status，time_since_received可能保留上一次调用的旧值。
+3. **接口文档要求调用方“无论如何检查status”，但失败输出没有完整定义。** 头文件read_message注释提示调用方在任何情况下都应检查status；然而无首帧分支只保证new_message被写为false，其他字段不一定反映本次调用。若调用方在false返回后读取lost_packages，可能读取未初始化值；若复用status，time_since_received则可能被误认为本次测量值。
+4. **read_message的线程安全说明没有覆盖全部可变状态。** 头文件称该方法thread-safe，message_buffer_使用RealtimeThreadSafeBox保护邮箱读写；但`first_read_`和`last_read_sequence_number_`由read_message直接读取/写入，未见mutex/atomic保护。两个线程同时调用同一subscriber的read_message时，可能并发访问并更新这两个成员，形成条件性数据竞争及序号状态交错。
+5. **现有调用点未证明当前部署必然有多读者。** 固定仓库的RobotDriver状态读取、mock server命令读取及单测均表现为各自接口的单一逻辑消费路径；本次检索未建立同一subscriber被多个线程并发read的事实。因此多读者风险应表述为公开API线程安全契约不完整，而非已发生的现场竞态。
+6. **现有测试没有覆盖失败输出完整初始化和并发读者。** 通信单测覆盖收到首帧、重复读取、普通跳号和丢包统计；没有测试“从未收到首帧时status所有字段均确定”、status对象跨调用复用，也没有双读者并发/TSan测试。
+
+### 建议与验收要求
+
+- 为`MessageStatus`所有字段提供确定的默认值，并在`read_message`每次调用入口统一初始化全部输出字段；明确false返回时各字段的语义，避免调用方读到旧值或未初始化值。
+- 若类设计只支持单一消费者，应将`read_message`文档改为明确的single-consumer约束，并说明RealtimeThreadSafeBox只保护生产者/消费者邮箱，不使整个subscriber API自动具备多读者线程安全。
+- 若确需多读者支持，应对`first_read_`与`last_read_sequence_number_`的序号状态转移实施一致性同步；仅将字段分别改成atomic不足以自动保证复合序号处理的线性化语义。
+- 增加无首帧、status复用、首帧后断流及每个返回分支的输出断言；在明确支持多读者的设计下增加并发读/TSan测试，否则增加API约束测试和调用图审查。
+
+### SERVO-785 / AP1–AP10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AP1 | 核对MessageStatus所有成员的默认初始化 | 固定提交静态源码核对完成 |
+| AP2 | 核对邮箱为空且调用方消息尚无时间戳时的提前返回路径 | 固定提交静态源码核对完成 |
+| AP3 | 核对失败返回时lost_packages/time_since_received是否被本次调用确定赋值 | 固定提交静态源码核对完成 |
+| AP4 | 核对read_message头文件线程安全声明与RealtimeThreadSafeBox保护范围 | 固定提交静态源码核对完成 |
+| AP5 | 核对first_read_与last_read_sequence_number_的并发访问同步 | 固定提交静态源码核对完成 |
+| AP6 | 检索固定仓库调用点，区分已证实单消费者路径与潜在多读者API风险 | 固定提交静态检索完成 |
+| AP7 | 增加无首帧/复用status/失败返回字段初始化单测并运行 | 未执行 |
+| AP8 | 对同一subscriber多读者并发read执行TSan或屏障测试，或验证单消费者API约束 | 未执行 |
+| AP9 | 核对目标部署对read_message的外部调用、线程模型及编译配置 | 未确认，目标部署证据缺失 |
+| AP10 | 在目标ROS/CS9隔离环境验证无首帧、断流恢复和并发调用边界 | 未确认，现场/HIL证据缺失 |
+
+AP1–AP6完成固定提交静态源码/调用点核对；AP7–AP8未执行；AP9缺目标部署线程模型证据；AP10缺现场/HIL证据。未运行ROS构建/单测、TSan、Mock/SIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/mock_robot_server.cpp
