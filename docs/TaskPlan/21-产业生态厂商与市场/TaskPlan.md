@@ -4049,3 +4049,51 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 任何型号/轴数/工具/负载不一致均fail-closed；不得用通用六轴模型推断具体史陶比尔型号的安全工作空间或负载能力。
 
 本轮未执行构建、单测运行、URDF/Xacro展开、MoveIt规划验证、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.240 / SERVO-823。
+
+
+### 2026-11-09｜v10.15 本轮推进记录（§9.3.240 / SERVO-823）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查硬件接口源码/头文件、R2C joint xacro、URDF helper、顶层URDF xacro、TX2-60L关节限制配置及bringup文档/单测源码。
+
+#### 静态审查发现
+
+1. **TX2-60L具有关节级位置、速度和加速度参数。** `config/tx2_60l/joint_limits.yaml`为六轴定义min_position、max_position、max_velocity、max_acceleration，并设置has_position_limits、has_velocity_limits、has_acceleration_limits。配置使用`!degrees`标记角度量。
+2. **URDF位置/速度/effort硬限制由xacro写入。** `urdf/include/staubli_helpers.xacro:add_joint`读取min_position、max_position、max_velocity和effort相关参数并生成URDF `<limit>`。这属于机器人描述模型约束，不等同于驱动write()内对实时命令的独立限幅。
+3. **URDF soft limit存在，但不能当作驱动安全保护已生效。** 顶层`staubli.urdf.xacro`默认`use_soft_limits=true`并传递safety参数；helper在关节上生成`<safety_controller>`。本轮未验证实际加载的ros2_control控制器链是否启用对应软限位处理器，故不能把URDF标记本身视为命令限幅已生效。
+4. **安全参数存在未使用/未贯通疑点。** `safety_velocity_margin`作为宏参数传递，但本轮检查的helper生成逻辑没有引用它；soft limit计算只用position margin及k_position/k_velocity。应确认这是预期设计还是遗漏。
+5. **加速度限制仅作为Joint Limiter输入接口暴露。** R2C joint xacro可按`include_acceleration_command`导出acceleration command interface，并将`max_acceleration`写入接口max/min参数。硬件接口头文件明确该接口只用于传递限制，不是机器人加速度控制命令；bringup文档也说明加速度接口不是实际控制模式。
+6. **驱动本身不支持速度控制模式。** `prepare_command_mode_switch()`对JOINT_VELOCITY直接返回ERROR；bringup文档明确velocity command interface尚未完成。尽管write()中有速度命令编码分支，正常切换门禁会拒绝该模式，不能将分支存在等同于速度控制已支持。
+7. **驱动本身不支持力矩控制模式。** mode switch对JOINT_TORQUE返回ERROR；不能因协议结构含力矩数据/effort接口就认定可执行力矩控制。
+8. **write()未发现位置命令限幅。** JOINT_POSITION路径只将输入弧度转换为度并填入协议数组，没有读取URDF/joint_limits配置、没有比较min/max_position、没有按max_velocity或max_acceleration对轨迹变化率作检查，也没有发现clamp/拒绝超限目标的实现。
+9. **NaN检查不完整。** write()只使用`std::isnan`检查命令参考，不检查正负无穷（Inf）；没有显式有限值检查。位置命令可含超出机械限位的有限数值，静态代码路径未见独立拦截。
+10. **控制周期未见边界校验。** write()直接把ros2_control传入的period转换为毫秒写入`controller_period`，未见对零、负值、过大周期或异常周期抖动的拒绝/保护。
+11. **jerk限制未见配置或执行证据。** 已检查的TX2-60L joint_limits配置包含位置/速度/加速度字段，未发现jerk参数；本轮驱动write路径也未发现jerk限幅算法。
+12. **测试文档/源码未覆盖限位安全闭环。** bringup仅说明接口及mock行为；硬件接口单测主要验证初始化、接口数量、连接/插件行为，未见完整的位置超限、速度/加速度/jerk约束、Inf、周期异常和限位控制器链集成测试。本轮未运行测试。
+13. **Mock hardware不可代表真实限位保护。** bringup文档说明mock以简单动态模型跟随命令、不发送UDP且不反映真实机器人动力学；mock测试通过不能替代控制器限位、VAL3和实机安全验收。
+
+#### SERVO-823｜运动限位、速度/加速度/jerk及控制周期验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | TX2-60L关节位置/速度/加速度配置 | 完整源码静态核对完成 |
+| DL2 | URDF硬限位和soft limit生成 | 静态核对完成；运行时控制器生效性未验证 |
+| DL3 | safety_velocity_margin贯通 | 本轮helper未见使用，需澄清 |
+| DL4 | 加速度接口与Joint Limiter关系 | 静态核对完成；非真实加速度控制模式 |
+| DL5 | 速度/力矩控制模式 | 驱动门禁明确拒绝 |
+| DL6 | write()位置命令限幅 | 未见驱动内部位置/速度/加速度限幅 |
+| DL7 | NaN/Inf与周期边界 | 仅NaN检查；Inf及周期边界未见保护 |
+| DL8 | jerk配置与限制 | 未见配置/执行证据 |
+| DL9 | 超限、Inf、异常period及限位链测试 | 源码覆盖不足；未执行 |
+| DL10 | 控制器安全限位、VAL3、SIL/HIL、CS9、FAT/SAT及实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 建立单一可信限位来源，验证机器人型号配置、URDF、MoveIt、ros2_control Joint Limiter和控制器/VAL3限位完全一致；明确每层限位的职责和失效行为。
+- 在硬件驱动write()入口对所有命令执行有限值检查（NaN和Inf），并按真实型号/轴的已验证参数进行位置目标边界检查；不能用通用TX2-60L值覆盖其他型号。
+- 位置控制还需明确速度、加速度、jerk和控制周期的约束策略；由经过验证的轨迹限幅器/控制器实施，驱动侧至少拒绝不合理period和未通过安全校验的命令。
+- 核实`safety_velocity_margin`为何未参与soft-limit生成；明确soft-limit插件是否在实际controller chain加载，缺失时应fail-closed或明确禁止运动。
+- 不应把导出acceleration接口当作硬件加速度控制功能；在接口配置/文档中清楚标明其仅供限幅器消费。
+- 增加每轴位置边界、速度/加速度/jerk阶跃、Inf/NaN、period=0/负值/异常大值、软限位控制器缺失、模型限位不一致等负向及集成测试。
+- 在控制器、VAL3和实机验证完成前，任何ROS/MoveIt限位都不得替代控制器安全功能或被描述为安全认证。
+
+本轮未执行构建、单测运行、xacro展开、controller chain集成验证、MoveIt轨迹测试、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.241 / SERVO-824。
