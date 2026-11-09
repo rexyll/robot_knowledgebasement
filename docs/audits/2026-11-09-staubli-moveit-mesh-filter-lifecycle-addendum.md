@@ -3252,3 +3252,78 @@ TSS.000.014.04-A封面/版本信息标注日期2021-07-06，文档列出的测�
 
 - Stäubli, *CS9 Real Time Val3/Fieldbus configuration*, TSS.000.014.04-A, 2021-07-06: https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf
 - Stäubli, *VAL3 Reference Manual*, D.280.935.01-F, 2020-09-21: https://bvdp.inetdoc.net/files/iut/PHL/Manuel%20de%20ref%20VAL3.PDF
+
+
+## §9.3.196｜ROS—UDP—VAL3双向报文名义流量、包率与MTU边界（2026-11-09）
+
+### 1. 审查范围与已知输入
+
+本节只建立固定公开原型的协议负载/包率算术基线，承接§9.3.194–§9.3.195，不重复控制循环WCET或SIO超时语义。固定上游为 `bd658e2d266e315d2ee35f985fb352ea88306b79`。
+
+| 输入 | 数值 | 证据边界 |
+|---|---:|---|
+| RobotState固定帧长 | 132 B | 8 B Header + 124 B payload；沿用§9.3.3/§9.3.8静态协议布局，VAL3 Header编码缺陷仍未修复/验证 |
+| RobotCommand固定帧长 | 55 B | 8 B Header + 47 B payload；沿用§9.3.4/§9.3.8静态协议布局 |
+| VAL3控制任务周期 | 4 ms / 250 Hz | start.pgx配置值，不是实测持续发送频率 |
+| ROS controller_manager默认频率 | 250 Hz | 配置默认值；目标部署参数快照未取得 |
+| UDP/IP/链路参数 | 未知 | 现场MTU、IPv4/IPv6、VLAN、交换机队列和socket缓冲区均未取证 |
+
+### 2. 名义应用层负载计算
+
+在“每个4 ms周期发送一帧RobotState、ROS侧每周期发送一帧RobotCommand”的理想化假设下：
+
+- RobotState：132 B × 250/s = 33,000 B/s（33.0 kB/s）。
+- RobotCommand：55 B × 250/s = 13,750 B/s（13.75 kB/s）。
+- 双向应用层数据合计：46,750 B/s，约374 kbit/s。
+- 双向UDP数据报总包率：250 + 250 = 500 datagrams/s。
+
+以上是名义负载模型，不是实际抓包统计。VAL3 overrun可能取消周期；ROS更新可能受控制器管理器调度、硬件读写耗时及控制器激活状态影响；因此实际发送频率、突发性和包率必须以时间戳抓包测量。
+
+### 3. 以太网线速占用估算与MTU
+
+仅为提供量级参考，假设IPv4、UDP、Ethernet II，无VLAN标签，并把以太网帧头14 B、FCS 4 B、前导码/SFD 8 B及IFG 12 B计入线速占用：
+
+- RobotState单包估算：132 + IPv4 20 + UDP 8 + Ethernet 14 + FCS 4 + preamble/SFD 8 + IFG 12 = 198 B；250包/s约49,500 B/s。
+- RobotCommand单包估算：55 + 20 + 8 + 14 + 4 + 8 + 12 = 121 B；250包/s约30,250 B/s。
+- 单个控制会话合计约79,750 B/s，即约638 kbit/s线速占用估算。
+
+若采用802.1Q VLAN，每帧还增加4 B；若采用IPv6，网络层头部通常比上述IPv4假设多20 B。实际链路占用还受交换机封装、其他流量和统计口径影响。按IPv4假设，IP数据报长度分别为160 B与83 B，均远小于常见1500 B Ethernet MTU，正常固定长度帧不需要IP分片；这只是长度比较，不证明现场MTU配置、路径MTU或实际抓包没有分片/封装问题。
+
+### 4. 不能由低带宽推导的工程结论
+
+1. 约638 kbit/s的单会话估算不证明控制链路低延迟、低抖动、零丢包或具备实时性；包率、队列积压、调度延迟和尾延迟比平均吞吐更关键。
+2. UDP不提供传输层重传/有序交付保证；应用层序号、超时、重复/乱序处理及STOP确认边界仍以既有专项审查为准，不因负载较低而消失。
+3. 132 B/55 B小于常见MTU不代表VAL3 SIO接收数组、Boost.Asio接收缓冲、socket队列或操作系统接收路径不存在截断、溢出、背压和丢包。
+4. 本估算只计一条control通道，不含诊断通道、FTP部署/日志下载、DDS/ROS其他流量、ARP/邻居发现、管理网络及其他设备流量；多机器人场景应按每个端点/流分别计数，不能把单会话结果当作网络总负载。
+5. 名义250 Hz不等于实测250 Hz。VAL3同步任务超周期、状态先发后收、ROS周期错相以及网络突发均可能改变端到端采样/反馈间隔。
+
+### 5. 结论与验证边界
+
+固定协议长度与名义周期可支持一个可复算的流量模型：单会话在双向各250 Hz假设下约500 datagrams/s、46.75 kB/s应用负载；在明确的IPv4/Ethernet开销假设下约638 kbit/s线速占用。该结果仅是理论容量基线，不是网络性能或安全验收结果。当前没有现场pcap、MTU/路由/交换机配置、socket buffer快照、收发时间戳或丢包计数，因此不能判断真实网络是否满足4 ms控制周期。
+
+### 6. 新增验收任务
+
+新增SERVO-779：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AJ1 | 以固定协议定义复核RobotState 132 B、RobotCommand 55 B帧长及实际序列化长度 | 固定源码/文档静态算术基线完成；跨语言线上帧未验证 |
+| AJ2 | 在目标配置确认VAL3任务周期、ROS update_rate及真实状态/命令发布频率 | 未确认，目标配置/运行日志缺失 |
+| AJ3 | 在隔离网络抓取双向UDP流，统计pps、平均/峰值bps、突发间隔和方向 | 未执行 |
+| AJ4 | 核对目标主机/CS9/交换机MTU、IPv4/IPv6、VLAN、路由和路径MTU | 未确认，现场网络证据缺失 |
+| AJ5 | 获取ROS与VAL3 socket接收/发送缓冲区、队列上限及相关OS网络参数 | 未确认，目标版本/现场配置证据缺失 |
+| AJ6 | 注入接收端慢处理、CPU负载和突发流量，测量队列积压、丢包、延迟分布及恢复行为 | 未执行 |
+| AJ7 | 将状态包接收时间、命令发送时间、VAL3读取/执行时间和状态回传时间统一到可比时间基准 | 未执行 |
+| AJ8 | 在单机器人及多端点场景测量control/diagnostic/DDS/管理流量叠加后的链路占用与隔离效果 | 未执行 |
+| AJ9 | 获取目标现场pcap、网卡统计、交换机端口计数、丢包/错误计数及配置快照 | 未确认，现场证据缺失 |
+| AJ10 | 在隔离仿真/HIL中完成网络负载、MTU边界、背压/丢包和独立安全停止链回归 | 未执行，需受控环境 |
+
+AJ1仅完成固定协议布局与算术模型；AJ2、AJ4–AJ5、AJ9缺少目标配置/现场证据；AJ3、AJ6–AJ8、AJ10未执行。未执行ROS构建、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游，未应用PR，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+
