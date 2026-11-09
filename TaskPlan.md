@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.23  
+> 版本：v9.24  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.148，厂商档案新增§128.99。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.149，厂商档案新增§128.100。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1304,3 +1304,22 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`）
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
 - 厂商档案§128.99。
+
+
+### §9.3.149 OccupancyMapMonitor启动编排、部分启动失败与重复启动边界
+
+- MoveIt main源码：`occupancy_map_monitor.cpp` Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`。`OccupancyMapMonitor::startMonitor()`先无条件设置`active_=true`，再按`map_updaters_`顺序逐个调用虚函数`start()`；函数无返回值、无异常捕获、无失败回滚，也没有检查此前是否已active。若某个插件start抛出异常，异常会向调用方传播，active仍为true，前序updater可能已经启动，后续updater未启动；这是控制流推导出的部分启动状态风险，尚无本项目异常注入实测。
+- `stopMonitor()`无条件先置`active_=false`再遍历全部updater调用stop；它不是start失败后的自动回滚。析构函数调用stopMonitor，但不能替代构造/运行期间对部分启动异常的恢复策略。
+- `OccupancyMapUpdater`接口（Blob SHA `fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b`）将`start()`/`stop()`定义为无返回值虚函数，没有统一的异常、幂等、部分初始化回滚或回调退出契约。Monitor的`active_`是普通bool，`isActive()`直接读取；start/stop/isActive没有共享锁或原子同步。若调用方允许跨线程并发调用/读取，存在数据竞争可能；当前源码未声明线程安全保证，不能仅凭此静态发现断言实际并发故障。
+- 内置插件启动路径并非完全相同：PointCloud updater（Blob SHA `e11a9f41d6dad68de31c83268e6bd686728eee9e`）在subscriber已存在检查之前仍会尝试创建filtered cloud publisher；DepthImage updater（Blob SHA `3dbb114ab6bfd0654823724b6848c881caa2d8ee`）每次start都会重新执行CameraPublisher advertise及camera subscription创建。重复start的真实端点变化、旧句柄替换/释放时序及回调行为需要在目标ROS发行版验证，不将静态赋值直接等同于端点泄漏或重复消息。
+- 与SERVO-726初始化失败问题区分：本节点关注已登记updater进入运行阶段后的start编排，不重复将initialize失败传播问题记为新发现；与SERVO-728发布端点stop生命周期也分开，二者可组合成完整启停状态矩阵。
+- 新增SERVO-732：S1多updater正常顺序启动及active状态；S2第N个updater注入start异常后的active/已启动/未启动集合；S3部分启动后stop回滚及再次start恢复；S4重复start/stop对PointCloud与DepthImage资源端点的影响；S5并发start/stop/isActive的TSan或等效数据竞争验证；S6 updater start抛异常、stop抛异常时后续updater是否得到清理；S7 Stäubli/ICube实际插件顺序、executor及启停调用线程确认。全部未执行，现场配置未确认。
+- 本轮仅完成源码静态审查和测试设计；未运行ROS/Jazzy动态测试、异常注入、TSan、HIL或实机验证。未修改MoveIt/ICube上游、未应用补丁；Stäubli工程级验收未通过，TODO-EXT-001仍未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp（Blob SHA `d30741a6cb7635821e89f480d1142a1c8a8c6bb6`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_updater.hpp（Blob SHA `fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA `e11a9f41d6dad68de31c83268e6bd686728eee9e`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA `3dbb114ab6bfd0654823724b6848c881caa2d8ee`）
+- 专项厂商档案§128.100。
