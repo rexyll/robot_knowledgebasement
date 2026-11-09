@@ -2376,3 +2376,90 @@ Y1-Y9全部未执行，Y10现场证据缺失。未执行ROS构建/单测、mock 
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+
+
+## §9.3.186｜ros2_control命令模式切换、混合接口解析与GPIO输出缓存跨STOP/lifecycle持久化
+
+### 审查范围与固定基线
+
+固定审查 ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。沿§9.3.185已确认的状态/命令缓存继续检查命令接口导出、prepare/perform_command_mode_switch、write()报文构造、GPIO输出命令缓存，以及硬件插件STOP和cleanup/reconfigure生命周期边界。
+
+| 文件 | Blob SHA |
+|---|---|
+| staubli_hardware_interface.cpp | 4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0 |
+| staubli_hardware_interface.hpp | a84d0c63b15db168ea453a15571ab1494b8f9e99 |
+| test_staubli_hardware_interface.cpp | 12326353052408a7a040926328dbe7da22625553 |
+| test_staubli_hardware_interface.hpp | f474af023d35b4fd2fc2669092fc9f8bea7cdd19 |
+| messages.cpp | 86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6 |
+| robot_driver.cpp | ede48a314856a455df9d8434f354aaf9fbc47bff |
+| VAL3 controlTask.pgx | 00a69c4d13879116fce744ceb1611ecd05d65edf |
+
+### 1. 模式解析只取start_interfaces中的第一个匹配项，混合接口没有整体拒绝
+
+resolve_mode()按start_interfaces顺序扫描字符串，遇到position、velocity、effort或acceleration关键词后立即返回对应CommandType。prepare_command_mode_switch()明确留有TODO，尚未验证所有接口是否成组启动/停止；stop_interfaces参数没有参与模式判断，outgoing_mode解析仍被注释。
+
+因此，若一次启动请求同时包含position和velocity接口，position项先出现时resolve_mode()返回JOINT_POSITION并被接受；velocity项先出现时则返回JOINT_VELOCITY并因当前不支持速度控制而被拒绝。混合接口的结果对输入列表顺序敏感，而不是基于完整请求集合做一致性校验。effort混入请求也由首个匹配项决定最终路径。该结论是函数控制流可直接推导的，不代表controller_manager一定会生成某种特定混合请求。
+
+### 2. acceleration-only启动的实现行为与头文件注释矛盾
+
+头文件对hw_joint_acceleration_commands_的说明称加速度接口只用于joint limiter，切换到acceleration mode将总是被拒绝。但当前实现中，acceleration-only请求使resolve_mode()返回INVALID；prepare_command_mode_switch()将其识别为only_stop_or_accel_starting，允许通过，并把pending_mode_设为STOP。即该请求不会激活机器人加速度控制模式，而是被接受并折算为STOP/no active joint command mode。需要统一接口文档与实际返回契约，不能把当前实现描述为拒绝该请求。
+
+### 3. STOP常规write仍携带缓存的GPIO输出命令
+
+on_init()将digital/analog output command向量初始化为0。export_command_interfaces()将这些向量元素地址导出为命令接口。write()即使在current_control_mode_为STOP时，也只将关节command_reference清零；随后仍无条件从hw_digital_output_commands_和hw_analog_output_commands_复制输出值到RobotCommandMessage，再发送整条报文。
+
+perform_command_mode_switch()会重置关节position/velocity/acceleration命令缓存，但没有清空digital/analog output command缓存。on_activate()只把current_control_mode_设置为STOP；on_cleanup()只断开RobotDriver连接；二者都没有重置GPIO输出命令。因此，同一StaubliHardwareInterface实例在输出命令曾被写入后经历STOP或cleanup→configure→activate时，后续write()仍可能把旧GPIO输出值带入常规STOP报文。缓存值是ROS插件进程内的命令状态，不等于控制器已接受或物理IO已切换。
+
+对照RobotCommandMessage构造函数：独立构造的消息默认digital_outputs为false、analog_outputs为0.0；RobotDriver::send_stop_all_command()使用新构造的STOP消息，因而与hardware_interface::write()中复用GPIO命令缓存的STOP报文行为不同。前者的默认输出值不能证明后续常规write也会清空缓存。
+
+### 4. 物理IO执行边界仍未闭合
+
+固定VAL3 controlTask.pgx在Execute GPIO commands段仍将digital outputs与analog outputs的执行实现标为TODO。因此本节确认的是ROS侧命令接口、报文填充和缓存生命周期语义；不能据此声称目标CS9现场已按这些字段驱动真实IO，也不能声称STOP报文中的旧输出值已造成物理输出保持。需在目标VAL3应用/IO映射与现场版本确认后开展隔离仿真和HIL验证。
+
+### 5. 现有测试覆盖不足
+
+test_staubli_hardware_interface.cpp覆盖构造、初始化、接口名称/数量、mock robot正常连接及一次正常read/write。当前文件没有调用prepare_command_mode_switch()/perform_command_mode_switch()来覆盖position/velocity混合接口顺序、stop_interfaces组合、acceleration-only启动、模式切换失败后的状态，也没有设置GPIO输出后验证STOP write报文或cleanup/reconfigure后的输出缓存是否保留。未执行该测试套件构建或运行。
+
+### 6. 本轮静态结论
+
+1. resolve_mode()采用首个匹配项策略；prepare_command_mode_switch()没有对start_interfaces整体进行互斥/完整性校验，stop_interfaces未参与当前模式决策，混合接口请求可能呈现顺序敏感结果。
+2. acceleration-only启动在当前实现中被接受并映射为STOP，与头文件“总是拒绝加速度模式切换”的注释不一致；它不是实际加速度控制。
+3. 常规write()在STOP模式仍把GPIO输出缓存复制到RobotCommandMessage；perform_command_mode_switch()、on_activate()和on_cleanup()没有清空这些缓存，cleanup/reconfigure复用同一插件对象时存在旧输出命令再次进入报文的静态路径。
+4. send_stop_all_command()使用新构造的RobotCommandMessage，其GPIO输出默认false/0；这与硬件接口write()构造STOP报文时携带缓存输出的路径不同。
+5. 固定VAL3原型尚未实现controlTask中的digital/analog output执行段；本节不证明物理IO动作，也不证明该公开原型等同现场部署。
+6. 以上是静态代码路径和测试覆盖缺口；没有执行mock报文断言、ROS构建/单测、生命周期故障注入、VAL3/CS9仿真、HIL、FAT/SAT或实机测试。
+
+### 7. 新增验收任务
+
+新增SERVO-769：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| Z1 | 对position+velocity、velocity+position、position+effort等start_interfaces排列进行表驱动测试，记录prepare返回值和pending mode | 未执行 |
+| Z2 | 对不同stop_interfaces组合及start_interfaces为空的切换请求测试，确认当前模式决策是否忽略停止集合 | 未执行 |
+| Z3 | 分别测试acceleration-only、position+acceleration、acceleration+position请求，并核对头文件注释与实际返回契约 | 未执行 |
+| Z4 | 通过硬件接口测试设置digital/analog输出命令后切换STOP，捕获write报文并断言GPIO字段是否保留缓存值 | 未执行 |
+| Z5 | 设置非默认GPIO输出后执行cleanup→configure→activate，在mock连接下验证同一插件实例的命令缓存是否重置 | 未执行 |
+| Z6 | 比较RobotDriver::send_stop_all_command()与StaubliHardwareInterface::write(STOP)两条路径的数字/模拟输出字段 | 未执行 |
+| Z7 | 对position模式切换成功、状态门禁失败、STOP切换及连续切换组合验证关节命令缓存与GPIO缓存的独立重置行为 | 未执行 |
+| Z8 | 在目标VAL3程序中确认GPIO TODO的实际实现状态、输出映射和STOP/模式切换期间的物理输出策略 | 未执行 |
+| Z9 | 在隔离mock/仿真环境验证混合接口请求和GPIO缓存跨lifecycle持久化，不连接真实机械臂 | 未执行 |
+| Z10 | 获取现场ROS 2/ros2_control/ICube/VAL3版本、控制器接口声明、GPIO映射、lifecycle日志及FAT/SAT输出状态记录 | 未确认，现场证据缺失 |
+
+Z1-Z9全部未执行，Z10现场证据缺失。未执行ROS构建/单测、mock报文断言、生命周期故障注入、VAL3/CS9仿真、HIL、FAT/SAT或实机验证。
+
+### 8. 结论与边界
+
+本节识别的是命令模式切换请求解释不完整，以及GPIO命令缓存与运动STOP/lifecycle状态相互独立的契约缺口。建议后续实现/测试明确拒绝混合运动接口、统一acceleration-only行为文档，并明确STOP、deactivate、cleanup、reconfigure时GPIO输出的安全默认值和保持策略；任何上游改动仍需用户授权。本节不提出或应用上游补丁。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。目标现场版本、GPIO实际执行路径和安全输出策略仍未确认。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
