@@ -200,3 +200,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt GetPlanningScene调用方与初始化门禁审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.164，审查Servo/RViz/OMPL/场景打印工具/Python绑定调用方的返回值处理、PSM private executor生命周期及同线程同步重入风险；新增SERVO-747/C1-C12，全部未执行。
+
+
+- [2026-11-09 Stäubli MoveIt Servo碰撞监测启动门禁与场景新鲜度审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.165，沿GetPlanningScene调用方继续审查Servo启动门禁、PSM任意monitor更新时间、CollisionMonitor首轮检查竞态、场景新鲜度缺口、pause恢复及OctoMap默认配置；新增SERVO-748/D1-D14，全部未执行。
