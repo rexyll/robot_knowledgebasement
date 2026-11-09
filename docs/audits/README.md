@@ -209,3 +209,6 @@
 
 
 - [2026-11-09 Stäubli Servo—ros2_control—ICube—VAL3跨层命令生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.167，使用ICube公开Jazzy/CS9原型源码追踪JTC活动轨迹、controller_manager硬件write、StaubliHardwareInterface UDP发送及VAL3 sequence-delay watchdog。发现Servo topic静默不必然触发机器人端通信看门狗；新增SERVO-750/F1-F16，动态/HIL/现场部署核验均未执行，公开原型不代表现场版本。
+
+
+- [2026-11-09 Stäubli ICube UDP状态新鲜度、序号单调性与would_block丢包审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.168，发现重复状态报文可刷新本地接收时间但不推进序号，RobotDriver忽略new_message=false；序号倒退被一律当作uint16回绕；UDP would_block丢弃报文却返回true；接收端来源地址校验留有TODO。新增SERVO-751/G1-G16，全部未执行。
