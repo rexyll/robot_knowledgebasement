@@ -96,6 +96,29 @@
 | --- | --- | --- |
 | 2026-11-03 | 21-01/21-02/21-04/21-05 | P1 定向核验产业链/市场、人形机器人和代表厂商：IFR 2026 工业机器人/专业服务机器人/人形机器人数据；Tesla Q3 2026 Optimus 生产状态；AGIBOT 5000 台工厂下线声明；UBTECH Walker S2 量产交付声明；Unitree G1/H2 与 Figure 03 产品资料。更新四篇知识页，来源台账 #175–#185；原报告不可得的市场份额、BOM 比例和其他厂商数据保持待审，不作独立排名/采购结论。 |
 
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.210 / SERVO-793）
+
+继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.210。核对 `real_time_socket_subscriber.cpp`、`real_time_socket_subscriber.hpp`、`real_time_socket_interface.cpp`、`robot_driver.cpp`及现有通信单测。静态发现异步接收线程每次成功deserialize后覆盖RealtimeThreadSafeBox最新帧邮箱，并刷新reception_timestamp；慢读者可能跳过中间帧，lost_packages无法区分传输丢包与邮箱覆盖/读端采样合并。重复序号帧会令read_message返回true但new_message=false，RobotDriver::read_robot_state未检查new_message，仍复制状态；重复/重放帧可刷新staleness年龄而不代表状态变化。该风险与§9.3.204来源端点校验、§9.3.201会话epoch缺口相关，但无现场重放证据。
+
+新增SERVO-793/AX1–AX10：AX1–AX8固定提交静态源码/测试覆盖核对完成；AX9重复/乱序/邮箱覆盖/时间戳注入未执行；AX10目标网络配置、控制器协议语义及隔离SIL/HIL证据缺失。未运行构建/单测、网络重放/压力注入、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.211。
+
+#### SERVO-793｜最新帧邮箱、重复序号与状态新鲜度验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AX1 | 固定提交核对异步回调成功deserialize后的邮箱写入路径 | 静态核对完成 |
+| AX2 | 核对邮箱是否为逐帧队列及覆盖语义 | 静态核对完成：只保留最新值 |
+| AX3 | 核对lost_packages的读端序号差计算 | 静态核对完成 |
+| AX4 | 区分网络丢包、邮箱覆盖与读端采样合并的可观测性 | 静态核对完成：现有计数不能区分 |
+| AX5 | 核对重复序号时read_message返回值与new_message标志 | 静态核对完成：true且new_message=false |
+| AX6 | 核对RobotDriver是否消费new_message标志 | 静态核对完成：未消费 |
+| AX7 | 核对重复帧是否刷新reception_timestamp及staleness年龄 | 静态核对完成：成功deserialize即刷新 |
+| AX8 | 核对现有单测对重复/重放/邮箱覆盖的覆盖情况 | 静态核对完成：未覆盖定向场景 |
+| AX9 | 注入重复、乱序、重放、突发多帧和慢读者，验证状态缓存及时间戳行为 | 未执行 |
+| AX10 | 获取目标控制器协议/网络配置并完成隔离SIL/HIL验证 | 未确认，目标证据缺失 |
+
 ## 7. 补充节点（只追加）
 
 > 后续新增节点使用本章未使用的新序号；不得删除、复用或静默重排既有 ID。
