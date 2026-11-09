@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.12  
+> 版本：v10.13  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.237 / SERVO-820；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.238 / SERVO-821；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3060,3 +3060,48 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 补齐畸形帧、错误版本、错误类型、尾随字节、源地址伪造、序号重放、would_block、网络丢包、STOP丢包与ACK丢失测试。
 
 本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.238 / SERVO-821。
+
+
+### 2026-11-09｜v10.13 本轮推进记录（§9.3.238 / SERVO-821）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮完整核查`protocol.hpp`、`messages.hpp/.cpp`、`robot_driver.cpp/.hpp`和`test_robot_driver.cpp`，检查协议版本、CS8/CS9识别、固件版本及VAL3兼容门禁。
+
+#### 静态审查发现
+
+1. **驱动协议版本常量为1。** `protocol.hpp`定义`PROTOCOL_VERSION = 1`。connect成功等待阶段会对当前RobotState消息头的protocol_version与驱动常量做精确比较；不一致则disconnect并返回false。这是连接阶段的协议版本门禁。
+2. **协议版本检查并非每帧完整验证。** 先前SERVO-820已确认RobotStateMessage::deserialize没有对收到的header.protocol_version执行每帧检查。当前版本比较发生在connect路径，且依赖首个状态帧。不能将其描述为持续的逐帧兼容验证；重连后/运行期间版本字段异常需要专项覆盖。
+3. **诊断消息定义了控制器类型CS8/CS9和三段固件版本。** `DiagnosticDataMessage::RobotControllerType`包含UNKNOWN=0、CS8=1、CS9=2；firmware version为major/minor/patch三个uint8字段。
+4. **CS9控制器类型门禁被注释禁用。** connect兼容检查中原本只支持CS9的判断整段处于注释状态。因此从当前源码不能证明CS8被拒绝，也不能证明CS9被强制要求。UNKNOWN或未初始化控制器类型同样没有活动门禁。
+5. **固件版本只记录日志，不做支持范围判定。** connect打印机器人固件版本，但没有最低/最高版本、兼容矩阵或拒绝条件。
+6. **VAL3版本兼容检查明确是TODO。** `robot_driver.cpp`明确写有“add check for supported VAL3 versions”，未见实际VAL3版本字段或活动校验路径。当前无法建立固件版本与VAL3应用版本的兼容关系。
+7. **诊断首帧在connect阶段被直接绕过。** 连接循环调用`read_robot_state()`，但诊断读取仍被注释，`diag_interface_ready`直接赋true（SERVO-819已记录）。因此随后controller type和firmware log所读的`current_diagnostic_data_`并未由本次连接流程中的有效诊断帧保证。构造默认值为UNKNOWN及0.0.0，若未有先前有效数据，日志可能输出默认版本而不构成设备识别。
+8. **DiagnosticData反序列化头字段检查顺序存在缺陷。** `DiagnosticDataMessage::deserialize()`在调用`header.deserialize(buffer,...)`之前，就对成员`header.payload_size`和`header.message_type`执行验证。此时它们仍是对象原有/构造时的值，不是输入数据中的帧头。随后才反序列化覆盖header；未见反序列化后再次验证payload_size、message_type或protocol_version。该顺序使预期的头校验不能可靠验证收到的帧头。
+9. **诊断控制器类型枚举未做范围检查。** 反序列化直接把uint8转为RobotControllerType，未知编码不会在该处被拒绝。
+10. **现有测试未建立控制器版本兼容矩阵。** mock诊断帧设置固件版本1.2.3，但controller_type赋值代码被注释；未见CS8/CS9/UNKNOWN、非法枚举、固件边界、协议版本不匹配和VAL3版本组合的完整连接门禁测试。本轮只读取测试源码，未运行。
+11. **不能由CS8/CS9枚举或版本日志推断厂商支持范围。** 上游驱动协议中存在枚举，不等于目标型号、固件或VAL3组合已获厂商认证/验证；具体兼容矩阵须由对应控制器文档、VAL3程序发布说明和实机配置确认。
+
+#### SERVO-821｜协议/控制器/固件/VAL3兼容性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DK1 | PROTOCOL_VERSION常量及connect阶段精确比较 | 完整源码静态核对完成 |
+| DK2 | 运行期每帧协议版本校验 | 未见；连接阶段检查不能替代 |
+| DK3 | CS8/CS9/UNKNOWN类型枚举定义 | 完整源码静态核对完成 |
+| DK4 | CS9类型限制/CS8拒绝门禁 | 源码确认检查代码被注释 |
+| DK5 | 固件版本范围/兼容矩阵 | 未实现；当前仅日志输出 |
+| DK6 | VAL3版本字段与兼容性检查 | 明确TODO，未实现 |
+| DK7 | connect诊断首帧与有效诊断数据保证 | 源码确认首帧读取被绕过 |
+| DK8 | DiagnosticData头校验执行顺序与枚举校验 | 完整源码静态核对完成；存在校验顺序缺陷及枚举范围缺口 |
+| DK9 | CS8/CS9/固件/协议/VAL3负向兼容测试 | 未见充分测试源码；未执行 |
+| DK10 | 厂商兼容矩阵、目标CS控制器/VAL3仿真、SIL/HIL、CS9、FAT/SAT及实机验收 | 未确认/未执行 |
+
+#### 风险与整改建议
+
+- 将诊断首帧接收纳入connect必要条件，检查接收时间新鲜度、message_type、协议版本和控制器类型；若诊断通道被定义为非必要，必须移除其“已就绪”假状态并明确其不参与型号兼容判断。
+- 修复DiagnosticData反序列化顺序：先校验最小/精确长度，再deserialize头，再对输入帧的magic、protocol_version、message_type、payload_size和保留字段执行严格验证，最后解析payload；UNKNOWN/越界枚举拒绝。
+- 对RobotState/RobotCommand/DiagnosticData统一逐帧检查协议版本和精确帧长度，避免仅在connect时比较一次。
+- 建立受支持的CS8/CS9、固件版本、VAL3应用版本、驱动协议版本的显式兼容矩阵；没有厂商确认的组合默认为不支持，不得从单一固件版本号推测。
+- 对不支持/未知控制器型号、固件过旧/过新、VAL3版本未知或不匹配、诊断首帧缺失、版本运行中变化等情况实施fail-closed，禁止非STOP命令。
+- 增加CS8/CS9/UNKNOWN、非法枚举、1.2.3边界版本、协议版本不一致、诊断帧头篡改、诊断帧缺失和VAL3兼容性负向测试。
+
+本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.239 / SERVO-822。
