@@ -276,3 +276,5 @@
 - [2026-11-09 Stäubli VAL3控制任务退出条件可达性、重复启动与启停残留状态审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.191，确认controlTask的停止标志是局部变量且固定程序内没有后续置true写入点；stop.pgx未显式终止/等待任务，start.pgx未见同名任务防重入门禁。taskCreateSync同名任务语义及stop→start竞态须目标CS9/VAL3受控验证；新增SERVO-774/AE1-AE10，动态测试未执行，目标版本API和现场编排证据缺失。
 
 - [2026-11-09 Stäubli VAL3启动初始化、overrun计数器与诊断字段可观测性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.192，确认start.pgx在taskCreateSync前清除bIsOverrun，而nOverruns仅在controlTask主体入口清零并在消费overrun标志时递增；nErrorCode/nInError在固定程序中无读写点，nOverruns也未进入公开RobotState报文。新增SERVO-775/AF1-AF10，AF1固定仓库静态检索完成但现场部署包未核对，AF2目标版本API证据缺失，AF5诊断工具/权限证据缺失，AF9现场证据缺失，其余动态验收未执行。
+
+- [2026-11-09 Stäubli VAL3超周期标志计数语义与ROS控制周期匹配审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.193，确认VAL3默认4ms/250Hz与ROS controller_manager默认250Hz相匹配；TX2-60L MR文档采样周期为1ms，并记录VAL3/ROS同步调整和500Hz/2ms参考。nOverruns仅在循环开头观察到布尔bIsOverrun=true时递增，不能直接代表调度器原生超周期事件数；多次事件是否在布尔标志上合并待目标VAL3动态验证。新增SERVO-776/AG1-AG10，动态验收未执行，目标版本调度器语义及现场型号/配置证据缺失。
