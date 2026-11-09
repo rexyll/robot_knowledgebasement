@@ -261,3 +261,6 @@
 
 
 - [2026-11-09 Stäubli RobotState数值质量、ros2_control状态接口与位置命令初始化审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.185，追踪RobotState非有限关节测量进入硬件状态缓存/导出接口、位置模式切换时状态复制为命令初值、digital/analog valid flag缺失时旧值保留、状态更新非事务性及监督GPIO初始值边界；新增SERVO-768/Y1-Y10，Y1-Y9未执行，Y10现场证据缺失。
+
+
+- [2026-11-09 Stäubli ros2_control命令模式切换、混合接口解析与GPIO输出缓存生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.186，审查start_interfaces首项模式解析、stop_interfaces未参与决策、acceleration-only映射STOP与头文件注释差异，以及常规STOP write携带GPIO缓存、cleanup/reconfigure不重置输出命令；固定VAL3原型GPIO执行仍为TODO。新增SERVO-769/Z1-Z10，Z1-Z9未执行，Z10现场证据缺失。
