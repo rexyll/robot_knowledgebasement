@@ -1796,3 +1796,13 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-769/Z1-Z10；Z1-Z9全部未执行，Z10现场证据缺失。未执行ROS构建/单测、mock报文断言、lifecycle故障注入、VAL3/CS9仿真、HIL、FAT/SAT或实机验证。
 - 未修改ICube/MoveIt/ros2_control上游，未应用PR。现场GPIO执行路径与安全输出策略仍未确认；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.187。
+
+### 2026-11-09｜v9.62 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.187，追踪VAL3 controlTask命令序号延迟门禁、STOP/ERROR模式提取顺序、错误处理和socket复位。
+- 静态确认运动中delay>5、静止delay>25及负delay分支先记录“going to STOP”并赋值模式1，但同时置l_bError=true；紧接着统一模式提取因错误标志将l_nCmdMode覆盖为0（ERROR）。
+- 延迟异常因此进入STOP/ERROR共用停止入口，并继续执行错误复位：命令失效、序号/延迟复位、控制活动标志清除和resetControlSocket；不等同于普通STOP后等待新命令。
+- computeSequenceDelay仅对差值小于-60000执行uint16回绕修正，其余负值进入错误路径；该算法与会话epoch缺失的组合边界需动态验证。
+- 新增SERVO-770/AA1-AA10；AA1-AA8全部未执行，AA9-AA10现场证据缺失。未执行VAL3编译/仿真、ROS集成、UDP故障注入、CS9/HIL、FAT/SAT或实机测试。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。现场版本、序号延迟测量、socket恢复策略和独立安全链未确认；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.188。
