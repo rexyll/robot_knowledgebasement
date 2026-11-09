@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.41  
+> 版本：v9.42  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.166，厂商档案新增§128.117。SERVO-749/E1-E15识别Servo的HALT_FOR_COLLISION仅抑制command publish并发布状态，不发送显式零速/hold/cancel命令；status与command无接收/执行确认；Trajectory模式旧轨迹可能继续由下游执行，MultiArray停止语义依赖接收端；pause分支跳过状态/命令发布。ros2_controllers JTC对照提交显示topic沉默不等于立即取消活动轨迹，但该版本不是现场部署证据；E1-E15全部未执行。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.167，厂商档案新增§128.118。SERVO-750/F1-F16追踪Servo—JTC—controller_manager—ICube硬件接口—UDP—VAL3命令链；固定源码显示JTC活动轨迹/保持末点可继续更新command interface，controller_manager继续执行硬件write时，ICube公开驱动会按当前位置接口持续发送UDP命令，因此Servo topic静默不必然触发VAL3序号滞后看门狗。公开ICube仓库自述为Jazzy/CS9原型且开发曾暂停，不能视为现场部署证据；VAL3运动中>5周期STOP阈值和stopMove路径仅为普通运动停止，不是安全额定急停。F1-F13/F16未执行，F14-F15现场证据缺失。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1585,3 +1585,14 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-749/E1-E15，全部未执行；更新专项审计§9.3.166、厂商档案§128.117、第21章TaskPlan和审计README。
 - 未运行ROS构建、仿真/动态控制器测试、DDS断连、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ICube上游、未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.167。
+
+
+### 2026-11-09｜v9.42 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.167，沿§9.3.166的HALT命令出口追踪JTC、controller_manager、ICube硬件接口、UDP和CS9/VAL3命令接收链。
+- 固定JTC对照源码显示活动轨迹会继续采样并写command interface；controller_manager持续运行时继续进入硬件write。ICube公开StaubliHardwareInterface::write按当前position command interface持续发送UDP位置命令。因此Servo publisher静默本身不必然触发VAL3侧命令序号滞后看门狗。
+- 找到ICube公开仓库配套VAL3 controlTask：运动中sequence delay大于5周期切入STOP，静止时阈值大于25周期；STOP路径调用movejSyncEnd、stopMove和resetMotion。仓库README将驱动标为开发中的Jazzy/CS9原型，不能据此认定现场部署。
+- 核对公开驱动read stale timeout默认100 ms、read/write错误返回、on_error STOP尝试、on_cleanup仅disconnect等路径；逐命令ACK、停止响应上界、实际生命周期回调和现场部署版本仍需验证。
+- 新增SERVO-750/F1-F16；F1-F13/F16全部未执行，F14-F15现场证据缺失；更新专项审计§9.3.167、厂商档案§128.118、第21章TaskPlan和审计README。
+- 本轮仅完成固定源码静态审查与测试设计；未运行ROS构建、JTC动态测试、UDP故障注入、VAL3编译/仿真、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ros2_control/ros2_controllers/ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.168。
