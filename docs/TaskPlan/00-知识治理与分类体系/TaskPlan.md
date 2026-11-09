@@ -574,3 +574,8 @@
 
 
 | 2026-11-09 | 00-01 | 推进Stäubli MoveIt审查至§9.3.164：沿Servo、RViz、OMPL状态数据库工具、print_planning_scene_info和Python绑定追踪requestPlanningSceneState调用。识别Servo secondary路径忽略初始同步失败仍启动发布、RViz底层错误true造成成功反馈风险、OMPL工具检查bool并在失败时退出、场景打印工具忽略返回值；PSM private executor处理内部client响应，外部node executor未spin并非普通调用失败依据，但同private executor回调内同步重入可能阻塞、Python绑定未说明bool/executor契约。新增SERVO-747/C1-C12，全部未执行。更新专项§9.3.164、厂商档案§128.115、根TaskPlan v9.39及审计索引。00-01与21-02继续进行中；未运行ROS构建、集成/并发/故障注入、CS9/HIL/FAT/SAT或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 PlanningSceneMonitor/Servo/RViz/OMPL调用方固定提交源码；rclcpp Client API及PSM private executor实现；专项追加件§9.3.164；厂商档案§128.115 |
+
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.196）
+
+继续固定上游基线 `bd658e2d266e315d2ee35f985fb352ea88306b79` 的Stäubli公开原型审查至§9.3.196。按RobotState 132 B、RobotCommand 55 B及双向名义250 Hz建立单会话理论网络负载：500 datagrams/s、46.75 kB/s应用层负载；IPv4/UDP/Ethernet II并计FCS、前导码/SFD与IFG估算约638 kbit/s。明确该结果不是现场网络性能证据；MTU、socket buffer、队列、真实频率、时延/丢包和多流量叠加仍待取证。新增SERVO-779/AJ1-AJ10：AJ1静态算术基线完成；AJ2/AJ4-AJ5/AJ9配置或现场证据缺失；AJ3/AJ6-AJ8/AJ10未执行。更新专项审计追加件、厂商档案、第21章计划和审计README。00-01及21-02继续进行中；未执行抓包、压力注入、VAL3仿真、CS9/HIL/FAT/SAT或实机验收；未修改上游，未合并TODO-EXT-001。
