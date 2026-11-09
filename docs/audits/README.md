@@ -264,3 +264,5 @@
 
 
 - [2026-11-09 Stäubli ros2_control命令模式切换、混合接口解析与GPIO输出缓存生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.186，审查start_interfaces首项模式解析、stop_interfaces未参与决策、acceleration-only映射STOP与头文件注释差异，以及常规STOP write携带GPIO缓存、cleanup/reconfigure不重置输出命令；固定VAL3原型GPIO执行仍为TODO。新增SERVO-769/Z1-Z10，Z1-Z9未执行，Z10现场证据缺失。
+
+- [2026-11-09 Stäubli VAL3命令序号延迟门禁、STOP/ERROR模式覆盖与通信复位语义审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.187，确认延迟超限/负延迟分支虽记录并赋值STOP，但统一模式提取因l_bError将最终模式覆盖为ERROR，继而触发命令失效、序号复位、控制活动清除及socket重置；新增SERVO-770/AA1-AA10，AA1-AA8未执行，AA9-AA10现场证据缺失。
