@@ -1249,3 +1249,75 @@ Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`stopMove()`描述为�
 新增SERVO-756/L1-L16，L1-L15全部未执行，L16现场证据缺失。需在目标CS9受控版本上确认API语义，并分别执行单API、组合调用、重复调用、并发调用、通信中断、控制任务异常退出、运动中急停/安全停止及ROS lifecycle故障注入；测量请求/接收/减速/静止反馈时间和停止距离。未执行VAL3/CS9仿真、HIL、FAT/SAT或实机测试。现场版本/安全配置未知，本节只代表固定公开原型静态审查。
 
 未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+
+## §9.3.174｜VAL3控制任务错误锁存、模式转换与故障遥测可见性
+
+### 审查范围与固定基线
+
+继续使用固定公开源码 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。该仓库自述为ROS 2 Jazzy/CS9开发原型，不构成目标现场部署证据。本节聚焦控制任务的错误状态生命周期、模式转换和状态报文时序，不重复§9.3.173的停止API语义结论。
+
+| 文件 | Blob SHA |
+|---|---|
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
+| `stopJointPositionControl.pgx` | `bd4be41dff93258d5c08cbf9411af3d811b5f6c9` |
+| `decodeRobotCommandMsg.pgx` | `612f5ce9fff12c0bd6c4e90e5685ea1d4b59bcdd` |
+| `readData.pgx` | `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0` |
+
+### 1. 错误状态在本周期内被清除，遥测可能看不到瞬态故障
+
+`controlTask.pgx`每轮循环先调用`updateState())，然后在接收命令之前设置并发送`robot_state_msg.robotState.bInError = l_bError`及`nControlMode = l_nCmdMode`。随后才执行UDP读取、解码、序号延迟检查、命令类型检查、模式转换和运动控制。
+
+若本轮接收/解码/模式转换/控制更新首次置位`l_bError`，同一轮末尾的错误处理会再次执行停止路径、将命令标记无效、清理通信状态，并把`l_bError=false`；只有socket reset失败等发生在清零之后的错误才会继续保留到下一轮。因此本轮新发生且本轮被清除的错误，不会出现在本轮已经发送的状态帧中，也可能不出现在下一轮`bInError`字段中。状态报文最多反映进入本轮时的旧错误快照，而不是本轮最终决策结果。
+
+这是由控制流顺序直接支持的静态结论；是否有独立VAL3日志、控制器诊断或其他外部通道记录该错误，需要逐故障动态验证。不能据此断言所有故障完全不可观测。
+
+### 2. STOP与ERROR模式的内部编码和恢复语义不一致
+
+代码注释定义模式：0=Invalid/Error，1=STOP/Idle，2=Joint position，3=Joint velocity。错误条件先可能把`l_nCmdMode`设为0；但当上一模式不是STOP且新模式不为STOP时，模式转换保护会把`l_nCmdMode`改成1并置`l_bError=true`。错误处理随后又把`l_nCmdMode=0`，清除错误锁存并将命令标记无效、重置socket。
+
+因此模式0既用于错误路径，又会作为错误处理结束后写入`l_nPreviousCmdMode`的内部状态；模式1则用于强制停止和模式切换保护。下一周期发布的`nControlMode`仍在本周期状态发送之后更新，故外部看到的模式也不是本周期最终执行模式。必须分别跟踪“本周期接收到的命令模式”“控制任务决策模式”“执行的停止动作”“下一周期遥测模式”，不能把单个数值当作同步的状态机确认。
+
+### 3. 命令模式切换会进入错误复位路径，而非单纯完成一次STOP
+
+当上一模式为2或3、收到另一非STOP模式时，代码将新模式强制为1并设置错误标志；随后STOP分支按`l_nPreviousCmdMode`调用对应停止子程序，再调用`stopMove()`和`resetMotion()`。由于`l_bError`仍为true，后面的错误处理块会再次执行`stopMove()`和`resetMotion()`，清除命令有效标志并重置UDP控制socket。也就是说，源码实现不是“自动插入一个STOP周期后无缝切换到新控制模式”，而是进入错误处理/通信重置路径；是否需要重新建立命令流、外部控制器如何恢复，必须由协议与动态测试确认。
+
+对位置模式而言，停止子程序自身无条件将传入错误标志清零，但控制任务的`l_bError`仍保持true，直至错误处理块统一清除；因此不能仅凭子程序参数被清零就认为整个控制任务错误已经恢复。重复停止动作及其时间/运动效果仍需按§9.3.173的停止验收矩阵验证。
+
+### 4. 新鲜命令与错误复位之间存在需要明确的握手契约
+
+错误处理会将`robot_command_msg.robotCommand.bIsValid=false`并调用`resetControlSocket()`，但源码没有在本段实现显式的错误事件编号、故障原因码、错误确认报文或恢复阶段握手。错误清除后，外部控制端如何知道故障发生、何时允许重新发送、是否必须重新执行controller lifecycle或重新激活控制器，不能从该VAL3代码单独得出。
+
+`readData.pgx`最多进行两次读取尝试；本节不把该行为重新归类为UDP传输可靠性结论（该主题已在§9.3.168审查）。本节仅指出：控制任务错误处理主动重置socket与命令有效状态，需测试主机端重连/重发时序、旧报文残留、重复STOP和模式重新激活的协议状态机。
+
+### 5. 新增验收任务
+
+新增SERVO-757：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| M1 | 分别注入命令解码错误、非法模式、序号延迟超限、控制更新失败，记录置错/清错时刻 | 未执行 |
+| M2 | 抓取每轮发送的RobotState，确认本轮新错误是否被同轮或下一轮遥测观察到 | 未执行 |
+| M3 | 对比VAL3日志、RobotState、ROS GPIO状态和主机日志，建立故障事件可观测性矩阵 | 未执行 |
+| M4 | 验证模式2→3、3→2、2/3→0、STOP→2/3的实际状态转换与错误处理 | 未执行 |
+| M5 | 验证模式切换时停止子程序、stopMove/resetMotion是否重复执行及其动态效果 | 未执行 |
+| M6 | 验证错误处理socket reset成功/失败两条路径的错误锁存、控制模式与下一轮状态帧 | 未执行 |
+| M7 | 验证控制端在socket重置后重连、首包、序号重置和控制器重新激活的完整握手 | 未执行 |
+| M8 | 验证控制器错误发生时ROS controller_manager、控制器spawner和hardware lifecycle的状态是否同步 | 未执行 |
+| M9 | 验证连续错误、错误清除后立即重发、重复STOP和延迟旧命令的竞态 | 未执行 |
+| M10 | 目标现场VAL3/CS9版本、错误码/诊断通道、恢复策略及现场通信抓包证据 | 未确认，现场证据缺失 |
+
+M1-M9全部未执行，M10现场证据缺失。未执行VAL3/CS9仿真、UDP故障注入、ROS集成测试、HIL、FAT/SAT或实机验证。
+
+### 6. 结论与边界
+
+固定公开原型的控制任务存在“先发状态、后处理本轮命令和错误”的快照顺序；部分错误可在同一周期停止处理后被清除，因此状态报文不保证呈现该周期最终错误状态。控制模式切换保护会置错并进入通信重置逻辑，不是已证明的无缝STOP后切换。上述发现属于静态控制流与遥测契约缺口，不代表现场已部署该版本、已发生故障或机器人在故障后必然继续运动。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未运行VAL3/CS9仿真、ROS构建/测试、HIL、FAT/SAT或实机验证。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
