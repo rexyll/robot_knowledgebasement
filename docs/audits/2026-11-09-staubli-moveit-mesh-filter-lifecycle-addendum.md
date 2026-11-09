@@ -569,3 +569,8 @@ O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/include/moveit/planning_scene/planning_scene.hpp
+
+
+### §9.3.163复核补充：服务响应成功状态与场景应用状态分离
+
+实现层面需将三个结果分别记录：①服务发现/请求是否完成；②响应是否包含预期组件；③本地PlanningScene是否完整应用。当前bool接口将前两者近似为true路径，且忽略第三者的返回值，因此上层不应仅凭`requestPlanningSceneState()==true`作为碰撞场景完整性的唯一证明。建议下游部署在同步后执行独立场景完整性检查（机器人模型名、必需joint state、World对象清单/几何、OctoMap策略、ACM及TF），并记录来源时间戳/版本；在未实现原子替换前，应用失败应视为本地场景可能处于部分更新状态，不应自动继续规划或运动。该建议属于风险控制设计，不代表MoveIt当前已实现这些检查，也不替代CS9/HIL与现场安全验证。
