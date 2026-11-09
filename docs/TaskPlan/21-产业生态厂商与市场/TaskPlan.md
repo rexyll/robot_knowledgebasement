@@ -4435,3 +4435,46 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 对诊断缺帧、过期、版本不匹配、overrun、急停、意外运动和恢复流程增加VAL3仿真及CS9实测。
 
 本轮未执行构建/单测、VAL3编译、CS9仿真/下载、故障注入、SIL/HIL、FAT/SAT或实机验收；未修改上游，未应用PR。根00-01与第21章21-02继续进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.248 / SERVO-831。
+
+
+### 2026-11-09｜SERVO-831：诊断协议两端一致性与解析健壮性审查
+
+固定上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。核查VAL3工程清单/数据库、C++诊断消息结构和编解码、通用帧头、ROS连接路径及消息序列化单测。
+
+#### 主要发现
+
+1. `ros2_server.pjx`只登记RobotState/RobotCommand编解码和控制任务；没有DiagnosticDataMsg、诊断编码器或诊断发送任务。工程Types中也没有诊断消息类型。
+2. `ros2_server.dtx`只看到控制UDP socket `siSocketControl`，没有诊断socket定义。当前仓库VAL3工程中缺少与ROS diagnostics_port对应的发送端实现证据。
+3. C++ DiagnosticDataMessage为74字节，字段包括控制器类型、固件版本、10条错误码/时间戳和control_task_status；但VAL3工程未见字段生产者或映射，结构定义不等于真实诊断源。
+4. `DiagnosticDataMessage::deserialize()`在调用`header.deserialize()`前，先校验对象当前默认header字段；随后读取网络头但不再验证真实payload_size/message_type，构成确定的解析校验顺序缺陷。
+5. 通用`FrameHeader::deserialize()`只校验Magic Number，没有统一校验protocol_version、message_type和payload_size。诊断帧只要求buffer不小于74字节，未在该接口验证实际数据报长度精确匹配。
+6. 错误日志时间戳声明为uint32毫秒，但epoch、单调/墙上时钟、启动重置、约49.7天回绕和跨会话语义未定义。
+7. 诊断序号有uint16字段，但没有发现完整重复/乱序/重放/回绕新鲜度策略；诊断读取函数仍未进入connect运行链路。
+8. connect跳过诊断帧后仍打印current_diagnostic_data_固件版本；默认UNKNOWN/0.0.0不能证明控制器真实版本。
+9. 单测仅覆盖合法诊断消息往返；未见错误头、版本漂移、错误payload、短包/超长包、异常枚举/时间戳和序号重放等专项用例，本轮未执行测试。
+
+#### DP1–DP10验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DP1 | VAL3诊断类型/socket/编码器/发送任务 | 工程清单未发现；发送端证据缺失 |
+| DP2 | 74字节诊断帧布局 | 静态核对；双端互操作未验证 |
+| DP3 | 诊断反序列化帧头校验顺序 | 先验默认header；确定缺陷 |
+| DP4 | Magic/version/type/payload/datagram长度 | 仅部分校验；诊断后置验证缺失 |
+| DP5 | 型号/固件/错误日志/任务状态字段语义 | C++定义存在；VAL3映射未发现 |
+| DP6 | 时间戳时钟域、回绕与重启语义 | 未定义/未验证 |
+| DP7 | 诊断序号新鲜度/重放防护 | 完整策略未见；读取链路未接入 |
+| DP8 | 连接成功与固件版本可信度 | 跳过诊断帧仍打印默认对象 |
+| DP9 | 畸形帧与互操作负向测试 | 仅合法往返；覆盖不足、未执行 |
+| DP10 | CS9诊断源、厂商签核及SIL/HIL/FAT/SAT | 未提供/未执行/未确认 |
+
+#### 整改方向
+
+- 明确诊断源位置并提供VAL3/CS9/外部服务的实际发送端、端口、协议文档和抓包证据。
+- 先解析临时帧头，再统一验证magic/version/type/payload长度/实际数据报长度/序号窗口。
+- 修复DiagnosticData反序列化顺序，统一所有消息类型的头部校验和尾随字节拒绝策略。
+- 明确错误码、任务状态位、时间戳时钟域、回绕和session语义。
+- 收到有效诊断帧之前不得宣称设备型号/固件已确认。
+- 增加畸形帧、版本漂移、重放/乱序/回绕和双端抓包互操作测试，并将诊断订阅真正接入运行链路。
+
+本轮未执行构建、单测、模糊测试、VAL3编译、CS9仿真/下载、抓包互操作、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。根00-01与第21章21-02继续进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.249 / SERVO-832。
