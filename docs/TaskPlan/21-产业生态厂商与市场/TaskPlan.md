@@ -1714,3 +1714,21 @@ MoveIt main中stopMonitor仅设置active=false并调用各updater->stop，不清
 MoveIt main的`OccupancyMapMonitor::startMonitor()`先设置`active_=true`，再顺序调用所有updater的void `start()`；没有异常捕获、失败回滚、重复启动保护或状态检查。若插件启动抛异常，可能留下active=true且部分updater已启动的状态；这是静态控制流风险，尚未通过本项目异常注入验证。`active_`为普通bool，`isActive()`直接读取，start/stop/read没有同步机制；只有在调用方确实跨线程并发时才构成数据竞争风险，当前未取得ICube调用线程证据。
 
 内置插件start实现存在差异：PointCloud updater在检查已有subscriber前创建filtered publisher；DepthImage updater每次start都会执行CameraPublisher advertise及camera subscription创建。重复启动的资源句柄替换、ROS graph端点及回调行为必须动态确认，不能仅由静态代码推断端点泄漏或重复数据。全部S1-S7未执行；未修改上游或应用补丁。详见专项审计§9.3.149。
+
+
+#### SERVO-733｜PointCloud/DepthImage updater回调退出与析构竞态验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| C1 | PointCloud callback阻塞期间stop释放filter/subscriber，确认回调退出和对象存活 | 未执行 |
+| C2 | DepthImage callback阻塞期间shutdown，确认是否等待回调完成 | 未执行 |
+| C3 | callback阻塞期间销毁updater，ASan/TSan检查UAF与数据竞争 | 未执行 |
+| C4 | callback阻塞期间销毁OccupancyMapMonitor，检查monitor_、tree_及update callback生命周期 | 未执行 |
+| C5 | 单线程/多线程executor、callback group及目标RMW矩阵 | 未执行 |
+| C6 | stop返回后新消息静默且在途回调已退出 | 未执行 |
+| C7 | 目标ROS发行版message_filters/image_transport/rclcpp shutdown/destructor同步退出语义 | 未执行 |
+| C8 | ICube实际executor和对象销毁顺序 | 未确认，现场证据缺失 |
+
+源码审查发现：PointCloud updater把捕获裸`this`的lambda注册给message_filters/TF filter，stop直接delete filter和subscriber，析构函数为空；DepthImage updater也把捕获裸`this`的lambda交给image_transport，stop与析构均调用`sub_depth_image_.shutdown()`。源码未显示显式在途回调计数、join或退出屏障。OccupancyMapMonitor析构函数体先调用stopMonitor，随后成员按逆序销毁，updater集合在tree和middleware成员之前销毁。两个callback都会访问updater成员、monitor及Octomap tree。因此必须验证stop/析构与回调执行重叠；但仅凭这些源码不能断言底层shutdown/destructor不等待，也不能认定已存在UAF。全部C1-C8未执行，现场证据缺失。详见专项审计§9.3.150。
+
+相关上游Issue #3901/#3902及PR #3909涉及updater初始化生命周期；PR #3909作者报告的Jazzy测试不是本项目验证，且不覆盖本节回调/析构竞态。
