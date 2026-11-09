@@ -1974,3 +1974,107 @@ U1-U8全部未执行；U9现场模拟输出执行路径未确认；U10现场证�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp
+
+
+## §9.3.182｜VAL3 UDP接收批处理、旧命令缓存、序号陈旧判定与错误恢复边界
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节沿VAL3 `controlTask` → `readData` → `readDataOnce` → `sioGet` → `decodeRobotCommandMsg`，以及 `computeSequenceDelay`、`resetControlSocket` 路径，检查单周期接收次数、报文覆盖、无数据/错误返回、旧命令有效标志和错误恢复行为。
+
+| 文件 | Blob SHA |
+|---|---|
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `Comm/readData.pgx` | `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0` |
+| `Comm/readDataOnce.pgx` | `652aa04548c814febab3c8c3fc807093261efd97` |
+| `Comm/resetControlSocket.pgx` | `25d414065b4567c5634ef8890cc8cafd6f7e9b3e` |
+| `Comm/computeSequenceDelay.pgx` | `e96e5b378bc263255ee4f28720306ee911b8a5c1` |
+| `Comm/getNextSequenceNumber.pgx` | `8bdda02a8887968b1b86e42be733f553b1e36b19` |
+| `Serialization/decodeHeader.pgx` | `41017a697f0ada9a19bc8bc2296fdab439856356` |
+| `Serialization/decodeRobotCommandMsg.pgx` | `612f5ce9fff12c0bd6c4e90e5685ea1d4b59bcdd` |
+| `ros2_server.pjx` | `b58dbbf1daf778da64e4ff9551d890ee9ec8514b` |
+
+项目元数据标记VAL3版本字符串为 `s8.20.2Cs9_BS4270`；它只是该公开工程文件中的版本元数据，不证明目标现场实际运行此版本。
+
+### 1. 每个控制周期最多尝试读取两个UDP报文，两个完整报文时缓冲区保留后一个
+
+`readData()`将最大尝试次数固定为2，并在每次循环中把同一个 `x_nData` 数组传给 `readDataOnce()`。`readDataOnce()`通过 `sioGet()` 将数据写入该数组；返回字节数等于数组长度时标记新数据，返回值大于0但不等于长度时标记通信错误。
+
+如果一次控制周期内两次调用都取得完整报文，第二次读取会覆盖同一数组中的第一次报文；循环结束后只向调用方返回一个 `x_bNewData=true`，后续只解码当前缓冲区中的最后一份报文。若第一次成功、第二次没有新数据，则保留第一次报文并退出。该实现表现为每周期最多排空两个报文、只处理最后读到的一个，不是逐条排队处理所有到达报文。
+
+这意味着突发到达的中间命令可能被跳过，最新报文的序号差会反映被跳过的序号数量。是否会造成控制跟踪误差或触发停止取决于实际到达节奏、周期调度和序号门限，必须通过受控UDP突发测试测量，不能仅凭静态代码推断运动结果。
+
+### 2. 无新报文不会自动清除上一条有效命令，陈旧分支仍为TODO
+
+当 `readDataOnce()`未报告新数据且未报告错误时，`readData()`返回 `x_bNewData=false`。controlTask在该分支仅保留注释“check staleness of previous message”和TODO，没有清除 `robot_command_msg.robotCommand.bIsValid`，也没有更新命令缓存的接收时间戳。
+
+因此无新报文时，旧命令结构继续保持有效；本周期后续控制路径仍会依据缓存命令类型调用相应控制程序。控制任务另有序号延迟检测：每周期本地状态序号递增，`computeSequenceDelay()`计算本地已发送序号与缓存命令序号的差；运动时差值大于5、静止时大于25会置错误并进入STOP/ERROR处理。此保护是序号差门限，不是墙钟时间戳超时，也不等价于在第一个缺包周期立即使命令失效。
+
+### 3. 返回值为0或负数时，readDataOnce没有显式错误分支
+
+`readDataOnce()`仅处理“返回字节数等于数组长度”和“返回值大于0但长度不匹配”两种情况。返回0或负数时，局部 `x_bNewData` 与 `x_bError`保持false，调用方将其视为本次没有新数据，而不是明确通信错误。
+
+源码没有在此处区分“非阻塞套接字暂时无数据”与“底层API返回负数所代表的其他状态”。该返回值的精确含义取决于目标VAL3/SIO API版本；本轮不把负数解释为已证实的系统错误或丢包，只将其标记为需要查阅目标版本接口定义并动态注入验证的边界。
+
+### 4. 短报文触发错误路径，错误处理清除命令有效标志并清空接收缓冲区
+
+当 `sioGet()`返回大于0但小于预期数组长度时，`readDataOnce()`设置错误标志；controlTask收到 `l_bRxError`后置 `l_bError=true`。本周期后续命令模式提取优先将错误转为ERROR模式，执行STOP/停止处理。错误处理段把命令类型设为0、清除 `bIsValid`、清零序号状态并调用 `resetControlSocket()`。
+
+这里需要精确描述“reset”的实际动作：`resetControlSocket()`只设置SIO timeout与endOfString参数并调用 `clearBuffer()`；没有关闭/重新创建UDP socket、重新绑定端口、重新建立对端会话或执行应用层重新授权握手。因此此前审计中“socket reset”应理解为接收缓冲区/套接字参数清理，不应理解为网络连接重建。
+
+### 5. 解码错误不会在同周期继续执行旧运动命令，但恢复握手与错误锁存仍有限
+
+新报文解码失败时，controlTask设置 `l_bError`；随后命令模式提取优先进入ERROR模式，不会按旧缓存命令类型继续走正常位置控制分支。错误处理阶段清除有效标志并清理接收缓冲区。短报文接收错误也进入同类错误处理。
+
+但控制任务在错误处理时清除 `l_bError`，复位序号/接收错误标志和 `l_bControlActive`，然后仅清空SIO缓冲区；代码另留有“重新接受命令前增加延迟”的TODO，没有独立的错误确认、重新授权握手或新会话nonce。下一次完整报文到达后即可再次被当作新命令处理的具体时序及授权安全性，需要目标运行时验证。这里不等于证明旧报文一定会重放：清空缓冲区是否覆盖所有底层队列状态，以及重置后新旧UDP数据报的到达关系，需要动态测试。
+
+### 6. 序号回绕与延迟计算的静态边界
+
+`getNextSequenceNumber()`按16位序号范围0…65535递增回绕；`computeSequenceDelay()`先计算本地序号减接收序号，只有差值小于-60000时才加65536处理回绕，其余负值由controlTask视为异常并置错误。序号差可识别部分跳号、乱序或过期情况，但不能区分相同序号的重放、控制端重启后重新从初始序号开始、跨会话旧报文与合法新会话报文。报文头中没有在本路径被用于认证的会话代号或随机挑战值。
+
+本轮仅确认源码算法与字段路径，不据此声称现场存在重放或会话混淆；控制端重启、序号回绕边界和旧数据报残留必须在隔离环境中验证。
+
+### 7. 本轮静态结论
+
+1. 每周期最多调用两次 `sioGet()`；若两次均取得完整数据，第二份报文覆盖第一份，只解码最后一份。
+2. 没有新数据时，旧命令 `bIsValid`不会被readData路径清除；陈旧检查TODO仍存在，实际门禁依赖序号差阈值，而不是墙钟超时。
+3. `sioGet()`返回0或负数时，当前代码均不置通信错误；负数语义未由本仓库定义，需查目标VAL3 API并验证。
+4. 短报文/读取错误进入STOP/ERROR清理路径，随后清除命令有效标志和SIO接收缓冲区。
+5. `resetControlSocket()`不是关闭重建socket或重新授权握手，只修改SIO参数并清空缓冲区；重新接受命令前等待/确认逻辑仍为TODO。
+6. 16位序号差门限不能替代会话标识、报文认证或防重放机制；当前静态证据不证明现场存在重放攻击或跨会话命令执行。
+
+### 8. 新增验收任务
+
+新增SERVO-765：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| V1 | 在单周期注入0、1、2、3、10个完整UDP报文，记录sioGet调用次数、最终解码序号及被覆盖报文 | 未执行 |
+| V2 | 在第一/第二次读取分别注入完整报文、无数据、短报文，验证readData输出标志及controlTask后续模式 | 未执行 |
+| V3 | 对目标VAL3版本的sioGet返回0、负值、短读、完整读和底层socket异常取得正式语义并实测 | 未执行 |
+| V4 | 在运动与静止状态逐周期丢包，测量旧命令保持有效周期、序号差增长、STOP触发点和实际停止距离 | 未执行 |
+| V5 | 注入乱序、重复、跳号、延迟到达、16位回绕和控制端重启序号复位，验证误判/漏判边界 | 未执行 |
+| V6 | 在错误清理前后注入旧数据报与新数据报，验证clearBuffer覆盖范围、接收队列残留和旧命令重放可能性 | 未执行 |
+| V7 | 验证错误清理后新命令是否需要显式STOP/授权状态转换，检查是否存在会话nonce/重新授权门禁 | 未执行 |
+| V8 | 对短报文、解码错误、socket读取错误连续发生及resetControlSocket失败注入，验证错误锁存、恢复循环和状态遥测 | 未执行 |
+| V9 | 在目标VAL3/SIO版本中验证timeout=-1的实际非阻塞语义、sioGet最大数据报长度和clearBuffer行为 | 未执行 |
+| V10 | 获取目标现场机器人、CS9/VAL3版本、UDP抓包、控制端重启/网络抖动记录及FAT/SAT通信恢复证据 | 未确认，现场证据缺失 |
+
+V1-V9全部未执行；V10现场证据缺失。未执行VAL3编译/仿真、UDP故障注入、ROS集成、HIL、CS9实机、FAT/SAT或现场抓包验证。
+
+### 9. 结论与边界
+
+固定公开源码显示，VAL3接收逻辑每周期最多读取两个数据报，连续两个完整报文时只保留最后一个；没有新数据时旧命令有效标志继续保留，直到序号延迟阈值触发错误或其他错误路径使其失效。短报文会进入STOP/ERROR清理路径；所谓socket reset实际只是SIO参数设置和clearBuffer，不是重新建立socket或应用层授权握手。sioGet返回0/负值的运行时语义、缓冲区清理覆盖范围和控制器重启后的旧报文处理均需目标VAL3版本验证。
+
+这些是固定公开原型的静态行为，不证明现场发生命令重放、通信中断导致危险运动或停止距离不满足要求。未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。现场部署版本、UDP网络拓扑和安全授权配置未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
