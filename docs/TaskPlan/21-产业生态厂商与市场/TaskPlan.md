@@ -3511,3 +3511,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DP10 | 完整update_state/write审查、read-write联锁、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.229 / SERVO-812。
+
+
+
+### 2026-11-09｜v10.04 本轮推进记录（§9.3.229 / SERVO-812）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：关节命令数值合法性、数组边界、URDF关节限位配置与VAL3命令参考值之间的约束链。本轮使用固定提交的GitHub搜索片段核对`staubli_hardware_interface.cpp`、头文件及机器人描述xacro配置；未取得完整源文件和所有型号配置全文，结论限于片段级静态证据。
+
+#### 静态审查发现
+
+1. **命令缓冲区按num_joints_分配。** 片段显示`hw_joint_position_commands_`、`hw_joint_velocity_commands_`、`hw_joint_acceleration_commands_`及状态向量均按`num_joints_` resize，初始值为0.0。该事实只证明本地缓冲区大小与配置关节数绑定，不证明命令消息的`command_reference`数组长度一定匹配。
+2. **命令接口暴露位置/加速度等接口。** 片段显示每个joint注册POSITION command interface，并注册ACCELERATION interface；具体支持的接口组合及resolve_mode映射需完整审查。接口暴露不代表自动施加位置/速度/加速度限位。
+3. **位置命令转换为控制器角度单位。** SERVO-811已核对`JOINT_POSITION`路径将`hw_joint_position_commands_[i]`经`rad2deg`转换写入`command_reference[i]`。本轮未取得完整命令分支，未能确认转换前后是否验证finite、范围或关节软硬限位。
+4. **速度命令也转换单位并限制循环上界。** 片段显示`JOINT_VELOCITY`按`i < num_joints_ && i < 6`循环，将弧度/秒转换为度/秒写入命令参考数组。该循环上限6是本代码片段中的固定上界；尚未核对目标机器人型号是否始终为6轴、消息数组容量是否至少为6，以及num_joints_与协议长度是否在初始化时被强制校验。
+5. **存在机器人描述层joint_limits.yaml加载路径。** URDF xacro片段声明`joint_limits_parameters_file`默认指向`config/joint_limits.yaml`；R2C描述片段也显示加载joint limits配置。它证明描述/配置层存在限位参数加载机制，但本轮没有证据证明这些参数被hardware write路径读取并用于拒绝超限命令。不能把URDF/MoveIt规划限位等同于驱动最终发送边界校验。
+6. **搜索未发现明确finite校验证据。** 本轮对`std::isfinite`与命令参考赋值的组合搜索未返回命中。搜索无命中不是完整源码不存在校验的证明，因此状态记为“未确认”，不能写成已证实缺陷。
+7. **关节数量与协议数组容量的关系未证实。** 命令参考循环存在`i < num_joints_ && i < 6`的线索，但未取得消息定义、固定数组长度、num_joints_来源、非6轴模型处理和初始化拒绝条件的完整证据。需要把所有访问索引与消息schema逐项对照。
+8. **限位配置可能处于规划/描述层。** xacro加载joint_limits.yaml并不能证明ros2_control command interface注册了min/max或write时进行了限幅。需分别追踪URDF joint limit、ros2_control joint_limits处理器、控制器限幅插件和驱动write边界，不应假设其中任一层替代其余层。
+9. **型号特定限位尚未核实。** 不同Stäubli型号的关节范围、速度、加速度和软限位需以对应控制器/机器人手册、型号配置与风险评估为准；本轮不推断通用限位值，也不建议在驱动中硬编码未经确认的范围。
+10. **验证证据缺口。** 未取得命令越限、NaN/Inf、数组越界、非6轴配置、配置缺失/不一致等单元测试或集成测试的充分片段；本轮没有运行任何测试。
+
+#### 风险与建议
+
+- 建立“控制器接口声明→命令接口注册→控制器输出→硬件接口缓冲→命令消息schema→VAL3执行”全链路矩阵，明确每个命令数组的容量、单位、轴数、有效位及最大索引。
+- 在最终发送边界执行确定性输入验证：轴数和数组长度匹配、每个数值finite、单位明确、位置/速度/加速度在目标型号允许范围内；非法命令应拒绝整条命令并进入明确定义的故障状态，避免部分轴更新。
+- 逐型号核对joint_limits.yaml与机器人手册，并明确该配置仅用于规划、控制器限幅还是驱动硬边界；对write侧缺少硬边界校验的情况，应提出独立设计变更，不可仅依赖上游规划器。
+- 对命令限位明确软限位、硬限位、速度/加速度/jerk限制和安全功能边界。软件限幅不代替控制器内置限制、机械限位和安全相关监控。
+- 以参数化测试覆盖1..6轴（若产品明确只支持6轴，则验证非6轴配置被拒绝）、数组短/长、NaN、正负Inf、边界值、越界值、单位转换、负速度、加速度命令和配置缺失/冲突。
+- 对非法数值或越限输入验证fail-closed行为：不得发送部分有效的运动命令，不得静默夹紧后继续执行而不告警；复位和重新使能应有明确授权。
+- 取得完整文件和消息IDL后，确认command_reference数组的真实容量、命令发送最终调用、各模式分支及限位执行层，再判定具体缺陷。
+
+#### SERVO-812｜关节命令输入约束验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DQ1 | 核对关节命令缓冲区按num_joints_分配 | 静态片段核对完成 |
+| DQ2 | 核对POSITION/ACCELERATION命令接口注册线索 | 静态片段核对完成；完整接口组合未确认 |
+| DQ3 | 核对JOINT_POSITION弧度转角度 | 静态片段核对完成（沿用SERVO-811证据） |
+| DQ4 | 核对JOINT_VELOCITY弧度/秒转角度/秒及循环上界 | 静态片段核对完成；消息数组容量和轴数约束未确认 |
+| DQ5 | 核对joint_limits.yaml加载路径 | 静态片段核对完成；write是否执行该限位未确认 |
+| DQ6 | 核对最终发送边界finite/范围/软硬限位校验 | 未确认：搜索片段不足以证明有或没有 |
+| DQ7 | 核对command_reference数组容量、IDL长度与num_joints_ | 未确认 |
+| DQ8 | 核对非6轴型号、型号特定限位及配置冲突处理 | 未确认 |
+| DQ9 | NaN/Inf、越限、短数组、边界轴数、单位转换及fail-closed单测 | 未执行 |
+| DQ10 | 完成逐型号约束链、最终发送边界审查、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.230 / SERVO-813。
