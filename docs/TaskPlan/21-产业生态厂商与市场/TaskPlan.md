@@ -3244,3 +3244,47 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DJ10 | 完成完整状态机覆盖、VAL3仿真、目标控制器SIL/HIL、CS9与FAT/SAT验收 | 未确认 |
 
 本轮未执行构建、单测、VAL3编译/仿真、模式切换注入、状态陈旧/乱序注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.223 / SERVO-806。
+
+
+
+### 2026-11-09｜v9.98 本轮推进记录（§9.3.223 / SERVO-806）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：VAL3控制任务初始化失败、运行期通信/命令错误、任务清理与重新启动之间的故障恢复状态转换。本轮通过固定提交上的GitHub代码搜索获得`controlTask.pgx`、`start.pgx`、`stop.pgx`、`Comm/resetControlSocket.pgx`、`Comm/readData.pgx`及项目日志文档的片段。搜索结果可核对局部语句与调用关系，但不等同于已逐行读取完整程序；未据此推断未展示的分支。
+
+#### 静态审查发现
+
+1. **控制任务启动时存在软件标志初始化。** `controlTask.pgx`片段显示初始化时将`l_bStopControlTask=false`、`l_bError=false`、`l_bErrorTmp=false`并将`l_bControlActive=false`。这属于应用任务局部变量初始化；不能据此认定控制器驱动器故障、急停、安全门或安全PLC状态已复位，也不能认定重新使能已获授权。
+2. **控制socket初始化失败会置错误标志。** 片段显示调用`resetControlSocket(siSocketControl, l_bErrorTmp)`；若临时错误标志为真，则设置`l_bError=true`并记录“failed to reset socket”。该片段证明启动阶段的socket复位失败会被标记为应用错误；没有足够证据说明错误是否通过ROS状态字段发布、是否锁存至人工确认，或任务会如何重试。
+3. **机器人状态消息初始化失败会置错并提前返回。** 片段显示调用`initRobotStateMsg(robot_state_msg, l_bErrorTmp)`；失败时设置`l_bError=true`、记录“failed to init robot state msg”并执行`return`。这是明确的启动失败退出路径。尚未证明上层任务监控器会自动重启任务，或重启后是否需要重新握手/人工确认。
+4. **运行期错误分支会使控制任务失活并清除当前命令有效性。** 搜索片段显示错误处理区域将`l_bControlActive=false`、`robot_command_msg.robotCommand.bIsValid=false`，并清除`l_bPreviousRxError`。结合SERVO-797/803/805的已核对片段，异常路径还涉及socket复位、STOP及运动重置。由于本轮未获得完整上下文，不能把这些分散片段拼接成完整且唯一的错误状态机，也不能确认所有错误类型都经过同一恢复路径。
+5. **无效命令可触发control socket复位。** `controlTask.pgx`搜索命中显示在将命令`bIsValid=false`后调用`resetControlSocket(siSocketControl, l_bErrorTmp)`。这说明至少一个无效/错误命令处理分支会清理或复位通信socket；但尚未证明该操作会清除控制器侧所有已排队命令、阻断网络中的旧UDP数据报，或建立新的session epoch。不能将本地socket缓冲复位视为端到端防重放保证。
+6. **控制任务清理路径调用stopMove与resetMotion。** 文件末尾清理片段显示记录“Stopping Control Loop”，随后调用`stopMove()`和`resetMotion()`。这说明控制任务退出清理时包含应用层运动停止/重置调用；不证明具体停止类别、制动性能、驱动器安全状态或安全认证等级，也不能替代独立安全回路验证。
+7. **应用停止程序与启动程序分别包含运动清理动作。** `stop.pgx`片段显示退出应用时调用`stopMove()`、`resetMotion()`并清理控制socket缓冲；`start.pgx`片段显示启动时先执行`stopMove()`、`resetMotion()`，随后`autoConnectMove(true)`并创建同步`controlTask`。该顺序提示启动阶段会先执行应用级运动/连接初始化，但不能据此推断启动后必然自动进入可运动状态，也不能证明安全使能条件已满足。
+8. **日志示例与故障说明提供了延迟错误的运行线索，但不能代替恢复验证。** 固定提交的日志示例包含“hard stop and reset”及“command sequence delay too high (5)”；troubleshooting文档将5个或更多连续控制周期未收到命令作为该日志的解释（约20 ms@250 Hz）。这说明该项目文档描述了控制周期级通信延迟错误；不能将其推广为所有型号/配置的通用安全响应，也不能由日志文字证明停止完成或复位成功。
+9. **人工复位、故障清除和重新使能授权链仍未闭环。** 当前命中片段未能确认急停/安全门复位、驱动器故障清除、控制器错误确认、ROS重新连接、命令序号重建、旧命令丢弃及操作员重新使能之间的先后依赖。尤其不能把任务重启时清零`l_bError`解释为清除了真实设备故障。
+10. **缺少故障恢复与重启边界的动态证据。** 本轮未执行socket断连/重连、状态消息初始化失败、任务异常退出/重启、无效命令、控制器重启、旧数据报延迟到达、急停动作与恢复等注入。故“不会自动续行”“一定需要人工确认”或“重启后一定安全保持”均不能作为已证实结论。
+
+#### 建议
+
+- 为故障类型建立独立恢复状态机：通信初始化失败、运行期收包失败、无效命令、状态消息初始化失败、控制任务退出、控制器重启、驱动器故障、急停/安全门动作。逐一标注软件标志、运动命令状态、socket/session状态、控制器模式、安全回路状态、人工确认和重新使能的责任主体。
+- 将`l_bError`、`l_bErrorTmp`、`l_bControlActive`、`l_bStopControlTask`与ROS发布状态、控制器本地错误、驱动器故障和安全PLC状态分层映射；禁止用软件标志清零代表硬件故障已消失。
+- 设计通信恢复隔离机制：重连后使用新的会话标识/epoch或等效握手，丢弃重连前缓存命令，要求收到新的有效命令才恢复控制；若协议不支持，记录为协议层风险并设计控制器侧验证。
+- 在经风险评估的仿真/SIL/HIL环境中注入启动初始化失败、socket reset失败、运行期无效命令、任务退出与重启、旧UDP包延迟/重复、控制器重启、急停/驱动器故障恢复；逐项验证不意外续行、停止结果、故障锁存和重新使能授权。
+- 对`start.pgx`的`autoConnectMove(true)`及任务创建流程，取得目标控制器/VAL3版本的正式语义与项目配置，核对自动连接是否可能影响操作模式、使能状态或恢复行为；不得仅凭函数名判断。
+
+#### SERVO-806｜故障恢复与重新使能验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DK1 | 核对controlTask启动时软件错误/活动标志初始化 | 固定提交搜索片段核对完成：局部标志被初始化；不代表硬件安全状态复位 |
+| DK2 | 核对control socket初始化失败路径 | 静态片段核对完成：resetControlSocket错误会置l_bError并记录错误 |
+| DK3 | 核对robot state消息初始化失败路径 | 静态片段核对完成：置l_bError并return |
+| DK4 | 核对运行期错误路径的控制失活与命令无效化 | 片段核对完成：可见l_bControlActive=false及bIsValid=false；完整分支/调用顺序待全文复核 |
+| DK5 | 核对无效命令触发socket复位及旧命令隔离 | 静态片段核对完成：存在resetControlSocket调用；端到端旧包隔离未确认 |
+| DK6 | 核对controlTask退出、stop程序和start程序的运动清理调用 | 静态片段核对完成：stopMove/resetMotion存在；物理停止效果及安全类别未确认 |
+| DK7 | 核对启动阶段autoConnectMove与任务创建后的使能语义 | 片段显示调用顺序；目标控制器语义、配置与使能条件未确认 |
+| DK8 | 核对急停/驱动器故障/安全回路复位、人工确认和重新使能授权链 | 未确认：需要正式手册、完整VAL3工程和现场安全配置 |
+| DK9 | 初始化失败、socket故障、无效命令、任务重启、旧数据报及急停恢复注入 | 未执行 |
+| DK10 | 完成故障恢复状态机覆盖、VAL3仿真、目标控制器SIL/HIL、CS9、FAT/SAT及现场验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.224 / SERVO-807。
