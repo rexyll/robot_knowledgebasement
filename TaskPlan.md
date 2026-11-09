@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.33  
+> 版本：v9.34  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.158，厂商档案新增§128.109。新增SERVO-741/L1-L12，识别PointCloud updater零point_subsample循环不前进、PointCloud2结构校验不足、NaN/Inf过滤缺口、ShapeMask缺失transform时可能沿用旧pose及OctoMap写异常非事务性；同时记录ConstSharedPtr同步消费、MutuallyExclusive callback group与ShapeMask互斥锁等风险边界。stop/析构回调静默仍需目标ROS executor屏障验证。L1-L12全部未执行，动态复现及Stäubli现场适用性未确认。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.159，厂商档案新增§128.110。新增SERVO-742/M1-M12，识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1508,3 +1508,12 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-741/L1-L12，覆盖配置边界、畸形PointCloud2、字段布局、非有限坐标、transform缺失、ShapeMask并发、stop/析构、OctoMap异常原子性和现场配置核实；全部未执行。
 - 本轮仅静态审查与测试设计；未运行ROS构建、ASan/UBSan/TSan、压力测试、OctoMap异常注入、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.159。
+
+
+### §9.3.159 OctoMap更新回调、服务生命周期与读写锁边界
+
+- 已完成MoveIt 2提交`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`的OccMapTree、OccupancyMapMonitor、middleware service handle、occupancy_map_server和PlanningSceneMonitor消费者静态审查；源码Blob SHA及逐项分析见专项追加件§9.3.159。
+- 识别update_callback_缺少独立同步、多个updater可能并发触发同一回调、回调异常没有隔离；save/load service捕获monitor的this且缺少析构前服务停用/in-flight排空屏障；stopMonitor不停止服务；active_无同步；save/load磁盘I/O持有树锁；server序列化失败后仍无条件发布。
+- 新增SERVO-742/M1-M12，覆盖TSan回调替换与并发、回调异常、service析构barrier、stop服务语义、启停状态竞争、慢盘锁持有、损坏地图加载、序列化失败和Stäubli部署核实；全部未执行。
+- 本轮仅静态审查与测试设计；未运行ROS构建、ASan/TSan、慢盘性能测试、序列化/load故障注入、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.160。
