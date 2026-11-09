@@ -801,3 +801,104 @@ E1–E15全部未执行。对照JTC提交不是现场部署证据；现场控制
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/config/servo_parameters.yaml
 - https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_trajectory_controller/src/joint_trajectory_controller.cpp
 - https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_trajectory_controller/include/joint_trajectory_controller/joint_trajectory_controller.hpp
+
+
+### §9.3.167 Servo topic静默、ros2_control写循环与Stäubli VAL3通信看门狗的跨层关系
+
+#### 1. 审查范围与固定证据
+
+本节沿§9.3.166继续追踪“Servo命令不再发布”之后，JointTrajectoryController（JTC）、controller_manager、硬件接口、UDP传输和CS9侧VAL3控制任务是否仍会产生/接收命令。源码证据分为三组：
+
+- MoveIt 2固定提交：6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09。
+- JTC行为对照：ros-controls/ros2_controllers提交c8d26930ff87bc819db1452af1d45da5bfa3d50d。仅作为典型JTC实现，不视为ICube现场软件版本。
+- ICube公开参考实现：ICube-Robotics/staubli_driver_ros2提交bd658e2d266e315d2ee35f985fb352ea88306b79。该仓库README称其基于ROS 2 Jazzy、面向CS9、仅支持位置控制，并明确标注为开发中的prototype；开发曾在2025年11月初始POC后暂停。该公开仓库和VAL3源文件不是某台Stäubli现场设备的部署证明。
+
+ICube仓库的VAL3工程文件ros2_server.pjx记录工程目标版本字符串S8.20.2Cs9_BS4270。这只是仓库内工程元数据，不代表现场控制器固件/应用版本。
+
+#### 2. JTC topic沉默后仍可能继续向硬件接口提供命令
+
+在固定JTC对照提交中，topic callback收到并验证新JointTrajectory后才替换当前轨迹；周期update()读取current_trajectory_，在has_active_trajectory()时继续按traj_time_采样，并将command_next_写入position/velocity等command interface。未收到新topic消息本身不会清除current_trajectory_。
+
+轨迹末点处理也不是简单地“没有新topic就停止”。JTC会根据cmd_timeout、goal tolerance和should_decelerate_on_cancel_等配置处理轨迹结束；可能生成hold-position或decelerate-to-hold轨迹。若控制器保持active，即使不再收到Servo新轨迹，控制循环仍可能继续产生保持/末点命令。cmd_timeout为配置项，不能假设所有部署都启用或具有同一值。
+
+因此，Servo HALT_FOR_COLLISION停止发布新轨迹，不等于JTC立即停止update，也不等于其command interface立即清零或释放。是否仍在持续写入以及最终写入何值，取决于当前轨迹、goal/topic路径、JTC参数和控制器生命周期。
+
+#### 3. ros2_control控制循环与硬件写出
+
+对照ros2_control controller_manager源码中，read阶段从硬件读取状态，update阶段调用active controller，write阶段将command interface中的值写入硬件。硬件write返回ERROR时，controller_manager会查找使用该硬件接口的控制器并执行停用流程；read错误也会停用关联控制器。这里的源码对照提交为ros-controls/ros2_control@33c6d025530b53acacdcab8927f359e4f311e260，不作为现场Jazzy安装版本或现场参数证据。
+
+这意味着，只有控制器确实被停用、硬件写循环停止，或硬件驱动主动改变输出/停止发送时，机器人侧才可能观察到报文流变化。单独停止Servo publisher并不必然停止controller_manager的硬件write周期。
+
+#### 4. ICube公开Staubli硬件接口的命令生命周期
+
+在ICube仓库固定提交bd658e2d266e315d2ee35f985fb352ea88306b79中，StaubliHardwareInterface::write()：
+
+- 检查RobotDriver及连接状态；
+- 若当前模式不是STOP，检查机器人error_state及INVALID状态；
+- 将当前控制模式、controller period和最近有效机器人状态序号写入RobotCommandMessage；
+- 对JOINT_POSITION模式，将ros2_control位置命令从弧度转换为Staubli使用的角度制；
+- 调用RobotDriver::send_robot_command()发送控制报文；
+- 发送失败、NaN命令或机器人错误状态会返回hardware_interface::return_type::ERROR；部分错误分支会先尝试send_stop_all_command()。
+
+该write()并不以“是否刚收到新的Servo topic消息”为发送条件。只要controller_manager仍调用硬件write，驱动就会使用当前command interface值组装并发送命令。JTC保持末点/hold命令时，驱动可能继续向VAL3发送周期性位置报文。
+
+RobotCommandMessage.header.sequence_number使用RobotDriver最近一次有效RobotState序号；controller_period由本次write周期计算。RobotDriver::send_robot_command()返回值来自控制接口send_message()成功与否。当前公开实现没有为每条命令暴露一个与机器人运动执行结果绑定的独立ACK；本地UDP发送成功不能证明VAL3已接收、接受或执行该条命令。VAL3返回的state sequence及sequence_delay可用于观察通信滞后，但不等于逐命令执行确认。
+
+#### 5. VAL3侧命令失联看门狗与STOP路径
+
+同一公开仓库的VAL3 controlTask每个控制循环更新RobotState序号，尝试读取最新RobotCommand，并通过computeSequenceDelay()计算“当前已发送状态序号 - 最近命令携带的状态序号”。在机器人运动时，sequence delay大于5个周期会将命令模式切到STOP；机器人静止时阈值为大于25个周期。仓库troubleshooting文档把运动中大于5周期解释为约20 ms（250 Hz）。
+
+STOP路径会在前一模式为joint-position时调用stopJointPositionControl()；该过程检查movejSync状态并调用movejSyncEnd()，随后controlTask调用stopMove()和resetMotion()。这属于VAL3运动控制程序的普通停止路径，不能据此认定为安全额定急停、保护停止或安全PLC功能。
+
+controlTask还明确留下若干TODO，包括无新命令时的staleness处理和丢包处理；但现有sequence delay阈值仍会在命令序号落后时触发STOP。阈值实际时间受真实任务周期、任务overrun和调度影响，不能只用名义250 Hz推导已验证的停止上界。
+
+#### 6. 本节关键跨层结论
+
+1. **Servo topic静默不必然触发CS9侧命令看门狗。** 若JTC仍active并持续采样活动轨迹/保持末点，controller_manager仍运行硬件write，ICube硬件接口继续发出带有近期RobotState序号的UDP命令，则VAL3看到的可能是连续命令流，而不是失联。此时机器人侧sequence-delay watchdog不会仅因Servo publisher静默而必然触发。
+2. **控制器停用与硬件报文停止是不同事件。** controller_manager的read/write错误路径可停用关联控制器，但实际调用顺序、硬件接口模式切换、write阶段是否还执行一次、以及ICube驱动STOP命令是否成功送达，必须按目标ROS发行版和现场配置做集成验证。
+3. **ICube驱动有主动STOP尝试，但不是无条件保证。** on_error()在RobotDriver仍is_connected()时尝试send_stop_all_command()；若连接/接口不可用则返回错误。on_shutdown()在状态非STOP时尝试发送STOP再断开。on_cleanup()只断开连接，没有显式先发STOP。析构函数也只调用disconnect。生命周期路径是否能在目标部署中可靠触发及其时序，需动态验证。
+4. **状态新鲜度与连接状态不同。** RobotDriver默认state_staleness_timeout为100 ms；read_robot_state()对过期状态返回false，但is_connected()主要检查socket和通信接口ready，不等价于状态新鲜。read()会因状态读取失败返回ERROR。on_error发送STOP时仍需核实底层当前状态、UDP接口和目标端是否可用。
+5. **序号滞后是流级健康度，不是逐命令ACK。** sequence_delay可以发现命令流落后，但当前证据没有证明每条位置命令均被机器人接受、执行或达到对应目标。还需检查重复、乱序、序号回绕、缓冲和VAL3任务过载。
+6. **STOP不是安全功能证明。** movejSyncEnd()/stopMove()/resetMotion()的停止距离、减速度、延迟、制动器行为及安全等级未由本源码证明；必须独立核对CS9安全配置、安全PLC、E-stop/保护停止及驱动使能撤销链。
+
+#### 7. 新增验证任务 SERVO-750 / F1–F16
+
+- F1：固定目标JTC版本，分别在topic停止前、活动轨迹中、轨迹末点、goal成功/超时后记录active trajectory、desired state及command interface值。
+- F2：验证Servo HALT_FOR_COLLISION后JTC是否继续update、何时生成hold/decelerate轨迹、command interface是否持续更新。
+- F3：在controller_manager真实控制周期中跟踪read→update→write顺序、控制器停用时序及硬件write最后一次调用。
+- F4：将JTC command interface与ICube硬件write输出逐周期关联，记录UDP发送频率、RobotCommand序号、命令模式和参考值。
+- F5：分别执行Servo publisher静默、JTC主动停用、controller_manager停止、硬件接口停用，比较VAL3 sequence_delay和机器人停止行为。
+- F6：在ICube硬件接口中注入RobotState超过默认100 ms的staleness，确认read() ERROR、controller_manager停用、on_error回调和STOP命令的实际调用顺序。
+- F7：注入UDP发送失败、socket断连和接口not-ready，验证write() ERROR、STOP尝试失败及VAL3失联看门狗是否接管。
+- F8：分别在RobotDriver仍connected但state stale、control interface not-ready、socket断连三种情况下验证on_error()和send_stop_all_command()结果。
+- F9：核实on_cleanup、on_shutdown、硬件deactivate、controller deactivate及进程崩溃路径；测量是否先发送STOP、是否只断开连接及机器人端最终状态。
+- F10：在CS9/VAL3上测量运动中sequence delay阈值>5、静止阈值>25的实际周期、任务overrun和触发时间分布。
+- F11：对UDP报文进行丢包、重复、乱序、延迟、序号回绕和突发背压注入，确认sequence_delay与命令有效性策略。
+- F12：验证movejSyncEnd、stopMove、resetMotion的实际停止距离、减速度、响应时间、制动器/驱动状态及不同机器人负载工况。
+- F13：核对position/velocity/effort/acceleration接口组合和控制模式切换；确认该公开驱动只支持position的限制与现场驱动差异。
+- F14：取得现场staubli_driver_ros2 commit、ROS发行版、ros2_control/ros2_controllers版本、VAL3应用版本、CS9固件、网络参数和URDF控制器配置。
+- F15：验证CS9安全PLC、E-stop、保护停止、门禁/扫描器、制动器和驱动使能撤销链，确认其独立于ROS topic/UDP普通命令。
+- F16：在隔离测试单元完成Servo碰撞HALT→JTC→controller_manager→硬件write→UDP→VAL3全链路故障注入及HIL/FAT/SAT记录。
+
+F1–F13、F16均未执行；F14–F15未确认，现场证据缺失。以上均为验证任务，不得记为已测试。
+
+#### 8. 证据边界与验收状态
+
+本节新增了ICube公开原型源码作为比通用JTC更贴近Stäubli的参考实现，但README明确其为prototype且项目开发曾暂停。没有证据证明任何具体Stäubli现场部署了该仓库、该提交、该VAL3工程或该controller_manager/JTC组合。公开源代码的静态行为不能替代现场软件物料清单、CS9工程文件、控制器配置和HIL/FAT/SAT。
+
+本轮未运行ROS构建、JTC动态测试、UDP网络故障注入、VAL3编译/仿真、CS9/HIL、FAT/SAT或实机验证；未证明任何现场故障或危险运动。未修改MoveIt、ros2_control、ros2_controllers或ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 来源与固定Blob
+
+- MoveIt Servo： https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp
+- JTC： https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_trajectory_controller/src/joint_trajectory_controller.cpp （Blob SHA 73ab7eec845fdb75c725b95740ae7f9166aca9e4）
+- controller_manager： https://github.com/ros-controls/ros2_control/blob/33c6d025530b53acacdcab8927f359e4f311e260/controller_manager/src/controller_manager.cpp （Blob SHA 7094d01b8a6813ec43ef0ff558fec1bdf8102b1b）
+- ICube README： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md （Blob SHA ce1dd2263e32724b7d3c4e7d66fc0b7ead9762c8）
+- ICube hardware interface： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp （Blob SHA 4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0）
+- ICube RobotDriver： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp （Blob SHA ede48a314856a455df9d8434f354aaf9fbc47bff）
+- ICube RobotDriver header： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp （Blob SHA 62c87a6741aa082db4599bb2c048aec0fcd7a464）
+- VAL3 controlTask： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx （Blob SHA 00a69c4d13879116fce744ceb1611ecd05d65edf）
+- VAL3 stopJointPositionControl： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx （Blob SHA bd4be41dff93258d5c08cbf9411af3d811b5f6c9）
+- VAL3 updateJointPositionControl： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx （Blob SHA 28e2f1d6a3482a126b16474c957a608262c32218）
+- VAL3 computeSequenceDelay： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx （Blob SHA e96e5b378bc263255ee4f28720306ee911b8a5c1）
+- ICube troubleshooting： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst （Blob SHA fffd7d2b1fcb9cd95621f6e94191ff6cff49ba91）
