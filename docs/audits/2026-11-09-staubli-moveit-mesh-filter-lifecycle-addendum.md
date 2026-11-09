@@ -2781,3 +2781,84 @@ AD1-AD2、AD4、AD6-AD8、AD10未执行；AD3、AD5、AD9现场版本/配置证�
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx`
+
+
+## §9.3.191｜VAL3控制任务停止标志可达性、重复启动与启停残留状态
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节承接§9.3.176、§9.3.189及§9.3.190：不重复ROS lifecycle与VAL3入口解耦、socket复位错误传播或启动性能前置条件；本节聚焦控制任务退出条件是否可由stop入口触发、重复start是否有应用层防重入门禁，以及stop→start之间的任务/通信状态边界。
+
+| 文件 | Blob SHA |
+|---|---|
+| `start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` |
+| `stop.pgx` | `8d88991f087ea2be2e65daacff742da5d58ac73c` |
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `ros2_server.pjx` | `b58dbbf1daf778da64e4ff9551d890ee9ec8514b` |
+
+### 1. controlTask退出条件是局部变量，公开程序内没有停止写入点
+
+`controlTask.pgx`将`l_bStopControlTask`声明为该Program的Local bool，并在入口处设置为`false`。主循环条件为`while !l_bStopControlTask`；退出循环后的清理代码才执行日志、`stopMove()`和`resetMotion()`。
+
+对固定仓库执行精确源码搜索，`l_bStopControlTask`仅命中该局部声明和入口初始化，没有命中后续赋值。对`taskStatus`、`taskKill`和`taskStop`的源码搜索没有找到调用点。由于该停止标志是Program局部变量，独立的`stop.pgx`不能仅凭同名程序上下文直接写入该局部状态；固定源码也没有展示参数、共享数据或任务API将stop入口连接到该退出条件。
+
+因此，在公开应用层可见控制流中，stop入口没有触发controlTask正常离开while循环的显式机制。此结论不排除VAL3运行时、示教器操作或部署工程存在仓库未收录的外部任务管理行为。
+
+### 2. stop.pgx执行运动/缓冲操作，但没有控制任务退出同步
+
+`stop.pgx`按顺序执行`stopMove()`、`resetMotion()`和`clearBuffer(siSocketControl)`后结束。没有看到它设置controlTask的停止标志、调用任务状态/终止API、等待任务退出、等待退出清理完成或确认任务已停止。
+
+与此同时，controlTask主循环在每周期完成状态发布、命令接收/解码、模式判断及运动/GPIO处理后继续下一轮；退出清理仅位于while循环之后。故不能把stop.pgx返回等同于controlTask已退出，也不能把缓冲区清理等同于控制任务停止接收后续报文。
+
+### 3. start.pgx没有应用层重复启动防护
+
+`start.pgx`每次进入都会执行socket缓冲清理、`stopMove()`、`resetMotion()`、`autoConnectMove(true)`，将`bIsOverrun=false`，再调用`taskCreateSync "controlTask", l_nCtrlPeriod, bIsOverrun, controlTask()`。固定程序中没有在该调用前检查同名任务是否已经存在/运行，也没有应用层启动互斥锁或“已启动”状态门禁。
+
+因此，静态源码只能确认每次start入口都会到达taskCreateSync调用点；同名任务已存在时VAL3运行时究竟拒绝、替换、并行创建、报错还是采用其他行为，必须由目标版本API契约和控制器实测确认。不能据此直接断言重复start会产生两个并行controlTask。
+
+### 4. stop→start之间的状态清理存在跨任务时序问题待验证
+
+controlTask每次实际进入程序时会重新初始化局部错误标志、控制活动标志、序号、延迟和命令模式，并调用resetControlSocket；start入口则在taskCreateSync之前清理socket缓冲并复位运动。若前一次controlTask仍在运行而再次调用start，两个入口可能在同一socket、共享overrun标志和运动控制资源上发生交错；具体是否发生取决于taskCreateSync对同名任务的语义、任务调度时序及VAL3资源访问规则。
+
+stop入口清理缓冲之后，若controlTask仍在运行，它仍处于主循环中；之后抵达的新报文是否会被该任务读取并执行，需要隔离环境验证。当前静态源码不足以证明该竞态在现场发生，也不足以证明start/stop调用顺序已由外部流程严格串行化。
+
+### 5. 静态结论与边界
+
+1. `l_bStopControlTask`是controlTask局部变量；固定程序中只见入口置false和while条件读取，没有后续置true的源码写入点。
+2. stop.pgx只调用stopMove、resetMotion和clearBuffer，没有显式终止/等待controlTask，也没有确认任务退出后的清理完成。
+3. start.pgx每次调用都会到达taskCreateSync；未见应用层同名任务存在性检查、启动互斥或已启动状态门禁。
+4. 固定仓库搜索未发现taskStatus、taskKill、taskStop调用；这只代表公开仓库代码未展示这些API，不代表VAL3运行时或现场工程不存在其他任务管理方式。
+5. ros2_server.pjx将start.pgx、stop.pgx和controlTask.pgx列为同一VAL3项目程序；未从项目清单获得外部启动/停止调用者及现场操作流程。
+6. 本节不推断taskCreateSync同名任务冲突语义、不推断stopMove/resetMotion使任务退出、不推断stop后机器人必然继续运动，也不证明现场重复start/stop竞态已经发生。
+
+### 6. 新增验收任务
+
+新增SERVO-774：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AE1 | 在目标CS9/VAL3版本中分别于任务不存在、正在运行、已退出时调用start，记录taskCreateSync返回/异常/任务表变化 | 未执行 |
+| AE2 | 对同名controlTask重复调用taskCreateSync，确认运行时是拒绝、替换、并行创建还是其他行为，并记录错误码 | 未确认，目标版本API证据缺失 |
+| AE3 | 在隔离工程中验证Program Local变量作用域，确认stop入口不能直接改变controlTask的l_bStopControlTask，并追踪所有可写路径 | 未执行 |
+| AE4 | controlTask运行期间调用stop，记录任务是否继续循环、是否继续收发UDP、是否执行退出清理段 | 未执行 |
+| AE5 | 连续执行start→start、start→stop→start、start→stop→stop，记录任务实例数量、任务状态、socket访问和运动API调用顺序 | 未执行 |
+| AE6 | 核对目标VAL3版本任务状态查询/停止/删除API的准确名称、作用域、同步语义和异常处理契约 | 未确认，目标版本文档缺失 |
+| AE7 | 在消息初始化失败、socket初始化失败、运行时异常及正常退出条件下，验证controlTask return/loop exit与start调用方可观测性 | 未执行 |
+| AE8 | 对stop清缓冲前后注入旧报文和新报文，验证仍存活controlTask的接收、解码、命令模式与运动更新路径 | 未执行 |
+| AE9 | 获取现场VAL3项目启动映射、示教器/远程调用记录、任务表快照、控制器型号及版本，确认实际启停编排 | 未确认，现场证据缺失 |
+| AE10 | 在隔离仿真/HIL中完成重复启停、并发时序、任务退出确认及独立安全状态回归验收 | 未执行，需受控环境 |
+
+AE1、AE3-AE5、AE7-AE8、AE10未执行；AE2、AE6目标版本API证据缺失；AE9现场证据缺失。以上均为验收设计，不代表测试已通过。
+
+### 7. 结论与工程建议
+
+在目标VAL3版本明确taskCreateSync的同名任务语义前，不应假设重复start是幂等操作。建议先定义唯一的任务生命周期状态机，并由经版本确认的任务管理接口实现“启动前检查—启动结果确认—停止请求—退出确认—资源清理—允许重启”的闭环；停止标志应通过经验证的共享/参数接口提供受控写入，不应尝试从外部直接访问Program Local变量。任何改动均须先做风险评审、仿真与受控安全验证，本节没有提出可直接部署的程序补丁。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机验证。目标控制器型号、CS9/VAL3版本、taskCreateSync重复任务语义、现场启动映射和独立安全链仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx`
