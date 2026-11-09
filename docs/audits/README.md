@@ -212,3 +212,6 @@
 
 
 - [2026-11-09 Stäubli ICube UDP状态新鲜度、序号单调性与would_block丢包审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.168，发现重复状态报文可刷新本地接收时间但不推进序号，RobotDriver忽略new_message=false；序号倒退被一律当作uint16回绕；UDP would_block丢弃报文却返回true；接收端来源地址校验留有TODO。新增SERVO-751/G1-G16，全部未执行。
+
+
+- [2026-11-09 Stäubli ICube VAL3同步控制任务overrun与序号延迟看门狗审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.169，审查4 ms `taskCreateSync`、`bIsOverrun`/`nOverruns`仅日志计数、状态序号递增与命令序号回显、sequence_delay非墙钟指标及状态遥测一轮滞后；新增SERVO-752/H1-H16，全部未执行，现场版本/CS9/HIL证据缺失。
