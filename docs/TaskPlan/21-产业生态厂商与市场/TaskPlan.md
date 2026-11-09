@@ -2675,3 +2675,12 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 连接等待循环每500ms采样，成功后没有break，持续到timeout结束，最终结果只看末次采样；HardwareInterface on_configure传入5000ms。固定mock测试没有连接耗时断言。
 - 新增SERVO-781/AL1–AL10：AL1–AL8固定提交静态源码/测试审查完成；AL9 mock时序注入未执行；AL10目标部署/现场证据缺失。未执行构建、mock动态测试、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
 - 下一节点：§9.3.199。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### 2026-11-09｜Stäubli专项审查进度（§9.3.199）
+
+- 新增§9.3.199：审查RobotDriver状态新鲜度与连接状态分离、HardwareInterface激活/读写/命令模式切换状态门禁，以及诊断通道首帧验证。
+- 静态确认is_connected不检查状态年龄；read_robot_state按默认100ms判断新鲜度，失败时保留上一次有效缓存。on_activate只设置STOP并返回成功；位置模式切换读取缓存error_state/motion_possible但没有独立时间戳门禁。
+- 诊断subscriber ready仅表示socket连接及接收线程运行；connect将diag_interface_ready硬编码true，没有调用read_diagnostic_data，之后的固件版本日志不能证明诊断帧有效。控制器类型校验被注释，VAL3版本检查仍为TODO。
+- 新增SERVO-782/AM1–AM10：AM1–AM7固定源码静态核对完成；AM8未执行；AM9缺目标部署配置；AM10缺现场/HIL证据。未执行构建、动态并发注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
+- 下一节点：§9.3.200。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
