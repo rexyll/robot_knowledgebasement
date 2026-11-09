@@ -501,3 +501,71 @@ N1–N12全部未执行。没有运行ROS构建、单元测试、TSan/ASan、bar
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
+
+
+## §9.3.163 GetPlanningScene服务与requestPlanningSceneState全量同步链路（2026-11-09）
+
+### 审查范围与固定基线
+
+基于MoveIt 2仓库固定提交`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`，静态检查：
+
+- `moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp`：`requestPlanningSceneState()`、`getPlanningSceneServiceCallback()`、`newPlanningSceneMessage()`、`startSceneMonitor()`、`updateFrameTransforms()`。
+- `moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp`：服务/订阅API契约及默认服务名。
+- `moveit_core/planning_scene/src/planning_scene.cpp`：组件选择序列化、full/diff应用和world处理。
+- `moveit_core/planning_scene/include/moveit/planning_scene/planning_scene.hpp`：full/diff API语义。
+
+源码Blob SHA：
+- planning_scene_monitor.cpp：`83f67e15cb167957ddf15bde8fc239d053ed727c`
+- planning_scene_monitor.hpp：`8ed8bd8fb8a3b25cfcb3357f2cc5de499a6fbd51`
+- planning_scene.cpp：`71d4eac188cd7446b2013b61cf25b8b319e073c3`
+- planning_scene.hpp：`a141b9f7e5898b486df851204c555a0c20a220c0`
+
+### 静态发现
+
+1. **请求端将服务可达/响应ready等同于场景应用成功，忽略应用返回值。** `requestPlanningSceneState()`等待服务最多5秒，发起异步请求后再等待最多5秒；future ready时调用`newPlanningSceneMessage(response.scene)`，但丢弃其bool结果并直接return true。下游`newPlanningSceneMessage()`的返回值来自`PlanningScene::setPlanningSceneMsg()`或`usePlanningSceneMsg()`，后者可能因world中的CollisionObject处理失败返回false。因此API的true只证明收到响应且进入应用路径，不保证完整场景成功应用。应区分transport success、message apply success和scene validation success。
+
+2. **full scene应用不是事务式提交，失败后无回滚。** 对非diff消息，PSM在`scene_update_mutex_`下调用`parent_scene_->setPlanningSceneMsg(scene)`（有parent时先`scene_->clearDiffs()`），或调用`scene_->usePlanningSceneMsg(scene)`。`setPlanningSceneMsg()`会先更新name、解耦parent、替换transforms/current state/ACM/padding/scale/object colors，清空world objects，再调用`processPlanningSceneWorldMsg()`；后者逐项处理CollisionObject并汇总bool结果，OctoMap随后处理。若后续world对象处理失败，之前已写入的状态不会自动恢复，且PSM仍会在锁外触发`UPDATE_SCENE`并返回false。结合第§9.3.161节的逐对象非原子处理发现，服务响应应用失败可能留下部分新场景，而非保留旧场景。需要构造坏对象/坏OctoMap注入测试确定可观测残留范围。
+
+3. **请求端可能把旧服务快照覆盖到较新的topic更新之上。** 服务请求等待期间，`startSceneMonitor()`订阅回调仍可通过`newPlanningSceneMessage()`更新本地场景。场景锁只保证每次应用串行，不携带服务快照generation、source timestamp或请求开始时的本地版本比较。若较新的topic消息先应用、较早采样的服务响应后返回并应用，后者可能覆盖较新状态。是否发生取决于服务端快照时刻、网络延迟、executor调度和调用方并发；静态代码没有版本冲突检测或“仅在初始化时应用”保护。
+
+4. **服务端响应序列化有场景锁保护，但TF刷新与完整响应不是同一个临界区。** `getPlanningSceneServiceCallback()`在请求包含TRANSFORMS时先调用`updateFrameTransforms()`；该函数自行取得/释放`scene_update_mutex_`并触发TRANSFORMS事件。服务回调随后再次取得该锁并调用`getPlanningSceneMsg()`。所以响应序列化期间scene数据受锁保护，但TF刷新与最终序列化之间允许其他场景更新介入；不能将两段操作视为同一原子快照。应确认产品是否要求机器人状态、World与TF具有同一采样时刻，以及TF时间戳/缓存策略。
+
+5. **组件掩码默认值与全量请求需明确区分。** 服务端请求掩码为0时用`UINT_MAX`请求所有组件；显式掩码只序列化指定组件，且响应`is_diff=false`。客户端`requestPlanningSceneState()`显式请求SCENE_SETTINGS、ROBOT_STATE、ROBOT_STATE_ATTACHED_OBJECTS、WORLD_OBJECT_NAMES、WORLD_OBJECT_GEOMETRY、OCTOMAP、TRANSFORMS、ALLOWED_COLLISION_MATRIX、LINK_PADDING_AND_SCALING和OBJECT_COLORS。由于组件序列化会省略未选字段，而full场景应用会替换/清空多个字段，外部调用者不能把任意部分组件响应直接当作完整快照交给`setPlanningSceneMsg()`；需用契约或专用patch应用方式避免“未请求字段被解释为空”。
+
+6. **WORLD_OBJECT_NAMES与WORLD_OBJECT_GEOMETRY是二选一分支。** `getPlanningSceneMsg()`优先处理WORLD_OBJECT_GEOMETRY；只有未请求geometry而请求names时，才输出仅含ID/type的对象。客户端同时请求二者，因此得到几何数据。第三方客户端只请求names时，响应对象没有完整shape/pose，不能用于碰撞场景重建；且因为`is_diff=false`，必须避免把这种轻量查询响应直接作为full scene替换本地world。
+
+7. **失败恢复路径有限且调用方必须检查返回值。** 服务不可用或等待超时返回false，现有代码不会主动清空本地场景；这是保留旧状态的路径。服务响应ready但应用失败时则存在第1、2点问题：函数仍返回true，且场景可能部分改变。当前实现没有构建临时PlanningScene后原子swap、失败回滚、响应完整性校验或版本冲突重试。服务端序列化本身也没有显式错误状态字段用于表示某组件缺失/读取失败。
+
+8. **同步等待可能与executor调度形成条件性死锁/超时。** API内部同步等待service可用与future完成。如果从同一executor中必须由该executor执行的回调内调用，而executor没有其他可运行线程/执行路径处理client response，则可能等待超时或阻塞；具体是否触发取决于调用线程、callback group、executor类型与线程数，源码审查不能假定部署默认值。禁止将该风险表述为所有调用都会死锁。
+
+9. **topic订阅与service恢复是两条独立同步路径。** `startSceneMonitor()`使用`rclcpp::ServicesQoS()`订阅PlanningScene topic；`requestPlanningSceneState()`走GetPlanningScene service。固定代码未提供服务响应与topic更新之间的统一序列号、时间戳仲裁或去重协议。重启/late join后通常需要调用方显式请求full scene；请求成功与否应在应用层核验。QoS具体兼容性及Stäubli现场配置需单独确认。
+
+### 新增验证任务 SERVO-746 / O1–O12
+
+- O1：构造有效服务响应，验证完整组件均被应用且请求返回true。
+- O2：构造world中前项有效、后项无效的full scene，记录`newPlanningSceneMessage()`返回值、外部请求返回值及本地各组件残留；验证部分提交。
+- O3：对服务响应注入无效CollisionObject/OctoMap，验证失败后旧world/robot state/ACM/padding/colors是否可恢复。
+- O4：在service请求等待期间先注入较新topic full/diff，再释放旧服务响应；验证是否发生旧快照覆盖新更新。
+- O5：在服务端响应生成阶段并发更新robot state、world和TF，检查序列化快照内部版本/时间戳一致性。
+- O6：逐项测试0掩码、仅TRANSFORMS、仅WORLD_OBJECT_NAMES、仅WORLD_OBJECT_GEOMETRY、OCTOMAP及全部组件的字段完整性与`is_diff`。
+- O7：将部分组件响应交给full apply API，确认哪些未请求字段会被清空/重置；形成禁止用法测试。
+- O8：服务不存在、等待5秒超时、响应future超时、服务端异常及请求取消时，确认本地场景是否保持旧状态、调用方告警和重试策略。
+- O9：分别从普通线程、单线程executor回调、多线程executor回调调用同步请求，记录阻塞、超时和死锁情况。
+- O10：service与scene topic同时启用，改变回包延迟/消息顺序，验证更新仲裁、重复应用与最终一致性。
+- O11：late join、publisher restart、service server restart后请求full scene，验证World/OctoMap/ACM/attached objects恢复。
+- O12：在Stäubli/ICube部署核实真实service名称/命名空间、组件掩码、调用线程、executor/callback group、topic QoS、服务超时、快照频率与上层对bool返回值的处理。
+
+O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并发调度测试、QoS/服务重启测试、CS9/HIL、FAT/SAT或实机验证。
+
+### 结论与证据边界
+
+§9.3.163确认GetPlanningScene服务端在scene锁内序列化所选组件；零组件掩码表示请求全部组件，客户端默认请求全量组件。主要风险为请求端忽略场景应用bool结果、full scene应用缺少事务回滚、并发topic更新与较旧service快照之间缺少版本仲裁，以及部分组件响应被误用为完整场景时可能造成字段清空。同步等待与executor之间存在条件性阻塞风险，需依据实际调用上下文验证。
+
+以上是MoveIt固定提交源码静态结论，不证明Stäubli/ICube现场采用相同调用顺序、executor/QoS或已发生场景回退、场景部分提交、碰撞漏检或运动安全事件。未运行ROS构建、单测、故障注入、并发/服务超时/QoS测试、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/include/moveit/planning_scene/planning_scene.hpp
