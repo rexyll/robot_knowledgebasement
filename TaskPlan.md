@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.24  
+> 版本：v9.25  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.149，厂商档案新增§128.100。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.150，厂商档案新增§128.101。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1323,3 +1323,22 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA `e11a9f41d6dad68de31c83268e6bd686728eee9e`）
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA `3dbb114ab6bfd0654823724b6848c881caa2d8ee`）
 - 专项厂商档案§128.100。
+
+
+### §9.3.150 OccupancyMapUpdater回调捕获、stop与析构期间的在途回调生命周期
+
+- MoveIt main源码审查确认：PointCloud updater在`start()`中将订阅回调注册为捕获裸`this`的lambda（Blob SHA `e11a9f41d6dad68de31c83268e6bd686728eee9e`）；`stop()`直接delete MessageFilter和message_filters Subscriber并置空裸指针。PointCloud updater析构函数为空（头文件Blob SHA `65c7f090b9417eb3454538b16783191fbfd6b89f`），没有独立的回调退出等待/屏障。
+- DepthImage updater同样将捕获裸`this`的lambda交给`image_transport::create_camera_subscription`（源码Blob SHA `3dbb114ab6bfd0654823724b6848c881caa2d8ee`）；`stop()`及析构函数都调用`sub_depth_image_.shutdown()`，源码未显示在途回调计数、join或显式等待回调完成。不能仅凭shutdown语句断言其不等待，也不能推断必然发生use-after-free；需要核对目标image_transport/rclcpp版本语义并做阻塞回调竞态测试。
+- `OccupancyMapMonitor::~OccupancyMapMonitor()`在析构函数体内调用`stopMonitor()`；随后按成员逆序销毁。头文件（Blob SHA `d30741a6cb7635821e89f480d1142a1c8a8c6bb6`）声明`map_updaters_`、`tree_ / tree_const_`及middleware成员。回调在stop期间若仍在执行，可能继续访问updater的成员、`monitor_`裸指针或Octomap tree；析构随后释放updater和monitor相关对象，形成需要重点验证的回调/析构重叠窗口。当前只确认源码存在裸this回调和stop调用路径，未证明ROS executor会在该时序下继续调用，也未证明真实UAF。
+- PointCloud callback会访问`monitor_->getMapFrame()/setMapFrame()`及`tree_`，更新树后调用`tree_->triggerUpdateCallback()`；DepthImage callback也访问monitor/tree并在更新后触发tree callback、向LazyFreeSpaceUpdater推送延迟更新。因而验证不能只观察subscriber endpoint消失，必须覆盖callback正在运行时stop、updater析构及monitor析构。
+- 上游相关问题刷新：Issue #3901（生命周期契约冲突）、#3902（initialize返回false仍启动）均Open；PR #3909（拒绝初始化失败updater）仍Open。PR #3909描述其作者在Ubuntu 24.04/Jazzy运行4项测试、0失败，但这不是本项目测试，也不覆盖本节点的在途回调退出/析构竞态。PR方案仍保留initialize后setParams的顺序，声称内置插件需要先获得ROS node；这与Issue #3901提出的接口生命周期顺序预期需要结合当前接口文档与插件实现单独审查。
+- 新增SERVO-733：C1在PointCloud callback中设置可控阻塞点，stop期间释放subscriber/filter，验证回调是否退出及对象存活；C2在DepthImage callback中设置可控阻塞点，调用shutdown后验证是否等待回调完成；C3在callback阻塞期间销毁updater，ASan/TSan检查UAF和数据竞争；C4在callback阻塞期间销毁OccupancyMapMonitor，验证monitor_、tree_及update callback生命周期；C5单线程/多线程executor、MutuallyExclusive callback group及目标RMW矩阵；C6 stop返回后发布新消息，确认无新回调且在途回调已静默；C7核实目标ROS发行版message_filters/image_transport/rclcpp shutdown/destructor是否具有同步退出保证；C8 ICube实际executor及对象销毁顺序现场确认。全部未执行，现场证据缺失。
+- 本轮仅完成源码静态审查、上游问题状态刷新和测试设计；未运行ROS动态测试、ASan/TSan、HIL或实机验证。未修改MoveIt/ICube上游、未应用补丁；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA `e11a9f41d6dad68de31c83268e6bd686728eee9e`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/include/moveit/pointcloud_octomap_updater/pointcloud_octomap_updater.hpp（Blob SHA `65c7f090b9417eb3454538b16783191fbfd6b89f`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA `3dbb114ab6bfd0654823724b6848c881caa2d8ee`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/include/moveit/depth_image_octomap_updater/depth_image_octomap_updater.hpp（Blob SHA `dbbfd2d431b61d5e2bbdaef45255e3585c2b92a6`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp（Blob SHA `d30741a6cb7635821e89f480d1142a1c8a8c6bb6`）
+- 上游Issue #3901、#3902及PR #3909；专项厂商档案§128.101。
