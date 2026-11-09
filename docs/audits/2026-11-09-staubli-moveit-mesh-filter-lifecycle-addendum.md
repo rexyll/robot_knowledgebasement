@@ -2958,3 +2958,103 @@ AF1固定仓库静态检索已完成；AF1现场部署包核对、AF3-AF4、AF6-
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotStateMsg.pgx`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx`
+
+
+## §9.3.193｜VAL3超周期标志计数语义与ROS控制周期匹配
+
+### 固定源码基线与证据
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+
+| 文件 | Blob SHA | 本节用途 |
+|---|---|---|
+| `staubli_robot_driver/val3/userapp/ros2_server/start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` | VAL3控制任务周期设为0.004秒，并把bIsOverrun传入taskCreateSync |
+| `staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` | 主循环开头检查、清除布尔超周期标志并递增nOverruns |
+| `staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx` | `558dc2db671da45f5b859a3526148ce816eb6dd4` | bIsOverrun、nOverruns全局变量声明 |
+| `staubli_bringup/config/controllers.yaml` | `a0e81e0a69f98215e6d5ac69c1f4ebd0c3634884` | ROS controller_manager默认update_rate=250 Hz |
+| `staubli_driver_ros2/sphinx/quickstart/available_models.rst` | `a6d6d74050899704b18b9000ad7e665bfae9458c` | 型号采样周期差异及VAL3/ROS周期同步配置说明 |
+| `staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst` | `fffd7d2b1fcb9cd95621f6e94191ff6cff49ba91` | 5个连续控制周期丢包约20ms的诊断说明 |
+| `staubli_robot_driver/src/staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` | write使用ros2_control传入的period填充命令周期字段 |
+
+### 1. 超周期标志的消费方式与计数器语义
+
+`start.pgx`将`l_nCtrlPeriod=0.004`，并调用`taskCreateSync "controlTask", l_nCtrlPeriod, bIsOverrun, controlTask()`。因此当前仓库默认VAL3任务请求周期为4ms（250Hz），并将公共布尔量`bIsOverrun`作为taskCreateSync的超周期标志参数。
+
+`controlTask.pgx`在每次主循环开始处执行：
+- 若bIsOverrun为true，写入一条“Task overrun detected”日志；
+- 将bIsOverrun清为false；
+- 将nOverruns递增1。
+
+计数器的实现语义是“控制任务每次观察到true标志时加一”，不是对调度器原生超周期事件数进行独立读取或累计。程序没有保存每次超周期的时间戳、最长执行时长、连续超周期长度、窗口超周期率或超周期间隔分布。
+
+由于bIsOverrun是单个布尔量，如果运行时在controlTask消费并清零之前允许多次超周期事件重复置位，那么多个事件在布尔状态上不可区分，应用计数器可能只增加一次。反之，如果VAL3调度器保证每个周期以可观察方式重新置位，实际计数结果可能不同。固定仓库没有提供taskCreateSync该参数在目标控制器上的完整事件语义，故这里只确认应用侧布尔消费逻辑，不断言现场一定发生计数丢失。
+
+此外，超周期检查位于每轮循环的开头；一次迭代内的状态更新、消息编码/发送、命令接收/解码、序号延迟检查、模式转换、运动控制调用和错误复位均发生在该检查之后。应用没有在循环末尾再做一次标志采样，也没有把单轮执行时间与4ms预算直接比较。因此，仅凭nOverruns无法还原超周期发生的精确时刻、持续时间或根因。
+
+### 2. 默认VAL3与ROS控制周期的匹配
+
+当前固定配置有明确的默认匹配关系：
+- VAL3 start.pgx：0.004秒，即250Hz；
+- ROS controller_manager配置：update_rate=250Hz；
+- 文档将VAL3应用描述为默认按250Hz设计。
+
+`available_models.rst`同时指出机器人型号采样时间可能不同：TX2-60L为4ms/250Hz，TX2-60L MR为1ms/1kHz。文档说明，如需更高频率，应调整VAL3 start.pgx中的控制周期、重新部署应用，并同步更新ROS 2 control参数；对TX2-60L MR，文档给出的已成功测试参考为500Hz/2ms。
+
+因此，硬件控制器采样时间、VAL3控制任务周期和ROS controller_manager update_rate是三个相关但不应混为一谈的配置维度。型号硬件采样时间为1ms，并不意味着当前仓库的VAL3应用和ROS配置已经自动运行在1kHz；反过来，若仅将VAL3任务改为500Hz而ROS controller_manager仍保持250Hz，也不满足文档要求的周期匹配原则。实际部署必须核对具体型号、VAL3任务周期、ROS update_rate及hardware_interface write传入的period。
+
+### 3. 周期失配与序号延迟保护不是同一个指标
+
+troubleshooting文档将“连续5个或更多控制周期未收到ROS命令”解释为在250Hz下约20ms，并建议检查专用以太网链路、ROS主机负载及实时内核。controlTask也根据命令序号延迟阈值在运动/静止状态下转入STOP或ERROR处理。
+
+该命令序号延迟反映的是通信报文到达/序列进度，不等同于VAL3任务自身的调度超周期。两者可能相关，但不能互相替代：
+- nOverruns反映应用观察到的VAL3超周期标志；
+- nSequenceDelay反映命令报文序号间隔；
+- ROS controller_manager update_rate是ROS侧调度配置；
+- controller硬件采样周期是控制器型号/配置属性。
+
+目前公开RobotState协议未传输nOverruns（见§9.3.192），也没有在状态协议中报告VAL3实际周期、ROS实测周期或每周期执行耗时。上层不能仅凭当前RobotState状态判断实时周期健康度。
+
+### 4. 静态结论
+
+1. 固定VAL3应用请求4ms/250Hz控制任务，ROS controller_manager默认update_rate同为250Hz。
+2. 官方仓库文档说明TX2-60L MR硬件采样周期为1ms，并记录500Hz/2ms的VAL3任务周期成功测试参考；更改VAL3周期后必须同步更新ROS 2 control参数。
+3. nOverruns每次只在主循环开头观察到bIsOverrun=true时加一；该变量是布尔量，应用侧没有保存事件时间戳、执行耗时或超周期持续时间。
+4. 如果目标运行时允许在应用清零前多次置位，布尔标志无法表达多个事件；是否合并以及调度器置位时序必须通过目标VAL3版本动态确认。
+5. ROS命令序号延迟、VAL3超周期标志和ROS update_rate属于不同测量维度，不能将其作为同一个周期健康指标。
+6. 以上均为固定提交静态配置与代码结论，不代表现场运行频率、真实超周期率或实时性能达标。
+
+### 5. 新增验收任务
+
+新增SERVO-776：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AG1 | 获取目标VAL3版本taskCreateSync文档，确认超周期参数的置位、保持、清零和重复事件语义 | 未确认，目标版本API证据缺失 |
+| AG2 | 在隔离环境分别注入单次、连续及同一消费窗口内多次超周期，比较调度器事件数、bIsOverrun和nOverruns | 未执行 |
+| AG3 | 在每周期开始、循环末尾及下一周期入口记录时间戳，测量controlTask实际执行时间、调度抖动和超周期持续时间 | 未执行 |
+| AG4 | 对照TX2-60L、TX2-60L MR实际型号，核对控制器采样周期、VAL3任务周期、ROS update_rate三者配置 | 未确认，现场型号/配置证据缺失 |
+| AG5 | 在250Hz配置下测量ROS controller_manager实际周期、hardware_interface read/write周期及VAL3报文到达周期 | 未执行 |
+| AG6 | 在受控条件验证TX2-60L MR文档参考500Hz/2ms配置，确认VAL3任务和ROS update_rate同步修改后的稳定性 | 未执行，需对应型号受控环境 |
+| AG7 | 分别制造ROS命令延迟与VAL3任务超周期，验证nSequenceDelay与nOverruns是否可区分且诊断日志不混淆 | 未执行 |
+| AG8 | 评估nOverruns及周期耗时是否需要独立诊断遥测，定义采样窗口、时间戳、复位策略和上层告警阈值 | 未执行 |
+| AG9 | 获取现场控制器型号、VAL3版本、部署包SHA、ROS参数快照及带时间基准的运行日志 | 未确认，现场证据缺失 |
+| AG10 | 在隔离仿真/HIL中执行周期配置切换、超周期注入、ROS负载/网络扰动及恢复回归 | 未执行，需受控环境 |
+
+AG1、AG4、AG9缺少目标版本/现场证据；AG2-AG3、AG5-AG8、AG10均未执行。公开文档中“500Hz成功测试”仅作为上游文档陈述记录，不作为本项目独立复测通过的证据。
+
+### 6. 工程建议与边界
+
+建议把周期配置作为同一部署配置组管理：记录机器人型号及硬件采样时间、VAL3 taskCreateSync周期、ROS controller_manager update_rate、hardware_interface实际write周期，并在启动时输出可追溯的配置摘要。对周期健康度至少区分实际周期、抖动、单轮执行时间、超周期事件数、命令序号延迟和通信丢包，避免只用一个布尔标志/累计计数器代表实时性能。
+
+在明确目标VAL3调度器语义前，不建议仅通过调整nOverruns代码或放宽阈值宣称解决超周期问题。任何周期提升都必须在对应机器人型号和隔离环境完成稳定性、停止响应及独立安全链验证。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机验证。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_bringup/config/controllers.yaml`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/available_models.rst`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp`
