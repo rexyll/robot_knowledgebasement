@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.42  
+> 版本：v9.43  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.167，厂商档案新增§128.118。SERVO-750/F1-F16追踪Servo—JTC—controller_manager—ICube硬件接口—UDP—VAL3命令链；固定源码显示JTC活动轨迹/保持末点可继续更新command interface，controller_manager继续执行硬件write时，ICube公开驱动会按当前位置接口持续发送UDP命令，因此Servo topic静默不必然触发VAL3序号滞后看门狗。公开ICube仓库自述为Jazzy/CS9原型且开发曾暂停，不能视为现场部署证据；VAL3运动中>5周期STOP阈值和stopMove路径仅为普通运动停止，不是安全额定急停。F1-F13/F16未执行，F14-F15现场证据缺失。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.168，厂商档案新增§128.119。SERVO-751/G1-G16审查ICube UDP接收新鲜度、16位序号和发送丢包语义：重复状态报文刷新本地接收时间但不推进序号，read_robot_state忽略new_message=false；序号下降一律按回绕处理；UDP would_block明确丢弃报文却返回true，可能使硬件write误判发送成功；UDP接收源地址校验留有TODO。ICube公开仓库仍是Jazzy/CS9原型而非现场部署证据。G1-G16全部未执行。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1525,7 +1525,7 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 已确认OctoMap回调在scene/tree锁释放后触发scene event；scene/tree主要路径遵循scene mutex→tree lock。静态识别scene callback在recursive update_lock_持锁期间执行，回调重入修改vector可能使迭代器失效，回调异常可能阻断new_scene_update_更新与notify；stopWorldGeometryMonitor双订阅分支仅清理一个订阅；OctoMap updater停止/析构的in-flight callback屏障仍需动态验证。
 - 新增SERVO-743/N1-N12，覆盖回调注册表重入、递归事件、跨线程死锁、异常通知、双订阅stop/restart、析构barrier、锁顺序、场景版本一致性和Stäubli部署核实；全部未执行。
 - 本轮仅完成静态审查与测试设计；未运行ROS构建、ASan/UBSan/TSan、callback故障注入、executor barrier、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
-- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.161。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.169。
 
 
 ### §9.3.161 PlanningSceneWorld / CollisionObject / OctoMap输入替换语义与失败原子性
@@ -1596,3 +1596,14 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-750/F1-F16；F1-F13/F16全部未执行，F14-F15现场证据缺失；更新专项审计§9.3.167、厂商档案§128.118、第21章TaskPlan和审计README。
 - 本轮仅完成固定源码静态审查与测试设计；未运行ROS构建、JTC动态测试、UDP故障注入、VAL3编译/仿真、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ros2_control/ros2_controllers/ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.168。
+
+
+### 2026-11-09｜v9.43 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.168，沿ICube UDP接收/发送实现审查状态序号、新鲜度、乱序和本机发送缓冲区背压。
+- 静态确认RealTimeSocketSubscriber重复序号时置new_message=false但仍返回true并刷新本地接收时间；RobotDriver::read_robot_state忽略new_message标志，重复状态包可能被当作新鲜状态继续使用。
+- 静态确认序号下降被一律按uint16回绕处理，未区分乱序旧包；小幅倒退可能产生虚假65535级丢包数并污染序号基准。
+- 静态确认UDPSocketImpl::send在would_block分支明确丢弃报文，却仍返回true；缺少丢包计数器/阈值错误处理为源码TODO。硬件write可能因此不报ERROR。UDP接收来源地址验证也留有TODO。
+- 新增SERVO-751/G1-G16；全部未执行。更新专项审计§9.3.168、厂商档案§128.119、第21章TaskPlan和审计README。
+- 本轮仅完成固定公开原型源码静态审查和验证设计；未运行ROS构建、网络故障注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游或应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.169。
