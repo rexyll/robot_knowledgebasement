@@ -3754,3 +3754,59 @@ AR1–AR9完成固定提交静态源码/测试覆盖核对；AR10缺目标部署
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp
+
+
+## §9.3.205｜UDP数值合法性、枚举范围与状态缓存污染审查（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开仓库 `staubli_driver_ros2`提交`bd658e2d266e315d2ee35f985fb352ea88306b79`。检查RobotState/RobotCommand/DiagnosticData反序列化、基础序列化类型转换、类型枚举定义、subscriber邮箱提交、`StaubliHardwareInterface::read/update_state`及现有序列化/接口测试。此为静态源码审查；未构造畸形数据报，未运行编译、测试、模糊测试、SIL/HIL或实机验证。
+
+### 静态发现
+
+1. **浮点反序列化没有有限值检查。** `serialization.hpp::deserialize_type(float&)`直接从报文`memcpy`四字节到float；double重载只是将该float转换成double。没有`std::isfinite`、NaN/Inf拒绝或数值范围参数。RobotState中的六轴位置、速度、力矩、六维F/T、四路模拟量，以及RobotCommand中的控制周期、关节命令和模拟输出都经过该转换；NaN/正负Inf可在语法层面被解码为浮点值。
+2. **状态枚举字段直接static_cast，没有范围验证。** RobotState反序列化把网络字节直接转换为`CommandType`、`SafetyStatus`、`OperationMode`；RobotCommand的`command_type`和DiagnosticData的`robot_controller_type`也采用直接转换。固定类型定义仅列出有限取值（CommandType包含INVALID/STOP/JOINT_POSITION/JOINT_VELOCITY/JOINT_TORQUE及VAL3专用0x0A/0x0B；SafetyStatus为0x00–0x04；OperationMode为0x00–0x03；控制器类型为0x00–0x02），反序列化路径没有拒绝未定义值的检查。C++枚举对象可能承载底层未列举值，后续逻辑若只比较已知枚举可能走default分支或把未识别状态当作非特定状态。
+3. **操作模式状态及标志位的保留位没有校验。** `operation_mode_status`作为原始uint8_t接收并直接导出为supervision state interface；status_flags和valid_fields_flags只提取已知bit，未检查未知保留bit。未知bit目前被静默忽略；操作模式状态的含义依赖模式，源码将其标为mode-dependent，但没有在反序列化/硬件更新层校验模式与状态组合。
+4. **状态缓存先于硬件层处理提交。** `RealTimeSocketSubscriber::update_message()`只判断deserialize的bool结果；成功即写入`RealtimeThreadSafeBox`并更新时间戳。由于上述NaN/Inf和非法枚举不会使deserialize失败，未经语义验证的状态可能先进入最新消息缓存，随后由RobotDriver读取并交给硬件接口。
+5. **硬件状态更新没有数值有限性或机器人关节边界检查。** `StaubliHardwareInterface::update_state()`在valid flag为真时直接把位置/速度转换为弧度后写入hardware state vector，把力矩和模拟输入直接复制；没有检查NaN/Inf，也没有基于具体机器人型号、关节软限位、速度/力矩/模拟量工程范围进行拒绝。源码注释说明位置/速度报文单位与ROS接口单位转换，但没有在该函数内建立具体型号限值来源。不能在缺少机器人型号、标定和安全配置时臆造通用数值阈值。
+6. **监督状态接口直接暴露未校验枚举数值。** operation_mode、operation_mode_status、safety_status被直接转为double写入GPIO监督状态；control_sequence_delay及布尔状态也直接映射。若枚举字节非法，非法数值可能作为接口值向上游控制器/监控节点传播。是否有消费者据此触发危险动作，需审查部署控制器配置和上层逻辑，当前没有现场证据。
+7. **update_state存在部分更新后失败的路径。** 函数先在`has_joint_positions`为真时写入全部关节位置，随后才检查`has_joint_velocities`。若位置有效标志为真而速度标志为假，函数在位置已更新后返回false；硬件`read()`返回ERROR，但函数没有回滚刚写入的位置，也没有先验证全部必需字段再原子提交。因此内部状态可能处于新位置+旧速度的混合快照。是否会被控制器管理器继续读取取决于ROS 2 control运行时错误处理和调用时序，需动态验证。
+8. **测试覆盖主要是正常值序列化往返。** `test_message_serialization.cpp`验证合法枚举、普通有限浮点值、数组往返和短buffer；`test_rt_socket_interface.cpp`验证正常loopback状态消息、序号及状态读取。未见NaN/±Inf、极大有限值、非法枚举字节、保留标志位、模式/状态不一致、机器人软限位边界、位置有效但速度无效时无部分提交等定向测试。
+9. **有效字段标志语义与数值内容未绑定。** RobotState即使对应valid flag为false，反序列化仍会解析并保留数组字节；硬件更新层仅按flag决定是否使用字段。未见校验“无效字段必须为零/忽略值不得携带NaN”或对valid flag与实际数据一致性的测试。该设计可能是协议允许的填充语义，不能直接认定为协议违规；但无效字段不应影响后续缓存、统计或其他消费者。
+10. **目标机型范围与运行时错误策略未证实。** 仓库静态代码不足以确定CS8/CS9具体型号、轴数配置、软限位、速度/力矩范围、模拟输入量程、操作模式状态表、控制器管理器遇到read ERROR时的处理及上层消费者。需以准确型号手册、VAL3变量映射、控制器配置和现场记录建立允许值矩阵，再进行隔离测试。
+
+### 建议与验收要求
+
+- 在反序列化之后、邮箱提交之前设置统一语义验证器：所有需要使用的浮点量必须为finite；按有效标志决定哪些字段必须验证；未声明有效的字段按协议定义忽略或要求规范填充值，且不得把无效字段传播给其他消费者。
+- 对CommandType、SafetyStatus、OperationMode、RobotControllerType实施显式允许值检查；对`operation_mode_status`建立按OperationMode区分的状态表；检查status/valid-field保留位策略，未知位应拒绝或按明确向前兼容规则处理。
+- 使用具体机器人型号/配置中的软限位、最大速度、最大力矩、F/T量程和模拟输入量程。超限时拒绝整帧、保留最后有效快照、记录错误并按安全策略停止/降级；不能仅以NaN检测替代物理边界校验。
+- 将`update_state`改为先验证完整必需字段与所有数值，再写入临时快照并一次性提交；失败不得出现位置更新而速度保持旧值的混合快照。明确缺失字段是整帧无效还是可选字段，并为可选字段定义一致策略。
+- 增加NaN、±Inf、次正规数、极大有限数、负/零控制周期、枚举0xFF、未知状态/保留位、模式状态组合、软限位±epsilon、位置有效/速度无效等单测；使用隔离SIL/HIL验证ROS 2 control在read ERROR时的状态接口可见性和控制输出行为。
+- 在目标部署前记录型号/轴数、控制器/VAL3版本、限值来源、关节软限位配置、上层状态消费者、错误处理策略和测试证据；任何阈值必须追溯到厂家/项目配置，不能凭空设定。
+
+### SERVO-788 / AS1–AS10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AS1 | 核对浮点反序列化是否拒绝NaN/±Inf | 固定提交静态源码核对完成：未见finite检查 |
+| AS2 | 核对RobotState/RobotCommand/DiagnosticData枚举转换范围 | 固定提交静态源码核对完成：直接static_cast，未见允许值验证 |
+| AS3 | 核对operation_mode_status、status_flags及valid_fields_flags未知值策略 | 固定提交静态源码核对完成：状态字节直接保留，未知bit未校验 |
+| AS4 | 核对subscriber是否在缓存提交前执行语义校验 | 固定提交静态源码核对完成：只检查deserialize返回值 |
+| AS5 | 核对硬件状态更新的finite和物理范围验证 | 固定提交静态源码核对完成：未见数值/型号限值检查 |
+| AS6 | 核对监督GPIO状态接口是否直接暴露未验证枚举 | 固定提交静态源码核对完成：直接转换为double导出 |
+| AS7 | 核对update_state必需字段失败是否可能部分写入 | 固定提交静态源码核对完成：先写位置，后检查速度flag，失败不回滚 |
+| AS8 | 核对现有测试对NaN/Inf、非法枚举、限值和部分提交覆盖 | 固定提交静态测试覆盖核对完成：未见上述定向用例 |
+| AS9 | 建立具体型号关节/速度/力矩/F-T/模拟量允许值矩阵并增加拒绝测试 | 未执行，需准确型号及厂商/项目限值来源 |
+| AS10 | 在隔离SIL/HIL验证畸形值拒绝、缓存保持、read ERROR及控制器管理器行为 | 未执行，缺目标部署与受控验证证据 |
+
+AS1–AS8完成固定提交静态源码/测试覆盖核对；AS9需具体机型和限值依据，AS10需目标部署与隔离验证证据。未运行构建/单测、模糊测试、SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
