@@ -249,3 +249,6 @@
 
 
 - [2026-11-09 Stäubli ROS—VAL3命令float32精度收窄、非有限数值与解码错误传播审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.181，检查double→float32转换、NaN/Inf及溢出门禁、VAL3精确payload长度检查时序、解码后有效标志与STOP/ERROR路径；新增SERVO-764/U1-U10，U1-U8未执行，U9现场IO路径未确认，U10现场证据缺失。
+
+
+- [2026-11-09 Stäubli VAL3 UDP接收批处理、旧命令缓存与错误恢复边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.182，检查每周期双次读取及后报文覆盖、无新报文时旧命令有效标志、sioGet返回值分支、序号陈旧门禁和clearBuffer恢复边界；新增SERVO-765/V1-V10，V1-V9未执行，V10现场证据缺失。
