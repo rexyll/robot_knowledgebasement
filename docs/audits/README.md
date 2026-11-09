@@ -199,4 +199,4 @@
 - [2026-11-09 Stäubli MoveIt GetPlanningScene服务与全量场景同步审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.163，审查GetPlanningScene组件掩码/快照、requestPlanningSceneState返回值、full scene非事务式应用、service/topic乱序及executor同步等待；新增SERVO-746/O1-O12，全部未执行。
 
 
-- [2026-11-09 Stäubli MoveIt GetPlanningScene调用方与初始化门禁审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.164，审查Servo/RViz/OMPL/场景打印工具/Python绑定调用方的返回值处理和executor spin前提；新增SERVO-747/C1-C12，全部未执行。
+- [2026-11-09 Stäubli MoveIt GetPlanningScene调用方与初始化门禁审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.164，审查Servo/RViz/OMPL/场景打印工具/Python绑定调用方的返回值处理、PSM private executor生命周期及同线程同步重入风险；新增SERVO-747/C1-C12，全部未执行。
