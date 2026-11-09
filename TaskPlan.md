@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.19  
+> 版本：v9.20  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.144，厂商档案新增§128.95。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.145，厂商档案新增§128.96。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1244,3 +1244,19 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 ### §9.3.142 作者维护复现fixture的MiddlewareHandle旧签名迁移证据
 
 已审查上游PR作者的公开复现仓库固定commit `9630a900f2d323b3b45c1976df8fe722b809f7a7`。其PROVENANCE记录MoveIt 2.12.4 runtime；两个OccupancyMap场景目录共用一份旧void签名FakeMiddleware fixture，并通过find_package链接安装包。切换至PR #3909新bool接口时需修改override并传播初始化结果。该证据属于作者的复现工程，不是独立商业部署或Stäubli现场证据。U11获得具体迁移样例，迁移编译未执行，ABI未知。详见专项审计§9.3.142。
+
+
+### §9.3.145 DepthImageOctomapUpdater停止时的发布端点生命周期
+
+- 固定MoveIt main源码Blob：DepthImage updater的start创建三个CameraPublisher成员（model depth、filtered depth、filtered label）及CameraSubscriber；stop与析构函数仅shutdown subscriber，没有显式shutdown/reset publisher成员。
+- OccupancyMapMonitor::stopMonitor只委托各updater执行stop；updater仍由map_updaters_持有，不会因stop而析构。因此停止操作静态上只确认订阅端shutdown，publisher句柄仍被updater持有，不能认定所有ROS端点已撤销。
+- image_transport CameraPublisher提供显式shutdown接口；当前DepthImage stop路径未调用。ROS graph端点可见性、重复start/stop数量、raw/compressed transport行为仍需目标Jazzy动态验证。
+- 新增SERVO-728/D1-D5：单次启停、重复启停幂等性、stop后回调静默、析构后端点撤销、raw/compressed transport矩阵；全部未执行。Stäubli/ICube现场是否启用DepthImage updater未知。
+- 不推断持续发布、重复端点或安全故障；未执行ROS动态测试，未修改MoveIt/ICube上游，未应用PR补丁。Stäubli工程级验收仍未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA `3dbb114ab6bfd0654823724b6848c881caa2d8ee`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/include/moveit/depth_image_octomap_updater/depth_image_octomap_updater.hpp（Blob SHA `dbbfd2d431b61d5e2bbdaef45255e3585c2b92a6`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`）
+- https://github.com/ros-perception/image_common/blob/rolling/image_transport/include/image_transport/camera_publisher.hpp
+- 厂商档案§128.96。
