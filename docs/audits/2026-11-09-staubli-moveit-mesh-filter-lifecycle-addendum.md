@@ -1797,7 +1797,7 @@ S1-S9全部未执行，S10现场证据缺失。未执行VAL3/CS9仿真、UDP故�
 | `staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
 | `robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
 | `robot_driver_helpers.hpp` | `88a0cac08d3a299b7330eaa72b1afaaeab2fe41b` |
-| `communication/messages.hpp` | `(固定提交文件；本轮未记录独立Blob SHA)` |
+| `communication/messages.hpp` | `77f21d8edcb12a39fc6732c2e146586b7fc346fe` |
 | `updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
 | `staubli_helpers.xacro` | `3a8431c4b4d4f403984ad8719c0d048de7a97bf6` |
 | `r2c/staubli.r2c.xacro` | `0013b6ea5b681e5333799f65867e7de497b54127` |
