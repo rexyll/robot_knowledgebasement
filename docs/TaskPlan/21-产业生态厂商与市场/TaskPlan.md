@@ -2169,3 +2169,36 @@ L1-L15全部未执行，L16现场证据缺失。未执行VAL3/CS9仿真、停止
 - 新增专项审查§9.3.179：固定ICube公开原型的ROS UDP发送成功与VAL3命令接收/执行确认边界、STOP命令序号来源、VAL3旧命令缓存与序号阈值保护、movejSync刷新超时状态及速度控制未实现情况。
 - 新增SERVO-762/S1-S10；S1-S9未执行，S10现场证据缺失。仅完成静态审查与验证设计，不代表现场部署或工程验收。
 - 根计划v9.54；专项下一节点§9.3.180。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+#### SERVO-763｜关节位置限位一致性、异常数值过滤与命令数组边界验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| T1 | 对六轴position/velocity命令分别注入NaN、+Inf、-Inf、极大有限值，验证write门禁、STOP请求和VAL3解码结果 | 未执行 |
+| T2 | 初始化0、1、6、7轴及异常joint配置，验证协议固定数组边界、初始化拒绝策略和ASan结果 | 未执行 |
+| T3 | 验证ROS write()位置/速度命令与模型min/max/velocity/acceleration限值的实际执行链 | 未执行 |
+| T4 | 展开TX2-60L与TX2-60L MED Xacro/URDF，逐轴比对模型YAML、URDF、MoveIt与控制器限值 | 未执行 |
+| T5 | 确认R2C ros2_control实际加载的JointLimiter插件、参数来源、接口声明和运行时限幅效果 | 未执行 |
+| T6 | 取得目标CS9/VAL3版本对isInRange的正式定义，验证边界相等、越界、NaN/Inf及轴配置差异 | 未执行 |
+| T7 | 对位置目标设置大步长、方向反转和近限位跳变，测量movejSync目标变化、速度/加速度/jerk与停止距离 | 未执行 |
+| T8 | 验证VAL3位置范围、ROS MoveIt规划限值、控制器参数与真实机器人轴限位的一致性及配置漂移检测 | 未执行 |
+| T9 | 对数字/模拟GPIO输出注入NaN/Inf/越界值，验证输出编码、范围检查和故障处理 | 未执行 |
+| T10 | 核对现场机器人型号/序列配置、CS9轴参数、VAL3版本、限位/安全参数、JointLimiter配置及FAT/SAT记录 | 未确认，现场证据缺失 |
+
+固定公开源码静态审查确认：HardwareInterface::write()仅用std::isnan拒绝NaN，未拒绝正/负Inf；RobotDriver::send_robot_command()位置/速度范围校验仍为TODO。消息协议的command_reference固定为六元素数组，但write()的NaN循环按num_joints_访问而未限制到6，on_init()也未强制六轴，故配置超过六轴时存在条件性越界风险。TX2-60L模型YAML、URDF生成、MoveIt限值和R2C ros2_control接口分属不同层，未发现统一一致性门禁；VAL3位置控制调用isInRange()，但其实现/限位来源未在仓库内提供，目标接近性检查明确为TODO。以上仅为固定公开原型静态事实，不证明现场已出现Inf、越限或越界访问。
+
+T1-T9全部未执行，T10现场证据缺失。未执行构建/单测、ASan、Xacro展开、JointLimiter集成、VAL3/CS9仿真、限位实测、HIL、FAT/SAT或实机测试；未修改ICube/MoveIt/ros2_control上游。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.180。
+
+#### 固定源码位置
+
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- `messages.hpp`：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp
+- `updateJointPositionControl.pgx`（Blob SHA `28e2f1d6a3482a126b16474c957a608262c32218`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.180）
+
+- 新增专项审查§9.3.180：关节位置限位配置一致性、ROS NaN/Inf过滤、固定六轴命令数组边界、VAL3 isInRange调用与目标距离检查TODO。
+- 新增SERVO-763/T1-T10；T1-T9全部未执行，T10现场证据缺失。仅完成固定公开源码静态审查与验证设计，不代表现场部署或工程验收。
+- 根计划v9.55；专项下一节点§9.3.181。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
