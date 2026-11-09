@@ -1906,3 +1906,11 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 确认RobotDriver便捷重载只设置robot_ip并继承默认端口；标准Xacro/ros2_control路径显式注入11000/11001。风险限定为直接API默认调用路径，未认定标准bringup必然故障。
 - 新增SERVO-780/AK1-AK10：AK1-AK7固定源码/文档静态核对完成；AK8未执行；AK9目标部署证据缺失；AK10现场证据缺失。
 - 更新专项审计追加件§9.3.197、Stäubli厂商档案§128.135、第21章TaskPlan及审计索引。00-01与21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并；下一节点§9.3.198。
+
+
+### 2026-11-09｜v9.73 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.198，区分UDP socket连接、接收线程运行、首次收到RobotState、消息有效且新鲜以及上层控制许可等不同就绪层级。
+- 固定源码显示subscriber is_ready只检查socket connected/receiving；RobotDriver另行检查RobotState类型与默认100ms新鲜度。连接等待循环每500ms采样，首次成功后不break，持续运行到timeout窗口结束，并仅以末次采样结果决定连接成功；HardwareInterface配置路径传入5000ms。timeout退出还可能因固定sleep超出请求deadline最多约一个轮询周期。
+- 现有mock连接测试每4ms发送状态，但只断言最终成功，不断言首次有效状态到返回的延迟。新增SERVO-781/AL1-AL10：AL1-AL8静态源码/测试核对完成；AL9动态时序注入未执行；AL10目标部署/现场证据缺失。该结论不等同于现场连接必然延迟5秒或必然握手失败。
+- 更新专项审计追加件§9.3.198、Stäubli厂商档案§128.136、第21章TaskPlan及审计索引。00-01与21-02继续进行中；未运行ROS构建/单测、mock动态注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并；下一节点§9.3.199。
