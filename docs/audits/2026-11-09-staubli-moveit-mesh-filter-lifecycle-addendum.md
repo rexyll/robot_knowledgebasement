@@ -574,3 +574,84 @@ O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并
 ### §9.3.163复核补充：服务响应成功状态与场景应用状态分离
 
 实现层面需将三个结果分别记录：①服务发现/请求是否完成；②响应是否包含预期组件；③本地PlanningScene是否完整应用。当前bool接口将前两者近似为true路径，且忽略第三者的返回值，因此上层不应仅凭`requestPlanningSceneState()==true`作为碰撞场景完整性的唯一证明。建议下游部署在同步后执行独立场景完整性检查（机器人模型名、必需joint state、World对象清单/几何、OctoMap策略、ACM及TF），并记录来源时间戳/版本；在未实现原子替换前，应用失败应视为本地场景可能处于部分更新状态，不应自动继续规划或运动。该建议属于风险控制设计，不代表MoveIt当前已实现这些检查，也不替代CS9/HIL与现场安全验证。
+
+
+## §9.3.164 requestPlanningSceneState调用方与初始化门禁审查（2026-11-09）
+
+### 审查范围与固定基线
+
+继续基于MoveIt 2固定提交`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`，沿调用点检查返回值消费、调用时executor状态、失败后的下游动作及测试覆盖：
+
+- MoveIt Servo：`moveit_ros/moveit_servo/src/utils/common.cpp`、`src/servo_node.cpp`、`config/servo_parameters.yaml`、`config/panda_simulated_config.yaml`及C++ demo。
+- RViz：`moveit_ros/visualization/planning_scene_rviz_plugin/src/planning_scene_display.cpp`。
+- OMPL工具：`moveit_planners/ompl/ompl_interface/scripts/generate_state_database.cpp`。
+- 场景打印工具：`moveit_ros/planning/planning_components_tools/src/print_planning_scene_info.cpp`。
+- Python绑定：`moveit_py/src/moveit/moveit_ros/planning_scene_monitor/planning_scene_monitor.cpp`。
+- API实现与契约：PlanningSceneMonitor cpp/hpp。
+
+源码Blob SHA：
+- Servo common.cpp：`7ce13c1805ba6bce2e58be10828034f35b60471a`
+- Servo servo_node.cpp：`eef6cc4073e03863a08eebbf69dc7cefedb15ebc`
+- Servo servo_parameters.yaml：`b16fc6bf0c31fea680529b797c9101827ac6024f`
+- Servo panda_simulated_config.yaml：`6c8386b98d1086ffa0d372f779f40d8269635477`
+- Servo demo_twist.cpp：`c2f4f8d236679e8495d798ce184efc0ec951f17d`
+- RViz planning_scene_display.cpp：`56e5c4444fa10ba3c820fcfcc78b8571f7f2b558`
+- OMPL generate_state_database.cpp：`fe30f37753d594266de71180bbdad72e600dadf9`
+- print_planning_scene_info.cpp：`72a5491fb6dc2c5fab9d744cf471ef13ffe4c3f7`
+- Python binding：`53a2730013710e97879a6f53df39912108fdb713`
+- PlanningSceneMonitor cpp/hpp：`83f67e15cb167957ddf15bde8fc239d053ed727c` / `8ed8bd8fb8a3b25cfcb3357f2cc5de499a6fbd51`
+
+### 静态发现
+
+1. **Servo次级PSM路径忽略初始场景请求失败，仍继续启动发布。** `createPlanningSceneMonitor()`先启动joint state、scene topic和world geometry monitor；若`is_primary_planning_scene_monitor=true`则提供GetPlanningScene服务，否则调用`requestPlanningSceneState()`，但不检查bool返回值。随后无条件设置发布频率并启动`UPDATE_SCENE`发布器，最后返回PSM。因而次级PSM在服务不可用、超时或同步应用失败时，不会在该函数中阻止初始化，也不会明确报告同步失败；其本地场景是否由后续topic更新补齐取决于外部拓扑。若未补齐，该PSM仍会继续向自己的发布topic发布本地场景。该风险只适用于secondary配置路径；Servo参数默认`is_primary_planning_scene_monitor=true`，示例配置也设为true，不能据此泛化为默认配置必然请求服务。
+
+2. **Servo次级同步请求可能早于其节点executor开始spin。** `ServoNode`构造函数创建node并在构造过程中调用`createPlanningSceneMonitor()`，之后才完成Servo和服务/订阅设置；C++ demo也在建立PSM时先调用common函数，demo主流程未展示一个在此之前运行的executor。若采用secondary配置且调用时没有另一个线程持续spin该node，`requestPlanningSceneState()`仅等待`async_send_request`返回的future，无法自行处理响应，可能在固定等待窗口后超时。组件容器或外部程序若已在其他线程spin则行为不同，需按部署执行模型验证，不把构造时序推断为所有部署必然失败。
+
+3. **OMPL状态数据库工具检查bool，但请求时没有executor spin路径。** `generate_state_database.cpp`在`use_current_scene`时检查`requestPlanningSceneState()`并在false时退出；但该main路径创建node和PSM后直接同步请求，未创建/启动executor，也未调用`spin_until_future_complete`。结合PSM客户端仅`async_send_request()`后`future.wait_for(5s)`，而rclcpp客户端响应需由executor处理，服务即使可发现也可能无法完成future，最终走超时退出。若存在该工具之外的全局executor机制则需运行验证；当前文件自身未显示该机制。
+
+4. **print_planning_scene_info创建并添加executor但从未spin，且忽略请求结果。** 工具创建`MultiThreadedExecutor`并`add_node(node)`，随后调用请求、打印本地已知对象并退出，没有`executor.spin()`或`spin_until_future_complete()`。同时忽略bool结果。因此它既不能从本文件确认服务响应能被处理，也不能区分远端请求失败、超时与本地空/旧场景，打印结果不能视为已从服务端取得最新场景。
+
+5. **RViz正确采用后台任务并处理bool，但受底层bool语义缺陷污染。** `changedPlanningSceneTopic()`启动scene topic订阅后，将service请求放入background job；bool为true时安排主线程`onNewPlanningSceneState()`，false时设置“Requesting initial scene failed”警告。后台执行避免直接阻塞UI主循环，且显式处理false；但由于§9.3.163发现底层在场景应用返回false时仍可能返回true，RViz仍可能显示成功刷新并触发更新回调，而本地场景实际上部分应用。需将底层应用结果正确向上传递。
+
+6. **Python绑定暴露bool但文档未解释成功语义。** pybind直接绑定C++方法并要求显式传入`service_name`，没有说明返回值含义、超时和executor spin前提。Python调用者虽可检查bool，但同样继承底层“应用失败返回true”的问题；需要在绑定文档和示例中区分transport/response/apply结果。
+
+7. **调用点的返回值处理不一致。** Servo common与print工具忽略返回值；RViz处理bool；OMPL工具检查bool但其调用执行上下文存在spin缺口；Python暴露bool给调用方。故不能将“调用方检查了bool”视为完整保护，必须同时修复API结果语义和executor执行前提。
+
+8. **rclcpp异步客户端的executor前提是关键契约。** 本次调用链中PSM仅创建client、`async_send_request()`、然后在普通future上`wait_for(5s)`；它本身没有spin或spin_until_future_complete。rclcpp Client API明确说明返回future应交给Executor的`spin_until_future_complete()`等待。只有其他线程/进程内executor正在处理该node时，普通future wait才可能按预期完成。当前调用点未统一证明此条件成立。
+
+9. **超时后调用点缺少一致的状态门禁。** OMPL工具退出是相对保守的失败路径，但底层错误bool可能漏报应用失败；Servo secondary路径继续运行；print工具继续打印本地场景；RViz显示警告（但受错误true影响）。建议将“初始场景同步未成功或完整性未知”作为明确状态，不允许Servo在碰撞场景来源/完整性未确认时被误认为ready。此项是下游安全设计建议，不是声称当前MoveIt Servo已发生危险运动。
+
+### 新增验证任务 SERVO-747 / C1–C12
+
+- C1：服务端返回可解析但含无效world对象的消息，确认PSM bool、RViz UI状态、Servo secondary状态一致反映apply failure。
+- C2：Servo primary配置true时确认不请求远端service，仅提供本地service；验证默认参数和示例配置。
+- C3：Servo secondary配置false，service正常、executor已在独立线程spin时验证初始场景同步与world/OctoMap完整性。
+- C4：Servo secondary配置false，构造PSM时executor尚未spin，记录请求等待、超时、发布器启动及Servo是否进入ready状态。
+- C5：service不存在/超时/响应apply失败时，确认Servo secondary不以“场景同步成功”状态启动碰撞依赖路径；评估显式fail-closed门禁。
+- C6：RViz后台请求分别注入transport失败、apply失败、完整成功，确认Warn/成功UI反馈无误。
+- C7：运行`print_planning_scene_info`，对比无executor spin、独立线程spin、显式spin_until_future_complete三种模式的服务响应与输出。
+- C8：运行OMPL `generate_state_database`，在`use_current_scene=true`下验证无executor和外部executor两种场景的退出码、日志和场景内容。
+- C9：Python binding验证返回值、异常、service_name解析、executor要求与超时文档；补充可运行示例。
+- C10：全仓库枚举`requestPlanningSceneState`调用点，要求每处显式记录返回值策略、spin owner、超时行为和scene readiness gate。
+- C11：验证请求future超时/取消后client pending request资源生命周期及重复调用的资源增长；区分client局部析构与长期复用client。
+- C12：在Stäubli/ICube真实启动拓扑中核对Servo primary/secondary参数、service provider、node executor/callback group、scene topic、碰撞检测开关及初始化门禁。
+
+C1–C12全部未执行。未运行ROS构建、集成测试、executor调度测试、服务超时/失败注入、Servo碰撞场景回归、CS9/HIL、FAT/SAT或实机验证。
+
+### 结论与证据边界
+
+§9.3.164发现调用点存在不同程度的失败处理缺口：Servo secondary路径忽略请求失败并继续启动发布；RViz虽使用后台任务并检查bool，但底层bool可能错误报告apply failure为成功；OMPL状态数据库工具检查bool但本文件未显示executor spin；场景打印工具创建executor却未spin且忽略bool；Python绑定暴露bool但没有说明执行契约。rclcpp Client API说明async request future应交由executor处理，因此调用端必须明确spin owner与调用线程。Servo参数默认primary=true，secondary风险不可泛化到默认配置。
+
+本节为固定MoveIt 2源码静态审查及rclcpp API契约对照，不证明Stäubli/ICube现场使用上述具体工具、Servo secondary配置或同样executor拓扑，也不证明现场已发生碰撞漏检、危险运动或停机事件。所有C1–C12均未执行；未运行ROS构建、集成/并发/故障注入、CS9/HIL、FAT/SAT或实机验证。未修改MoveIt/ICube上游、未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/utils/common.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/config/servo_parameters.yaml
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/visualization/planning_scene_rviz_plugin/src/planning_scene_display.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_planners/ompl/ompl_interface/scripts/generate_state_database.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_components_tools/src/print_planning_scene_info.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_py/src/moveit/moveit_ros/planning_scene_monitor/planning_scene_monitor.cpp
+- https://github.com/ros2/rclcpp/blob/rolling/rclcpp/include/rclcpp/client.hpp
+- https://docs.ros.org/en/jazzy/p/rclcpp/generated/classrclcpp_1_1Client.html
