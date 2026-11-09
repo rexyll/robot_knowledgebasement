@@ -2055,3 +2055,43 @@ J1-J15全部未执行，J16现场证据缺失。未执行VAL3/CS9仿真、安全
 - `updateJointPositionControl.pgx`（Blob SHA `28e2f1d6a3482a126b16474c957a608262c32218`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
 - `updateJointVelocityControl.pgx`（Blob SHA `72f4eb0215ceeae2c3a528013ea2a79c4dc46344`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
 - `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+
+#### SERVO-755｜安全状态采样时序、控制周期竞态与ROS状态快照验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| K1 | 测量`taskCreateSync` 4 ms实际周期、抖动、超时和控制任务overrun | 未执行 |
+| K2 | 证明每周期`updateState`、状态发送、命令接收、命令执行的实际顺序和耗时 | 未执行 |
+| K3 | 在状态采样后、命令接收前触发安全状态变化，测量下一动作/停止响应 | 未执行 |
+| K4 | 在命令接收后、`movejSync`调用前触发安全状态变化，检查是否仍接受该周期旧快照 | 未执行 |
+| K5 | 在`movejSync`运行中触发E-stop/SS1/SS2/HOLD/驱动掉电，测量VAL3应用门禁与控制器安全响应 | 未执行 |
+| K6 | 验证`updateState`的bIsValid、关节字段valid标志与控制任务实际检查的一致性 | 未执行 |
+| K7 | 注入状态读取异常/非法状态值，验证是否阻断状态发布和新运动命令 | 未执行 |
+| K8 | 验证`encodeRobotStateMsg`只检查消息初始化/头部/长度时，状态字段错误如何被发现 | 未执行 |
+| K9 | 验证ROS read失败后controller_manager是否跳过write及实际停止路径 | 未执行 |
+| K10 | 验证ROS read/write周期错位、线程延迟和状态缓存过期时的命令许可行为 | 未执行 |
+| K11 | 验证ROS write在非STOP模式下对安全状态、motion_possible、brakes_released的逐周期门禁 | 未执行 |
+| K12 | 验证prepare/perform_command_mode_switch使用的状态快照在切换延迟期间是否过期 | 未执行 |
+| K13 | 验证HOLD/operation_mode_status非零时仅警告是否符合现场控制策略 | 未执行 |
+| K14 | 对比VAL3停止、CS9安全停止、ROS STOP报文三者的触发时刻、停止类别和响应时间 | 未执行 |
+| K15 | 速度控制尚未实现时，确认ROS接口、VAL3任务及文档不对外宣称已具备可运行速度控制 | 未执行 |
+| K16 | 目标现场4 ms任务周期、CS9版本、安全状态更新周期、ROS控制周期和安全响应记录核验 | 未确认，现场证据缺失 |
+
+固定公开提交`bd658e2d266e315d2ee35f985fb352ea88306b79`静态审查确认：`start.pgx`将同步控制周期设为0.004 s；`controlTask.pgx`每周期先`updateState()`、分配状态序号并发送状态，再接收/解码命令、检查命令延迟与模式，最后执行运动控制。`updateJointPositionControl.pgx`检查传入的`x_robotState.bMotionPossible`，然后在同一调用中执行`$movejSync(l_jJointPositionCmd)`；该调用前未重新采样`esStatus()`或重新调用`updateState()`。因此若安全状态在周期采样后改变，VAL3应用层门禁存在使用旧快照的窗口。4 ms是配置周期，不是实测停止响应时间；实际调度抖动、控制器安全功能并行响应及运动停止过程未测。
+
+`controlTask.pgx`调用`updateState()`后没有显式检查`robot_state_msg.robotState.bIsValid`；`encodeRobotStateMsg.pgx`做消息初始化、消息类型、头部大小和载荷大小等基本检查，再编码状态标志和valid-field标志。协议帧可编码/发送不代表每个安全字段已通过独立有效性判定。状态采样、字段有效性、状态包新鲜度及控制许可应分层验证。
+
+ROS hardware interface `read()`调用`read_robot_state()`并更新`state_msg_`；`write()`使用缓存状态检查`error_state`和`control_state==INVALID`，但没有状态时间戳/年龄门禁，也没有在每次写命令前检查`motion_possible`、`safety_status`或`brakes_released`。切换到JOINT_POSITION时才检查`error_state`与`motion_possible`；`operation_mode_status!=0`（注释称HOLD）仅发警告。该结论只针对固定公开原型静态代码，不代表现场一定如此部署，也不证明CS9自身安全功能缺失。
+
+速度控制边界：`updateJointVelocityControl.pgx`明确记录速度安全限制仍为TODO、速度命令执行被注释且当前返回错误；同一公开原型ROS硬件接口拒绝JOINT_VELOCITY模式切换。因此该原型目前不具备可验证的端到端速度控制执行路径。
+
+K1-K15全部未执行，K16现场证据缺失。未执行安全状态竞态注入、4 ms周期/抖动测量、ROS read/write错周期测试、CS9响应测量、VAL3仿真、HIL、FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码位置
+
+- `start.pgx`（Blob SHA `2d72315f0da1e18c959a24d3d75622652ee1287b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `updateJointPositionControl.pgx`（Blob SHA `28e2f1d6a3482a126b16474c957a608262c32218`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- `updateJointVelocityControl.pgx`（Blob SHA `72f4eb0215ceeae2c3a528013ea2a79c4dc46344`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
+- `encodeRobotStateMsg.pgx`（Blob SHA `0dadb0cc7f03de3da165cafa86fa5f943f097ec3`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
