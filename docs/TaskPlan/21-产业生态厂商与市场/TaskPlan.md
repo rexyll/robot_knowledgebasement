@@ -3817,3 +3817,50 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DG10 | 目标控制器/安全PLC、SIL/HIL、CS9、FAT/SAT及实机验收 | 未确认 |
 
 本轮已取得固定提交的消息序列化、单元测试和硬件接口完整源码；VAL3状态发布端程序仍未取得。本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.235 / SERVO-818。
+
+
+### 2026-11-09｜v10.10 本轮推进记录（§9.3.235 / SERVO-818）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮新增完整核查`robot_driver.cpp`、`robot_driver.hpp`、`real_time_socket_subscriber.cpp`、`real_time_socket_subscriber.hpp`、`test_rt_socket_interface.cpp`及`test_robot_driver.cpp`，并复核`messages.cpp`和`staubli_hardware_interface.cpp`。
+
+#### 静态审查发现
+
+1. **状态新鲜度有100ms默认门限。** `RobotDriver::set_state_staleness_timeout`默认参数为100ms；`read_robot_state()`读取消息后检查`MessageStatus.time_since_received >= state_staleness_timeout_`，过期返回false。时间戳由ROS接收线程在消息成功反序列化后写入`reception_timestamp`，计算的是本机接收/反序列化时刻以来的年龄，不是控制器生成时间或网络单向延迟。
+2. **接收缓存只保留最新消息。** `RealTimeSocketSubscriber::update_message()`每次成功反序列化后覆盖thread-safe box中的消息。若read循环未及时读取，中间多个数据帧可能只剩最后一帧；序号差用于估算漏帧数，而不是逐帧队列。
+3. **序号丢包统计存在，但RobotDriver不据此拒绝状态。** subscriber根据序号差计算`lost_packages`，支持序号回绕；`RobotDriver::read_robot_state()`只保留了一个被注释掉的丢包WARN，不对丢包数量设置阈值、不拒绝当前最新帧，也不把丢包情况传递为运动许可门禁。
+4. **重复帧会被报告为缓存数据而非新鲜更新。** subscriber在序号相同的情况下设置`status.new_message=false`，但仍返回已有消息并更新其年龄计算；`read_robot_state()`没有检查`status.new_message`，只检查时间年龄。因此重复读取同一帧在100ms门限内仍可能返回true；这表示数据尚未超时，不代表刚收到新帧。
+5. **序号跟踪只在状态通过有效性和新鲜度检查后更新。** `last_valid_sequence_id_`从成功返回的状态帧sequence_number更新，硬件接口再用它填充命令帧sequence_number。未发现RobotDriver对状态帧序号执行单调性/重复/乱序拒绝；乱序、重放与回绕边界需要更明确的协议策略和测试。
+6. **sequence_delay与消息sequence_number是不同字段。** `RobotStateMessage.sequence_delay`是uint16字段，文档称其为控制循环ping-pong总延迟（周期数）；硬件接口仅将其导出为`control_sequence_delay`监督GPIO。未见它参与状态新鲜度门限、命令许可或STOP策略。不能将它当作接收时间戳或网络时延毫秒数。
+7. **默认对象值与有效帧必须区分。** `RobotStateMessage`构造时sequence_delay=1000、header.sequence_number=0、control_state=INVALID；subscriber还依靠reception_timestamp是否为0判断是否曾收到消息。有效性判断在RobotDriver层主要检查message_type，并结合接收年龄；不能单独把默认sequence_delay或状态bool解释为控制器反馈。
+8. **硬件read失败与write许可不是同一机制。** hardware interface的read在driver读失败/状态过期时返回ERROR；write没有独立接收时间戳或age检查，仍检查缓存`state_msg_`的error_state和control_state INVALID。read失败后控制器管理器是否一定跳过write、是否进入安全停机，取决于外层ros2_control调度和错误处理路径；本轮未作动态验证。必须在write层或明确的共享状态许可层建立过期数据禁止非STOP命令的闭环。
+9. **现有测试覆盖部分超时与丢包功能。** `test_rt_socket_interface.cpp`测试新帧、重复读取后new_message=false、等待超过1秒后年龄增加，并测试序号跳号导致lost_packages=1/2；`test_robot_driver.cpp`测试停止mock robot后超过100ms（等待600ms）状态读取失败，再恢复发送后读取成功。此处仅确认测试源码存在，未实际运行测试。
+10. **测试缺口。** 未见明确覆盖：乱序/重放帧、序号回绕边界、同序号但内容变化、长时间高丢包时运动许可、丢包警告升级策略、100ms门限边界竞态、read失败后write是否继续发送、ROS调度延迟与控制器周期失配，以及控制器端生成时间戳。
+11. **状态快照一致性边界。** 接收线程将一次完整反序列化的消息作为一个对象写入thread-safe box，能提供ROS侧单帧对象的一致复制；但不证明VAL3/安全PLC各源变量是在同一控制器采样时刻原子采集。当前没有控制器生成时间戳/快照计数器证据。
+12. **控制器周期与消息节奏尚未建立合同。** 单元测试mock发送线程每4ms发一帧，属于测试模拟设置，不是Stäubli目标控制器的实测周期或厂商承诺。100ms默认超时是否适合目标机器人、网络和控制周期，必须按型号、控制器版本和系统负载验证。
+
+#### SERVO-818｜状态时序与新鲜度验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DH1 | 100ms默认状态过期门限及read拒绝路径 | 完整源码静态核对完成 |
+| DH2 | 接收线程时间戳生成与最新帧缓存机制 | 完整源码静态核对完成 |
+| DH3 | sequence_number丢包计数及回绕算法 | 完整源码静态核对完成 |
+| DH4 | RobotDriver对lost_packages与new_message的处理 | 完整源码静态核对完成；丢包门禁未见，new_message未被检查 |
+| DH5 | sequence_delay字段语义及监督GPIO映射 | 源码与文档静态核对完成；控制器实际周期含义未独立验证 |
+| DH6 | 超时、丢包和恢复现有测试源码 | 测试源码核对完成；未执行测试 |
+| DH7 | 乱序/重放/回绕/重复帧及高丢包许可策略 | 未完整覆盖，未执行动态测试 |
+| DH8 | read失败后write是否可能继续发送非STOP命令 | 静态发现write无独立age门禁；外层调度行为未验证 |
+| DH9 | 控制器时间戳、VAL3原子快照、目标周期和100ms阈值依据 | 未确认；无控制器侧时序证据 |
+| DH10 | 网络故障注入、SIL/HIL、CS9、FAT/SAT和实机时序验收 | 未执行/未确认 |
+
+#### 风险与建议
+
+- 将状态有效性、帧新鲜度、序号连续性、丢包策略、安全字段和模式确认汇总为一个原子许可快照；任何超时、乱序、重放、矛盾或未知状态均禁止非STOP命令。
+- `read_robot_state()`应明确区分“缓存里有可读消息”和“本周期收到新消息”；将`status.new_message`纳入状态更新/控制许可策略。
+- 丢包统计应有可配置的告警/降级/停止策略；安全控制场景不能仅把丢包留作未启用的日志。
+- `write()`必须有独立的状态年龄门禁，不能只依赖read返回ERROR后的外部调度行为；超时转STOP的通信送达仍需独立安全链确认。
+- 对序号比较采用明确的模数窗口/半范围比较规则，拒绝旧帧和重放帧；增加回绕、乱序、重复序号和序号跳变测试。
+- 明确sequence_delay单位、采样点、统计口径和合法范围；不可将其代替本机接收时间戳。
+- 与目标控制器/VAL3团队确认状态生成时间戳或周期计数、状态快照原子性、标称/最大更新周期，并基于最坏网络抖动与控制周期推导超时门限，而不是默认沿用100ms。
+
+本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.236 / SERVO-819。
