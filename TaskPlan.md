@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.97  
+> 版本：v10.07  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.215；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.232 / SERVO-815；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -2751,3 +2751,48 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 | DS10 | 完成ROS/VAL3闭环模式确认、read/write联锁、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.232 / SERVO-815。
+
+
+### 2026-11-09｜v10.07 本轮推进记录（§9.3.232 / SERVO-815）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮首次成功通过固定提交的 `fetch_file` 取得 `staubli_hardware_interface.cpp`、`messages.cpp`、`messages.hpp` 的完整文件内容（不是仅搜索片段），并围绕模式切换确认、HOLD/安全状态门禁和write命令发送进行静态审查。未取得VAL3端到端状态发布完整程序及控制器运行证据，故不将协议字段映射等同于控制器实际接受确认。
+
+#### 静态审查发现
+
+1. **模式切换本地提交路径已由完整函数确认。** `perform_command_mode_switch()`消费`pending_mode_`（若未prepare则按STOP），先将`switch_prepared_`清零；当目标为`JOINT_POSITION`时检查`state_msg_.error_state`与`state_msg_.motion_possible`。错误或motion_possible=false时将`current_control_mode_`设为STOP并返回ERROR。通过检查后将位置命令缓冲区复制为`hw_joint_positions_`，速度/加速度缓冲区清零，最后直接执行`current_control_mode_ = new_mode`并返回OK。该完整代码确认了ROS本地模式提交，但没有控制器确认事务或等待反馈的步骤。
+2. **HOLD目前是警告而非拒绝条件。** 同一函数在`state_msg_.operation_mode_status != 0`时只记录“Robot is on HOLD — ensure robot is enabled before commanding motion”的WARN，随后仍继续缓冲区初始化并提交`JOINT_POSITION`。因此从源码可确认：非零operation_mode_status不会在此函数内阻止模式切换。其具体数值含义依赖目标控制器协议；不能仅凭注释将所有非零值都解释为同一种HOLD。
+3. **write没有模式反馈逐值确认。** `write()`在非STOP模式下仅检查`state_msg_.error_state`或`state_msg_.control_state == INVALID`；没有将`state_msg_.control_state`与`current_control_mode_`逐值比较，也没有检查模式切换事务号/会话epoch。随后直接把`current_control_mode_`写入`cmd_msg.command_type`并调用`send_robot_command(cmd_msg)`。因此“本地切换返回OK”不等于“控制器已确认目标模式”；该闭环确认缺口已由完整硬件接口代码支持。
+4. **write不直接检查状态反馈新鲜度。** 函数内未见`time_since_received`、`new_message`或状态时间戳门禁。它使用最近保存在`state_msg_`中的error/control状态。结合SERVO-809已核实的read路径可重复读取未超时缓存消息，不能将write每周期读取到state_msg_理解为每周期收到新的控制器状态帧。状态过期策略由下游读取路径决定，write自身未独立执行。
+5. **HOLD警告与后续发送路径存在组合风险。** 当`operation_mode_status != 0`但`error_state=false`且`control_state != INVALID`时，perform可能提交JOINT_POSITION；write的非STOP门禁也不检查operation_mode_status，故静态代码路径允许后续构造并发送JOINT_POSITION命令。此为明确的代码路径事实；机器人在具体HOLD状态下是否执行/拒绝命令，仍需控制器手册及仿真/实机安全验证。
+6. **STOP与非STOP门禁不对称。** write仅在`current_control_mode_ != STOP`时检查error_state/INVALID；STOP模式不经该错误门禁，仍构造STOP命令并尝试发送。这可作为故障停止命令路径的设计意图，但不能证明STOP命令必达或具有安全等级。
+7. **状态协议确实分开承载控制状态和安全状态。** `RobotStateMessage`具有独立的`control_state`和`safety_status`字段；反序列化分别读取字节并static_cast为枚举。硬件接口将safety_status发布到supervision GPIO，并单独派生`wait_for_ack`（等于`SafetyStatus::WAIT_FOR_RESTART`）。write模式许可路径未检查safety_status或wait_for_ack。不得将control_state=STOP当作安全回路已复位或允许重新运动的证明。
+8. **枚举反序列化未见范围校验。** 完整`RobotStateMessage::deserialize()`对control_state、safety_status和operation_mode读取uint8后直接static_cast；本函数片段没有对枚举取值范围做拒绝。对于非法但可解析的枚举值，control_state未必等于INVALID，write当前的INVALID比较不能覆盖所有未知编码。需结合协议合法值表和帧校验继续审查。
+9. **prepare阶段明确未完整校验接口组合。** 完整代码注释指出尚未验证所有接口是否成组停止/启动（例如混合position与velocity不应允许）；出站`stop_interfaces`模式解析仍被注释。resolve_mode按遍历顺序返回第一个匹配接口，因此混合模式输入的结果可能受接口顺序影响；速度/力矩最终会被拒绝，但混合position/velocity也可能先遇position分支。应在prepare阶段显式拒绝冲突组合。
+10. **证据与验收边界。** 完整源码证明上述ROS硬件接口行为，但没有证明VAL3控制器实际会在HOLD、安全状态或模式不一致时如何执行命令，也没有证明安全PLC/驱动器互锁、模式确认反馈及故障恢复。尚未执行构建、单测、VAL3仿真、SIL/HIL、CS9、FAT/SAT或实机测试。
+
+#### 风险与建议
+
+- 将模式切换拆为请求、控制器接受、状态反馈确认三个阶段；只有收到当前会话的新鲜状态反馈且反馈模式与请求一致，才将本地模式标记为ACTIVE。超时、拒绝、INVALID、未知枚举或反馈过期时保持STOP/ERROR并清理待切换状态。
+- 重新定义`operation_mode_status`协议枚举及每个状态的许可矩阵。若HOLD状态不允许运动，perform和write均应fail-closed拒绝非STOP命令，而非只WARN；若某些非零状态允许，则必须按协议值逐一判定，不能用`!=0`做模糊处理。
+- write运动命令许可应统一检查：状态新鲜度、序号/epoch进展、control_state与期望模式一致、operation_mode_status许可、safety_status/WAIT_FOR_RESTART、error_state、brakes_released、motion_possible、estop_pressed及控制器故障条件。安全相关联锁须由安全架构和控制器文档定义，普通ROS软件门禁不能替代安全回路。
+- 对control_state、safety_status、operation_mode及operation_mode_status建立协议合法值表；反序列化遇未知枚举应拒绝该帧或将状态置为明确无效，禁止未知值绕过仅比较INVALID的门禁。
+- prepare阶段先归类全部start/stop接口，拒绝同一切换中混合不同命令模式的组合；不依赖vector遍历顺序选模式。为prepare失败、perform未调用、重复perform和控制器拒绝建立确定的回滚状态机。
+- 增加测试：HOLD各合法状态、WAIT_FOR_RESTART、急停、制动器未释放、motion_possible=false、control_state STOP/INVALID/未知值、反馈过期/重复、控制器拒绝模式、确认丢失、混合start_interfaces顺序互换；断言任何未确认或不许可状态均不发送非STOP运动命令。
+- 将“ROS write返回OK/发送函数返回true”“VAL3接受命令”“机械臂执行”“安全功能达到PL/SIL要求”作为四个不同验收层级分别取证。
+
+#### SERVO-815｜模式确认与运行许可验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DE1 | 完整核对perform模式提交及失败回退 | 完整源码静态核对完成 |
+| DE2 | 核对HOLD状态下模式切换行为 | 完整源码核对完成：只WARN后继续提交 |
+| DE3 | 核对write是否比较本地模式与反馈control_state | 完整源码核对完成：未见逐值比较/事务确认 |
+| DE4 | 核对write状态新鲜度门禁 | 完整源码核对完成：write内未见独立时间戳/new_message检查 |
+| DE5 | 核对safety_status/WAIT_FOR_RESTART与运动许可关系 | 完整源码核对完成：字段独立发布，write许可路径未见检查 |
+| DE6 | 核对控制状态/安全状态/操作模式枚举反序列化范围验证 | 完整源码核对完成：直接static_cast，未见本函数内范围校验 |
+| DE7 | 核对prepare混合start/stop接口组合校验 | 完整源码核对完成：注释承认组合验证待实现，stop解析被注释 |
+| DE8 | HOLD、安全状态、未知枚举、反馈过期及模式确认丢失的故障注入 | 未执行 |
+| DE9 | 模式请求—控制器接受—反馈确认闭环集成测试 | 未执行 |
+| DE10 | VAL3仿真、SIL/HIL、CS9、FAT/SAT及实机安全验收 | 未确认 |
+
+本轮已取得固定提交三个文件的完整源码，较前几轮搜索片段证据有所提升；VAL3端到端执行与安全回路仍缺证据。本轮未执行构建、单测、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.233 / SERVO-816。
