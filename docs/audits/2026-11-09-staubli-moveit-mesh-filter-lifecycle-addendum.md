@@ -355,3 +355,76 @@ N1–N12全部未执行；没有动态证据证明迭代器失效、死锁、通
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
 - https://moveit.picknik.ai/main/api/html/moveit__ros_2planning_2planning__scene__monitor_2src_2planning__scene__monitor_8cpp_source.html
+
+
+---
+
+## §9.3.161｜PlanningSceneWorld / CollisionObject / OctoMap 输入替换语义与失败原子性
+
+### 审查基线与文件
+
+固定审查基线：MoveIt 2 commit `6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+
+- `moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp`（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
+- `moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp`（Blob SHA `8ed8bd8fb8a3b25cfcb3357f2cc5de499a6fbd51`）
+- `moveit_core/planning_scene/src/planning_scene.cpp`（Blob SHA `71d4eac188cd7446b2013b61cf25b8b319e073c3`）
+- `moveit_core/collision_detection/src/world.cpp`（Blob SHA `d4f12ac205b0725ad0ac5613c5a8762b3e701036`）
+- `moveit_core/collision_detection/include/moveit/collision_detection/world.hpp`（Blob SHA `a3f41643b37b81264da2a3d691b093473a6e1dba`）
+
+### 发现
+
+1. **CollisionObject ADD 替换不是失败原子操作。** `processCollisionObjectAdd()` 对已有同ID对象先执行 `world_->removeObject(object.id)`，之后才构造并校验新对象形状/位姿。若 `shapesAndPosesFromCollisionObjectMessage()` 因“pose数量多于shape数量”等输入错误返回false，旧对象已被删除，新对象没有成功建立。PSM的 `processCollisionObjectMsg()` 在scene锁内收到false后直接返回，不会调用 `triggerSceneUpdateEvent(UPDATE_GEOMETRY)`。因此可能出现场景内容已改变但对应PSM更新事件未发出的状态。
+
+2. **CollisionObject MOVE 存在部分提交。** `processCollisionObjectMove()` 先调用 `world_->setObjectPose()` 改变对象整体位姿，随后才检查可选shape pose总数是否与现有shape数量一致。数量不一致时返回false，但对象pose已经改变；PSM同样提前返回，不触发geometry update event。该路径的失败返回不能代表场景未发生改变。
+
+3. **PlanningSceneWorld topic回调忽略逐项处理结果。** `newPlanningSceneWorldCallback()` 在scene锁内先 `clearObjects()`，再调用 `processPlanningSceneWorldMsg()`，但不读取/传播其bool结果，最后无条件触发 `UPDATE_SCENE`。后者逐个处理CollisionObject，使用 `result &= processCollisionObjectMsg(...)`，因此某一项失败不会阻止后续项；调用方却无法获知部分对象失败。完整world替换语义下，输入中一个对象失败可能留下“旧world已清空、部分新对象已应用”的部分场景。
+
+4. **无效OctoMap类型可造成scene与monitor tree分裂。** `PlanningScene::processOctomapMsg()` 先移除world中的旧 `OCTOMAP_NS` 对象，再检查数据是否为空及 `id == "OcTree"`。对非空但类型不支持的消息，它移除了场景中的旧OctoMap后报错返回。PSM的world回调仅在OctoMap data为空时清空OccupancyMapMonitor树；非空错误类型不会清空monitor tree。之后若OccupancyMapMonitor触发update callback，`octomapUpdateCallback()`会通过 `processOctomapPtr()` 将monitor tree重新放回PlanningScene；在该回调发生前，scene world与monitor tree则可能暂时表示不同地图。该风险不等于已经证明下游规划必然使用错误地图，需动态验证时序和消费者行为。
+
+5. **完整PlanningScene与diff的OctoMap语义不同。** `setPlanningSceneMsg()` 会清空world后处理world消息；`setPlanningSceneDiffMsg()` 只在OctoMap id非空时替换OctoMap，空字段表示diff未携带OctoMap更新。PSM对完整scene消息还会在OctoMap data为空时清空monitor tree。集成方必须区分“完整快照中的空地图”与“diff中未提供地图”，不能把两种空值语义混为一谈。
+
+6. **CollisionObject REMOVE与输入失败需要分开统计。** 对不存在ID的REMOVE会返回false；PSM因此不触发geometry event。若对象确实不存在，这本身不改变scene；但调用方不应将该false与ADD/MOVE的“已部分改变scene后失败”归为同一类。建议在接口和遥测中区分no-op、validation failure、partial mutation。
+
+7. **world observer与OctoMap mask副作用需要纳入测试。** World对象的remove/add/move操作会同步通知observer；PSM用observer维护普通world object与OccupancyMapMonitor排除shape的对应关系。ADD替换、MOVE部分失败及整world清空/重建都可能先后触发observer副作用。需要验证失败路径下shape handle是否最终与scene中的对象集合一致，不能只断言PlanningScene消息内容。
+
+### 修复建议
+
+- 对ADD：先在临时对象/临时shape集合中完成frame、shape、pose、subframe及类型校验，再以单一提交步骤替换旧对象；失败必须保留旧对象和旧颜色/类型/ACM元数据。
+- 对MOVE：先完成全部pose数量、frame和isometry校验，再一次性提交对象pose与shape poses；或在失败时回滚。禁止“先改pose再验证”。
+- 对PlanningSceneWorld完整替换：先在临时PlanningSceneWorld/临时scene构建并检查所有对象与OctoMap，再原子替换；若无法原子化，至少返回逐项结果、发出明确失败事件并保证消费者可检测部分更新。
+- 对OctoMap：先验证id、payload和解码结果，再替换scene object；失败时保留旧地图。明确scene map与monitor tree的唯一权威源和同步策略，避免错误消息先清scene map而monitor tree仍持有旧地图。
+- 对diff/full scene分别建立空OctoMap语义测试；完整快照空地图应明确表示清空，diff未提供地图则不得意外清空。
+- 对World observer shape handles建立不变量检查：scene中每个需要排除的world object有且仅有对应有效handle；对象移除后handle全部释放；失败更新不得泄漏或遗留handle。
+
+### SERVO-744｜失败原子性与World/OctoMap跨表示一致性验证矩阵
+
+新增以下验证项，均为待执行：
+
+- **M1 ADD替换失败**：先创建有效对象，再发同ID ADD，构造“shape少于pose”的畸形消息；断言失败后旧对象几何、pose、颜色、类型和ACM保持不变，且事件语义明确。
+- **M2 ADD成功替换**：同ID合法ADD，检查只发生一次逻辑替换、shape observer handle无重复/泄漏，geometry event与最终scene一致。
+- **M3 MOVE shape pose数量不足/过多**：记录更新前对象pose和shape poses，注入数量不匹配消息；验证失败后所有状态保持原值，不能出现整体pose已改而shape pose未改。
+- **M4 MOVE合法路径**：同时改变object pose与shape poses，检查global shape pose、World observer事件和Octree排除shape变换一致。
+- **M5 PlanningSceneWorld部分失败**：输入多个对象，其中一项畸形；记录world清空、各项应用、返回/日志和scene event，验证接口能明确报告部分失败或保证原子回滚。
+- **M6 无效OctoMap类型**：先建立有效scene OctoMap和monitor tree，再提交非空、错误id的OctoMap；验证旧地图保留策略、monitor tree内容、下一次octomapUpdateCallback结果及scene diff。
+- **M7 OctoMap解码异常/截断数据**：对binary与full map payload分别注入损坏数据/异常，检查旧scene地图与monitor tree是否保持一致，不允许先删除旧地图再失败。
+- **M8 full scene空OctoMap**：验证完整快照明确清空scene OctoMap和monitor tree，且清理事件/scene publisher diff正确。
+- **M9 diff未携带OctoMap**：在现有地图下提交is_diff=true且OctoMap字段未设置的scene diff，确认地图保持；另测显式清空协议。
+- **M10 REMOVE不存在对象**：确认返回false/no-op不会改变scene、observer handles或OctoMap masks；与部分提交失败分类分开。
+- **M11 World observer与shape handle一致性**：对ADD/APPEND/MOVE/REMOVE/整world替换执行长时间序列压力测试，核对handle数量、对象ID映射和OctoMap排除结果；使用ASan/TSan并记录地图更新延迟。
+- **M12 Stäubli/ICube目标部署核实**：确认实际订阅的collision_objects/planning_scene_world/planning_scene topic、消息来源与完整/增量语义、OctoMap monitor插件、QoS/executor配置及上游消息生产者是否可能发出畸形/不完整输入。
+
+M1–M12全部未执行。没有运行ROS构建、单元测试、ASan/UBSan/TSan、OctoMap损坏数据注入、World observer压力测试、CS9/HIL、FAT/SAT或实机验证。
+
+### 结论与证据边界
+
+§9.3.161确认三类需要优先验证的失败一致性风险：ADD/MOVE部分提交后返回false但PSM不发更新事件；PlanningSceneWorld回调忽略逐项处理结果并在部分失败后仍发UPDATE_SCENE；无效OctoMap类型可先移除scene地图而保留monitor tree。它们是固定MoveIt源码基线的静态结论，不证明Stäubli现场已启用相同topic组合，也不证明现场已经发生地图丢失、碰撞漏检或规划安全事件。
+
+本轮仅完成静态审查与测试设计。未运行ROS构建、ASan/UBSan/TSan、故障注入、executor压力测试、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/collision_detection/src/world.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/collision_detection/include/moveit/collision_detection/world.hpp
