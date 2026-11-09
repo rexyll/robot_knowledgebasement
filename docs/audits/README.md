@@ -307,3 +307,6 @@
 
 
 - [2026-11-09 Stäubli UDP来源验证、报文长度与协议头字段边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.204，核对UDP sender_endpoint_来源过滤、RobotState/RobotCommand/DiagnosticData长度与头字段校验。发现接收端未验证来源IP/端口；反序列化未统一要求精确帧长；RobotState缺类型/版本/payload_size校验，RobotCommand缺协议版本校验，DiagnosticData在解析网络头前校验默认header字段，FrameHeader只检查magic。新增SERVO-787/AR1–AR10，AR1–AR9静态核对完成，AR10缺目标部署网络配置及隔离验证证据。
+
+
+- [2026-11-09 Stäubli UDP数值合法性、枚举范围与状态缓存污染审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.205，核对float/NaN/Inf反序列化、状态/命令/诊断枚举范围、未知状态位、subscriber缓存提交及硬件状态更新。发现浮点解码无finite检查、枚举直接static_cast、监督状态直接导出、硬件层无机型物理范围校验；update_state可能先写位置后因速度字段缺失返回false而留下部分更新。新增SERVO-788/AS1–AS10，AS1–AS8静态核对完成，AS9需机型限值依据，AS10缺隔离验证。
