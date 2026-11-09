@@ -1588,3 +1588,99 @@ Q1-Q9全部未执行，Q10现场证据缺失。未执行VAL3/CS9仿真、协议�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+
+
+## §9.3.178｜VAL3状态快照与命令执行先后、ROS read/write陈旧状态传播及跨周期授权窗口
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节把VAL3控制周期中的RobotState发布、UDP命令接收、序号延迟计算、运动命令执行和错误复位，与ROS 2 hardware_interface的read()/write()周期及RobotDriver状态新鲜度门禁合并分析。
+
+| 文件 | Blob SHA |
+|---|---|
+| `val3/userapp/ros2_server/controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `val3/userapp/ros2_server/updateState.pgx` | `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf` |
+| `val3/userapp/ros2_server/Control/updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
+| `src/robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `src/staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+
+### 1. VAL3每轮先发布状态快照，再接收并执行本轮命令
+
+`controlTask.pgx`循环顺序明确为：
+
+1. 调用`updateState(robot_state_msg.robotState)`采集机器人状态；
+2. 增加状态序号，并把当前`l_nSequenceDelay`写入状态；
+3. 将`l_bError`和`l_nCmdMode`写入`bInError`、`nControlMode`；
+4. 编码并发送RobotState；
+5. 才调用`readData()`接收本轮RobotCommand；
+6. 解码命令、计算序号延迟、检查命令模式转换；
+7. 调用位置/速度控制更新或STOP路径；
+8. 处理错误、重置状态和socket，最后进入下一轮。
+
+因此RobotState是命令处理前的周期快照，不是本轮命令处理后的执行回执。特别是`nControlMode`和`bInError`反映的是本轮命令接收/执行之前的本地变量状态；`nSequenceDelay`也是上一次循环计算出的值。主机收到某一状态序号，不能据此推断同序号周期中接收的命令已经执行、被拒绝或已停止。
+
+### 2. 序号延迟阈值判断使用本轮之前采样的运动状态
+
+在RobotState发送之后，VAL3才计算`l_nSequenceDelay`并判断阈值：`bInMotion=true`时延迟大于5触发STOP/ERROR；非运动时延迟大于25触发STOP/ERROR。这里的`bInMotion`来自本周期前段的`updateState()`快照；序号延迟是本轮收到命令后计算的，但要到下一轮状态发布才可能出现在`nSequenceDelay`字段。
+
+该顺序意味着诊断状态中运动标志和序号延迟不是同一处理时点的原子快照。静态代码没有提供一个带有命令序号、状态采样时间戳、处理结果和执行结果的统一确认记录。不能仅以ROS读到的`sequence_delay`或`control_state`判断某一命令的确切执行边界。
+
+### 3. 错误发生、STOP执行和错误遥测可能跨越不同周期
+
+若本轮在命令处理/序号检查中置`l_bError=true`，代码会将命令模式置为错误/STOP，执行停止相关子程序与`stopMove()/resetMotion()`，随后在错误处理块清除`l_bError`、将控制模式置为0、清除命令有效标志并重置socket。因为RobotState已经在本轮开始阶段发送，本轮刚出现的错误不会反映在已发送的状态帧中；而错误处理又可能在下一帧发布前清除错误标志。
+
+因此状态遥测可能看不到短暂的本地错误锁存，或者只看到控制模式/序号复位后的状态，具体取决于错误路径、socket reset结果及下一轮采样。此处与§9.3.174的错误遥测可见性结论相关，但本节进一步明确其与命令处理和状态快照的周期先后关系。它不证明现场错误一定丢失，也不证明停止动作没有执行。
+
+### 4. ROS read()拒绝陈旧状态时，硬件接口没有显式使旧state_msg_失效
+
+`RobotDriver::read_robot_state()`会验证消息有效性和`status.time_since_received < state_staleness_timeout_`；若状态陈旧则返回false，并且只在消息有效时才把`current_robot_state_`复制到输出参数。硬件接口`read()`若读失败就返回`hardware_interface::return_type::ERROR`，不会调用`update_state()`清零或标记现有`state_msg_`无效。
+
+因此硬件接口成员`state_msg_`可能保留上一次成功读取的快照。源码中没有在read失败路径写入显式状态失效标志、更新时间戳或自动切换本地控制模式到STOP。ROS控制框架在read返回ERROR后的具体调度行为需按目标ros2_control版本和controller_manager配置验证；不能假定write一定继续，也不能假定read ERROR本身已向机器人发出STOP。
+
+### 5. write()没有基于本次read的新鲜度或安全状态时间戳进行二次门禁
+
+`StaubliHardwareInterface::write()`检查RobotDriver连接状态；当当前控制模式不是STOP时，检查缓存的`state_msg_.error_state`或`control_state==INVALID`，满足条件则尝试发送STOP并返回ERROR。随后构造命令并发送。
+
+该函数没有检查state_msg_对应的接收时间、状态序号是否在本周期更新，也没有在每次位置/速度命令写入前重新检查`motion_possible`、`estop_pressed`、`safety_status`和`operation_mode`。其中`motion_possible`只在`perform_command_mode_switch()`切入JOINT_POSITION时检查，而非每次write调用持续检查。若安全/模式状态在成功read与下一次write之间变化，或read失败后旧快照仍被保留，当前硬件接口自身没有可见的基于状态年龄/序号的二次拒绝逻辑。
+
+此结论描述接口本身缺少的显式检查，不证明controller_manager一定会在read失败后继续调用write，也不证明CS9安全控制器不会独立拒绝命令。ROS调度、网络时序和控制器安全互锁必须分层测试。
+
+### 6. 状态新鲜度与命令周期没有共同的端到端时间基准
+
+RobotDriver的陈旧判断依赖接收端`MessageStatus.time_since_received`和配置的`state_staleness_timeout_`；VAL3序号延迟判断依赖16位状态序号与命令序号差；ROS hardware_interface的write周期参数被写入`controller_period`，但当前审查到的write路径没有将其与最近一次状态接收年龄绑定成命令许可条件。
+
+这三种度量分别代表接收年龄、序号差和控制器周期，不能相互替代。尤其状态序号可能重置/回绕（见§9.3.175），状态接收年龄可能因线程/调度变化而增加，ROS控制周期也可能抖动。固定源码没有构成统一的会话epoch+时间戳+命令ID+执行确认闭环。
+
+### 7. 新增验收任务
+
+新增SERVO-761：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| R1 | 对齐VAL3状态采样、RobotState发送、命令接收、序号检查、运动调用及错误处理的逐周期时间线 | 未执行 |
+| R2 | 注入命令模式切换、序号超限、编码/发送失败，核对错误首次产生、STOP调用和状态帧可见时刻 | 未执行 |
+| R3 | 验证每一RobotState中的nControlMode、bInError、nSequenceDelay与对应命令序号/处理结果的关联 | 未执行 |
+| R4 | 通过网络延迟/乱序/丢包验证bInMotion快照与本轮sequence delay阈值检查的时序边界 | 未执行 |
+| R5 | 注入状态帧陈旧、接收线程暂停、重复帧和序号停滞，确认read()返回ERROR后的controller_manager调度行为 | 未执行 |
+| R6 | 验证read失败后state_msg_缓存内容是否仍可被write路径读取，以及框架是否会在同周期调用write | 未执行 |
+| R7 | 在read与write之间切换急停、SafetyStatus、motion_possible和operation_mode，验证命令是否被持续门禁拒绝 | 未执行 |
+| R8 | 验证状态年龄超过阈值时是否存在独立STOP发送、失效标记、控制器停用和重新授权流程 | 未执行 |
+| R9 | 记录VAL3状态序号、ROS接收时间、ROS控制周期、命令序号、VAL3处理结果及机器人运动反馈的统一追踪数据 | 未执行 |
+| R10 | 核对现场ros2_control/controller_manager版本、调度配置、VAL3控制周期、UDP网络时延与安全系统响应记录 | 未确认，现场证据缺失 |
+
+R1-R9全部未执行，R10现场证据缺失。未执行VAL3/CS9仿真、网络故障注入、ROS控制器集成测试、HIL、FAT/SAT或实机测试。
+
+### 8. 结论与边界
+
+固定公开原型的VAL3控制循环先发布状态快照，再处理本轮命令；序号延迟在状态发布后计算，错误可能在同一循环的后段被复位，因此状态帧不是命令处理回执，短暂错误也不保证被后续状态帧完整呈现。ROS侧RobotDriver拒绝陈旧状态时，hardware_interface::read()返回ERROR但没有显式使旧state_msg_失效；write()没有状态年龄/序号二次门禁，且运动许可条件主要在模式切换时检查，而非每个命令周期重新检查。
+
+这些静态边界构成“状态采样—传输—read—控制器更新—write—VAL3接收—运动执行”链路中的可观测性和时序验收风险；它们不证明read ERROR后write一定继续、不证明现场命令越权，也不证明机器人安全功能失效。必须使用目标ros2_control版本验证调度行为，并在受控CS9环境对状态变化与命令写入竞态进行动态测试。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行VAL3/CS9仿真、网络故障注入、ROS集成测试、HIL、FAT/SAT或实机验证。现场部署版本和调度配置未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
