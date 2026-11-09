@@ -3810,3 +3810,54 @@ AS1–AS8完成固定提交静态源码/测试覆盖核对；AS9需具体机型�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
+
+## §9.3.206｜机器人状态新鲜度、控制许可与读写周期一致性审查（2026-11-09）
+
+### 审查基线与范围
+固定ICube公开仓库 staubli_driver_ros2 提交 bd658e2d266e315d2ee35f985fb352ea88306b79。检查 RealTimeSocketSubscriber、RobotDriver、StaubliHardwareInterface 的状态接收、超时判断、read/write、模式切换和现有测试。此为静态源码审查；read返回ERROR后controller_manager是否继续调用write，需按目标ros2_control版本动态确认。
+
+### 静态发现
+
+1. **状态超时不会使硬件接口保存的状态失效。** RobotDriver::read_robot_state 在状态超过默认100 ms staleness timeout时返回false；硬件接口read继而返回ERROR。但state_msg_只在read成功时更新，失败路径没有清零或标记无效，因此保留上一次成功状态。
+2. **write没有独立的新鲜度门禁。** RobotDriver::is_connected只检查socket连接和接口接收线程ready，文档明确不检查staleness。硬件write没有检查最近一次read是否成功、state_msg_接收时间戳或状态年龄。若UDP状态流停止但socket仍连接且接收线程仍运行，静态路径上write仍可能使用上一次状态判断命令许可。是否在read ERROR后实际调用write，尚需目标控制器管理器验证，不能据此断言现场继续运动。
+3. **活动模式write的安全状态检查不完整。** 当前只检查旧state_msg_的error_state和control_state是否INVALID；没有直接检查motion_possible、brakes_released、estop_pressed、safety_status或power_on。机器人控制器是否独立拒绝这些状态下的命令，仓库未提供充分证据。
+4. **模式切换也没有状态新鲜度约束。** perform_command_mode_switch在切换JOINT_POSITION时检查error_state和motion_possible；operation_mode_status非0时仅发出HOLD警告并继续，没有拒绝切换；也没有验证状态年龄或power_on、brakes_released、estop_pressed、safety_status。
+5. **STOP路径没有构成统一故障锁存状态机。** STOP模式发送零参考命令，但没有统一的“状态过期后锁止所有非STOP命令，直到重新取得新鲜有效状态并显式恢复”的机制。STOP发送失败后也未见本地持久化的运动禁止锁存。
+6. **staleness机制与连接状态语义分离。** subscriber记录消息接收时间；RobotDriver在read侧进行100 ms默认超时检查。is_connected明确不检查消息新鲜度，不能将其解释为状态可用于控制。
+7. **安全状态组合没有统一许可表。** 驱动没有展示对operation mode、safety status、estop、brakes、power、motion_possible组合关系的统一校验。权威状态表应来自厂家协议及具体控制器配置，不应凭空推导。
+8. **现有测试仅覆盖RobotDriver层staleness。** test_robot_driver.cpp停止mock状态流、等待超过100 ms后验证read_robot_state失败，再恢复状态流验证恢复。硬件接口测试未见read ERROR后直接write、过期状态下切换JOINT_POSITION或安全状态位组合的定向用例。
+9. **read错误是否导致write停发命令仍取决于运行时调度。** 硬件read返回ERROR是明确代码事实；controller_manager遇到该返回值后的控制器停用、write调用和命令输出时序取决于实际ROS 2 control版本及配置，必须通过隔离测试确认。
+10. **目标安全链路证据缺失。** 未确认部署版本、controller_manager错误策略、机器人控制器独立安全拒绝机制、急停硬接线及VAL3状态映射。不能将驱动侧软件门禁不足等同于安全回路失效。
+
+### 建议与验收要求
+- 建立状态有效性/新鲜度锁存：read成功记录时间戳；read失败、超时、断链、解析失败或状态不一致时立即撤销非STOP许可。恢复需重新取得新鲜完整状态并经过显式恢复流程。
+- write必须独立检查最近read成功标记和状态年龄，不能只依赖is_connected；过期状态时禁止非STOP命令。STOP发送失败应触发可观察的故障锁存和上层安全处理。
+- 模式切换与write共用同一份经过验证的状态快照及时间戳；按厂家确认的许可矩阵校验operation mode、power、brakes、motion_possible、estop和safety_status；未知/冲突状态fail-closed。
+- 软件状态位不能替代安全回路；急停、保护停止、制动器和安全控制器行为须以厂家文档和现场验证为准。
+- 增加状态流中断超过timeout→read ERROR→直接write、恢复前多次write、状态恢复后重新许可、运行中estop/brakes/safety状态变化、过期状态模式切换、STOP发送失败及disconnect/reconnect旧状态不可复用测试。
+- 在目标controller_manager版本记录read ERROR后的write调用时序；隔离SIL/HIL验证故障检测到停止输出的最坏时间及独立安全回路。
+
+### SERVO-789 / AT1–AT10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AT1 | 核对RobotDriver状态超时是否使read_robot_state返回false | 固定提交静态源码核对完成：有100 ms默认staleness检查 |
+| AT2 | 核对硬件read失败是否使state_msg_失效 | 固定提交静态源码核对完成：失败时不更新/失效该成员 |
+| AT3 | 核对is_connected是否包含状态新鲜度 | 固定提交静态源码核对完成：只检查socket/interface ready，文档明确不检查staleness |
+| AT4 | 核对write是否独立检查最近read结果/状态年龄 | 固定提交静态源码核对完成：未检查 |
+| AT5 | 核对write活动模式安全门禁覆盖的状态字段 | 固定提交静态源码核对完成：只检查error_state及control_state INVALID |
+| AT6 | 核对mode switch是否使用新鲜状态及完整许可条件 | 固定提交静态源码核对完成：无时间戳门禁；只检查error_state/motion_possible，HOLD仅警告 |
+| AT7 | 核对STOP与故障恢复是否有统一失效锁存/重新许可状态机 | 固定提交静态源码核对完成：未见统一状态失效锁存及显式恢复门禁 |
+| AT8 | 核对现有测试对硬件read ERROR后write及过期模式切换的覆盖 | 固定提交静态测试覆盖核对完成：仅RobotDriver层测试staleness，未见硬件接口联动测试 |
+| AT9 | 在目标ros2_control/controller_manager版本验证read ERROR后的write时序及命令输出 | 未执行，需目标部署版本和隔离Mock/SIL/HIL环境 |
+| AT10 | 验证状态组合许可矩阵、STOP失败、故障恢复和独立安全回路 | 未执行，缺厂家安全状态表、现场配置及隔离CS9/HIL证据 |
+
+AT1–AT8完成固定提交静态源码/测试覆盖核对；AT9–AT10未执行。未运行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 固定源码链接
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
