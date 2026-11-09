@@ -3648,3 +3648,53 @@ AP1–AP6完成固定提交静态源码/调用点核对；AP7–AP8未执行；A
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/mock_robot_server.cpp
+
+
+## §9.3.203｜UDP接收线程停止、重启与异步接收生命周期（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，审查`UDPSocketImpl`的`start_receive_thread()`、`stop_receive_thread()`、`start_receive()`、`handle_data_received()`及`test_sockets.cpp`。重点核对停止事件循环是否取消底层异步接收、同一socket停止后重启的操作生命周期，以及接收错误是否仍被传递给业务回调。本节为固定提交静态审查，不代表已动态复现数据丢失、缓冲区竞争或控制故障。
+
+### 静态发现
+
+1. **停止接收线程只停止io_service，没有显式取消socket上的异步接收操作。** `stop_receive_thread()`在`receiving_==true`时调用`io_service_.stop()`，随后join线程并将receiving_置false；该路径没有调用`socket_.cancel()`，也没有关闭socket。停止事件循环与取消底层I/O是不同操作，不能把线程退出等同于异步接收操作已取消/完成。
+2. **停止后重启可能留下旧接收操作并叠加新操作。** `start_receive_thread()`每次启动都会`io_service_.reset()`并调用`start_receive()`，后者提交新的`async_receive_from()`，而停止路径没有显式取消旧操作。按Asio事件循环语义，stop使run退出并不等价于撤销挂起操作；reset允许事件循环再次运行。因而在同一socket停止后重启时，旧的挂起接收操作可能仍待完成，同时又新增接收操作。两者都引用同一个`recv_buffer_`和`sender_endpoint_`，可能导致接收归属、回调顺序和缓冲区内容的非预期交错。此为静态生命周期风险，实际可达性及表现仍需动态测试确认。
+3. **接收错误路径仍调用用户回调。** `handle_data_received()`在`error`非空时记录错误，但随后无条件调用`reception_callback_(recv_buffer_, bytes_transferred)`。例如取消、关闭或其他接收错误可能以非成功完成路径到达回调；业务层不应默认此时的缓冲区内容构成有效数据报。应明确错误码处理策略，成功接收前不调用正常数据回调，或将错误状态显式纳入回调契约。
+4. **错误后是否继续投递下一次接收没有按错误类型区分。** 回调执行后只要`is_receiving()`仍为true便再次调用`start_receive()`。因此非致命错误、持续错误或socket关闭等情况可能触发重复错误回调/重投递行为；应定义可恢复错误与终止错误的分类和退避/退出策略。当前没有证据证明目标现场发生错误风暴。
+5. **线程启动/停止状态由atomic布尔量表示，但操作本身没有串行化。** `receiving_`只保护状态标志的读写；未见围绕socket、io_service、receive_thread_及回调对象的启动/停止互斥。若外部并发调用start/stop/disconnect，检查状态与执行操作之间可能发生竞态。当前审查没有证明部署调用点存在这些并发调用，故登记为接口并发契约风险。
+6. **现有测试没有覆盖同一连接socket的stop→start生命周期。** `test_sockets.cpp`包含持续接收、批量接收、断开后重连、receive_once、DoubleStartReceiveThread（第二次start被拒绝、stop两次）等测试；未见在socket保持连接时停止接收线程后再次启动，并验证只存在一个有效接收操作、回调次数/数据完整性稳定。也未见取消操作完成、关闭时错误回调、错误后重投递策略的定向测试。
+7. **receive_once依赖start/stop线程路径，继承相同的挂起操作边界。** `receive_once()`通过启动接收线程等待future，超时后调用`stop_receive_thread()`；若超时路径只停止事件循环而未取消底层接收，之后在同一socket上再次receive_once或启动连续接收时，也可能叠加尚未完成的异步操作。需要将连续超时与下一次接收作为专项回归场景。
+
+### 建议与验收要求
+
+- 停止流程应明确取消/关闭当前异步接收操作，并等待其完成处理后再宣布接收生命周期结束；对`operation_aborted`等预期取消错误应有明确分支。
+- 启动流程应保证同一socket最多只有一个有效接收操作；建议将socket生命周期状态、io_service和线程句柄操作串行化，并防止并发start/stop/disconnect。
+- `handle_data_received()`应先分类处理error，再决定是否调用数据回调及是否重新提交接收；错误信息应可观测，避免将无效缓冲区当作正常数据包。
+- 为停止/重启、超时后重试、disconnect时取消、错误回调、并发start/stop增加单元测试；在可控loopback环境中统计每个发送数据报的唯一交付次数、回调字节数、错误码和接收操作数。
+- 在目标ROS/CS9隔离环境执行压力测试与TSan/ASan（适用时），并确认实际Boost.Asio版本及部署编译配置；静态检查不能代替这些证据。
+
+### SERVO-786 / AQ1–AQ10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AQ1 | 核对stop_receive_thread是否显式取消/关闭挂起异步接收 | 固定提交静态源码核对完成 |
+| AQ2 | 核对io_service.stop/reset与挂起操作的生命周期关系 | 固定提交静态语义核对完成，动态未执行 |
+| AQ3 | 核对停止后重启是否再次提交async_receive_from及共享缓冲区 | 固定提交静态源码核对完成 |
+| AQ4 | 核对接收error时是否仍调用正常数据回调 | 固定提交静态源码核对完成 |
+| AQ5 | 核对错误后是否无条件重投递下一次接收 | 固定提交静态源码核对完成 |
+| AQ6 | 核对receiving_状态标志与socket/thread操作是否串行化 | 固定提交静态源码核对完成 |
+| AQ7 | 核对现有测试对连接保持时stop→start、超时重试及取消错误的覆盖 | 固定提交静态测试覆盖核对完成 |
+| AQ8 | 增加stop→start、连续receive_once超时/重试和唯一交付次数测试并运行 | 未执行 |
+| AQ9 | 增加取消/关闭错误路径、并发start/stop压力测试及适用的TSan/ASan | 未执行 |
+| AQ10 | 核对目标部署Boost.Asio版本、线程调用模型并在隔离CS9/HIL验证 | 未确认，目标部署/现场证据缺失 |
+
+AQ1–AQ7完成固定提交静态源码/测试覆盖核对；AQ8–AQ9未执行；AQ10缺目标部署及现场证据。未运行ROS构建/单测、TSan/ASan、Mock/SIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/udp_socket.hpp
