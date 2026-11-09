@@ -281,3 +281,5 @@
 
 - [2026-11-09 Stäubli VAL3控制循环周期预算组成与运动模式分支路径审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.194，沿controlTask调用链审查状态更新/编码发送、UDP收发、位置控制movejSync API、速度控制未实现路径及STOP/ERROR复位分支；确认同一4ms任务内串行执行且分支调用组成不同，源码没有阶段耗时/WCET证据。新增SERVO-777/AH1-AH10，AH1固定提交静态审查完成，AH2目标VAL3 API契约证据缺失，AH3-AH8/AH10未执行，AH9现场证据缺失。
 
+
+- [2026-11-09 Stäubli CS9同步VAL3任务调度、delay(0)与SIO超时边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.195，依据CS9实时任务文档和VAL3参考手册核对4ms同步任务调度、delay(0)让出语义、CPU/IO刷新对周期预算的影响，以及resetControlSocket将运行期socket timeout设为-1后sioGet的非阻塞读取语义；sioSet最大执行时间及目标版本契约仍缺证。新增SERVO-778/AI1-AI10，AI1固定源码静态审查完成；AI2/AI3/AI8需目标版本或现场证据；AI4-AI7、AI10未执行；AI9现场证据缺失。
