@@ -1907,3 +1907,31 @@ SERVO-738全部动态测试未执行；未运行TSan/ASan、ROS executor压力�
 ICube公开仓库README明确将驱动标为开发中的prototype，称基于Jazzy/CS9且仅支持位置控制，开发曾在2025年11月初始POC后暂停。其公开提交不能证明现场部署。驱动read对100 ms stale state返回ERROR；write在断连、机器人错误、NaN或发送失败时返回ERROR；on_error在仍connected时尝试发送STOP；on_cleanup只断开连接，未显式先发送STOP。控制器停用、硬件错误回调触发时序和UDP/VAL3真实停止效果均待目标版本验证。
 
 F1-F13、F16全部未执行；F14-F15未确认。以上仅为固定源码静态审查和验证设计，不证明现场部署、实际危险运动或停止性能。详见专项审计§9.3.167。
+
+
+#### SERVO-751｜ICube UDP状态序号、状态新鲜度与发送丢包验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| G1 | 重复RobotState序号但刷新到达时间时，new_message与read_robot_state门禁 | 未执行 |
+| G2 | 100→99→98→101乱序旧包对回绕判断、丢包数和序号基准的影响 | 未执行 |
+| G3 | 65534→65535→0→1及跨回绕丢包边界 | 未执行 |
+| G4 | VAL3/机器人重启后序号复位、重新同步及控制器门禁 | 未执行 |
+| G5 | 接收频率高于read频率时ThreadSafeBox覆盖和丢失中间样本 | 未执行 |
+| G6 | 重复、序号停滞、乱序和丢包的状态健康度/最大年龄/降级策略 | 未执行 |
+| G7 | UDP would_block时实际丢包、send返回值、RobotDriver与hardware write结果 | 未执行 |
+| G8 | 连续would_block时VAL3 sequence_delay、STOP触发和实际停止响应 | 未执行 |
+| G9 | would_block以外的UDP错误到on_error/STOP链路 | 未执行 |
+| G10 | 发送丢包计数、阈值报警及控制器降级/停止策略 | 未执行 |
+| G11 | 非预期源地址报文、来源过滤与网络隔离验证 | 未执行 |
+| G12 | FrameHeader版本、类型、payload长度、magic和消息体一致性 | 未执行 |
+| G13 | 驱动/VAL3升级重启后的协议协商、序号重同步及旧报文隔离 | 未执行 |
+| G14 | UDP接收错误、socket关闭、线程running但无有效报文的ready门禁 | 未执行 |
+| G15 | diagnostic subscriber重复/乱序/丢包/过期及故障可观测性 | 未执行 |
+| G16 | 隔离环境组合故障注入及HIL/FAT/SAT证据 | 未执行 |
+
+静态源码新增结论：RealTimeSocketSubscriber对每个成功反序列化的报文刷新本地reception_timestamp，read_message在重复序号时置new_message=false但仍返回true；RobotDriver::read_robot_state不检查new_message，因此重复报文可持续刷新本地状态时间戳而不推进状态序号。序号下降被无条件解释为uint16回绕，乱序旧包可能被误算为65535级丢包并倒退序号基准。read_robot_state丢包告警被注释，未建立状态序号进展门禁。
+
+UDP发送侧，UDPSocketImpl::send在would_block时明确记录packet dropped，却仍返回true；源码TODO指出缺少丢包计数器/阈值错误。该路径可能让RobotDriver与hardware write误认为命令发送成功，且不触发通常的send false错误路径。UDP接收回调还留有发送方地址验证TODO；FrameHeader反序列化只验证magic，协议版本主要在连接建立时检查。
+
+G1–G16全部未执行。仅为固定公开原型源码静态审查及验证设计，不证明现场部署、报文异常已发生或停止性能。详见专项审计§9.3.168。
