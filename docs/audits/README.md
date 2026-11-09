@@ -240,3 +240,6 @@
 
 
 - [2026-11-09 Stäubli VAL3状态快照与命令执行先后、ROS read/write陈旧状态传播审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.178，审查VAL3先发布状态再接收/执行命令、序号延迟和错误遥测跨周期、ROS read拒绝陈旧状态但不显式使缓存失效、write缺少状态年龄/序号二次门禁；新增SERVO-761/R1-R10，R1-R9未执行，R10现场证据缺失。
+
+
+- [2026-11-09 Stäubli ROS UDP发送成功、VAL3命令接收/执行与状态反馈确认边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.179，审查send_robot_command成功仅代表本地序列化/socket send成功、STOP辅助路径使用缓存状态序号且无停止完成确认、VAL3旧命令缓存与序号差陈旧保护、movejSync状态1刷新超时处理被注释，以及速度控制未实现；新增SERVO-762/S1-S10，S1-S9未执行，S10现场证据缺失。
