@@ -283,3 +283,6 @@
 
 
 - [2026-11-09 Stäubli CS9同步VAL3任务调度、delay(0)与SIO超时边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.195，依据CS9实时任务文档和VAL3参考手册核对4ms同步任务调度、delay(0)让出语义、CPU/IO刷新对周期预算的影响，以及resetControlSocket将运行期socket timeout设为-1后sioGet的非阻塞读取语义；sioSet最大执行时间及目标版本契约仍缺证。新增SERVO-778/AI1-AI10，AI1固定源码静态审查完成；AI2/AI3/AI8需目标版本或现场证据；AI4-AI7、AI10未执行；AI9现场证据缺失。
+
+
+- [2026-11-09 Stäubli ROS—UDP—VAL3双向报文名义流量与MTU边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.196，基于RobotState 132 B、RobotCommand 55 B及双向名义250 Hz建立单会话500 datagrams/s、46.75 kB/s应用层负载模型；按IPv4/UDP/Ethernet II并计FCS、前导码/SFD与IFG估算约638 kbit/s线速占用，理论数据报160 B/83 B低于常见1500 B MTU。明确不代表现场网络性能；新增SERVO-779/AJ1-AJ10，AJ1静态算术基线完成，AJ2/AJ4-AJ5/AJ9待配置/现场证据，AJ3/AJ6-AJ8/AJ10未执行。
