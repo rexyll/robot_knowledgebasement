@@ -594,3 +594,8 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.199）
 
 继续固定上游基线 bd658e2d266e315d2ee35f985fb352ea88306b79审查至§9.3.199。静态确认is_connected不检查RobotState新鲜度，read_robot_state默认100ms阈值失败时不清空旧缓存；HardwareInterface on_activate仅设STOP并返回成功，位置模式切换检查缓存error_state/motion_possible但无独立状态时间戳门禁。诊断通道只检查subscriber socket/接收线程ready，connect将diag_interface_ready硬编码true且未调用read_diagnostic_data；固件版本日志不能作为有效诊断帧证据。新增SERVO-782/AM1–AM10：AM1–AM7静态核对完成，AM8未执行，AM9缺部署配置，AM10缺现场/HIL证据。未执行动态并发、ROS构建/单测、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。
+
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.200）
+
+继续固定ICube基线`bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.200。核对state/diagnostic staleness timeout setter及read路径：默认100ms，setter直接赋值且不校验零/负值/超大值；零/负值使所有接收帧被判stale，过大值可能放宽旧缓存接受窗口；duration字段无mutex/atomic，运行期并发修改存在条件性数据竞争，仓库未见该调用证据。新增SERVO-783/AN1–AN10：AN1–AN6静态核对完成，AN7–AN9未执行，AN10缺目标部署/现场证据。更新专项§9.3.200、厂商档案§128.138、第21章TaskPlan、根计划和审计README。未运行构建、单测、TSan、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。
