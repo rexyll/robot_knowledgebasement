@@ -632,3 +632,7 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.207）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.207，覆盖硬件接口write、模式解析、RobotDriver命令发送和RobotCommand序列化。发现驱动发送路径无显式关节限值校验；write仅用std::isnan、不覆盖正负Inf；on_init仅拒绝0轴，未限制协议固定6轴，num_joints_超过6时NaN检查访问固定数组存在越界路径；混合position/velocity启动接口按vector第一个匹配项决定模式，未整体拒绝；模拟IO与controller_period缺少驱动侧有限性/范围校验；STOP非零参考仅warning后仍发送。现有硬件接口测试只覆盖正常路径。新增SERVO-790/AU1–AU10：AU1–AU9静态核对完成，AU10需隔离Mock/SIL/HIL及机型规格证据。未执行构建/单测、模糊测试、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.208）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.208，覆盖RobotDriver命令发送、RealTimeSocketInterface序列化缓冲和UDPSocketImpl UDP send。发现UDP send使用MSG_DONTWAIT，would_block分支明确记录Packet dropped却未返回false，最终返回true；上层send_message/send_robot_command可误报成功，硬件write可能返回OK，STOP发送也可能误判成功。未见背压丢包计数或阈值。RealTimeSocketInterface复用成员data_out_且无发送互斥；若周期write与生命周期STOP跨线程并发，存在条件性缓冲竞争，但实际并发未证实。接口文档称blocking而UDP实现MSG_DONTWAIT。命令序号取最近一次有效状态序号，协议意图需CS9规范确认。现有通信测试仅覆盖成功双向收发。新增SERVO-791/AV1–AV10：AV1–AV9静态核对完成，AV10需错误注入、背压及CS9/HIL验证。未执行构建/单测、UDP压力、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
