@@ -194,3 +194,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt PlanningSceneMonitor发布线程与订阅端同步审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.162，审查首帧全量快照锁、pending event清零竞态、condition_variable丢唤醒、事件mask与diff累积语义及订阅端恢复；新增SERVO-745/N1-N12，全部未执行。
+
+
+- [2026-11-09 Stäubli MoveIt GetPlanningScene服务与全量场景同步审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.163，审查GetPlanningScene组件掩码/快照、requestPlanningSceneState返回值、full scene非事务式应用、service/topic乱序及executor同步等待；新增SERVO-746/O1-O12，全部未执行。
