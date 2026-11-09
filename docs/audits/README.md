@@ -278,3 +278,6 @@
 - [2026-11-09 Stäubli VAL3启动初始化、overrun计数器与诊断字段可观测性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.192，确认start.pgx在taskCreateSync前清除bIsOverrun，而nOverruns仅在controlTask主体入口清零并在消费overrun标志时递增；nErrorCode/nInError在固定程序中无读写点，nOverruns也未进入公开RobotState报文。新增SERVO-775/AF1-AF10，AF1固定仓库静态检索完成但现场部署包未核对，AF2目标版本API证据缺失，AF5诊断工具/权限证据缺失，AF9现场证据缺失，其余动态验收未执行。
 
 - [2026-11-09 Stäubli VAL3超周期标志计数语义与ROS控制周期匹配审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.193，确认VAL3默认4ms/250Hz与ROS controller_manager默认250Hz相匹配；TX2-60L MR文档采样周期为1ms，并记录VAL3/ROS同步调整和500Hz/2ms参考。nOverruns仅在循环开头观察到布尔bIsOverrun=true时递增，不能直接代表调度器原生超周期事件数；多次事件是否在布尔标志上合并待目标VAL3动态验证。新增SERVO-776/AG1-AG10，动态验收未执行，目标版本调度器语义及现场型号/配置证据缺失。
+
+- [2026-11-09 Stäubli VAL3控制循环周期预算组成与运动模式分支路径审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.194，沿controlTask调用链审查状态更新/编码发送、UDP收发、位置控制movejSync API、速度控制未实现路径及STOP/ERROR复位分支；确认同一4ms任务内串行执行且分支调用组成不同，源码没有阶段耗时/WCET证据。新增SERVO-777/AH1-AH10，AH1固定提交静态审查完成，AH2目标VAL3 API契约证据缺失，AH3-AH8/AH10未执行，AH9现场证据缺失。
+
