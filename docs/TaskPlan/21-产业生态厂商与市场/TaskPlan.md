@@ -2510,3 +2510,31 @@ AC1-AC7、AC10未执行；AC8-AC9现场证据缺失。以上仅为固定公开�
 | AD10 | 在隔离仿真/HIL中完成启动前置条件边界、性能回归及安全状态验证 | 未执行，需受控环境 |
 
 AD1-AD2、AD4、AD6-AD8、AD10未执行；AD3、AD5、AD9现场版本/配置证据缺失。未修改上游，未执行动态或实机验证。详见专项审计追加件§9.3.190。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.191）
+
+- 新增§9.3.191：审查VAL3 controlTask退出条件的可达性、stop入口与任务生命周期同步、start重复调用防护及stop→start残留状态。
+- 静态确认controlTask的l_bStopControlTask是Program Local变量，入口置false，while循环依赖该变量退出；固定程序内未发现后续置true写入点。stop.pgx仅执行stopMove/resetMotion/clearBuffer，没有显式任务终止、退出等待或退出完成确认。
+- 静态确认start.pgx每次进入都会到达taskCreateSync调用点，没有应用层同名任务存在性检查/启动互斥。固定仓库未检索到taskStatus/taskKill/taskStop调用；VAL3同名任务冲突语义和现场外部启停编排仍未知。
+- stop后controlTask是否继续收发命令、重复start是否被运行时拒绝/替换/并行创建、stop→start是否出现socket及共享标志竞态，均列为受控验证项，不作现场故障结论。
+- 新增SERVO-774/AE1-AE10；AE1、AE3-AE5、AE7-AE8、AE10未执行，AE2、AE6目标版本API证据缺失，AE9现场证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+- 更新专项审计追加件、审计README、Stäubli厂商档案和第21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；目标控制器型号、CS9/VAL3版本、taskCreateSync同名任务语义、现场启停映射和独立安全链未确认。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.192。
+
+#### SERVO-774｜VAL3控制任务启停与重复启动验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AE1 | 在目标CS9/VAL3版本中分别于任务不存在、正在运行、已退出时调用start，记录taskCreateSync返回/异常/任务表变化 | 未执行 |
+| AE2 | 对同名controlTask重复调用taskCreateSync，确认运行时是拒绝、替换、并行创建还是其他行为，并记录错误码 | 未确认，目标版本API证据缺失 |
+| AE3 | 在隔离工程中验证Program Local变量作用域，确认stop入口不能直接改变controlTask的l_bStopControlTask，并追踪所有可写路径 | 未执行 |
+| AE4 | controlTask运行期间调用stop，记录任务是否继续循环、是否继续收发UDP、是否执行退出清理段 | 未执行 |
+| AE5 | 连续执行start→start、start→stop→start、start→stop→stop，记录任务实例数量、任务状态、socket访问和运动API调用顺序 | 未执行 |
+| AE6 | 核对目标VAL3版本任务状态查询/停止/删除API的准确名称、作用域、同步语义和异常处理契约 | 未确认，目标版本文档缺失 |
+| AE7 | 在消息初始化失败、socket初始化失败、运行时异常及正常退出条件下，验证controlTask return/loop exit与start调用方可观测性 | 未执行 |
+| AE8 | 对stop清缓冲前后注入旧报文和新报文，验证仍存活controlTask的接收、解码、命令模式与运动更新路径 | 未执行 |
+| AE9 | 获取现场VAL3项目启动映射、示教器/远程调用记录、任务表快照、控制器型号及版本，确认实际启停编排 | 未确认，现场证据缺失 |
+| AE10 | 在隔离仿真/HIL中完成重复启停、并发时序、任务退出确认及独立安全状态回归验收 | 未执行，需受控环境 |
+
+AE1、AE3-AE5、AE7-AE8、AE10未执行；AE2、AE6目标版本API证据缺失；AE9现场证据缺失。详见专项审计追加件§9.3.191。
