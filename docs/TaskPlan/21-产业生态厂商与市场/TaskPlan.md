@@ -2484,3 +2484,29 @@ AB1-AB8全部未执行，AB9-AB10现场证据缺失。以上仅为固定公开�
 | AC10 | 在隔离仿真/HIL中完成复位故障注入、恢复/退出路径和安全状态回归验收 | 未执行，需受控环境 |
 
 AC1-AC7、AC10未执行；AC8-AC9现场证据缺失。以上仅为固定公开原型静态审查与验收设计；未执行动态测试或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.189。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.190）
+
+- 新增§9.3.190：聚焦VAL3 start入口的monitor speed、boxcar delay前置检查与4 ms控制周期准入/性能预算，不重复§9.3.176已登记的任务启停和ROS lifecycle解耦。
+- 静态确认monitor speed低于100时只记录Warning，等待动作被注释，启动流程仍继续；boxcar delay只读取并记录，滤波器频率设置调用被注释，没有范围/阈值检查。
+- 固定4 ms控制周期没有与monitor speed、boxcar delay或实测周期预算建立显式关联。该发现只描述公开原型控制流，不证明现场存在低速运行、滤波异常或控制周期超限。
+- 新增SERVO-773/AD1-AD10；AD1-AD2、AD4、AD6-AD8、AD10未执行，AD3、AD5、AD9现场版本/配置证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。现场CS9/VAL3版本、monitor speed API语义、boxcar delay单位/范围、实际周期抖动和独立安全链未确认；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。专项下一节点§9.3.191。
+
+#### SERVO-773｜VAL3启动前置条件与控制周期性能门禁验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AD1 | 在隔离仿真中分别设置monitor speed为100、低于100及运行中变化，确认start日志、等待行为和任务创建是否一致 | 未执行 |
+| AD2 | 证明monitor speed低于100时start是否仍执行clearBuffer、stopMove、resetMotion、autoConnectMove和taskCreateSync完整后续路径 | 未执行 |
+| AD3 | 核对目标CS9/VAL3版本getMonitorSpeed返回值范围、更新时序、异常/不可用返回语义 | 未确认，现场版本证据缺失 |
+| AD4 | 对boxcar delay设置多个合法/边界/异常配置，记录$getBoxcarDelay单位、数值稳定性和日志格式 | 未执行 |
+| AD5 | 核对$getBoxcarDelay与$setBoxcarFreq的目标版本API契约，并确认当前未调用setBoxcarFreq是否符合现场配置要求 | 未确认，现场版本证据缺失 |
+| AD6 | 测量boxcar delay与4 ms任务周期、端到端状态/命令时延之间的关系，建立有单位和采样条件的预算 | 未执行 |
+| AD7 | 在monitor speed变化和滤波延迟变化组合下测量taskCreateSync周期抖动、overrun计数及状态报文间隔 | 未执行 |
+| AD8 | 验证前置条件不满足时是否应阻止创建控制任务，并定义可观测、可恢复的启动失败状态 | 未执行，需工程安全评审 |
+| AD9 | 核对现场控制器型号、CS9/VAL3版本、monitor speed设置、boxcar配置、任务周期和运行日志 | 未确认，现场证据缺失 |
+| AD10 | 在隔离仿真/HIL中完成启动前置条件边界、性能回归及安全状态验证 | 未执行，需受控环境 |
+
+AD1-AD2、AD4、AD6-AD8、AD10未执行；AD3、AD5、AD9现场版本/配置证据缺失。未修改上游，未执行动态或实机验证。详见专项审计追加件§9.3.190。
