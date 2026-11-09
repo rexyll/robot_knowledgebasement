@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.22  
+> 版本：v9.23  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.147，厂商档案新增§128.98。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.148，厂商档案新增§128.99。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1290,3 +1290,17 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/issues/3897
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
 - 厂商档案§128.98。
+
+
+### §9.3.148 OccupancyMapMonitor停止/重启与Octomap保留语义
+
+- MoveIt main OccupancyMapMonitor源码Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`：stopMonitor仅置active_=false并调用各updater->stop，不清空tree、不重置tree/tree_const_；析构时也调用stopMonitor。
+- PlanningSceneMonitor::stopWorldGeometryMonitor调用octomap_monitor_->stopMonitor()但不reset对象；后续startWorldGeometryMonitor在对象已存在时复用monitor并调用startMonitor。stop/restart不等于清空Octomap，最后地图状态可保留。
+- clearOctomap是独立显式路径：移除scene OCTOMAP_NS对象并清空monitor tree。停止采集与清空地图是不同语义，保留最后地图可能是设计选择，不直接判定为缺陷。
+- 新增SERVO-731/O1-O5：非空地图stop后scene/tree保留、restart后旧地图及新更新、clearOctomap双层清理、并发回调边界、Stäubli停止采集策略需求确认；全部未执行/现场需求未确认。
+- ICube是否启用Octomap及其停机策略无现场证据；不得推断安全故障。未修改上游/ICube、未应用补丁，Stäubli工程级验收未通过。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
+- 厂商档案§128.99。
