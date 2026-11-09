@@ -2181,3 +2181,105 @@ W1-W9全部未执行；W10现场证据缺失。未执行ROS构建/单测、UDP�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
+
+
+## §9.3.184｜ROS UDP接收错误、状态反序列化校验与latest-message缓存新鲜度
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节沿UDP async receive callback、RobotStateMessage反序列化、RealTimeSocketSubscriber缓存写入/读取、RobotDriver::read_robot_state有效性与staleness门禁追踪异常报文传播。审查对象仍是公开Jazzy/CS9原型，不代表目标现场部署版本。
+
+| 文件 | Blob SHA |
+|---|---|
+| `udp_socket_impl.hpp` | `1309a8f2d59e8295869e178af82a66868bb911ff` |
+| `real_time_socket_subscriber.cpp` | `e2cd8fc50b2b13d9e31b2c024e90f9da76107622` |
+| `real_time_socket_subscriber.hpp` | `330839cb25e53fe961541f29f634722bec4a47c4` |
+| `messages.cpp` | `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6` |
+| `protocol.cpp` | `d31077aefc1d5515919033aa967c431a01d49a4a` |
+| `protocol.hpp` | `773cdeb9c4bf6e2dab3cf9e15426e4e954e35dea` |
+| `robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `robot_driver.hpp` | `62c87a6741aa082db4599bb2c048aec0fcd7a464` |
+
+### 1. UDP接收错误并未阻止回调执行，且来源地址校验仍是注释TODO
+
+`UDPSocketImpl::handle_data_received(error, bytes_transferred)`在error非零时只记录错误日志，没有return或把error传给上层；随后仍无条件调用`reception_callback_(recv_buffer_, bytes_transferred)`，并在`receiving_==true`时重新调用`start_receive()`。因此接收错误事件不会在该函数内自动阻止反序列化尝试，也没有形成明确的接收错误状态传递契约。若错误事件的bytes_transferred为0，RobotState反序列化会因长度不足失败；若错误事件同时携带足够长度数据，回调仍会尝试解析，是否会出现可被接受的非零数据错误组合须按Boost.Asio/目标OS运行时验证，不能由静态代码断言。
+
+同一函数中sender endpoint与remote endpoint比较逻辑完整保留为注释TODO，实际没有丢弃非预期来源地址的门禁。故任何能够向本地UDP端口送达报文的来源，均会进入相同反序列化入口；是否可达取决于网络隔离、防火墙和现场拓扑。静态审查不证明现场已发生伪造或注入。
+
+### 2. 反序列化失败时旧缓存保留，失败报文不会刷新缓存时间戳
+
+`RealTimeSocketSubscriber::update_message()`先构造局部MessageType对象；只有`msg.deserialize(data.data(), bytes_transferred)`返回true时，才写入本地接收时间戳并调用`message_buffer_.set(msg)`。失败分支只记录日志，不清空、不标invalid，也不更新缓存时间戳。因此短包、magic错误等导致deserialize=false的报文不会覆盖上一次成功缓存，也不会刷新那条缓存的reception_timestamp。
+
+`read_message()`随后仍可从RealtimeThreadSafeBox取出旧消息，并按旧reception_timestamp计算time_since_received；在旧消息尚未超过state_staleness_timeout_时，RobotDriver仍可能读取到该旧状态。默认状态staleness timeout为100 ms；超过阈值后read_robot_state()返回false。连续坏包不会把旧消息时间戳续期，但也不会触发此处的即时缓存失效或单独的通信故障锁存。具体控制器write周期在该窗口内的后续影响，仍受ros2_control调度及硬件接口路径影响，不能仅凭本节断言。
+
+### 3. RobotState反序列化的Header校验弱于RobotCommand，固定长度仅作最小长度门禁
+
+`FrameHeader::deserialize()`只检查缓冲区至少8字节、读取字段并验证magic_number；没有检查protocol_version、message_type或payload_size。RobotStateMessage::deserialize()在至少132字节时调用该函数，随后直接按固定偏移读取状态字段。源码中“Validate header fields”部分没有实际校验；最终offset只与固定的get_serialized_size()（132）比较，而不是与实际buffer_size比较。
+
+由此可静态确认：
+- RobotState报文长度小于132字节会被拒绝；长度大于132字节时，前132字节解码后offset仍等于132，额外尾随字节不会使其失败。
+- 只要magic正确，RobotState解码路径不会自行拒绝protocol_version不匹配或payload_size与固定载荷不一致的Header。
+- RobotState解码路径不会校验header.message_type；RobotDriver::is_state_msg_valid()是在消息已经被subscriber写入缓存、read_message取出后才检查message_type是否为ROBOT_STATE。
+- RobotState的joint_positions、joint_velocities、joint_torques、ft_sensor及analog_inputs等浮点数组没有逐字段finite/NaN/Inf校验；合法长度但含非有限值的报文仍可能通过deserialize。
+
+对比之下，RobotCommandMessage::deserialize()在header解码后显式校验payload_size与固定载荷长度、message_type为ROBOT_COMMAND；但FrameHeader层仍只校验magic，protocol_version也不在该函数内验证。该差异不应被误写为所有消息类型具有相同严格度。
+
+### 4. 错误message_type与错误protocol_version对缓存和上层读取的影响不同
+
+若一个至少132字节、magic正确但message_type不是ROBOT_STATE的报文进入RobotState subscriber，RobotStateMessage::deserialize()仍可能返回true并刷新reception_timestamp、覆盖latest-message缓存。随后RobotDriver::read_robot_state()的`is_state_msg_valid()`检查会拒绝该缓存消息，但此前的最后一条有效状态已被单槽缓存替换；在下一条有效RobotState到达前，读取层会继续面对该错误类型缓存，而不是自动回退到此前有效状态。
+
+若报文message_type仍为ROBOT_STATE、magic正确，但protocol_version或payload_size不匹配，RobotState解码器不会在运行时拒绝它；RobotDriver读取路径的有效性检查只核对message_type和staleness，不会逐帧复核protocol_version/payload_size。connect()成功路径曾在初始状态后比较一次protocol_version，但这不能替代运行期间逐帧校验。该静态事实意味着异常Header可能进入状态消费路径；不代表现场存在此类报文。
+
+### 5. latest-message缓存、重复读取与staleness是三个独立语义
+
+subscriber仍使用RealtimeThreadSafeBox单槽缓存，read_message只取最新值而不是逐包队列。坏包deserialize失败时缓存保留；同一旧缓存可以被重复读取，`status.new_message`在序号相同分支最终会变为false，但RobotDriver::read_robot_state()不使用该标志拒绝重复状态（重复读取问题已在§9.3.183记录）。因此：
+1. 新坏包到达不代表旧状态缓存被刷新；
+2. read_message返回true不代表本次接收线程收到了新报文；
+3. status.new_message=false不代表RobotDriver拒绝该状态；
+4. staleness按缓存中最后一次成功deserialize的本地接收时间计算，而不是按最近一次UDP数据报到达时间计算；
+5. 有效长度但Header/浮点语义校验不足的报文，反而可能刷新缓存时间戳并替换最后有效状态。
+
+### 6. 本轮静态结论
+
+1. UDP receive callback在error非零时仍调用上层回调并可能重新挂起下一次接收；error没有传递到subscriber，来源地址校验留在注释TODO。
+2. deserialize失败只记录日志，不清空latest-message缓存、不刷新时间戳；旧状态年龄继续增长，100 ms默认staleness阈值之前仍可能被重复读取。
+3. RobotStateMessage反序列化仅以132字节作为最小长度，Header只校验magic，未校验protocol_version/message_type/payload_size，且不拒绝尾随字节。
+4. 错误message_type的完整长度报文可能先覆盖缓存、刷新时间戳，再被RobotDriver上层拒绝；错误protocol_version/payload_size但message_type正确的状态帧则没有逐帧门禁。
+5. RobotState浮点数组没有finite/NaN/Inf检查；不能把“反序列化成功”解释为状态数值可信。
+6. 以上为固定公开原型静态事实，不证明现场已接收恶意报文、产生错误运动或出现实际安全事件。
+
+### 7. 新增验收任务
+
+新增SERVO-767：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| X1 | 注入0、7、8、131、132、133字节UDP报文，记录RobotState deserialize返回值、缓存内容及时间戳 | 未执行 |
+| X2 | 分别篡改magic、protocol_version、message_type、payload_size，验证RobotState与RobotCommand两种反序列化路径 | 未执行 |
+| X3 | 对RobotState六轴位置/速度/力矩、F/T和模拟输入注入NaN、±Inf、float32边界值，验证上层状态接口及日志 | 未执行 |
+| X4 | 从预期和非预期源IP/端口发送合法长度状态帧，验证sender endpoint过滤、网络ACL和缓存写入 | 未执行 |
+| X5 | 在目标Boost.Asio/OS下制造receive error、0字节及非零bytes_transferred组合，验证callback调用、重新挂起和错误恢复 | 未执行 |
+| X6 | 在持续有效状态流中交替注入短包、错误magic、错误Header与随机数据，测量缓存替换/保留、时间戳及错误日志 | 未执行 |
+| X7 | 先发送有效状态，再连续发送反序列化失败报文，测量旧缓存在100 ms门限前后的read_robot_state返回值与write调用链 | 未执行 |
+| X8 | 构造magic正确、长度≥132但message_type错误的帧，验证错误帧覆盖缓存后是否回退到最后有效状态 | 未执行 |
+| X9 | 在已建立连接后动态切换protocol_version/payload_size，验证每帧校验、缓存刷新及恢复策略 | 未执行 |
+| X10 | 获取现场ROS/Boost/OS/CS9/VAL3版本、网络ACL/抓包、状态超时参数与FAT/SAT异常报文测试记录 | 未确认，现场证据缺失 |
+
+X1-X9全部未执行，X10现场证据缺失。未执行ROS构建/单测、协议模糊测试、UDP错误注入、VAL3/CS9仿真、HIL、FAT/SAT或实机验证。
+
+### 8. 结论与边界
+
+本轮确认两类不同异常路径：反序列化失败会保留旧缓存且不刷新旧时间戳，旧状态可在超龄前继续被读取；而某些长度合法但Header校验不足的报文可能反而通过RobotState反序列化、刷新时间戳并覆盖缓存，再由上层有限检查拒绝或接受。UDP接收错误回调不具备明确的错误短路，发送源地址校验尚未实现。故必须分别验收数据报传输状态、帧结构/协议校验、字段数值有效性、缓存新鲜度和上层消费行为。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。目标现场版本、网络拓扑、接收错误语义及安全配置仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/protocol.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
