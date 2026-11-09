@@ -2523,3 +2523,47 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 | DN10 | 完成read/update/write调用链、状态新鲜度策略、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.227 / SERVO-810。
+
+
+
+### 2026-11-09｜v10.02 本轮推进记录（§9.3.227 / SERVO-810）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：硬件接口read失败如何影响ros2_control周期、状态接口更新与write路径。本轮通过固定提交的GitHub搜索片段核对`staubli_hardware_interface.cpp`及头文件、RobotDriver状态读取路径和硬件接口测试索引；没有取得完整文件全文，结论限于片段级。
+
+#### 静态审查发现
+
+1. **read阶段明确传播状态读取失败。** `StaubliHardwareInterface::read()`片段显示调用`robot_driver_->read_robot_state(state_msg_)`；失败时记录“Failed to read robot state”并返回`hardware_interface::return_type::ERROR`。因此状态无消息、接口未就绪或超出staleness timeout时，硬件接口read不会返回OK。
+2. **状态接口更新在成功读取之后执行。** 片段显示read成功后调用`update_state(state_msg_)`，若update_state失败也返回ERROR。可见逻辑顺序为先取状态、再更新内部状态接口；未见失败后继续使用上一轮state_msg_并返回OK的证据。
+3. **write阶段有独立连接门禁。** `StaubliHardwareInterface::write()`片段显示若`robot_driver_ == nullptr`或`!robot_driver_->is_connected()`，则记录错误并返回ERROR。另有机器人错误状态分支调用`send_stop_all_command()`后返回ERROR。该STOP调用属于软件命令路径，不证明安全停止类别、物理停止性能或独立安全回路。
+4. **read返回ERROR并不等于已证明write绝不执行。** ros2_control控制器管理器对硬件组件ERROR的后续调度/生命周期行为需依据实际使用的ros2_control版本和配置验证。本轮源片段没有证明read失败后同一周期是否必然跳过write，也没有证明write自行检查最近一次read成功标志、状态序号或状态年龄。因此不能把read失败传播扩大解释成完整的命令输出互锁。
+5. **未见write内显式引用read状态新鲜度。** 搜索片段显示write有连接检查、错误状态处理及正常返回OK的路径，但未取得足以证明write每次发送命令前都检查最近一次状态更新是否成功、new_message是否为true或state age是否低于阈值的代码证据。当前属于“未确认”，不是断言write一定忽略状态新鲜度。
+6. **update_state按消息字段更新内部状态。** 搜索片段显示`update_state(const RobotStateMessage&)`至少处理`has_joint_positions`。其余关节速度、力矩、数字/模拟IO、消息字段缺失时是否清零或保留旧值，必须取得完整函数后才能定论。
+7. **测试源码有read/write正常路径线索。** `test_staubli_hardware_interface.cpp`片段包含read返回OK及write应工作相关用例；本轮没有执行测试，也未取得失败读取后write被阻断、状态超时期间write拒绝运动命令、read ERROR后的控制器管理器调度等测试证据。
+8. **核心待证点是跨周期状态门禁。** 即便read返回ERROR，仍需确认controller manager是否停用/暂停控制器、write是否被调用，以及驱动器控制任务在未收到新命令时如何处理最后一个命令。前序SERVO-806/807已确认控制器侧有序号延迟与STOP路径，但不能替代硬件接口到VAL3的端到端验证。
+
+#### 风险与建议
+
+- 在硬件接口中维护明确的状态有效标志、最近一次成功read时间、状态序号和通信会话epoch；read失败时使状态无效，禁止write发出新的运动目标，直到状态重新同步并满足重新使能条件。
+- 不要仅依赖controller manager对return_type::ERROR的隐式处理；查明目标ros2_control版本的ERROR传播语义，并在write侧建立独立的fail-closed门禁。
+- 明确read ERROR后的write调用顺序、控制器生命周期变化、命令接口缓存值和VAL3端最后命令保持/超时行为；验证不会因最后一次有效命令被重复发送而继续运动。
+- 对read失败后的动作区分普通通信故障处置与安全功能。软件STOP/ERROR不能代替急停、安全门、STO或经风险评估的安全停止链。
+- 完整审查`update_state()`中所有has_*字段：字段缺失、部分消息、NaN/Inf、越界值、状态时间戳异常时，必须明确保持旧值还是置无效，避免混合新旧状态构成看似有效的状态快照。
+- 增加集成测试：read正常→write正常；read无消息/陈旧→ERROR；read ERROR后观察同周期与下一周期write；接口断连；机器人错误状态触发STOP；状态恢复但epoch变化；缺字段状态；控制器管理器停用/恢复。断言旧运动命令不会在反馈失效期间续行。
+- 针对实际部署的ros2_control版本，核对HardwareComponentInterface return_type::ERROR的官方生命周期语义、错误恢复配置和控制器切换行为；版本号未确认前不套用其他版本结论。
+
+#### SERVO-810｜硬件接口read/write失败传播验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DO1 | 核对read调用RobotDriver状态读取 | 静态片段核对完成 |
+| DO2 | 核对状态读取失败时read返回ERROR | 静态片段核对完成 |
+| DO3 | 核对read成功后update_state及其失败返回 | 静态片段核对完成；update_state字段完整语义未确认 |
+| DO4 | 核对write的连接状态门禁 | 静态片段核对完成：未连接返回ERROR |
+| DO5 | 核对机器人错误状态下STOP命令路径 | 静态片段核对完成：调用send_stop_all_command后返回ERROR；物理效果未验证 |
+| DO6 | 核对read ERROR后controller manager是否跳过write | 未确认：需绑定目标ros2_control版本和集成运行验证 |
+| DO7 | 核对write是否独立检查最近一次read有效性/状态年龄/新帧标志 | 未确认：本轮搜索片段不足以证明存在此互锁 |
+| DO8 | 核对update_state缺字段、非法数值及旧值保留语义 | 未确认：需完整函数审查 |
+| DO9 | read失败后write抑制、旧命令保持、断连、恢复和错误STOP集成测试 | 未执行 |
+| DO10 | 完成ros2_control生命周期、read/write互锁、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.228 / SERVO-811。
