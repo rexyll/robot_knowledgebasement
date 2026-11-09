@@ -1855,3 +1855,27 @@ SERVO-738全部动态测试未执行；未运行TSan/ASan、ROS executor压力�
 | D14 | Stäubli/ICube真实primary配置、scene/world来源、OctoMap、命令控制器、pause调用及安全PLC互锁核实 | 未确认，现场证据缺失 |
 
 静态审查发现：ServoNode等待的PSM last_update_time由任意monitor更新，joint state更新即可满足，并不证明world geometry已同步；secondary PSM请求失败仍被忽略。CollisionMonitor无场景有效性/新鲜度超时，线程启动没有首轮检查ready握手，collision_velocity_scale_初始为1.0，存在条件性启动窗口；pause/unpause不重新验证场景。check_collisions默认true，check_octomap_collisions默认false，两者不能混为一谈。以上是固定MoveIt源码静态结论，未证明Stäubli现场触发或发生碰撞漏检/危险运动。D1-D14全部未执行；详见专项审计§9.3.165。
+
+
+
+#### SERVO-749｜Servo碰撞HALT与下游控制器实际停止验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| E1 | Trajectory碰撞HALT时最后一条轨迹、控制器desired state与硬件command interface | 未执行 |
+| E2 | HALT期间是否发布零速、hold、空轨迹或cancel消息 | 未执行 |
+| E3 | JTC活动轨迹在无新Servo轨迹时是否继续执行及持续时间 | 未执行 |
+| E4 | ICube现场控制器版本的topic callback、轨迹结束、cmd_timeout和hold语义 | 未确认，现场证据缺失 |
+| E5 | Trajectory与Float64MultiArray两种模式碰撞HALT停止行为 | 未执行 |
+| E6 | Servo publisher停止、DDS断连及topic沉默时控制器反应 | 未执行 |
+| E7 | 控制器inactive、无订阅端、QoS不兼容、消息丢弃/延迟时反馈 | 未执行 |
+| E8 | ServoStatus与command序号/时间戳/接收确认的关联和可追溯性 | 未执行 |
+| E9 | 碰撞解除后自动恢复、人工复位和上层重新使能门禁 | 未执行 |
+| E10 | pause/unpause时下游旧轨迹是否继续运行 | 未执行 |
+| E11 | 输入命令超时smoothHalt与碰撞HALT两条路径的输出差异 | 未执行 |
+| E12 | status消费者是否误把HALT状态当成硬件已停 | 未执行 |
+| E13 | 轨迹窗口、时间戳、控制周期和DDS延迟下的停止响应上界 | 未执行 |
+| E14 | Stäubli控制器、安全PLC、驱动使能撤销和保护停止链验证 | 未确认，现场证据缺失 |
+| E15 | ICube/ros2_control版本、控制器配置、接口映射、QoS及FAT/SAT证据 | 未确认，现场证据缺失 |
+
+静态审查确认：Servo的HALT_FOR_COLLISION分支不发布显式停止命令，仅发布ServoStatus；pause分支跳过状态/命令发布。Trajectory最后一条命令可能仍由下游执行；对照JTC版本在无新消息时继续采样活动轨迹。Float64MultiArray停止行为依赖接收端。输入命令超时smoothHalt与碰撞HALT路径不同。对照JTC提交不是Stäubli现场版本证据。E1-E15全部未执行；详见专项审计§9.3.166。
