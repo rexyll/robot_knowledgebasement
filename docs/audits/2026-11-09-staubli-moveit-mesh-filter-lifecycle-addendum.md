@@ -2641,7 +2641,7 @@ AB1-AB8全部未执行，AB9-AB10现场证据缺失。未执行VAL3编译/仿真
 | 文件 | Blob SHA |
 |---|---|
 | Comm/resetControlSocket.pgx | 25d414065b4567c5634ef8890cc8cafd6f7e9b3e |
-| controlTask.pgx | 00a69c4d266e315d2ee35f985fb352ea88306b79 |
+| controlTask.pgx | 00a69c4d13879116fce744ceb1611ecd05d65edf |
 | start.pgx | 2d72315f0da1e18c959a24d3d75622652ee1287b |
 | ros2_server.dtx | 558dc2db671da45f5b859a3526148ce816eb6dd4 |
 | configs/sio.cfx | 76ad0c9f4b1902f26f21ea08eed0ef5f16e63d9e |
