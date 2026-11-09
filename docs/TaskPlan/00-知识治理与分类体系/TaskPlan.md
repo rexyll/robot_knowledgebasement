@@ -562,3 +562,6 @@
 
 
 | 2026-11-09 | 00-01 | 推进Stäubli MoveIt感知审查至§9.3.160：检查PlanningSceneMonitor OctoMap callback、scene/tree锁顺序、update callback注册表、world topic订阅stop/restart和PSM析构。确认主要路径按scene mutex→tree lock，事件回调在两把锁释放后执行；识别recursive update_lock_持锁调用外部callback、回调重入修改vector/递归事件风险、异常阻断通知、双订阅stop的else-if清理缺口及updater in-flight callback析构屏障待验证。新增SERVO-743/N1-N12，全部未执行。更新专项§9.3.160、厂商档案§128.111、根TaskPlan v9.35和审计README。00-01及21-02继续进行中；未运行ROS构建、ASan/UBSan/TSan、callback故障注入、executor barrier、CS9/HIL或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 PlanningSceneMonitor/PlanningScene固定提交源码；专项追加件§9.3.160；厂商档案§128.111 |
+
+
+| 2026-11-09 | 00-01 | 推进Stäubli MoveIt场景输入链路至§9.3.161：审查PlanningSceneWorld、CollisionObject、OctoMap full/diff消息和World observer。识别同ID ADD先删除旧对象后验证新geometry、MOVE先改整体pose后验证shape pose数量，导致失败非原子提交且PSM不触发geometry event；PlanningSceneWorld回调忽略逐项失败结果并仍发UPDATE_SCENE；错误非空OctoMap类型可能先删除scene地图而保留monitor tree。新增SERVO-744/M1-M12，全部未执行。更新专项§9.3.161、厂商档案§128.112、根TaskPlan v9.36及审计README。00-01及21-02继续进行中；未运行ROS构建、单测、ASan/UBSan/TSan、故障注入、World observer压力测试、CS9/HIL/FAT/SAT或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 PlanningSceneMonitor/PlanningScene/World固定提交源码；专项追加件§9.3.161；厂商档案§128.112 |
