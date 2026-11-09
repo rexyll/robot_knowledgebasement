@@ -1321,3 +1321,88 @@ M1-M9全部未执行，M10现场证据缺失。未执行VAL3/CS9仿真、UDP故�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
+
+
+## §9.3.175｜控制报文序号重启、旧命令残留与通信重置边界
+
+### 审查范围与固定基线
+
+固定审查公开原型 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节只分析VAL3控制socket重置、16位序号重启、ROS接收端序号跟踪、命令陈旧检测和重连边界；不将网络层理论可能性写成已发生的现场故障。
+
+| 文件 | Blob SHA |
+|---|---|
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `Comm/resetControlSocket.pgx` | `25d414065b4567c5634ef8890cc8cafd6f7e9b3e` |
+| `Comm/readDataOnce.pgx` | `652aa04548c814febab3c8c3fc807093261efd97` |
+| `Comm/computeSequenceDelay.pgx` | `e96e5b378bc263255ee4f28720306ee911b8a5c1` |
+| `Comm/getNextSequenceNumber.pgx` | `8bdda02a8887968b1b86e42be733f553b1e36b19` |
+| `src/real_time_socket_subscriber.cpp` | `e2cd8fc50b2b13d9e31b2c024e90f9da76107622` |
+| `include/staubli_robot_driver/real_time_socket_subscriber.hpp` | `330839cb25e53fe961541f29f634722bec4a47c4` |
+| `include/staubli_robot_driver/robot_driver_helpers.hpp` | `88a0cac08d3a299b7330eaa72b1afaaeab2fe41b` |
+| `src/robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `include/staubli_robot_driver/robot_driver.hpp` | `62c87a6741aa082db4599bb2c048aec0fcd7a464` |
+
+### 1. VAL3内部错误复位将状态序号直接归零，但没有会话代次
+
+`controlTask.pgx`启动时把`l_nSequenceNumber=0`；每轮先调用`getNextSequenceNumber()`，序号递增并在大于65535时回绕到0。错误处理块又显式执行`l_nSequenceNumber=0`、`l_nSequenceDelay=1000`、清除命令有效标志和`l_bControlActive`，再调用`resetControlSocket()`。因此错误复位后的下一条RobotState序号会从1重新开始。
+
+协议头只有16位序号、消息类型、magic number、协议版本和payload长度，没有会话ID、启动代次、随机nonce或复位epoch。自然的65535→0回绕与错误处理导致的0→1重启，在报文头上没有可区分标记。该设计不证明一定会误收旧包，但缺少可供接收端可靠区分“正常回绕”和“控制任务重新初始化”的显式会话边界。
+
+### 2. resetControlSocket不检查配置和清缓冲操作的结果
+
+`resetControlSocket.pgx`依次设置socket timeout、设置换行结束符、调用`clearBuffer()`，随后无条件写入`x_bError=false`。程序没有捕获/检查这些socket操作的返回状态，也没有在清理失败时向调用方报告失败。
+
+因此调用方收到的“无错误”仅能说明该VAL3子程序走到了末尾，不能据此证明socket选项已成功应用、缓冲区已完全清空或对端队列已被排空。特别是`clearBuffer()`只作用于本地VAL3 socket缓冲，不构成网络中在途UDP数据包、主机发送队列或ROS端接收线程的端到端清除确认。
+
+### 3. 无新报文时，上一条命令对象仍可能保持有效
+
+`readDataOnce.pgx`在`sioGet()`读到完整长度时才设置`x_bNewData=true)；读到0字节表示本次没有新数据，只有读到部分数据才标记错误。`controlTask.pgx`仅在`l_bNewCmdMessage`为true时调用`decodeRobotCommandMsg()`。没有新报文时，代码保留`robot_command_msg.robotCommand`此前的内容，并在`bIsValid`仍为true时计算序号延迟；“无新报文时检查上一命令陈旧度”的直接分支仍标记为TODO。
+
+现有控制循环并非完全没有陈旧保护：当`l_bControlActive`为true时，会根据状态序号与命令序号差计算`l_nSequenceDelay)，运动中大于5、静止时大于25会触发STOP/ERROR路径。但这属于按周期序号差推算的保护，不是基于命令接收时间戳的独立超时；其边界依赖状态帧持续发送、循环节拍稳定、序号一致且复位/回绕处理正确。不能把TODO误写成“完全没有陈旧保护”，也不能把序号阈值等同于已验证的墙钟超时。
+
+### 4. ROS侧把序号下降统一当作16位自然回绕
+
+`RealTimeSocketSubscriber::read_message()`在收到的序号小于上次读取序号时，按`MAX_FRAME_SEQUENCE_NUMBER`计算wrap-around丢包数；该分支不区分自然回绕和VAL3控制任务错误复位。它仍把新消息交给上层。该订阅器的`last_read_sequence_number_`在接收线程/订阅器生命周期内维护；VAL3端内部resetControlSocket不会重建ROS订阅器。
+
+`RobotDriver::read_robot_state()`会检查消息类型和接收年龄，并更新`last_valid_sequence_id_`；对`status.lost_packages`的警告目前被注释掉，且没有按序号下降触发会话重新同步。因而控制任务复位在ROS侧可能被统计为一次极大的序号回绕丢包，而不是一个需要显式重新握手的会话事件。
+
+### 5. ROS命令序号直接复制最近收到的状态序号
+
+`set_sequence_number()`把`RobotStateMessage.header.sequence_number`复制到命令头；硬件接口周期写命令也使用`get_current_message_sequence()`返回的最近有效状态序号。该设计建立了“命令回显最近状态序号”的关联，但没有独立命令序号、确认序号、复位epoch或挑战应答。
+
+在VAL3端序号归零后，ROS端必须先接收并采纳新的低序号状态，之后写出的命令才会回显新序号。订阅器把低序号按wrap处理而非按会话重置处理；状态读取端没有显式同步阶段。网络延迟、重排、重复包或状态接收线程与控制写线程交错时，究竟何时从旧序号切换到新序号，当前静态实现没有提供端到端握手保证。
+
+### 6. 新增验收任务
+
+新增SERVO-758：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| N1 | 正常16位序号65534→65535→0自然回绕及命令序号对应关系 | 未执行 |
+| N2 | 在不同控制模式和不同运动状态下注入VAL3错误复位，记录序号0→1重启和命令接收恢复 | 未执行 |
+| N3 | 验证ROS订阅器将复位后低序号识别为wrap时的lost_packages计算和上层处理 | 未执行 |
+| N4 | 验证错误复位前在途、重排、重复和延迟UDP命令在复位后到达时的处理 | 未执行 |
+| N5 | 验证无新命令期间上一条有效命令的保留时间、序号延迟阈值与真实墙钟超时的关系 | 未执行 |
+| N6 | 验证状态流中断、状态重复、状态序号跳变和接收线程延迟时，硬件接口是否错误地继续发送旧序号命令 | 未执行 |
+| N7 | 对resetControlSocket各socket选项及clearBuffer操作进行失败注入，验证错误是否能传递给controlTask | 未执行 |
+| N8 | 验证错误复位后ROS写线程首次采纳新状态序号的时序、旧命令缓存和控制模式恢复门禁 | 未执行 |
+| N9 | 验证自然序号回绕、VAL3任务重启、socket重置、ROS断线重连四类事件的可区分性 | 未执行 |
+| N10 | 获取目标现场CS9/VAL3受控协议版本、socket行为说明、控制任务重启记录和双端抓包 | 未确认，现场证据缺失 |
+
+N1-N9全部未执行，N10现场证据缺失。未执行UDP故障注入、VAL3/CS9仿真、ROS集成测试、HIL、FAT/SAT或实机测试。
+
+### 7. 结论与边界
+
+固定公开原型以16位序号关联状态与命令；VAL3错误处理会把序号归零，但协议没有会话代次，ROS订阅器把序号下降统一按自然回绕处理。无新命令时上一命令对象仍可能保持有效，控制任务用序号差阈值进行陈旧保护，但没有独立接收时间戳超时。resetControlSocket不检查socket配置/清缓冲操作结果，不能把其返回无错误等同于缓冲清理和通信重新同步已成功。
+
+这些是代码结构和协议可观测性缺口，不证明某次现场运行已经接受旧命令、发生失控或实际复位失败。网络重排/旧包是否能穿过具体socket与控制器实现，必须由目标环境动态测试确定。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未运行VAL3/CS9仿真、UDP故障注入、ROS构建/测试、HIL、FAT/SAT或实机验证。现场部署版本与协议适用性仍未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
