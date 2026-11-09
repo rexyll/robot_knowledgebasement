@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.23  
+> 版本：v10.24  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.248 / SERVO-831；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.249 / SERVO-832；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3601,3 +3601,57 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 保留SERVO-830整改项：诊断subscriber必须进入真实读取链路，诊断首帧和持续新鲜度纳入连接/运行健康门禁；在实现之前不得把诊断通道状态标为ready。
 
 本轮只读固定上游提交源码和测试；未执行构建、单测、模糊测试、VAL3编译、CS9下载/仿真、抓包互操作、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.249 / SERVO-832。
+
+
+### 2026-11-10｜v10.24 本轮推进记录（§9.3.249 / SERVO-832）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。审查对象为 `StaubliHardwareInterface` 的 `on_init/on_configure/on_activate/on_cleanup/on_shutdown/on_error/read/write`，`RobotDriver::connect/disconnect/send_stop_all_command`，以及硬件接口单元测试。只读静态审查。
+
+#### 静态审查发现
+
+1. **生命周期激活没有控制器就绪握手。** `on_activate()`仅将`current_control_mode_`设为STOP并返回SUCCESS；没有重新确认状态帧新鲜度、诊断状态、控制器运行模式或VAL3控制任务已进入可接受命令状态。connect阶段的接口ready也不能代替激活时的安全许可检查。
+2. **没有显式on_deactivate覆盖。** `staubli_hardware_interface.cpp`和对应头文件未发现`on_deactivate()`实现/声明。停用行为因此依赖基类默认实现；本插件没有在deactivate回调中明确发送STOP、确认机器人静止或关闭/保持socket的策略。不能假定controller_manager停用控制器时会自动调用本插件的STOP命令。
+3. **on_cleanup断开连接但忽略结果。** `on_cleanup()`调用`robot_driver_->disconnect()`，不检查其bool返回值，随后无条件返回SUCCESS。若接收线程停止或socket断开失败，生命周期状态仍可能被报告为清理成功。
+4. **on_cleanup不先发送STOP。** cleanup路径直接disconnect；没有显式停止命令或机器人静止确认。若上层状态转换允许在仍运动时cleanup，通信资源可能先于运动停止确认被释放。该路径是否能在特定ROS 2状态机中从ACTIVE直接到CLEANUP，须以目标发行版和controller_manager实际转换验证，静态结论仅限回调本身。
+5. **on_shutdown对STOP发送结果不做检查。** 当driver连接且缓存的`state_msg_.control_state != STOP`时，调用`send_stop_all_command()`，但忽略返回值，随后立即disconnect。没有等待新状态帧确认STOP，也没有确认速度归零或控制器完成停止。
+6. **shutdown停止判断依赖缓存状态。** 判断依据是最近一次`read()`更新的`state_msg_`，而不是shutdown时重新读取的新鲜状态；若状态陈旧、读取线程已停或实际机器人状态已变化，可能错误跳过STOP或发送不必要的STOP。
+7. **shutdown在driver未连接时仍返回SUCCESS。** `on_shutdown()`仅在driver存在且`is_connected()`时执行STOP/disconnect；未连接分支没有失败或未确认状态报告，最后仍返回SUCCESS。调用方无法从回调结果区分“已完成受控停止”与“没有可用通信链路”。
+8. **on_error忽略STOP发送失败并返回SUCCESS。** 连接时发送STOP后不检查返回值，直接SUCCESS；只有driver不存在/未连接才返回ERROR。该返回语义可能把发送失败、UDP丢包或STOP无法投递伪装为错误恢复成功。并且即使send返回true，也仅代表本地发送接口报告成功，不等于机器人已执行停止。
+9. **on_error未断开或锁存故障。** 成功路径只尝试发送STOP，没有保留具体故障原因、断开通信、等待诊断确认、阻止重新激活或定义人工复位条件。该行为与VAL3控制任务自动清除部分错误标志并恢复等待命令的风险相互叠加。
+10. **configure失败回滚依赖RobotDriver内部路径。** `on_configure()`解析参数失败时直接返回ERROR；连接失败也返回ERROR。RobotDriver::connect在部分失败路径调用disconnect，但控制socket初始connect失败路径直接返回false；调用方没有统一的显式disconnect/资源状态核验。需要为每个失败点建立资源回滚后置条件，不能只依据生命周期ERROR推定所有资源均已释放。
+11. **disconnect的停止线程失败只记录警告。** RobotDriver::disconnect在stop_receive_thread返回false时记录WARN，仍继续disconnect socket并最终reset_data；硬件接口on_cleanup又忽略disconnect返回值。应明确线程join失败、socket关闭失败时是否允许生命周期进入UNCONFIGURED/FINALIZED。
+12. **端口参数转换存在截断/范围校验缺口。** on_configure通过stoi解析端口，再static_cast<uint16_t>赋值；未显式验证1–65535范围。负值或大于65535的值可能在转换时截断/回绕，且本轮未发现专门配置参数范围测试。
+13. **激活/停用与控制模式切换存在语义断层。** on_activate只重置current_control_mode_为STOP；command_mode_switch另行管理控制模式。生命周期切换与命令接口切换之间没有统一的运行许可状态机或防止并发读写/停用竞态的证据。
+14. **read/write在断连时返回ERROR，但不保证同一调用内成功停止。** read发现driver未连接或状态读取失败就返回ERROR；write发现未连接、机器人error或命令NaN时部分路径会尝试STOP，但对STOP发送结果不总是做检查。错误回调后续是否及时触发以及是否在控制器停止前阻止新命令，需由controller_manager集成测试确认。
+15. **生命周期单测覆盖不充分。** `LifecycleTransitions`仅执行init、configure、activate、一次read和write；未调用deactivate、cleanup、shutdown、error，也没有验证STOP命令投递失败、断连失败、状态陈旧、重复configure/cleanup、configure部分失败回滚和SIGINT/SIGTERM关闭。测试中的注释称“disabled”，但测试名没有DISABLED前缀，静态看并不能据此认定GoogleTest自动禁用；本轮未运行测试。
+16. **配置测试依赖mock server但没有故障注入。** Configuration和LifecycleTransitions启动mock robot，覆盖成功路径；ConfigurationShouldFailWithoutRobot注释称disabled，但测试本身仍是普通TEST定义。未发现覆盖control socket成功而diagnostics socket失败、首帧超时、线程启动失败和重复connect/disconnect的生命周期故障矩阵。
+17. **析构与进程信号处理不能由插件回调推定。** 本轮未在该硬件接口类发现显式析构STOP保证，也未发现由SIGINT/SIGTERM直接调用STOP并等待确认的独立进程级处理路径。ROS进程退出、controller_manager销毁顺序和插件卸载行为仍需集成验证；不能把on_shutdown必然执行当作已证明事实。
+
+#### SERVO-832｜生命周期与停止语义验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| LC1 | init/configure参数解析和端口范围 | 静态路径已核对；端口范围校验缺口 |
+| LC2 | configure连接失败和部分资源回滚 | 部分失败路径内部disconnect；回滚后置条件未统一 |
+| LC3 | activate时状态/诊断/控制器就绪门禁 | 仅设置STOP模式；未见完整激活许可 |
+| LC4 | deactivate时STOP、静止确认与资源策略 | 无显式覆盖；行为依赖基类 |
+| LC5 | cleanup断连结果与失败传播 | disconnect返回值被忽略 |
+| LC6 | shutdown STOP投递、执行确认及断连 | 依赖缓存状态；忽略发送结果；无执行确认 |
+| LC7 | error回调的停止失败、故障锁存与恢复 | 发送失败仍可能返回SUCCESS；无明确锁存/复位协议 |
+| LC8 | read/write错误与生命周期状态协同 | 静态路径部分STOP；竞态及停止确认未验证 |
+| LC9 | 重复转换、部分连接失败、线程/进程退出负向测试 | 现有测试只覆盖成功路径；本轮未执行 |
+| LC10 | controller_manager、SIGINT/SIGTERM、VAL3/CS9、SIL/HIL/FAT/SAT/实机验收 | 未执行/未确认 |
+
+#### 整改建议
+
+- 建立明确的硬件接口生命周期状态机：UNINITIALIZED、CONFIGURED、ACTIVE、DEACTIVATING、ERROR_LATCHED、SHUTTING_DOWN等；每个回调定义允许前态、后态和失败回滚条件。
+- 在deactivate、cleanup、shutdown和error路径中统一使用受控STOP流程：发送STOP、检查发送结果、在限定时限内接收新鲜状态/诊断回执、确认停止条件；任何一步失败都必须向调用方暴露未确认状态，不能返回SUCCESS伪装完成。
+- STOP状态确认不能只看缓存的control_state；需检查新鲜状态序号/时间戳，并在控制器侧定义可验证的静止判据。普通ROS STOP不能替代安全急停/STO。
+- 为on_error建立故障锁存与受控复位流程，保留故障原因，禁止在诊断状态未恢复、通信会话未重新同步时自动重新接受运动命令。
+- 检查并显式实现on_deactivate；不要依赖基类默认行为承担机器人停止责任。
+- 检查所有RobotDriver::connect失败分支，保证socket、subscriber、接收线程及接口对象全部回滚；disconnect应返回可审计的每资源关闭结果。
+- 校验所有网络端口为1–65535并拒绝负数、零值和超范围值，禁止静默uint16截断。
+- 扩充生命周期测试：deactivate、cleanup、shutdown、error、重复调用、部分socket连接失败、STOP发送失败、状态不新鲜、线程join失败、进程退出与controller_manager卸载；使用mock故障注入并断言最终状态。
+- 在目标ROS 2发行版、ros2_control/controller_manager版本和Stäubli CS9/VAL3版本上执行真实生命周期集成测试，并通过控制器侧状态反馈、SIL/HIL和FAT/SAT验证停止行为。
+
+本轮只读固定上游提交源码与测试；未执行构建/单测、controller_manager集成、SIGINT/SIGTERM进程退出、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.250 / SERVO-833。
