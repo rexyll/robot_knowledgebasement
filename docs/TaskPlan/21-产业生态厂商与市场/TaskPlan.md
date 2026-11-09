@@ -2458,3 +2458,29 @@ AA1-AA8全部未执行，AA9-AA10现场证据缺失。以上是静态审查和�
 | AB10 | 获取现场抓包、VAL3日志、ROS reconnect日志、序号轨迹、故障恢复记录及FAT/SAT验收证据 | 未确认，现场证据缺失 |
 
 AB1-AB8全部未执行，AB9-AB10现场证据缺失。以上仅为固定公开原型静态审查与验收设计；未执行动态测试或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.188。
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.189）
+
+- 新增§9.3.189：审查VAL3 resetControlSocket错误输出契约、controlTask初始化/运行期复位调用方、任务监督与stop入口状态一致性。
+- 静态确认resetControlSocket执行sioCtrl(timeout)、sioCtrl(endOfString)、clearBuffer后无条件将x_bError设false；没有检查各操作返回值或将步骤失败映射到输出标志。controlTask的初始化及运行期复位失败分支依赖该输出标志，因此helper正常返回时不能通过该标志报告内部操作失败。
+- 初始化阶段状态消息/命令消息初始化错误会令controlTask设置错误并return；运行期错误处理则先清除本地错误、序号、控制活动及命令有效状态，再调用resetControlSocket，随后继续主循环。当前应用层未展示独立FAULT_LATCHED状态或socket重建/任务重启路径。
+- start.pgx设置4 ms周期并taskCreateSync启动controlTask；supervision/diagnostics task仍为TODO。不能从应用层静态代码推断VAL3调度器对运行时异常的处理，须查目标版本文档和仿真。
+- stop.pgx只执行stopMove/resetMotion/clearBuffer，与controlTask内部错误复位不同；并发调用、任务退出同步和socket访问竞争待受控验证。
+- 新增SERVO-772/AC1-AC10；AC1-AC7、AC10未执行，AC8-AC9现场证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。目标现场版本、SIO错误语义、任务调度语义、网络拓扑及独立安全链未确认；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。专项下一节点§9.3.190。
+
+#### SERVO-772｜VAL3通信复位错误传播与任务监督验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AC1 | 对sioCtrl(timeout)、sioCtrl(endOfString)、clearBuffer分别注入成功/失败/运行时异常，确认VAL3输出错误标志和任务行为 | 未执行 |
+| AC2 | 验证resetControlSocket是否应先将x_bError置true，并仅在所有复位步骤成功后清false；对每一步失败检查错误传播 | 未执行 |
+| AC3 | 验证controlTask启动时状态消息、命令消息和socket初始化失败的return、任务状态及start调用方可观测性 | 未执行 |
+| AC4 | 运行期注入复位失败，验证l_bError、l_bControlActive、bIsValid、序号、命令模式及下一周期状态报文 | 未执行 |
+| AC5 | 连续复位失败/间歇成功时验证是否出现无限重试、日志风暴、任务周期超限或错误状态闪断 | 未执行 |
+| AC6 | 验证controlTask退出、异常终止或不再按期运行时是否存在独立监督器检测、报警和受控重启 | 未执行 |
+| AC7 | 验证stop.pgx与controlTask并发执行时的stopMove/resetMotion/clearBuffer顺序、任务退出同步和socket访问竞争 | 未执行 |
+| AC8 | 核对目标CS9/VAL3版本中sioCtrl、clearBuffer错误语义、任务异常处理与taskCreateSync生命周期定义 | 未确认，现场证据缺失 |
+| AC9 | 获取现场任务状态、VAL3日志、SIO错误记录、控制器版本及复位故障恢复证据 | 未确认，现场证据缺失 |
+| AC10 | 在隔离仿真/HIL中完成复位故障注入、恢复/退出路径和安全状态回归验收 | 未执行，需受控环境 |
+
+AC1-AC7、AC10未执行；AC8-AC9现场证据缺失。以上仅为固定公开原型静态审查与验收设计；未执行动态测试或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.189。
