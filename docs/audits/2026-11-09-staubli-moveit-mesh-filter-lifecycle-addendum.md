@@ -1197,3 +1197,55 @@ I1–I15全部未执行，I16现场证据缺失。未运行VAL3编译/仿真、�
 - `updateJointVelocityControl.pgx`（Blob SHA `72f4eb0215ceeae2c3a528013ea2a79c4dc46344`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
 - `encodeRobotStateMsg.pgx`（Blob SHA `0dadb0cc7f03de3da165cafa86fa5f943f097ec3`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx
 - `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+
+
+## §9.3.173｜VAL3停止路径语义、movejSync结束调用与停止完成条件
+
+### 审查范围与固定基线
+
+本节继续使用ICube公开仓库固定提交`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。该项目自述为ROS 2 Jazzy/CS9开发原型，不能认定为任何目标现场部署版本。审查文件及Blob：
+
+- `Control/stopJointPositionControl.pgx`：`bd4be41dff93258d5c08cbf9411af3d811b5f6c9`
+- `Control/stopJointVelocityControl.pgx`：`9a41ba293561d0ac216bebcb4da69b7c99458df0`
+- `stop.pgx`：`8d88991f087ea2be2e65daacff742da5d58ac73c`
+- `Control/updateJointPositionControl.pgx`：`28e2f1d6a3482a126b16474c957a608262c32218`
+- `controlTask.pgx`：`00a69c4d13879116fce744ceb1611ecd05d65edf`
+- `robot_driver.cpp`：`ede48a314856a455df9d8434f354aaf9fbc47bff`
+- `staubli_hardware_interface.cpp`：`4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`
+
+### 1. movejSync专用结束路径
+
+`stopJointPositionControl.pgx`执行：若`$movejSyncState()!=-1`，则调用`$movejSyncEnd()`；随后无条件设置`x_bError=false`。同仓库`updateJointPositionControl.pgx`注释描述状态-2为movejSync停止于错误、-1为未启动、0为正常运行、1为命令未及时刷新、2为运动被停止/锁定。按该注释，`!= -1`条件包含-2错误状态；但注释不是API规范，不能推断专用结束API在-2时合法或安全。
+
+静态代码没有检查`$movejSyncEnd()`调用结果、没有在调用后重新读取状态，也没有等待机械臂稳定。函数参数`x_bError`即使在专用结束调用异常或状态未清除时也会被设置为false。VAL3源文件没有展示该调用是否抛错/阻塞；`$movejSyncState`/`$movejSyncEnd`亦未在本次检索到的通用VAL3参考手册中找到足以确认其状态机、返回值、并发约束和停止完成语义的定义。必须取得目标CS9版本受控手册或Stäubli书面说明，并通过目标控制器测试，不作推测。
+
+### 2. stopMove/resetMotion不是停止完成确认
+
+Stäubli VAL3 Reference Manual D.280.935.01-F（2020）对`stopMove()`描述为沿当前轨迹停止并暂停程序运动授权；对`resetMotion()`描述为停止并取消已记录运动命令，且恢复此前由stopMove暂停的程序运动授权。两条API说明均明确警告：调用立即返回，VAL3任务不会等待机械臂停止后才执行下一条指令。较早版本D28062804A亦包含相同说明。
+
+因此：
+
+- API返回仅表示VAL3任务已从该指令继续执行，不能解释为机器人已经静止。
+- `stopMove()`与`resetMotion()`是普通程序运动控制API，不是安全额定急停、STO或安全PLC功能。
+- `resetMotion()`会取消运动队列并恢复程序运动授权；不能把它简单理解为持续禁止运动的“安全锁定”。后续命令是否能重新运动仍取决于应用逻辑和控制器状态。
+- 停止完成必须独立定义可观测条件，例如目标控制器认可的静止/稳定反馈、运动队列状态、停止类别、停止时间和停止距离；这些条件及阈值必须由系统风险评估和现场安全设计确定。
+
+公开参考资料（第三方镜像，需核对目标CS9版本）：
+- VAL3 Reference Manual D.280.935.01-F（2020）：https://bvdp.inetdoc.net/files/iut/robotiqueBUT2/Manuel_de_ref_VAL3.PDF
+- 较早版D28062804A：https://usermanual.wiki/Document/val3referencemanual.275627616.pdf
+
+### 3. 复合停止路径和跨层语义
+
+- **位置模式STOP/ERROR：** `controlTask.pgx`先调用`stopJointPositionControl`，随后在STOP分支调用`stopMove()`和`resetMotion()`。子程序先前的movejSync结束调用与后续普通运动API形成复合路径，但源码没有停止完成确认、返回码传播或静止等待。
+- **独立stop.pgx：** 只调用`stopMove()`、`resetMotion()`、`clearBuffer(siSocketControl)`。清空socket缓冲不等于收到机器人端确认，也不等于清除controlTask局部缓存命令或停止controlTask；该路径与前述controlTask内STOP不是同一生命周期事件。
+- **速度模式停止：** `stopJointVelocityControl.pgx`只调用`resetMotion()`并清除错误标志。但同一公开原型的速度更新程序仍将执行调用留为TODO并返回错误，故不能宣称存在已实现且验证过的速度运行/停止链。
+- **ROS STOP报文：** `RobotDriver::send_stop_all_command()`准备STOP命令并调用本地`send_message()`，只有准备和本地发送均成功才返回true。没有应用层ACK、VAL3接收确认、STOP状态回读或机械臂静止反馈的等待。硬件生命周期回调忽略该返回值；`write()`周期发送STOP报文也只是软件控制路径。
+- **CS9安全停止：** 由现场配置的控制器安全功能、安全输入、安全PLC、STO/制动器链及相应停止类别定义。不得用ROS STOP报文、VAL3普通运动API或movejSync软件API替代安全功能，也不得在没有现场证据时推断其停止类别或性能。
+
+### 4. 工程风险与待验证项
+
+主要缺口不是简单地“有没有调用stop”，而是缺少可审计的停止状态机：触发源、请求送达、控制器接受、运动队列取消、减速/停止过程、静止确认、停止类别和复位许可之间没有端到端事务证据。特别是`x_bError=false`、生命周期回调SUCCESS和本地UDP发送成功均可能被误读为停止成功，必须明确禁止这种等价关系。
+
+新增SERVO-756/L1-L16，L1-L15全部未执行，L16现场证据缺失。需在目标CS9受控版本上确认API语义，并分别执行单API、组合调用、重复调用、并发调用、通信中断、控制任务异常退出、运动中急停/安全停止及ROS lifecycle故障注入；测量请求/接收/减速/静止反馈时间和停止距离。未执行VAL3/CS9仿真、HIL、FAT/SAT或实机测试。现场版本/安全配置未知，本节只代表固定公开原型静态审查。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
