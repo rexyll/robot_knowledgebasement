@@ -636,3 +636,7 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.208）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.208，覆盖RobotDriver命令发送、RealTimeSocketInterface序列化缓冲和UDPSocketImpl UDP send。发现UDP send使用MSG_DONTWAIT，would_block分支明确记录Packet dropped却未返回false，最终返回true；上层send_message/send_robot_command可误报成功，硬件write可能返回OK，STOP发送也可能误判成功。未见背压丢包计数或阈值。RealTimeSocketInterface复用成员data_out_且无发送互斥；若周期write与生命周期STOP跨线程并发，存在条件性缓冲竞争，但实际并发未证实。接口文档称blocking而UDP实现MSG_DONTWAIT。命令序号取最近一次有效状态序号，协议意图需CS9规范确认。现有通信测试仅覆盖成功双向收发。新增SERVO-791/AV1–AV10：AV1–AV9静态核对完成，AV10需错误注入、背压及CS9/HIL验证。未执行构建/单测、UDP压力、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.209）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.209，覆盖FrameHeader/MessageType、命令构造辅助函数、RobotDriver状态读取/命令发送、hardware write序号赋值及subscriber状态序号跟踪。发现命令序号来自最近一次成功状态帧序号而非独立递增命令计数；MessageType只有INVALID/ROBOT_STATE/ROBOT_COMMAND/DIAGNOSTIC_DATA，无独立ACK/command-result；send_robot_command本机send成功即返回，不等待控制器接收、接受或执行确认；状态subscriber只跟踪状态序号和丢包，不维护待确认命令；未发现ACK超时、命令重发、去重或重连清理状态机。状态序号与命令序号关联的协议意图需CS9/VAL3规范确认，不能直接判定重复序号为协议错误。新增SERVO-792/AW1–AW10：AW1–AW9静态核对完成，AW10需正式协议规范、控制器端证据及CS9/HIL。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
