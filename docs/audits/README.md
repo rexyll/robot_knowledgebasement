@@ -203,3 +203,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt Servo碰撞监测启动门禁与场景新鲜度审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.165，沿GetPlanningScene调用方继续审查Servo启动门禁、PSM任意monitor更新时间、CollisionMonitor首轮检查竞态、场景新鲜度缺口、pause恢复及OctoMap默认配置；新增SERVO-748/D1-D14，全部未执行。
+
+
+- [2026-11-09 Stäubli MoveIt Servo停止状态与下游控制器命令接收边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.166，审查HALT_FOR_COLLISION命令发布抑制、ServoStatus与command无确认关联、Trajectory旧轨迹/MultiArray停止语义、pause静默分支；新增SERVO-749/E1-E15，全部未执行。
