@@ -1832,3 +1832,26 @@ MoveIt main当前monitor调用顺序为setMonitor→middleware initialize→setP
 MeshFilterBase析构函数持jobs_mutex_写stop_=true并清空/取消队列，worker run()却在加锁前读取while (!stop_)；读写没有共同同步关系，构成stop_数据竞争。析构join会等待正在执行的worker job完成；若底层OpenGL/driver操作迟迟不返回，析构可能长时间等待，但尚无证据证明必然死锁。DepthImage stop()只shutdown图像订阅，mesh_filter_在对象成员析构阶段才停止worker；源码未显示显式in-flight callback退出屏障。PointCloud stop()删除message filter/subscriber，但回调捕获裸this，仍需验证已排队/正在执行回调的退出语义。详见专项审计§9.3.155。
 
 SERVO-738全部动态测试未执行；未运行TSan/ASan、ROS executor压力测试、HIL或实机验证。不得把静态数据竞争结论扩展为已复现崩溃或死锁。
+
+
+
+#### SERVO-748｜Servo碰撞监测启动门禁、场景新鲜度与命令输出验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| D1 | secondary PSM请求GetPlanningScene失败但持续收到joint_states，确认Servo loop启动条件 | 未执行 |
+| D2 | transport成功但PlanningScene apply失败时跟踪请求bool、场景内容与命令输出 | 未执行 |
+| D3 | 仅发布joint_states、不发布world geometry，验证启动等待是否误将state update视为场景就绪 | 未执行 |
+| D4 | barrier阻塞CollisionMonitor首轮检查，输入运动命令，验证初始1.0缩放值是否可被消费 | 未执行 |
+| D5 | 已知碰撞场景下测量首轮检查前后缩放和HALT状态切换 | 未执行 |
+| D6 | 停止scene/world publisher但持续发送joint_states，检查旧场景是否持续参与碰撞计算 | 未执行 |
+| D7 | 动态障碍消息中断、恢复、乱序与旧消息重放，验证新鲜度/恢复策略 | 未执行 |
+| D8 | 部分full scene应用失败后确认CollisionMonitor和Servo命令门禁 | 未执行 |
+| D9 | check_collisions与check_octomap_collisions四种组合，区分self/world/OctoMap路径 | 未执行 |
+| D10 | pause期间停止场景源后unpause，验证恢复前场景校验及首轮碰撞检查等待 | 未执行 |
+| D11 | collision_check_rate、场景锁竞争与高负载下首次检查延迟 | 未执行 |
+| D12 | 静态/动态/OctoMap场景各自的新鲜度、失联和fail-closed策略 | 未执行 |
+| D13 | Servo status能否区分碰撞检查未就绪、场景过期和同步失败，上层是否消费 | 未执行 |
+| D14 | Stäubli/ICube真实primary配置、scene/world来源、OctoMap、命令控制器、pause调用及安全PLC互锁核实 | 未确认，现场证据缺失 |
+
+静态审查发现：ServoNode等待的PSM last_update_time由任意monitor更新，joint state更新即可满足，并不证明world geometry已同步；secondary PSM请求失败仍被忽略。CollisionMonitor无场景有效性/新鲜度超时，线程启动没有首轮检查ready握手，collision_velocity_scale_初始为1.0，存在条件性启动窗口；pause/unpause不重新验证场景。check_collisions默认true，check_octomap_collisions默认false，两者不能混为一谈。以上是固定MoveIt源码静态结论，未证明Stäubli现场触发或发生碰撞漏检/危险运动。D1-D14全部未执行；详见专项审计§9.3.165。
