@@ -3163,3 +3163,92 @@ AH1仅完成固定提交静态审查；AH2缺少目标版本API契约；AH3-AH8�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+
+
+## §9.3.195｜CS9同步VAL3任务调度、delay(0)让出语义与SIO超时边界（2026-11-09）
+
+### 1. 审查范围与固定证据
+
+本节沿固定ICube公开提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，核对VAL3同步任务创建、控制循环末尾的`delay(0)`、SIO收发调用及socket timeout配置，并与Stäubli公开CS9/VAL3文档交叉对照。目标是区分“周期配置”“调度让出”“网络读取是否等待”和“实际执行时间”，不重复§9.3.194的运动分支调用清单。
+
+| 源文件 | 固定提交Blob SHA | 本节用途 |
+|---|---|---|
+| `staubli_robot_driver/val3/userapp/ros2_server/start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` | taskCreateSync周期配置 |
+| `staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` | delay(0)、SIO收发调用顺序 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx` | 本节固定提交文件 | 运行期timeout设置 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx` | `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0` | 两次读取控制流 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx` | `652aa04548c814febab3c8c3fc807093261efd97` | sioGet返回值处理 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx` | `9df5d2b3240e780e1342ea248b97bb0262c9b58d` | sioSet发送及长度检查 |
+| `staubli_robot_driver/val3/configs/sio.cfx` | 固定提交配置文件 | socket初始timeOut配置 |
+
+### 2. CS9同步任务调度契约
+
+Stäubli《CS9 Real Time Val3/Fieldbus configuration》TSS.000.014.04-A（2021-07-06）第3章描述CS9 CPU周期中的任务顺序：系统同步任务先执行，随后用户IO刷新任务，再执行VAL3同步任务和异步任务。系统同步任务负责机器人轨迹及系统IO；IO刷新任务负责用户IO板卡。该文档明确指出同步VAL3任务会消耗较多CPU资源，必须结合控制器周期及IO刷新/jitter配置理解。
+
+该文档第4.2节说明同步VAL3任务按创建时指定周期调度；每次序列最多执行3000条VAL3指令；`delay(0)`可用于强制切换到下一任务；同步任务若执行时间超过指定周期，当前周期正常结束但下一周期取消，并通过taskCreateSync创建时指定的布尔变量报告overrun。由此，4ms是同步任务调度周期，不代表controlTask可独占完整4ms，也不代表单轮代码已在4ms内完成。实际可用预算还受到系统同步任务、用户IO刷新、其他同步任务及CPU负载影响。
+
+VAL3 Reference Manual D.280.935.01-F（2020）第5章及taskCreateSync/delay条目补充：`delay(0)`在非正延时下立即调度下一VAL3任务；taskCreateSync周期受系统时钟周期约束；同步任务使用全局overrun布尔变量。该手册对同步任务周期数值和控制器时钟的具体适用性仍需目标现场版本核对。
+
+### 3. 固定源码中的delay(0)不是周期等待
+
+固定`start.pgx`设置`l_nCtrlPeriod=0.004`并调用`taskCreateSync "controlTask", l_nCtrlPeriod, bIsOverrun, controlTask()`。固定`controlTask.pgx`在每轮末尾调用`delay(0)`，源码注释写作“Sleep until next period”。但依据上述VAL3手册，delay(0)语义是立即让出/切换到下一VAL3任务，不是等待4ms周期计时器，也不单独建立下一次周期触发。
+
+因此应将控制任务调度拆分为两个概念：taskCreateSync提供周期性调度框架；delay(0)在本次任务序列中主动让出执行权。周期是否准时、下一周期是否被取消以及实际抖动，仍由CS9调度器与CPU周期共同决定，不能由源码注释推导。
+
+### 4. SIO timeout配置与sioGet接收路径
+
+固定`sio.cfx`中control UDP socket的初始`timeOut`为-0.001。固定`controlTask.pgx`启动后先调用`resetControlSocket`；该子程序通过`sioCtrl(x_UdpSocket,"timeout",-1)`将运行期timeout改为-1，再设置endOfString并clearBuffer。故不能将sio.cfx的初始值直接视为controlTask初始化后的最终运行值。
+
+VAL3 Reference Manual D.280.935.01-F第3.7.3节说明：`sioGet`在timeout=-1时读取当前输入缓冲区，缓冲区为空则返回0；timeout=0时若无数据可能无限等待；正timeout会等待到数据到达或超时。固定`readDataOnce.pgx`调用sioGet并仅在返回长度等于完整缓冲区时置new-data；正数短报文置错误，0或负值没有显式错误分支。结合初始化设置，controlTask运行期接收路径采用非阻塞读配置，空缓冲区不会按手册描述无限等待。
+
+但这不等于已证明sioGet在目标CS9版本的执行时间严格为零，也不证明所有SIO调用都不会触发调度切换。VAL3手册的任务调度章节将SIO读写列为可能触发下一任务序列的指令；实际是否发生等待/让出还受socket状态、缓冲区、运行时版本及调用路径影响，需在目标环境测量。
+
+### 5. sioSet发送路径与尚未闭环的超时契约
+
+固定`sendData.pgx`通过sioSet发送整个状态报文，并检查返回字节数是否等于数组长度；不匹配进入发送错误路径。VAL3 Reference Manual说明sioSet在通信错误时可能返回-1或少于请求长度的字节数，但当前已检索条目没有充分给出目标CS9/VAL3版本中timeout=-1的最大执行时间、排队和调度契约。因此本节只确认代码调用点、返回值检查和运行期timeout配置，不宣称发送调用具有硬实时上界。
+
+通信错误可能置位l_bError并进入统一停止/复位流程；这描述的是软件控制流，不等于机器人已完成物理停止，也不构成安全额定停止功能。
+
+### 6. 版本适用性与边界
+
+TSS.000.014.04-A封面/版本信息标注日期2021-07-06，文档列出的测试环境为SRC s8.10.4、Safety 1.003/SafePMT 3.0.0.28。ICube仓库VAL3项目文件中的字符串s8.20.2Cs9_BS4270只是项目元数据，不能证明现场部署版本，也不能证明TSS文档测试环境与现场一致。VAL3 Reference Manual D.280.935.01-F为2020年版本，需结合现场控制器随附手册、readme/errata和Stäubli书面确认。
+
+本节仅形成固定公开源码与公开文档的静态契约对照。没有证据证明现场发生同步任务超周期、SIO阻塞、CPU负载不足或安全停止失效；也没有测得controlTask的WCET、4ms预算余量或实际jitter。
+
+### 7. 新增验收任务
+
+新增SERVO-778：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AI1 | 静态核对start.pgx 4ms taskCreateSync、controlTask delay(0)、resetControlSocket timeout=-1及sio.cfx初始timeout配置 | 固定提交静态审查完成 |
+| AI2 | 获取目标现场CS9/VAL3版本、受控手册/errata，确认taskCreateSync、delay(0)、sioGet/sioSet调度与超时契约 | 未确认，目标版本/文档适用性证据缺失 |
+| AI3 | 记录现场CPU周期、系统同步任务、IO refresh cyclicRatio、jitter mode及并行同步任务配置 | 未执行，需现场配置取证 |
+| AI4 | 在隔离仿真中测量controlTask启动、delay(0)前后及相邻周期时间戳/抖动 | 未执行 |
+| AI5 | 对timeout=-1的sioGet注入空缓冲区、单包、双包、短包和通信错误，测量返回路径与调度切换 | 未执行 |
+| AI6 | 对sioSet注入对端不可达、发送错误及部分发送条件，测量最大执行时间、返回字节数和overrun关联 | 未执行 |
+| AI7 | 在隔离环境制造同步任务负载/超周期，核对周期取消、bOverrun置位、controlTask消费及nOverruns计数时序 | 未执行 |
+| AI8 | 核对同步任务3000条指令序列上限、同周期任务创建顺序及系统任务/IO刷新对周期预算的影响 | 未执行，需目标版本确认与测量 |
+| AI9 | 获取现场控制器型号、CS9/VAL3版本、部署包SHA、IO刷新/jitter配置、socket参数及运行日志 | 未确认，现场证据缺失 |
+| AI10 | 在隔离仿真/HIL中完成SIO超时/故障、周期负载、超周期恢复与独立安全停止链回归 | 未执行，需受控环境 |
+
+### 8. 工程建议与限制
+
+建议将同步任务周期、CPU周期、IO刷新周期比、jitter mode及其他同步任务纳入同一受控配置基线；分别记录调度周期、任务实际执行时间、让出点、SIO等待/返回时间、overrun标志与应用计数器。对sioGet与sioSet分开测量，不能因接收路径timeout=-1就推断发送路径具有同样的非阻塞上界。动态测量必须在隔离环境进行，且不得以调高周期/改变IO刷新配置替代安全验证。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR，`TODO-EXT-001`未授权合并。未执行VAL3编译/仿真、周期/抖动测量、SIO故障注入、ROS集成、CS9/HIL、FAT/SAT或实机测试；Stäubli工程级验收未通过。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx
+
+### 参考资料
+
+- Stäubli, *CS9 Real Time Val3/Fieldbus configuration*, TSS.000.014.04-A, 2021-07-06: https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf
+- Stäubli, *VAL3 Reference Manual*, D.280.935.01-F, 2020-09-21: https://bvdp.inetdoc.net/files/iut/PHL/Manuel%20de%20ref%20VAL3.PDF
