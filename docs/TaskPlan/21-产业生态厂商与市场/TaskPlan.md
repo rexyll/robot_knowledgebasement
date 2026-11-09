@@ -2798,3 +2798,35 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | AY10 | 获取目标网卡/内核/网络故障分布并完成隔离SIL/HIL验证 | 未确认，目标证据缺失 |
 
 未执行构建/单测、网络错误注入、异常注入、压力测试、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.212。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.212 / SERVO-795）
+
+继续固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查UDP接收操作和生命周期。核对 `staubli_robot_driver/src/communication/udp_socket_impl.hpp`（blob `1309a8f2d59e8295869e178af82a66868bb911ff`）及 `test/unit_tests/communication/test_sockets.cpp`（blob `4fd06a9da38157a543766669c1cdda4bdb698029`）。
+
+静态发现：
+
+1. `stop_receive_thread()`只执行 `io_service_.stop()` 和 `receive_thread_.join()`，没有取消socket上的挂起 `async_receive_from`。Asio service停止分发不等于取消底层异步操作；socket仍保持打开时，后续 `io_service_.reset()` 后旧操作仍可能完成，而新一轮 `start_receive()` 又注册一个操作。
+2. `receive_once()`调用 `start_receive_thread()`；收到首帧时 `handle_data_received`先调用用户回调、再因receiving_为true而重新投递下一次接收；调用方收到future后才stop线程。因receive_once结束不关闭socket，重复调用存在旧接收操作遗留并与新操作并存的条件性风险。旧/新操作共享 `recv_buffer_` 与 `sender_endpoint_`，可能产生接收目标重叠；实际Asio完成顺序和内存影响需动态验证。
+3. `disconnect()`先stop/join再close socket。close会取消未完成操作，但其完成处理可能留在已stop的io_service中；重连后的 `reset()/run()`可能调度旧操作的 `operation_aborted` 完成事件。当前 `handle_data_received`即使error非零仍调用成员 `reception_callback_`，而该成员在新一轮start时会被替换；旧完成事件因此可能进入新回调路径，并可能再次投递接收。该静态路径不证明旧会话有效数据报跨会话到达或控制命令被执行。
+4. `start_receive_thread`在检查is_connected/is_receiving之前先写 `reception_callback_`。若另一个线程正在执行接收回调并读取该std::function，重复start调用可能无同步地写同一对象；现有测试的double-start为顺序调用，未验证并发访问。
+5. 测试已覆盖基础断连重连、正常连续收包、receive_once、重复start/stop，但没有覆盖不关闭socket的stop→start、连续receive_once、关闭取消完成事件跨reset/run、快速端口复用、旧会话注入或回调对象并发读写。
+
+建议后续修复评估方向：明确区分“停止分发”和“取消操作”，在重启前确保旧操作已取消并完成排空；为每轮接收引入generation/session token，拒绝旧代回调；在error分支按错误类别处理，operation_aborted/停止态不调用用户回调且不重投；将回调对象设置与线程生命周期串行化或采用安全的不可变回调快照；为receive_once采用专用一次性异步操作或确保停止后取消并排空。以上仅为审查建议，本轮未修改上游代码。
+
+#### SERVO-795｜UDP异步操作重启、会话隔离与回调生命周期验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AZ1 | 核对stop_receive_thread是否取消挂起异步接收 | 静态核对完成：仅stop service，不取消socket操作 |
+| AZ2 | 核对reset后旧async_receive_from是否仍可能完成 | 静态核对完成：存在旧操作待处理路径 |
+| AZ3 | 核对receive_once回调后是否遗留下一次接收 | 静态核对完成：回调先重投，调用方随后stop |
+| AZ4 | 核对disconnect close取消操作与完成处理排队 | 静态核对完成：排队/调度顺序需动态验证 |
+| AZ5 | 核对旧完成事件是否可能进入新一轮成员回调 | 静态核对完成：新start替换成员回调，error仍被回调处理 |
+| AZ6 | 核对多个接收操作是否共享buffer/endpoint | 静态核对完成：共享recv_buffer_与sender_endpoint_ |
+| AZ7 | 核对reception_callback_设置/读取是否同步 | 静态核对完成：未见互斥或快照保护 |
+| AZ8 | 核对现有socket单测覆盖生命周期边界 | 静态核对完成：缺少上述定向场景 |
+| AZ9 | 注入stop/start、连续receive_once、close/reconnect、端口复用、旧会话包和并发回调访问并运行TSan | 未执行 |
+| AZ10 | 获取目标网卡/内核/端口配置并完成隔离SIL/HIL验证 | 未确认，目标证据缺失 |
+
+未执行构建/单测、动态网络注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.213。
