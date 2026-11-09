@@ -228,3 +228,6 @@
 
 
 - [2026-11-09 Stäubli VAL3控制任务错误锁存、模式转换与故障遥测可见性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.174，确认controlTask先发送旧错误/模式快照，再处理本轮命令；部分错误可在同周期错误处理后清除，导致RobotState不保证呈现瞬态故障；控制模式切换会进入错误与socket重置路径。新增SERVO-757/M1-M10，M1-M9全部未执行，M10现场证据缺失。
+
+
+- [2026-11-09 Stäubli控制报文序号重启、旧命令残留与通信重置边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.175，审查VAL3错误复位时16位序号归零、ROS订阅器将序号下降视为自然回绕、无新报文时上一命令保持有效、序号差陈旧保护和resetControlSocket不检查操作结果；新增SERVO-758/N1-N10，N1-N9全部未执行，N10现场证据缺失。
