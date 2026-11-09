@@ -2651,3 +2651,11 @@ AH1仅完成固定提交静态审查；AH2缺少目标版本API契约；AH3-AH8�
 | AI10 | 在隔离仿真/HIL中完成SIO超时/故障、周期负载、超周期恢复与独立安全停止链回归 | 未执行，需受控环境 |
 
 AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证据；AI4-AI7及AI10未执行；AI9现场证据缺失。参考资料：Stäubli《CS9 Real Time Val3/Fieldbus configuration》TSS.000.014.04-A（2021）及《VAL3 Reference Manual》D.280.935.01-F（2020）。文档版本差异不得替代现场版本核对。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.196）
+
+- 新增§9.3.196：基于固定协议帧长RobotState 132 B、RobotCommand 55 B和名义250 Hz双向周期，建立单会话500 datagrams/s、46.75 kB/s应用层负载的理论模型；在IPv4/UDP/Ethernet II并计入FCS、前导码和IFG的假设下，估算线速占用约638 kbit/s。
+- 核对IPv4数据报长度约160 B/83 B，低于常见1500 B MTU；明确该比较不代表现场MTU/路径配置或抓包结论。低带宽不等于低延迟、低抖动或无丢包。
+- 新增SERVO-779/AJ1-AJ10：AJ1固定协议长度和算术基线完成；AJ2、AJ4-AJ5、AJ9需目标配置/现场证据；AJ3、AJ6-AJ8、AJ10未执行。未进行抓包、压力/背压注入、CS9/HIL、FAT/SAT或实机验证。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。根任务00-01与并行任务21-02继续进行中；下一节点§9.3.197。
