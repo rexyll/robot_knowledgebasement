@@ -619,3 +619,8 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.204）
 
 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.204。核对UDP async_receive_from来源端点、三类消息长度、FrameHeader及各deserialize实现。发现接收端未校验sender_endpoint_地址/端口；消息解析未统一要求精确帧长；RobotState缺message_type/protocol_version/payload_size校验，RobotCommand缺protocol_version校验且接受超长数据，DiagnosticData在解析网络头之前校验默认header字段，FrameHeader仅校验magic。subscriber在deserialize返回false时不更新邮箱，但被头字段漏检的畸形帧若返回true仍可能覆盖缓存。新增SERVO-787/AR1–AR10：AR1–AR9静态源码/测试覆盖核对完成，AR10缺目标部署网络配置及隔离验证证据。未运行构建/单测、模糊测试、网络注入、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。
+
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.205）
+
+继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.205。核对serialization浮点解码、协议枚举、subscriber邮箱提交和硬件状态更新。发现float直接memcpy解码且double由float转换，未拒绝NaN/±Inf；RobotState/RobotCommand/DiagnosticData枚举直接static_cast，无允许值验证；operation_mode_status原样保留，未知状态/有效字段标志位未检查；subscriber只以deserialize成功作为缓存门槛；硬件update_state未见finite或具体型号物理范围检查，监督枚举直接转double导出；位置有效但速度无效时，update_state先写位置再返回false，可能留下新旧状态混合快照。新增SERVO-788/AS1–AS10：AS1–AS8静态核对完成，AS9需具体型号限值依据，AS10缺隔离SIL/HIL证据。未运行构建/单测、模糊测试、SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
