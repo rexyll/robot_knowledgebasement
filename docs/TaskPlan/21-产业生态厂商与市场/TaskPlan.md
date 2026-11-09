@@ -2127,3 +2127,10 @@ VAL3参考手册D.280.935.01-F（2020）对`stopMove()`说明为沿当前轨迹�
 `controlTask.pgx`在由位置模式切入STOP/ERROR时先调用`stopJointPositionControl`，随后执行`stopMove()`与`resetMotion()`；独立`stop.pgx`执行`stopMove()`、`resetMotion()`和`clearBuffer(siSocketControl)`。这几步没有形成停止完成确认或机械臂稳定等待。ROS `send_stop_all_command()`只确认STOP报文准备和本地发送成功，不等待VAL3 ACK、STOP状态回读、静止反馈或CS9安全状态；lifecycle回调还忽略该返回值。上述三类路径必须分开验收，不得互相替代。
 
 L1-L15全部未执行，L16现场证据缺失。未执行VAL3/CS9仿真、停止时间/距离测量、并发/故障注入、HIL、FAT/SAT或实机验证。固定公开原型结论不代表现场部署；未修改ICube/MoveIt/ros2_control上游，Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见§9.3.173专项审计追加件。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.174）
+
+- 新增专项审查§9.3.174：固定ICube公开VAL3原型的controlTask错误锁存、STOP/ERROR模式转换、状态遥测快照及socket恢复契约。
+- 新增SERVO-757/M1-M10；M1-M9未执行，M10现场证据缺失。该节点仅为公开源码静态审查和验证设计，不代表现场部署或工程验收。
+- 根计划v9.49；专项下一节点§9.3.175。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
