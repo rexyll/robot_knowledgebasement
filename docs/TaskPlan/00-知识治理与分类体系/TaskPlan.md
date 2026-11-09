@@ -556,3 +556,6 @@
 
 
 | 2026-11-09 | 00-01 | 推进Stäubli MoveIt感知链路至§9.3.158：审查PointCloudOctomapUpdater、ShapeMask、OccupancyMapUpdater/Monitor。确认ConstSharedPtr同步持有点云、MutuallyExclusive callback group和ShapeMask互斥锁等边界；静态识别point_subsample=0循环不前进、PointCloud2结构/字段/row_step校验不足、NaN/Inf过滤缺口、transform缺失时可能沿用旧shape pose及OctoMap写异常后部分更新仍触发通知。stop/析构与in-flight callback静默屏障仍待目标executor验证。新增SERVO-741/L1-L12，全部未执行。更新专项§9.3.158、厂商档案§128.109、根TaskPlan v9.33及审计README。00-01及21-02保持进行中；未运行ROS构建、ASan/UBSan/TSan、点云压力测试、OctoMap故障注入、CS9/HIL或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2主线PointCloudOctomapUpdater/ShapeMask/OccupancyMapMonitor源码；ROS 2 PointCloud2 iterator文档；专项追加件§9.3.158；厂商档案§128.109 |
+
+
+| 2026-11-09 | 00-01 | 推进Stäubli MoveIt感知审查至§9.3.159：审查OccMapTree回调对象、OccupancyMapMonitor save/load服务、middleware service handle、occupancy_map_server和PlanningSceneMonitor消费者。识别update_callback_缺少独立同步、updater可能并发触发同一回调、异常传播、服务闭包捕获this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁、序列化失败后仍publish。新增SERVO-742/M1-M12，全部未执行。更新专项§9.3.159、厂商档案§128.110、根TaskPlan v9.34和审计README。00-01及21-02继续进行中；未运行ROS构建、ASan/TSan、慢盘性能测试、损坏地图/序列化故障注入、CS9/HIL或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 OccMapTree/OccupancyMapMonitor/occupancy_map_server/PlanningSceneMonitor源码；专项追加件§9.3.159；厂商档案§128.110 |
