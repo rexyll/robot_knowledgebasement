@@ -2711,3 +2711,73 @@ AC1-AC7、AC10未执行；AC8-AC9现场证据缺失。未执行VAL3编译/仿真
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx
+
+
+## §9.3.190｜VAL3启动前置条件检查、monitor speed与控制周期性能门禁
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节不重复§9.3.176已登记的任务创建/停止同步、ROS lifecycle解耦和版本元数据问题，也不重复§9.3.169的overrun计数；本节只检查start入口在创建4 ms控制任务前读取的运行条件，是否形成真正的启动准入门禁，以及相关性能参数是否有范围/异常处理。
+
+| 文件 | Blob SHA |
+|---|---|
+| `start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` |
+| `ros2_server.pjx` | `b58dbbf1daf778da64e4ff9551d890ee9ec8514b` |
+| `ros2_server.dtx` | `558dc2db671da45f5b859a3526148ce816eb6dd4` |
+| `configs/sio.cfx` | `76ad0c9f4b1902f26f21ea08eed0ef5f16e63d9e` |
+
+### 1. monitor speed低于100%时仅告警，不阻止启动
+
+`start.pgx`调用`getMonitorSpeed()`；若返回值小于100，只写入一条Warning日志。原本用于弹窗提示和等待monitor speed恢复100%的`popUpMsg`与`wait(getMonitorSpeed() == 100)`均被注释。该条件分支结束后程序继续清理socket、执行运动初始化、开启`autoConnectMove(true)`并调用`taskCreateSync`创建控制任务。固定源码没有将monitor speed不足转换为启动失败返回，也没有将该条件锁存为运行期运动许可状态。
+
+所以静态代码证明的是“低于100%时会告警但仍继续启动流程”，不是“目标控制器实际以低速运行”或“运动控制必然失稳”。注释中关于控制算法可能无法正确工作的文字是源码作者的风险提示；其量化影响、适用控制器模式和实际性能阈值仍需目标CS9版本文档及测量确认。
+
+### 2. boxcar delay仅采样并记录，没有阈值或闭环调整
+
+入口读取`$getBoxcarDelay()`并记录数值；相邻的`$setBoxcarFreq(60.0)`调用被注释。代码没有对delay设置允许范围、最大值、异常值处理或启动拒绝条件，也没有根据读取结果调整4 ms控制周期。该读取结果只用于日志，不能视为完成滤波器配置校验或补偿。
+
+### 3. 4 ms周期配置与启动前置条件未建立可验证关联
+
+在上述读取/告警后，入口固定设置`l_nCtrlPeriod=0.004`并调用`taskCreateSync`。当前可见逻辑没有计算boxcar delay相对4 ms周期的比例、没有根据monitor speed/滤波延迟调整周期，也没有在创建任务前进行周期预算或启动性能验收。工程配置中的控制UDP socket timeout为`-0.001`、quietTime为`30`，这些静态配置不构成任务周期抖动或通信时延测量证据。
+
+本节只确认VAL3入口没有实现上述前置条件到周期配置的显式门禁/关联；不推断boxcar delay的单位、内部滤波器精确响应或CS9调度器最坏执行时间。相关API语义须由适用版本手册确认。
+
+### 4. 静态结论与边界
+
+1. monitor speed低于100时，固定原型仅记录Warning；等待/阻塞动作被注释，后续启动流程仍继续。
+2. boxcar delay只读取并写日志；滤波器频率设置调用被注释，没有阈值、合法范围或异常分支。
+3. 控制周期固定为4 ms，入口没有把monitor speed或boxcar delay与周期预算关联，也没有启动前性能验收结果门禁。
+4. 这些是启动入口静态控制流结论，不证明现场monitor speed低于100、boxcar滤波器配置异常、控制周期超限或机器人控制失稳。
+5. 需要在目标CS9/VAL3版本确认API返回单位/范围、monitor speed实际语义、boxcar delay测量方式、任务周期抖动和运动控制影响；未取得证据前不得把4 ms配置值写成实测控制周期或安全响应时间。
+
+### 5. 新增验收任务
+
+新增SERVO-773：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AD1 | 在隔离仿真中分别设置monitor speed为100、低于100及运行中变化，确认start日志、等待行为和任务创建是否一致 | 未执行 |
+| AD2 | 证明monitor speed低于100时start是否仍执行clearBuffer、stopMove、resetMotion、autoConnectMove和taskCreateSync完整后续路径 | 未执行 |
+| AD3 | 核对目标CS9/VAL3版本getMonitorSpeed返回值范围、更新时序、异常/不可用返回语义 | 未确认，现场版本证据缺失 |
+| AD4 | 对boxcar delay设置多个合法/边界/异常配置，记录$getBoxcarDelay单位、数值稳定性和日志格式 | 未执行 |
+| AD5 | 核对$getBoxcarDelay与$setBoxcarFreq的目标版本API契约，并确认当前未调用setBoxcarFreq是否符合现场配置要求 | 未确认，现场版本证据缺失 |
+| AD6 | 测量boxcar delay与4 ms任务周期、端到端状态/命令时延之间的关系，建立有单位和采样条件的预算 | 未执行 |
+| AD7 | 在monitor speed变化和滤波延迟变化组合下测量taskCreateSync周期抖动、overrun计数及状态报文间隔 | 未执行 |
+| AD8 | 验证前置条件不满足时是否应阻止创建控制任务，并定义可观测、可恢复的启动失败状态 | 未执行，需工程安全评审 |
+| AD9 | 核对现场控制器型号、CS9/VAL3版本、monitor speed设置、boxcar配置、任务周期和运行日志 | 未确认，现场证据缺失 |
+| AD10 | 在隔离仿真/HIL中完成启动前置条件边界、性能回归及安全状态验证 | 未执行，需受控环境 |
+
+AD1-AD2、AD4、AD6-AD8、AD10未执行；AD3、AD5、AD9现场版本/配置证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机验证。
+
+### 6. 结论与工程建议
+
+建议将启动前置条件拆分为“可观测诊断值”和“必须满足的准入条件”，明确monitor speed与boxcar delay的目标版本语义、单位、范围和失效策略；只有在工程风险评审确定阈值后，才定义阻止启动或降级运行的行为。对4 ms控制周期应提供目标控制器上的周期分布、overrun、通信时延和滤波延迟证据，不应仅凭静态配置认定实时性能达标。本节没有提出未经验证即可直接部署的VAL3程序改动。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。现场控制器型号、CS9/VAL3版本、monitor speed语义、boxcar delay单位/范围、滤波配置和独立安全链仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx`
