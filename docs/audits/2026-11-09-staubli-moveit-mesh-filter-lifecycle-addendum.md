@@ -2862,3 +2862,99 @@ AE1、AE3-AE5、AE7-AE8、AE10未执行；AE2、AE6目标版本API证据缺失�
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx`
+
+
+## §9.3.192｜VAL3启动初始化、overrun计数器与诊断字段可观测性
+
+### 审查范围与固定基线
+
+固定上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节承接§9.3.189–191，重点检查启动入口与控制任务主体之间的初始化时序、全局诊断字段的写入/清零位置，以及这些字段是否进入ROS状态协议。避免重复审查controlTask退出条件和taskCreateSync同名任务语义。
+
+| 文件 | Blob SHA |
+|---|---|
+| `start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` |
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `ros2_server.dtx` | `558dc2db671da45f5b859a3526148ce816eb6dd4` |
+| `ros2_server.pjx` | `b58dbbf1daf778da64e4ff9551d890ee9ec8514b` |
+| `Serialization/initRobotCommandMsg.pgx` | `ab254d2b65caadbacf7fa171c51994ca24f3f450` |
+| `Serialization/initRobotStateMsg.pgx` | `211f052f6df8c4dd73f68aed6979a0163992f25b` |
+| `Serialization/encodeRobotStateMsg.pgx` | `0dadb0cc7f03de3da165cafa86fa5f943f097ec3` |
+| `Serialization/decodeRobotCommandMsg.pgx` | `612f5ce9fff12c0bd6c4e90e5685ea1d4b59bcdd` |
+| `Types/RobotStateMsg/RobotStateMsg.dtx` | `ef79e0f3ae502940a338d8f12ffcda5bad836d99` |
+
+项目清单`ros2_server.pjx`声明VAL3参数版本字符串为`s8.20.2Cs9_BS4270`。这是仓库项目元数据，不等同于现场控制器已安装/运行该版本。
+
+### 1. start入口与controlTask主体的初始化时序
+
+`start.pgx`在调用`taskCreateSync`之前先执行`bIsOverrun=false`，随后以`l_nCtrlPeriod=0.004`创建`controlTask`。入口本身没有对`nOverruns`、`nErrorCode`或`nInError`赋值。
+
+`controlTask.pgx`主体开始后依次将局部错误状态、控制活动标志、序号和延迟初始化，并将全局`nOverruns=0`。因此，overrun计数器的清零发生在任务实际进入主体之后，而不是start入口调用taskCreateSync之前。若任务创建/启动失败或主体未运行，不能从start入口代码推定nOverruns已完成本轮清零；taskCreateSync失败如何返回/报告仍需目标VAL3版本API契约确认。
+
+### 2. overrun标志与计数器的实际数据流
+
+`ros2_server.dtx`声明公共全局`bIsOverrun`，默认值为true；start入口将其设为false后创建周期任务。controlTask每轮检查该标志，若为true则写入Warning日志、将标志清false并对`nOverruns`加一。
+
+这形成“调度器/任务周期机制提供overrun标志—controlTask消费并清零—累计计数”的应用层数据流。公开程序没有看到nOverruns的周期性复位或限幅，也没有看到其被写入RobotState消息。若overrun发生在任务主体开始前、任务不再运行或任务停止消费标志，计数器和标志的行为需要目标运行时验证；静态代码不能证明每个超周期都会被准确计数一次。
+
+### 3. 公开诊断字段没有形成已实现的应用层故障接口
+
+`ros2_server.dtx`还声明公共全局`nErrorCode`和`nInError`，但对固定提交全仓精确检索未找到这两个字段在程序中的读写调用点。它们也没有出现在本节检查的RobotState序列化字段中。
+
+`nOverruns`虽被controlTask清零和递增，但同样未见被编码进RobotState报文。状态编码器发送的是状态延迟、控制/安全/机器人模式、状态标志、有效字段标志、关节数据和预留传感器/IO字段；没有nOverruns、nErrorCode或nInError字段。故不能把这些公共VAL3数据声明视为ROS驱动可直接消费的诊断遥测。
+
+此结论限定于固定仓库中的VAL3应用程序和公开ROS状态协议。控制器示教器、外部诊断工具或未纳入仓库的工程程序可能读取公共变量，不能据此断言现场完全无法观察这些数据。
+
+### 4. 消息初始化与控制任务局部状态的边界
+
+`initRobotCommandMsg.pgx`初始化Header、消息类型和payload长度，分配序列化缓冲区，将远程控制周期设为-1、运动命令类型设为STOP、六轴运动数据清零，并将命令有效标志设为false。数字输出/模拟输出数组在数据类型中声明，但初始化程序没有逐元素赋初值；解码程序会填充模拟输出值，数字输出mask转数组的代码仍为注释，controlTask中的GPIO输出执行也仍为TODO。不能据此认定这些字段已经驱动现场IO；数组初值和后续使用必须单独验证。
+
+`initRobotStateMsg.pgx`初始化Header、状态消息类型及payload长度，并将RobotState有效标志设为false；实际状态字段随后由每周期`updateState`填充。该初始化程序没有把nOverruns/nErrorCode/nInError映射到状态消息。
+
+controlTask中的`l_bError`、`l_bControlActive`、序号及命令状态均为局部变量，每次任务主体开始会重新初始化；全局诊断数据则具有不同生命周期。重启后局部状态重置、全局计数器清零发生在任务主体入口，而start先清overrun flag再请求创建任务，二者存在可观察时序差异。
+
+### 5. 静态结论与边界
+
+1. start.pgx在taskCreateSync前将bIsOverrun置false，但没有清零nOverruns/nErrorCode/nInError。
+2. controlTask主体进入后将nOverruns置0；每轮检测bIsOverrun为true时清false并递增nOverruns。
+3. ros2_server.dtx将nErrorCode/nInError声明为public，但固定提交的应用程序没有找到读写点；其运行时初值不能仅凭未显式配置推定。
+4. nOverruns没有被本节检查的RobotState编码器序列化，也没有在公开状态报文中对应字段。
+5. 项目清单记录VAL3参数版本字符串s8.20.2Cs9_BS4270；现场实际部署版本仍未知。
+6. 本节不推断taskCreateSync创建失败的具体返回语义、不推断计数器在现场的实际值，也不推断控制器不存在其他外部诊断通道。
+
+### 6. 新增验收任务
+
+新增SERVO-775：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AF1 | 对固定版本完整检索bIsOverrun、nOverruns、nErrorCode、nInError的全部读写点，并与实际VAL3项目打包内容核对 | 静态审查完成；现场包核对未执行 |
+| AF2 | 在目标CS9/VAL3版本中分别验证taskCreateSync成功、拒绝、异常返回时，start调用方可观察结果及全局标志变化 | 未确认，目标版本API证据缺失 |
+| AF3 | 任务主体进入前后读取nOverruns，验证清零发生点、重复start/任务重建后的保留与复位行为 | 未执行 |
+| AF4 | 注入单次、连续和相邻周期overrun，验证bIsOverrun清除时序、nOverruns增量准确性及计数器溢出/饱和行为 | 未执行 |
+| AF5 | 验证nOverruns能否通过示教器、VAL3诊断接口或外部工具读取，并记录读取权限、刷新周期和时间戳 | 未确认，现场工具/权限证据缺失 |
+| AF6 | 验证nErrorCode/nInError在冷启动、正常启动、初始化失败和运行故障后的实际初值及更新路径 | 未执行 |
+| AF7 | 对照RobotState协议定义、编码器和ROS反序列化端，验证overrun/error诊断字段是否被明确排除或另有独立遥测通道 | 未执行 |
+| AF8 | 验证消息初始化失败或controlTask未进入主体时，start入口、任务状态、nOverruns及日志之间的可观测关联 | 未执行 |
+| AF9 | 获取现场控制器型号、CS9/VAL3实际版本、项目部署包SHA、任务日志及诊断变量快照 | 未确认，现场证据缺失 |
+| AF10 | 在隔离仿真/HIL中完成任务创建失败、周期超限、计数器恢复及诊断遥测回归验证 | 未执行，需受控环境 |
+
+AF1固定仓库静态检索已完成；AF1现场部署包核对、AF3-AF4、AF6-AF8、AF10未执行；AF2目标版本API证据缺失；AF5诊断工具/权限证据缺失；AF9现场证据缺失。上述状态不代表动态测试通过。
+
+### 7. 工程建议与验收边界
+
+建议把诊断数据明确分层：任务调度事件计数、应用错误码、当前故障状态、状态报文遥测及现场日志应分别定义数据所有者、复位策略、有效性、时间戳和读取接口。若nOverruns需要被ROS侧监控，应通过经评审的协议扩展或独立诊断接口提供，不能把VAL3 public变量声明等同于ROS遥测。对nErrorCode/nInError应明确是未实现预留字段还是由外部工程维护，避免形成虚假的诊断能力预期。
+
+任何实现变更均须先做协议兼容性评审、仿真和受控安全验证；本节没有修改代码，也没有提出可直接部署的补丁。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机验证。现场控制器型号、CS9/VAL3版本、部署包、诊断工具权限、任务创建API语义和独立安全链仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotStateMsg.pgx`
+- `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx`
