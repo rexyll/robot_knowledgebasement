@@ -614,3 +614,8 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.203）
 
 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查UDP接收线程生命周期。确认stop_receive_thread调用io_service.stop并join，但未显式取消挂起socket异步接收；start_receive_thread重置io_service后再次提交async_receive_from，旧操作可能仍待完成并与新操作共享recv_buffer_/sender_endpoint_。handle_data_received记录error后仍无条件调用用户回调，并可能继续重投递。现有测试未覆盖连接保持时stop→start、连续receive_once超时重试和取消错误路径。新增SERVO-786/AQ1–AQ10：AQ1–AQ7静态源码/测试覆盖核对完成；AQ8–AQ9未执行；AQ10缺目标部署/现场证据。更新审计追加件、厂商档案、审计索引及第21章TaskPlan。未运行ROS构建/单测、TSan/ASan、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.204）
+
+继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.204。核对UDP async_receive_from来源端点、三类消息长度、FrameHeader及各deserialize实现。发现接收端未校验sender_endpoint_地址/端口；消息解析未统一要求精确帧长；RobotState缺message_type/protocol_version/payload_size校验，RobotCommand缺protocol_version校验且接受超长数据，DiagnosticData在解析网络头之前校验默认header字段，FrameHeader仅校验magic。subscriber在deserialize返回false时不更新邮箱，但被头字段漏检的畸形帧若返回true仍可能覆盖缓存。新增SERVO-787/AR1–AR10：AR1–AR9静态源码/测试覆盖核对完成，AR10缺目标部署网络配置及隔离验证证据。未运行构建/单测、模糊测试、网络注入、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。
