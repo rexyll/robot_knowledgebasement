@@ -1684,3 +1684,103 @@ R1-R9全部未执行，R10现场证据缺失。未执行VAL3/CS9仿真、网络�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+
+
+## §9.3.179｜ROS UDP发送成功、VAL3命令接收/执行与状态反馈确认边界
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节检查ROS发送接口返回值语义、STOP命令构造、VAL3命令接收与缓存复用、位置同步运动刷新状态，以及速度控制原型完成度。
+
+| 文件 | Blob SHA |
+|---|---|
+| `src/robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `src/real_time_socket_interface.cpp` | `eda0a830cfe0118e07bc3423ad0f455bd50d610c` |
+| `include/staubli_robot_driver/real_time_socket_interface.hpp` | `e4d4650f59d2eb95133f5e948431ebe2073a6667` |
+| `include/staubli_robot_driver/robot_driver_helpers.hpp` | `88a0cac08d3a299b7330eaa72b1afaaeab2fe41b` |
+| `src/real_time_socket_subscriber.cpp` | `e2cd8fc50b2b13d9e31b2c024e90f9da76107622` |
+| `src/staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+| `val3/userapp/ros2_server/controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `val3/userapp/ros2_server/Control/updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
+| `val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx` | `72f4eb0215ceeae2c3a528013ea2a79c4dc46344` |
+| `val3/userapp/ros2_server/Control/stopJointPositionControl.pgx` | `bd4be41dff93258d5c08cbf9411af3d811b5f6c9` |
+
+### 1. send_robot_command成功仅代表本地序列化及socket send成功
+
+ROS `RobotDriver::send_robot_command()`先检查control interface ready，再调用`RealTimeSocketInterface::send_message()`。后者检查socket connected、序列化消息，然后调用`socket_->send(data_out_)`；该调用返回true后整个发送接口即返回true。
+
+代码没有等待VAL3接收线程确认、没有等待controlTask解码确认、没有命令接受/拒绝ACK，也没有等待movejSync或机器人运动反馈来确认本命令已执行。因此`StaubliHardwareInterface::write()`返回OK只表示本地send调用返回成功，不表示机器人端已经接收、接受或执行。UDP不提供应用层可靠交付保证；即使本地send成功，也不能推导数据包到达目标应用。
+
+### 2. STOP命令发送路径也没有完成确认
+
+普通hardware_interface STOP写入通过`send_robot_command()`发送零参考命令。异常路径的`send_stop_all_command()`通过`prepare_robot_command_message()`构造STOP并清零数字/模拟输出；其序号来自`current_robot_state_`，之后调用同一`send_message()`。该辅助路径没有独立STOP ACK、停止完成等待或机器人静止确认。
+
+`prepare_robot_command_message()`复制最近缓存状态的sequence number；`send_stop_all_command()`本身没有先调用`read_robot_state()`检查该状态新鲜度。其序号可能是上次有效状态的序号，而不是在发送STOP瞬间刚确认的新状态。该点与§9.3.175的序号回绕/重启边界和§9.3.178的状态快照滞后问题相互关联。
+
+### 3. VAL3命令接收没有逐命令处理回执，旧命令缓存会被周期重用
+
+`controlTask.pgx`每周期调用`readData()`；收到新报文才调用`decodeRobotCommandMsg()`更新`robot_command_msg`。无新报文且上一条命令仍有效时，源码进入“check staleness of previous message”分支，但该分支仍是TODO。随后只要缓存命令`bIsValid`，就根据当前状态序号与缓存命令序号计算`l_nSequenceDelay`，并在运动时大于5、静止时大于25触发错误/STOP路径。
+
+所以原型并非完全没有陈旧保护：它有基于状态/命令序号差的阈值保护；但没有独立的命令接收墙钟时间戳、逐命令确认和明确的丢失/拒绝原因回报。无新命令时旧命令结构仍被保留，并继续参与当前周期模式解析/控制调用，直到序号阈值路径触发。阈值保护依赖周期节拍和序号同步，不能等同于经过验证的端到端接收超时。
+
+### 4. 位置控制的movejSync状态1被识别但只保留注释告警
+
+`updateJointPositionControl.pgx`注释定义movejSync状态：
+- -2：movejSync因无效命令进入错误停止；
+- -1：尚未启动；
+- 0：运行正常；
+- 1：上一条命令未及时刷新；
+- 2：运动被停止后命令锁定。
+
+位置控制程序在每次调用时调用`$movejSync(l_jJointPositionCmd)`，然后读取状态。状态-2会停止并置错误；状态1和状态2的日志/错误处理均被注释，实际不置错误。结合controlTask无新UDP命令时仍保留旧命令结构并继续进入控制更新路径，状态1究竟代表短暂刷新迟滞、底层保持旧目标还是触发内部保护，需要按目标VAL3 runtime动态确认。不能仅凭状态1被忽略就断言运动继续，也不能视为已获得命令确认。
+
+### 5. STOP路径请求停止，但遥测不是停止完成确认
+
+VAL3在命令模式为STOP或ERROR时，对上一模式执行相应停止子程序，然后调用`stopMove()`和`resetMotion()`。位置停止子程序在movejSync状态不等于-1时调用`$movejSyncEnd()`，之后返回`x_bError=false`。该返回值只表明程序路径未报告停止子程序错误，不是安全控制器或机械臂静止状态的独立确认。
+
+同一周期随后发布的状态已经在命令接收前发出（§9.3.178），因此主机也不能把紧邻STOP发送前后收到的普通RobotState帧直接当成STOP命令执行确认。现有协议未见独立stop request ID、stop accepted、stop completed、静止判据或确认超时字段。
+
+### 6. 位置与速度命令路径成熟度不对称
+
+ROS硬件接口的`prepare_command_mode_switch()`拒绝JOINT_VELOCITY模式；VAL3的`updateJointVelocityControl.pgx`也明确记录速度命令尚未实现，实际执行处记录“not yet implemented”、置错误并返回。相比之下，位置控制使用`movejSyncBegin/movejSync`，有位置范围检查，但“目标距离当前位姿足够近”的检查仍为TODO。RobotDriver对位置/速度范围校验也保留TODO注释。
+
+因此当前固定原型不应描述为具备已完成的ROS关节速度控制功能；位置控制也不能据此视为已完成所有目标轨迹、刷新超时和安全限位验证。
+
+### 7. 新增验收任务
+
+新增SERVO-762：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| S1 | 在ROS send成功后分别注入UDP丢包、VAL3未运行、VAL3拒绝解码，确认write返回值与机器人端结果的差异 | 未执行 |
+| S2 | 为每条命令记录ROS发送时间、序号、VAL3接收/解码时间、接受/拒绝原因及运动反馈 | 未执行 |
+| S3 | 验证STOP普通命令与send_stop_all_command异常路径的序号来源、缓存新鲜度和IO清零行为 | 未执行 |
+| S4 | 在STOP发送后注入延迟、丢包、乱序和重复包，确认VAL3停止动作及停止完成判据 | 未执行 |
+| S5 | 验证无新UDP报文时旧位置命令的复用时长、movejSync状态1、序号阈值与实际运动反馈 | 未执行 |
+| S6 | 验证movejSync状态-2/-1/0/1/2的真实语义、停止/恢复行为和遥测关联 | 未执行 |
+| S7 | 验证位置控制STOP、movejSyncEnd、stopMove、resetMotion与机器人静止反馈之间的时序 | 未执行 |
+| S8 | 验证VAL3 velocity路径在当前版本的不可用状态及ROS模式切换拒绝是否一致 | 未执行 |
+| S9 | 验证位置范围、目标距离、命令刷新周期、控制器限速/限加速度约束与异常命令处理 | 未执行 |
+| S10 | 核对目标现场应用版本、VAL3 movejSync文档、UDP网络测量、命令日志及安全停止验收记录 | 未确认，现场证据缺失 |
+
+S1-S9全部未执行，S10现场证据缺失。未执行VAL3/CS9仿真、UDP故障注入、命令回执测试、ROS集成测试、HIL、FAT/SAT或实机测试。
+
+### 8. 结论与边界
+
+固定公开原型中ROS发送接口的成功条件止于本地序列化和socket send成功，没有端到端命令接收/接受/执行ACK；STOP路径同样没有停止完成确认，且异常STOP辅助路径使用最近缓存状态序号。VAL3无新命令时保留上一条有效命令结构，staleness分支仍为TODO，但存在基于序号差的阈值保护；位置movejSync状态1（刷新超时）当前仅有被注释的处理，状态-2才触发错误停止。速度控制路径在ROS和VAL3两侧均未实现/被拒绝。
+
+这些发现界定的是公开原型的通信与命令确认能力，不证明现场UDP丢包、不证明STOP必然未送达、不证明机器人忽略停止请求，也不证明movejSync状态1时持续运动。目标CS9的VAL3运行时语义、UDP网络行为、运动停止反馈和现场部署版本仍须受控验证。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行VAL3/CS9仿真、UDP故障注入、ROS集成测试、HIL、FAT/SAT或实机验证。现场部署版本和网络测量未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx
