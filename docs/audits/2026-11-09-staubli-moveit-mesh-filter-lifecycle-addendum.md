@@ -3551,3 +3551,52 @@ AN1–AN6完成固定提交静态源码/调用点核对；AN7–AN9未执行；A
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
+
+
+## §9.3.201｜RobotDriver接收序号回绕、乱序帧与重连会话恢复边界（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开提交 bd658e2d266e315d2ee35f985fb352ea88306b79，审查 RealTimeSocketSubscriber 的接收缓存、16位序号统计、RobotDriver状态序号更新、disconnect/reconnect对象生命周期及现有通信单测。此处聚焦序号连续性和会话恢复；不重复§9.3.198–§9.3.200对ready/staleness/timeout的结论。
+
+### 静态发现
+
+1. **16位序号回绕的丢包公式存在+1偏差。** 协议头的 sequence_number 为 uint16_t，最大值定义为65535。subscriber在新序号小于上次序号时按 (65535 - last) + current + 1 计算丢包数。按连续模65536序列，65534→0应为0个丢包，但当前公式给出2；65534→1应为2个丢包，当前公式给出3。该公式在回绕分支系统性多计1，需以边界单测确认并修正。
+2. **所有小于上次序号的帧都被解释为回绕，未区分乱序/迟到帧。** 例如last=100、current=99会进入wrap分支并报告65535个丢包，而非识别为迟到/乱序。subscriber仍将该帧写入调用方消息并把last_read_sequence_number_回退为99；RobotDriver后续可能把其作为新鲜状态更新current_robot_state_及last_valid_sequence_id_。接收时间戳新并不证明控制器序列更新。
+3. **邮箱按最后到达覆盖，而非按序号新旧筛选。** update_message对成功反序列化的帧直接更新RealtimeThreadSafeBox；没有在入箱前比较序号或丢弃过期序号。因此乱序旧帧若晚于新帧抵达，可覆盖缓存中的新帧。这里的结论针对乱序帧的序号语义，不代表UDP一定会在现场产生乱序。
+4. **相同序号只被视为重复读取，不是独立的重复报文告警。** read_message在当前序号等于last_read_sequence_number_时将new_message置false、lost_packages置0，但仍返回true并保留该消息供上层检查staleness。该逻辑能识别同一缓存再次读取；没有独立统计重复数据报、重复帧率或拒绝策略。
+5. **断开/重连会重建subscriber序号跟踪状态，但协议没有会话epoch。** disconnect先reset控制接口和诊断subscriber，再停止/断开socket并reset_data；后续connect新建subscriber，其构造函数将last_read_sequence_number_置0、first_read_置true，RobotDriver的last_valid_sequence_id_也重置为0。因此本地计数器在重连后重新起算。但8字节协议头没有session ID/boot ID/epoch，单凭首个报文无法判断它属于当前控制器会话还是旧会话延迟到达；是否存在可达的旧数据报窗口需要目标网络/重连动态实验，不可直接断言现场会误接收。
+6. **现有单测覆盖不完整。** test_rt_socket_interface.cpp覆盖普通递增、跳号及无新帧重复读取；未覆盖65534/65535/0回绕边界、真实重复数据报、乱序抵达后缓存回退、重连首帧旧epoch以及重连时接收线程/缓存的竞态。
+7. **RobotDriver只告警丢包且不把序号异常作为状态拒绝条件。** read_robot_state对lost_packages仅保留注释掉的WARN，不校验序号是否单调前进；验证消息类型和新鲜度后就更新last_valid_sequence_id_。因此subscriber层的序号误判或回退不会被RobotDriver作为独立准入失败处理。
+
+### 建议与验收要求
+
+- 使用明确的模65536序号差值和半区间规则区分正常递增、回绕、重复及乱序；对迟到帧不应覆盖已接受的新状态。协议若需要跨重启区分会话，应增加session/boot标识或建立经过验证的重同步握手。
+- 增加序号边界测试：65534→65535→0→1；65534→0（无丢包）；65534→1（丢2）；重复帧；乱序帧；跨越半区间的歧义；从任意序号开始的first_read；disconnect/reconnect后首帧；旧会话延迟帧。
+- 在mock/SIL中注入乱序、重复、丢失、延迟及重连竞态，记录缓存序号、接收时间、丢包统计、RobotDriver输出状态和控制命令门禁；再在隔离HIL验证控制器重启与网络队列清理策略。
+- 不把UDP序号统计当作安全功能；过期/乱序状态的拒绝、停止动作和独立安全链仍需端到端验证。
+
+### SERVO-784 / AO1–AO10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AO1 | 核对协议序号宽度、最大值及序列起始语义 | 固定提交静态核对完成 |
+| AO2 | 核对正常递增/丢包计数公式 | 固定提交静态核对完成 |
+| AO3 | 推导65534/65535/0回绕边界并识别公式偏差 | 固定源码逻辑核对完成，动态未执行 |
+| AO4 | 核对重复序号与重复数据报处理 | 固定提交静态核对完成 |
+| AO5 | 核对乱序帧是否被识别/丢弃及是否覆盖缓存 | 固定提交静态核对完成 |
+| AO6 | 核对disconnect/reconnect的subscriber及RobotDriver序号重置 | 固定提交静态核对完成 |
+| AO7 | 核对现有单测的回绕/重复/乱序/重连覆盖 | 固定提交静态核对完成 |
+| AO8 | 增加边界与乱序/重复/旧会话帧单元测试并运行 | 未执行 |
+| AO9 | Mock/SIL/HIL注入重连、旧帧延迟与接收线程竞态 | 未执行 |
+| AO10 | 核对目标VAL3序号重启策略、网络队列及现场重连行为 | 未确认，目标部署/现场证据缺失 |
+
+AO1–AO7完成固定提交静态源码/测试覆盖核对；AO8–AO9未执行；AO10缺目标部署及现场证据。未运行ROS构建/单测、Mock/SIL、TSan、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。未修改ICube上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
