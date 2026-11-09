@@ -3461,3 +3461,49 @@ AL1–AL8完成固定提交静态源码/测试审查；AL9未执行；AL10缺目
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
+
+
+## §9.3.199｜状态新鲜度、控制模式准入与诊断通道就绪语义（2026-11-09）
+
+### 审查范围与固定基线
+
+本节继续审查固定ICube提交 bd658e2d266e315d2ee35f985fb352ea88306b79，聚焦RobotDriver连接状态在生命周期运行阶段的语义、硬件接口控制模式切换是否使用新鲜状态，以及诊断通道是否真正完成首帧校验。源码静态审查，不代表现场行为或安全验证。
+
+### 发现
+
+1. **is_connected不代表状态仍新鲜。** robot_driver.hpp注释明确说明该函数不检查message staleness；实现仅检查control/diagnostics socket connected及两个接口is_ready。接收线程仍运行但RobotState停止更新时，该函数仍可能返回true。
+2. **状态新鲜度只在显式读取时检查。** read_robot_state要求控制接口ready、至少曾收到可读消息、message_type为ROBOT_STATE，且time_since_received小于state_staleness_timeout_（默认100ms）；失败时不把新状态写入输出参数，也不清除上一次缓存状态。
+3. **激活回调没有二次就绪门禁。** StaubliHardwareInterface::on_activate仅将current_control_mode_设为STOP并返回SUCCESS；不重新检查RobotDriver连接、首帧有效性、状态新鲜度、错误状态或motion_possible。连接成功与激活时状态有效之间没有在该回调中建立新的保证。
+4. **读周期会把状态过期传播为硬件读错误。** read先检查is_connected，再调用read_robot_state；后者因状态过期返回false时，硬件read返回ERROR。因此连接socket仍在线不等于控制周期可持续读取。
+5. **命令模式切换读取缓存状态而非独立验证新鲜度。** perform_command_mode_switch在切换到JOINT_POSITION时检查缓存的state_msg_.error_state和state_msg_.motion_possible，但该函数本身没有时间戳/新鲜度门禁。若上一次成功read后状态流中断，缓存字段不会因后续read_robot_state失败而自动清空；命令模式准入是否发生在失败read之后取决于controller_manager调用时序，须动态验证。
+6. **write与生命周期错误处理的检查粒度不同。** write检查socket/interface连接；非STOP模式还检查缓存的error_state及control_state INVALID，并在异常时尝试发送STOP。该函数自身没有读取新RobotState或计算状态年龄。on_error/on_shutdown也以is_connected作为入口条件；is_connected不检查状态新鲜度。不能据此断言STOP必然发送失败或实际机器人未停止，需验证命令接收和VAL3执行链。
+7. **诊断通道的ready不是诊断数据已就绪。** connect创建diagnostics subscriber并检查其socket connected/receiving，但等待循环将diag_interface_ready = true硬编码，read_diagnostic_data调用仍被TODO注释。之后打印current_diagnostic_data_.robot_firmware_version，但本次connect流程没有先读取并验证诊断帧；reset_data仅将诊断message_type置为INVALID。因此该日志不能作为本次连接已验证固件版本的证据，诊断首帧缺失也不会阻止connect成功。
+8. **控制与诊断两条通道的就绪等级应分开记录。** 当前connect的有效RobotState检查只覆盖控制通道；诊断socket/接收线程检查仅证明传输层已启动。控制器类型校验代码被注释，VAL3版本检查仍为TODO。不能将connect成功解释为固件/控制器兼容性已经验证。
+
+### 影响边界与结论
+
+本节识别的是静态接口语义缺口：is_connected是传输/接收线程状态，不是新鲜状态或运动许可；激活、命令模式切换和写入路径使用的部分状态来自最近一次成功read；诊断通道没有在connect时验证首个诊断数据帧。实际是否出现过期状态下的模式切换、错误恢复时STOP是否被控制器接受、诊断报文是否在其他路径被消费，均需运行时证据。安全功能必须由控制器安全链和独立验证承担，不能以本驱动的ROS状态门禁替代。
+
+### SERVO-782｜AM1–AM10
+
+| 子项 | 核查内容 | 状态 |
+|---|---|---|
+| AM1 | 核对is_connected声明注释及实现是否包含状态新鲜度 | 固定提交静态核对完成 |
+| AM2 | 核对read_robot_state过期/无新消息时的返回与缓存更新行为 | 固定提交静态核对完成 |
+| AM3 | 核对on_activate是否重新验证连接、首帧和状态许可 | 固定提交静态核对完成 |
+| AM4 | 核对read/write及on_error/on_shutdown的连接/状态检查边界 | 固定提交静态核对完成 |
+| AM5 | 核对perform_command_mode_switch的位置模式准入是否检查状态新鲜度 | 固定提交静态核对完成 |
+| AM6 | 核对connect诊断通道首帧读取与diag_interface_ready赋值 | 固定提交静态核对完成 |
+| AM7 | 核对固件版本日志、控制器类型校验及VAL3版本检查是否有有效诊断数据支撑 | 固定提交静态核对完成 |
+| AM8 | 动态注入状态流中断、read失败与并发命令模式切换，记录缓存状态及模式结果 | 未执行 |
+| AM9 | 在目标ROS/CS9/VAL3部署中核对controller_manager周期、lifecycle调用顺序、诊断发送配置与日志 | 未确认，目标部署配置证据缺失 |
+| AM10 | 在隔离HIL/现场验证诊断帧缺失、状态过期、STOP命令接收/执行及独立安全链 | 未执行，现场证据缺失 |
+
+AM1–AM7完成固定提交静态源码核对；AM8未执行；AM9缺目标部署配置；AM10缺现场/HIL证据。未运行ROS构建/单测、动态并发注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
