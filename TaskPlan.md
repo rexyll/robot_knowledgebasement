@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.81  
+> 版本：v9.82  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.206；新增SERVO-789/AT1–AT10：状态过期时RobotDriver read返回false、硬件read返回ERROR，但state_msg_保留旧状态；is_connected不检查staleness；write无独立read成功/状态年龄门禁，活动模式仅检查旧error_state和control_state INVALID，未直接检查motion_possible、brakes_released、estop_pressed、safety_status、power_on；mode switch无新鲜度门禁，HOLD仅警告。AT1–AT8固定提交静态源码/测试覆盖核对完成，AT9–AT10需目标运行时、厂家安全状态表和隔离验证证据。是否read ERROR后controller_manager仍调用write需目标版本动态验证，不得断言现场继续运动。此前§9.3.205 SERVO-788/AS1–AS10、§9.3.204 SERVO-787/AR1–AR10、§9.3.203 SERVO-786/AQ1–AQ10、§9.3.202 SERVO-785/AP1–AP10、§9.3.201 SERVO-784/AO1–AO10结论继续有效。未执行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.207；新增SERVO-790/AU1–AU10：驱动发送路径无显式关节限值校验；write仅std::isnan不覆盖Inf；on_init未限制协议固定6轴，num_joints_超过6时NaN检查存在固定数组越界路径；混合position/velocity接口按首个匹配项决定模式；模拟IO和controller_period缺少驱动侧范围/有限性门禁；STOP非零参考仅warning后仍发送。AU1–AU9固定提交静态源码/测试覆盖核对完成，AU10需隔离边界测试和机型规格证据。上层limiter可能另有限制，不推断整个系统无任何限幅。未执行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1962,3 +1962,10 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 发现状态过期时RobotDriver read返回false、硬件read返回ERROR，但state_msg_保留旧状态；is_connected不检查staleness；write无独立read成功/状态年龄门禁，活动模式仅检查旧error_state和control_state INVALID，未直接检查motion_possible、brakes_released、estop_pressed、safety_status、power_on；mode switch无新鲜度门禁，HOLD仅警告。是否read ERROR后controller_manager仍调用write需目标版本动态验证，不断言现场继续运动。
 - 新增SERVO-789/AT1–AT10：AT1–AT8固定提交静态源码/测试覆盖核对完成；AT9–AT10需目标运行时、厂家安全状态表和隔离验证证据。未执行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。
 - 更新审计追加件§9.3.206、Stäubli厂商档案§128.144、审计索引及00/21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.207。
+
+### 2026-11-09｜v9.82 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.207，固定ICube提交bd658e2d266e315d2ee35f985fb352ea88306b79核对硬件write、接口模式解析、RobotDriver命令发送及RobotCommand序列化。
+- 发现驱动发送路径无显式关节位置/速度限值校验；write仅std::isnan不覆盖Inf；on_init未限制协议固定6轴，num_joints_超过6时NaN检查访问固定数组存在越界路径；混合position/velocity接口按第一个匹配项决定模式；模拟IO与controller_period缺少驱动侧有限性/范围门禁；STOP非零参考仅warning后仍发送。上层limiter可能另有限制，不推断整个系统完全无任何限幅。
+- 新增SERVO-790/AU1–AU10：AU1–AU9固定提交静态源码/测试覆盖核对完成；AU10需隔离Mock/SIL/HIL及机型规格证据。未执行构建/单测、模糊测试、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。
+- 更新审计追加件§9.3.207、Stäubli厂商档案§128.145、审计索引及00/21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.208。
