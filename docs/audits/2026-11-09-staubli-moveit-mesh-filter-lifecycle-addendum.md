@@ -2537,3 +2537,97 @@ AA1-AA8全部未执行，AA9-AA10现场证据缺失。未执行VAL3编译/仿真
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+
+## §9.3.188｜VAL3通信复位后的重新接入门禁与旧报文可达性审查
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节承接§9.3.175、§9.3.182、§9.3.183和§9.3.187，但不重复登记16位序号回绕、双次UDP读取、旧命令缓存或socket复位本身；重点检查错误复位之后，VAL3如何重新接受第一条命令，以及ROS侧重连是否形成协议级新会话。
+
+| 文件 | Blob SHA |
+|---|---|
+| Comm/resetControlSocket.pgx | 25d414065b4567c5634ef8890cc8cafd6f7e9b3e |
+| controlTask.pgx | 00a69c4d13879116fce744ceb1611ecd05d65edf |
+| Comm/readData.pgx | bf2e0f3d26e66724b9f656261e29fe573bd5f3b0 |
+| Comm/readDataOnce.pgx | 652aa04548c814febab3c8c3fc807093261efd97 |
+| Serialization/decodeRobotCommandMsg.pgx | 612f5ce9fff12c0bd6c4e90e5685ea1d4b59bcdd |
+| Serialization/initRobotCommandMsg.pgx | ab254d2b65caadbacf7fa171c51994ca24f3f450 |
+| start.pgx | 2d72315f0da1e18c959a24d3d75622652ee1287b |
+| robot_driver.cpp | ede48a314856a455df9d8434f354aaf9fbc47bff |
+| real_time_socket_subscriber.cpp | e2cd8fc50b2b13d9e31b2c024e90f9da76107622 |
+| real_time_socket_interface.cpp | eda0a830cfe0118e07bc3423ad0f455bd50d610c |
+| communication/udp_socket_impl.hpp | 1309a8f2d59e8295869e178af82a66868bb911ff |
+
+### 1. VAL3复位是本地缓冲清理，不是socket重建或会话握手
+
+`resetControlSocket.pgx`对传入SIO句柄设置timeout=-1、endOfString=10，调用`clearBuffer()`，随后将传入错误标志设为false。该函数没有关闭/重建socket、重新绑定端口、交换会话标识或等待ROS端确认。VAL3 `start.pgx`也在创建controlTask前调用一次`clearBuffer(siSocketControl)`，随后按4 ms周期创建任务。
+
+因此，源码中的“reset”应准确理解为对既有SIO socket的参数设置和当前缓冲清理，不能称为UDP连接重新建立，也不能称为应用层重新授权握手。并且clearBuffer没有单独的结果返回值；仅从此函数无法证明控制器底层接收队列、网络中的在途数据报或远端发送队列均已清空。
+
+### 2. controlTask重新接入的门槛仅是第一条可解码报文
+
+§9.3.187所审查的错误处理路径会把`l_nSequenceNumber`重置为0、`l_nSequenceDelay`设为1000、`l_bControlActive`清false，并将`robot_command_msg.robotCommand.bIsValid`清false，随后调用resetControlSocket。复位成功后没有独立的WAIT_FOR_RECONNECT状态、静默等待计时器、挑战/应答、会话epoch或新连接确认；源码中的“before accepting new commands”延时仍明确标为TODO。
+
+主循环下一轮继续调用readData。只要收到完整报文，`decodeRobotCommandMsg`通过Header解码及message type=2检查、完成固定字段解码后就会将`bIsValid`设为true；同一轮`l_bNewCmdMessage`为true且`l_bControlActive`为false时，控制任务直接把控制活动标志设true并记录“connection to controller established”。没有第二阶段握手或独立的重新授权判定。命令模式提取随后直接读取该报文的`nMotionCmdType`，满足其他现有门禁时即可进入运动控制分支。
+
+这证明公开原型的重新接入条件是“收到并解码一条完整RobotCommand报文”，不是“确认来自一个新的ROS会话”。但是否会造成具体旧命令执行，仍取决于报文到达时序、序号差、机器人运动快照和目标VAL3运行时行为，需由隔离仿真/故障注入验证。
+
+### 3. clearBuffer之后的在途旧报文与序号回绕存在待验证交叉窗口
+
+`clearBuffer()`只能作为本地接收缓冲清理证据；固定源码没有应用层session ID/nonce或发送端代际标识。若旧UDP数据报在清理动作之后才到达，它在报文结构上仍可能满足同一RobotCommand类型和长度检查。重新接入时，VAL3本地状态序号已从0重新开始，而ROS端命令序号由最近收到的RobotState序号回显；该组合可能将旧会话报文与新会话序号空间混淆。
+
+例如，在仅用于设计测试的边界模型中，若复位后VAL3最新状态序号为1，而延迟到达的旧命令序号为65530，`computeSequenceDelay`按16位回绕解释可得到7；静止状态门槛为大于25才触发错误，因此该数值在静止快照下不会仅因延迟阈值而被拒绝。该算例不是现场观测，也不证明该包会实际进入SIO或被执行；它说明不能把clearBuffer和序号回绕算法视为会话隔离机制。运动快照下阈值更严格（>5），但仍不能替代epoch/握手验证。
+
+### 4. ROS侧connect/disconnect也未建立协议级会话代际
+
+`RobotDriver::connect()`创建新的RealTimeSocketInterface/Subscriber，等待至少一条有效RobotState，并检查协议版本；`disconnect()`销毁接口、停止接收线程、断开UDP socket并调用reset_data()。新subscriber构造时`first_read_`初始化为true，RobotDriver::reset_data()将last_valid_sequence_id_清零并使当前状态Header类型无效。这是ROS进程本地对象/缓存重置。
+
+但ROS侧命令发送仍只是`send_robot_command()`调用control_interface_->send_message()；硬件接口命令序号从最近有效RobotState序号取得。没有向VAL3发送独立session nonce、握手挑战或重新授权消息。UDP接收端的sender_endpoint来源地址验证仍为TODO注释；本节不据此推断现场存在外部攻击，只记录固定原型尚无该过滤门禁。
+
+### 5. 静态结论与风险边界
+
+1. resetControlSocket执行本地SIO参数设置和clearBuffer，不执行socket关闭/重建或协议级会话握手。
+2. VAL3错误复位后清除了本地命令有效位和控制活动标志，但下一条完整且可解码的命令即可重新置位控制活动标志；显式重连授权、静默等待和新会话标识均未见实现。
+3. ROS disconnect/connect重建本地UDP接收对象并等待RobotState，但没有与VAL3进行会话代际同步；命令序号继续回显最新状态序号。
+4. 清理动作之后到达的旧数据报是否能进入新会话，受UDP在途包、SIO缓冲、任务周期和序号窗口影响。固定源码支持“缺少协议级排除门禁”的判断，不足以证明某个旧包必然被执行。
+5. `readDataOnce`对完整长度报文才置newData；部分报文错误路径及零/负返回值边界已在§9.3.182登记，本节不重复作为新发现。
+6. 以上仅是固定公开原型静态控制流和跨层接口审查，不证明现场部署该版本，不证明现场发生旧命令重放，也不证明机械臂停止或安全链状态。
+
+### 6. 新增验收任务
+
+新增SERVO-771：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AB1 | 在mock VAL3中于clearBuffer前、执行期间、执行后分别注入旧RobotCommand，记录接收/解码/执行路径 | 未执行 |
+| AB2 | 验证复位后无报文、STOP报文、位置命令、速度命令及错误类型报文的首包行为 | 未执行 |
+| AB3 | 对复位后状态序号1/2/25/26及旧命令序号65530/65535/0/1组合测试回绕和延迟门禁 | 未执行 |
+| AB4 | 在静止与运动快照下分别注入延迟旧命令，记录最终模式、bIsValid、l_bControlActive及运动更新调用 | 未执行 |
+| AB5 | 在clearBuffer调用前后安排UDP在途包/延迟包，验证VAL3 SIO接收缓冲与任务周期竞态 | 未执行 |
+| AB6 | 验证resetControlSocket失败、clearBuffer运行时异常或socket不可用时错误标志与控制任务行为 | 未执行 |
+| AB7 | ROS disconnect→connect后验证新subscriber首帧、状态序号重置、命令序号回显与旧数据隔离 | 未执行 |
+| AB8 | 设计并验证协议级session epoch/nonce或等价重同步门禁；未实现前以测试证明旧会话报文被拒绝 | 未执行 |
+| AB9 | 核对目标CS9/VAL3版本的SIO clearBuffer语义、UDP接收队列语义、任务调度和应用部署配置 | 未确认，现场证据缺失 |
+| AB10 | 获取现场抓包、VAL3日志、ROS reconnect日志、序号轨迹、故障恢复记录及FAT/SAT验收证据 | 未确认，现场证据缺失 |
+
+AB1-AB8全部未执行，AB9-AB10现场证据缺失。未执行VAL3编译/仿真、ROS构建/集成、UDP延迟/乱序/重放注入、CS9/HIL、FAT/SAT或实机测试。
+
+### 7. 结论与边界
+
+本节新增的交叉风险是：两端本地socket/缓存重置与应用层新会话建立之间缺少可见的协议级握手/代际门禁。建议后续在隔离环境验证旧包可达性，并由具备目标控制器经验的工程团队评估增加session epoch/nonce、首包STOP/显式授权、序号基线同步及复位后的稳定等待策略；不能把固定延时当作安全功能，也不能未经验证直接修改现场控制程序。本节不提出或应用上游补丁。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。目标现场版本、网络拓扑、CS9 SIO行为和独立安全链仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
