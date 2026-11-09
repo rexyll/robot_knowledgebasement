@@ -2434,3 +2434,48 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 | DL10 | 完成会话隔离、序号边界、VAL3仿真、SIL/HIL、CS9、FAT/SAT与现场验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查与跨模块风险关联；未执行构建、单测、VAL3编译/仿真、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.225 / SERVO-808。
+
+
+
+### 2026-11-09｜v10.00 本轮推进记录（§9.3.225 / SERVO-808）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：状态订阅器对重复序号、序号倒退、回绕、乱序与消息陈旧性的处理。本轮以GitHub代码搜索片段核对`real_time_socket_subscriber.cpp`、对应头文件及单元测试文件索引；未取得完整文件全文，因此严格限定为片段级静态结论。
+
+#### 静态审查发现
+
+1. **订阅器先取实时线程安全邮箱中的最新消息。** `read_message()`片段显示调用`message_buffer_.try_get()`；没有可用消息时走无新数据分支。头文件注释说明：若自上次调用后没有新消息、但曾经收到过消息，函数仍可能返回true，同时`status.new_message=false`。调用者必须分别检查函数返回值与new_message，不能把“读到缓存”理解为“收到新帧”。
+2. **每次处理消息先默认标记为新消息。** 代码片段显示`status.new_message=true`，随后在已非首次读取时比较序号。这意味着是否为新消息取决于后续序号比较分支，而不是单纯取决于邮箱中存在数据。
+3. **严格相同序号被识别为重复消息。** 搜索片段明确注释“read the same message again”，并设置`status.new_message=false`。该分支用于避免将同一状态帧重复计作新帧；函数仍可能返回缓存消息，陈旧性需要另看`time_since_received`。
+4. **序号大于上一序号按正常前进计算丢包。** `status.lost_packages = new_sequence - last_sequence - 1`。该算法隐含序号在当前计数区间单调递增且没有跨代混淆。
+5. **任何小于上一序号的值都进入wrap-around分支。** 代码注释为“Handle wrap-around case”，并用`(MAX_FRAME_SEQUENCE_NUMBER - last_read_sequence_number_) + msg.header.sequence_number + 1`计算丢包数。该分支没有在搜索到的条件片段中区分真实回绕、控制器重启、乱序旧帧或重放帧。因而不能将低序号自动认定为真实回绕；若旧帧/重启帧到达，可能被按回绕解释并继续作为新消息路径处理。
+6. **处理后无条件更新序号基线。** 片段显示无论前面走哪一序号比较分支，都会执行`last_read_sequence_number_ = msg.header.sequence_number`并返回true。结合低序号分支，这意味着一个低序号帧可能把接收基线向后改写。若该帧是乱序旧包或控制器重启后的新代际帧，后续较大旧代际帧又可能被解释为丢包跳跃或新的前进；具体影响取决于完整协议与上游缓存时序。
+7. **陈旧性通过接收时间戳另行计算。** 代码片段显示`status.time_since_received = now() - msg.reception_timestamp`，头文件注释要求调用者检查该字段。重复消息可以`new_message=false`但仍带有缓存消息及其接收年龄。调用者若只检查read_message返回值而忽略new_message与time_since_received，可能把旧缓存状态误当作新鲜状态；实际调用方是否如此仍需逐个审查。
+8. **实时邮箱只保留最新消息的语义需要与序号检测联合考虑。** `RealtimeThreadSafeBox`的使用说明明示read_message读取latest message；在高负载或消费端暂时落后时，中间帧可能被覆盖，丢包统计按序号差估计而不是逐包排队确认。该行为本身未必错误，但必须明确控制器状态更新、丢包监控和安全门禁的时效性要求。
+9. **测试证据不充分。** 搜索可定位`test_rt_socket_interface.cpp`，并命中普通序号7及无新消息/陈旧时间字段的测试片段；本轮未取得足以证明覆盖以下边界的测试证据：相同序号重复、低序号乱序、真实回绕边界、控制器重启归零、最大序号附近、跨重连旧包。不得据此宣称这些场景已有测试或测试通过。
+10. **本轮仍不能判断真实回绕与重启如何被区分。** `MAX_FRAME_SEQUENCE_NUMBER`的定义、序号位宽、计数器初值与控制器重启标识尚未完整复核；没有epoch/boot_id的明确证据。因此目前只能判定接收器把所有数值下降都按wrap-around计算，无法证明其具备重启代际识别能力。
+
+#### 风险与建议
+
+- 将序号处理拆成显式策略：正常递增、重复、允许窗口内乱序、真实回绕、疑似重启/新会话、非法超窗。不要把所有`new < last`一律解释为wrap-around。
+- 对乱序帧采用有限重排窗口或直接拒绝并保留高水位；不要因单个低序号包将last sequence high-water mark无条件回退。真实回绕需根据位宽、最大值邻域和模运算窗口判定。
+- 使用session epoch/boot_id/nonce区分控制器重启与同一会话的序号回绕；epoch变化前先进入状态无效/禁止运动状态，重新握手和同步基线后再开放控制。
+- 调用方必须同时检查`read_message()`返回值、`status.new_message`、`status.time_since_received`及丢包/连接状态；对运动许可、模式切换和故障恢复等安全相关决策，不能仅依赖缓存可读。
+- 为订阅器添加确定性单元测试：相同序号、递增一帧、跳号、低序号乱序、MAX到0真实回绕、重启后归零、旧epoch重放、重复缓存陈旧、邮箱覆盖多个中间帧、接收时间戳异常。明确每例的new_message、lost_packages、last sequence和staleness期望。
+- 审查所有调用方是否把`new_message=false`当作不可更新状态，是否在无新帧时仍消费缓存；审查控制器`bInMotion`门禁与状态陈旧阈值的联动。
+
+#### SERVO-808｜订阅器序号与新鲜度验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DM1 | 核对read_message读取最新邮箱消息及无新消息返回语义 | 静态片段核对完成：可返回缓存并设置new_message=false |
+| DM2 | 核对相同序号重复帧处理 | 静态片段核对完成：标记new_message=false |
+| DM3 | 核对递增序号与丢包估算 | 静态片段核对完成：按序号差减一计算 |
+| DM4 | 核对低于上一序号的wrap-around分支 | 静态片段核对完成：所有数值下降进入回绕计算；未区分乱序/重启 |
+| DM5 | 核对处理后序号基线更新 | 静态片段核对完成：last_read_sequence_number_被更新为当前帧序号 |
+| DM6 | 核对消息陈旧时间与new_message语义 | 静态片段核对完成：基于reception_timestamp计算time_since_received |
+| DM7 | 核对所有调用方对new_message/staleness的门禁 | 未完成：需要完整调用链逐项核查 |
+| DM8 | 核对MAX_FRAME_SEQUENCE_NUMBER定义、位宽和真实回绕约束 | 未确认：本轮搜索未取得定义及完整协议边界 |
+| DM9 | 重复、乱序、回绕、重启归零、旧包重放、邮箱覆盖和陈旧状态单测 | 未执行；当前搜索证据不足以证明已有完整覆盖 |
+| DM10 | 完成订阅器边界测试、调用方状态新鲜度审查、VAL3仿真、SIL/HIL、CS9、FAT/SAT | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.226 / SERVO-809。
