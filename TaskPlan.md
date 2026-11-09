@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.47  
+> 版本：v9.48  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.172，厂商档案新增§128.123。SERVO-755/K1-K16审查VAL3 controlTask退出/停止入口、初始化失败、失活监控与ROS hardware lifecycle：stop.pgx仅stopMove/resetMotion/clearBuffer，未设置l_bStopControlTask；该变量在controlTask中仅初始化false，未发现true赋值；controlTask初始化失败直接return，未见独立任务存活监控/重启机制；ROS on_cleanup仅断开连接，on_shutdown/on_error发STOP但忽略返回值。I1-I16全部未执行。ICube公开仓库仍是Jazzy/CS9原型而非现场部署证据。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.173，厂商档案新增§128.124。SERVO-756/L1-L16审查VAL3 movejSync专用停止、stopMove/resetMotion立即返回语义、controlTask/stop.pgx复合停止顺序及ROS STOP报文确认边界；通用VAL3参考手册明确stopMove/resetMotion不等待机械臂停止，$movejSyncState/$movejSyncEnd语义仍待目标CS9受控文档和动态验证。L1-L15全部未执行，L16现场证据缺失。ICube公开仓库仍是Jazzy/CS9原型而非现场部署证据。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -378,7 +378,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.99：已覆盖UDP/VAL3协议、连接/生命周期、运动/轨迹/恢复、多控制源、MoveIt SRDF自碰撞矩阵、Servo碰撞监测及MoveGroup/Servo Planning Scene同步和轨迹失效监测静态审查；SERVO-203–655动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.173：已覆盖UDP/VAL3协议、连接/生命周期、运动/轨迹/恢复、多控制源、MoveIt场景同步/碰撞监测、Servo至控制器命令链、VAL3安全状态采样及停止路径语义；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -1651,3 +1651,16 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-755/K1-K16，全部未执行；更新专项审计§9.3.172、厂商档案§128.123、第21章TaskPlan和审计README。
 - 本轮仅公开固定提交源码静态审查；未执行状态切换竞态注入、CS9安全停止响应测量、4 ms周期抖动测量、ROS read/write错周期测试、VAL3仿真/HIL/FAT/SAT/实机测试。现场版本和安全链未确认；未修改上游。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.173。
+
+
+### 2026-11-09｜v9.48 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.173，聚焦VAL3普通运动停止API、movejSync专用停止API、ROS STOP报文与CS9安全停止之间的语义边界。
+- 固定ICube公开提交`bd658e2d266e315d2ee35f985fb352ea88306b79`：`stopJointPositionControl.pgx`在`$movejSyncState()!=-1`时调用`$movejSyncEnd()`，但不检查调用结果/后续状态，也不等待机械臂稳定；随后无条件将`x_bError=false`。同文件注释把-2标为movejSync错误、-1标为未启动，因此条件`!= -1`也会覆盖-2状态，是否可安全调用专用结束API需由该API的CS9/VAL3版本文档及动态试验确认。
+- `stopJointVelocityControl.pgx`仅调用`resetMotion()`并无条件清除错误标志；但该公开原型的速度更新程序仍未实现并返回错误，不能把该函数视为可运行速度控制链的停止验收。
+- VAL3参考手册对`stopMove()`和`resetMotion()`均明确警告：调用立即返回，VAL3任务不会等待机械臂停止后再执行下一条指令。前者沿当前轨迹停止并暂停程序运动许可；后者停止并取消已缓存运动命令，且恢复此前被`stopMove()`暂停的程序运动许可。故两者返回只证明API调用已返回，不证明机械臂已稳定、停止类别/距离/时间满足要求，也不构成安全额定急停。
+- `controlTask.pgx`在从位置模式转入STOP/ERROR时先调用`stopJointPositionControl`，随后仍调用`stopMove()`和`resetMotion()`；独立`stop.pgx`则调用`stopMove()`、`resetMotion()`、清空UDP接收缓冲。两条路径均未检查停止完成反馈。清缓冲、停止运动队列与失活controlTask不是同一概念。
+- ROS `send_stop_all_command()`仅在STOP报文准备成功且本地发送函数成功时返回true；未等待VAL3 ACK、STOP模式回读、静止反馈或安全回路确认。生命周期回调忽略其返回值；`write()`常规STOP模式发送命令也不等于CS9安全停止。软件STOP、VAL3运动API停止和CS9安全功能必须分别定义触发条件、停止类别、反馈与验收。
+- 通用VAL3参考手册版本与目标现场CS9版本尚未建立对应关系；`$movejSyncState`/`$movejSyncEnd`未在已检索的通用VAL3参考手册中找到可验证的公开定义。不得臆测其等待、返回值或安全属性。参考资料：Stäubli VAL3 Reference Manual D.280.935.01-F（2020）相关章节及较早版D28062804A；应以目标控制器随附的受控版本手册和Stäubli书面澄清为准。
+- 新增SERVO-756/L1-L16，全部未执行，L16现场证据缺失；本轮仅完成固定公开源码静态审查与验证设计，未运行VAL3/CS9仿真、运动停止响应测量、HIL、FAT/SAT或实机测试。现场版本、安全配置与停止类别未确认；未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.174。
