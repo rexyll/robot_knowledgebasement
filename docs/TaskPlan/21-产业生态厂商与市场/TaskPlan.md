@@ -3756,3 +3756,64 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DF10 | 目标控制器安全功能、PL/SIL、停止性能、SIL/HIL、CS9、FAT/SAT及实机验收 | 未确认 |
 
 本轮已取得4个固定提交源码文件（其中VAL3目标文件未能读取）；本轮未执行构建、单测、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.234 / SERVO-817。
+
+
+### 2026-11-09｜v10.09 本轮推进记录（§9.3.234 / SERVO-817）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮完整读取`messages.cpp`、`test_message_serialization.cpp`和`staubli_hardware_interface.cpp`，并结合`types.hpp`及文档搜索片段，核对六个StatusFlag的位定义、序列化/反序列化、单元测试与ROS监督接口。未取得VAL3状态发布端程序，因此不推断控制器端来源、更新周期或故障默认值。
+
+#### 静态审查发现
+
+1. **六个状态位定义与掩码已确认。** `types.hpp`定义POWER_ON=0x0001、BRAKES_RELEASED=0x0002、MOTION_POSSIBLE=0x0004、IN_MOTION=0x0008、ERROR_STATE=0x0010、ESTOP_PRESSED=0x0020。它们打包在一个uint16状态位字段中。
+2. **序列化/反序列化位映射对称。** `messages.cpp`中serialize按六个bool置位；deserialize按同一掩码还原六个bool。当前可见逻辑没有对互相矛盾的位组合做拒绝或一致性校验，也没有检查保留位0xFFC0是否为零。
+3. **消息构造默认值有安全相关影响。** `RobotStateMessage`构造/成员默认值中power_on、brakes_released、motion_possible、in_motion、error_state、estop_pressed均为false。若对象在未成功接收有效帧前被消费，单看这些默认bool会表现为“未急停/未错误/不可运动/制动未释放”等混合默认状态；必须结合INVALID控制状态、消息有效性与连接状态一起解释，不能把默认false当作控制器确认值。
+4. **单元测试覆盖正常往返，不覆盖故障语义。** 固定提交的`test_message_serialization.cpp`为RobotState消息设置POWER_ON=true、BRAKES_RELEASED=true、MOTION_POSSIBLE=true、IN_MOTION=false、ERROR_STATE=false、ESTOP_PRESSED=false，执行serialize/deserialize并逐字段EXPECT_EQ。该测试验证正常位往返，不验证每一位单独翻转、所有组合、保留位、未知枚举、矛盾位或控制器端来源。
+5. **文档给出motion_possible的概括性说明。** quickstart overview将其描述为当前是否允许运动（无急停、无安全违规、制动器已释放等）。这是文档级概括，不足以证明VAL3发布端的逻辑表达式、原子快照、更新频率和失效默认值。
+6. **监督GPIO不是运动许可闭环。** SERVO-816已确认hardware interface导出brakes_released、motion_possible、in_motion、in_error、estop_pressed、wait_for_ack等监督状态；SERVO-815确认write运动许可路径未逐一检查这些字段。GPIO导出只提供状态接口，不自动形成互锁。
+7. **未能证明状态位一致性。** 理想状态下estop_pressed=true通常应与motion_possible=false等状态相容；brakes_released=false与运动许可之间也应有明确关系。但驱动协议未在deserialize层校验这些关系，且缺少控制器协议/VAL3程序证据，不能擅自把这些经验关系升级为所有型号通用不变量。
+8. **位更新周期与故障行为未确认。** 一个uint16状态字段使六个位在单帧内共同传输，但不证明VAL3采样来源同步，也不证明所有位由同一周期的控制器快照产生。网络丢包、控制器内部异步变量、安全PLC状态变化与ROS接收延迟之间的时序关系尚无证据。
+9. **保留位与协议演进风险。** 当前六个掩码只占低6位；未知高位在反序列化中被忽略。应定义保留位策略：严格版本下非零保留位拒绝，或按协议版本明确允许扩展，不能静默吞掉可能新增的安全状态位。
+10. **结论边界。** 可以确认ROS端六位的定义、打包和往返测试；不能确认VAL3侧每一位的来源、状态变化优先级、采样一致性、周期、断连默认行为、硬件急停链或安全等级。
+
+#### 状态位一致性与运动许可建议矩阵
+
+| 字段/组合 | 代码已证实 | 建议校验/许可 |
+|---|---|---|
+| POWER_ON | 独立位映射 | 作为诊断状态；不能单独授权运动 |
+| BRAKES_RELEASED=false | 独立位映射；write未直接检查 | 禁止非STOP命令；同时依赖控制器制动互锁 |
+| MOTION_POSSIBLE=false | 独立位映射；模式切换检查，但write未独立检查 | 禁止非STOP命令 |
+| IN_MOTION=true | 独立位映射 | 用于状态监控；切换模式需与运动状态门禁一致 |
+| ERROR_STATE=true | 独立位映射；write非STOP路径检查 | 禁止非STOP命令并按故障流程恢复 |
+| ESTOP_PRESSED=true | 独立位映射；write未直接检查 | 禁止非STOP命令；安全停止由独立安全链执行 |
+| ESTOP_PRESSED=true且MOTION_POSSIBLE=true | 反序列化不拒绝 | 标记矛盾状态、拒绝运动、诊断并要求状态恢复 |
+| BRAKES_RELEASED=false且MOTION_POSSIBLE=true | 反序列化不拒绝 | 按目标控制器协议确认；未确认前fail-closed |
+| ERROR_STATE=true且MOTION_POSSIBLE=true | 反序列化不拒绝 | 作为矛盾/故障状态拒绝运动 |
+| 未知保留位/未知枚举 | 当前位掩码及枚举未全面校验 | 按协议版本拒绝或显式兼容，禁止静默忽略 |
+
+该表是驱动整改建议，不是已验证的Stäubli安全逻辑或跨型号通用真值表。
+
+#### 风险与建议
+
+- 从目标VAL3工程逐一追踪六个位的赋值源、布尔极性、采样周期、更新时刻、断连/初始化默认值及与安全PLC的接口；要求控制器型号、CS版本、VAL3工程版本和安全配置匹配。
+- 为StatusFlag增加合法位掩码校验，按协议版本处理保留位；增加跨字段一致性验证。矛盾或未知安全状态使整帧无效并触发fail-closed。
+- write运动命令许可统一读取新鲜状态快照，检查ESTOP_PRESSED=false、BRAKES_RELEASED=true、MOTION_POSSIBLE=true、ERROR_STATE=false、合法SafetyStatus、控制模式确认和会话代际；任何未知/过期/矛盾状态均拒绝非STOP命令。该软件门禁不能替代安全控制器。
+- 单元测试扩展为六个位单独置位/清零、全组合边界、保留位、矛盾组合、截断帧、非法枚举和状态默认对象；属性测试覆盖serialize/deserialize往返。
+- 动态测试注入急停、制动器状态变化、motion_possible切换、控制器断连、状态帧延迟/乱序及安全PLC状态变化；验证ROS监督输出、控制器拒绝行为和安全回路响应的时序。
+- 对状态采样一致性进行控制器侧验证：若各位来源不同步，应增加状态快照版本/时间戳或明确最大偏差，避免跨时刻拼接的许可快照。
+
+#### SERVO-817｜状态位与运动许可验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DG1 | 六个StatusFlag掩码和值 | 完整源码静态核对完成 |
+| DG2 | 序列化/反序列化六位对称映射 | 完整源码静态核对完成 |
+| DG3 | 正常往返单元测试字段覆盖 | 完整测试源码核对完成；只覆盖一个正常组合 |
+| DG4 | 默认值、未初始化状态与连接有效性关系 | 源码静态核对完成；端到端调用时序未确认 |
+| DG5 | motion_possible文档语义及边界 | 文档片段核对完成；VAL3实现来源未确认 |
+| DG6 | 六位与SafetyStatus/operation mode一致性 | 静态关联分析完成；协议真值表未确认 |
+| DG7 | 保留位、矛盾组合、状态快照原子性与更新周期 | 未确认；未取得VAL3发布端程序 |
+| DG8 | 单个位翻转、矛盾位、保留位、断连及乱序注入 | 未执行 |
+| DG9 | write统一许可门禁及安全回路端到端测试 | 未执行 |
+| DG10 | 目标控制器/安全PLC、SIL/HIL、CS9、FAT/SAT及实机验收 | 未确认 |
+
+本轮已取得固定提交的消息序列化、单元测试和硬件接口完整源码；VAL3状态发布端程序仍未取得。本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.235 / SERVO-818。
