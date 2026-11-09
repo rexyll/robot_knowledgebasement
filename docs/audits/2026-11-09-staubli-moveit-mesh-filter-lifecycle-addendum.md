@@ -1406,3 +1406,82 @@ N1-N9全部未执行，N10现场证据缺失。未执行UDP故障注入、VAL3/C
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+
+
+## §9.3.176｜VAL3应用启动/停止入口、controlTask生命周期与ROS硬件生命周期解耦
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节分析VAL3应用的start/stop入口、同步控制任务创建、项目版本元数据，以及ROS 2 SystemInterface生命周期回调与RobotDriver连接生命周期之间的关系。
+
+| 文件 | Blob SHA |
+|---|---|
+| `val3/userapp/ros2_server/start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` |
+| `val3/userapp/ros2_server/stop.pgx` | `8d88991f087ea2be2e65daacff742da5d58ac73c` |
+| `val3/userapp/ros2_server/ros2_server.pjx` | `b58dbbf1daf778da64e4ff9551d890ee9ec8514b` |
+| `src/staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+| `include/staubli_robot_driver/staubli_hardware_interface.hpp` | `a84d0c63b15db168ea453a15571ab1494b8f9e99` |
+| `src/robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+
+### 1. VAL3 start入口的初始化顺序与任务创建
+
+`start.pgx`执行以下步骤：读取VAL3版本、读取boxcar delay、检查monitor speed（低于100%仅记录warning，等待动作被注释）、清理控制socket缓冲、预留未实现的supervision/diagnostics task（TODO）、设置控制周期为0.004秒、关闭blend、调用`stopMove()`和`resetMotion()`、开启`autoConnectMove(true))，最后设置`bIsOverrun=false`并调用`taskCreateSync "controlTask", l_nCtrlPeriod, bIsOverrun, controlTask()`。
+
+可确认该入口尝试以4 ms周期创建同步控制任务，并在创建前进行普通运动状态/缓冲初始化。但静态代码未显示任务创建返回值、任务已运行确认、首帧发送确认或任务存活监视；`bIsOverrun`被初始化后传入任务创建调用，但没有在该入口后续检查。不能将执行到taskCreateSync这一行等同于控制任务已稳定运行。
+
+### 2. VAL3 stop入口没有显式终止controlTask或等待退出
+
+`stop.pgx`记录退出日志，调用`stopMove()`、`resetMotion())并清理控制socket缓冲；没有显式调用任务停止/删除API，没有设置controlTask退出标志，也没有等待控制任务确认退出。另一方面，`controlTask.pgx`本身是周期任务，持续执行读命令、更新控制、发送状态的循环结构。
+
+因此静态证据只能确认stop入口执行了运动停止请求和缓冲清理；不能证明周期任务已终止、已退出临界区或不会继续访问socket。若VAL3运行时在停止应用时自动管理该应用全部任务，仍需目标版本运行时文档/仿真确认，不能仅凭stop.pgx自行推断。
+
+### 3. ROS硬件生命周期只管理UDP客户端连接，没有显式启动/停止VAL3应用
+
+`RobotDriver::connect()`创建UDP控制接口与诊断订阅器，等待有效状态消息并检查协议版本；源码没有显示通过该连接调用VAL3的`start.pgx`或`stop.pgx`。换言之，ROS驱动连接成功与VAL3应用已启动是两个独立条件：驱动只是等待机器人端已经在发送有效状态。
+
+`StaubliHardwareInterface`的`on_configure()`连接RobotDriver；`on_activate()`只把控制模式设置为STOP；`on_cleanup()`断开RobotDriver；`on_shutdown()`在连接且当前状态非STOP时尝试发送STOP，再断开；`on_error()`在连接时尝试发送STOP。类声明覆盖了这些回调，但没有覆盖`on_deactivate()`。因此controller/hardware lifecycle的activate/deactivate并不等价于VAL3 start/stop任务生命周期，deactivate回调也没有在该插件中实现专门的停止握手。
+
+### 4. Cleanup、shutdown和析构的停止保证并不相同
+
+`on_cleanup()`只调用`RobotDriver::disconnect()`，没有先显式发送STOP；`on_shutdown()`只有在`is_connected()`且最后读到的`control_state != STOP`时才发送STOP，随后立即disconnect，不等待机器人端状态回读或机械臂静止；硬件接口析构函数只调用disconnect。RobotDriver的disconnect会释放通信接口、停止本地接收线程、断开UDP socket并重置本地状态，但它不能证明VAL3任务已停止或机器人已进入安全静止状态。
+
+此外`on_shutdown()`未检查`send_stop_all_command()`的返回值后再决定是否断开；其后续disconnect仍会执行。该静态路径需要动态测试确认主机停止流程中的STOP报文是否真正送达、是否被VAL3消费、何时关闭socket以及任务在失去主机通信后如何自行处理。
+
+### 5. 项目版本元数据与运行时兼容性门禁
+
+`ros2_server.pjx`项目参数声明VAL3版本字符串为`s8.20.2Cs9_BS4270`，而`start.pgx`运行时仅读取`getVersion("System"))并取首字符作为major片段，没有执行明确的版本范围拒绝/兼容性分支。该元数据不能证明目标控制器实际加载的应用版本，也不能替代目标CS9控制器固件、VAL3 runtime、应用部署包哈希和现场受控配置记录。
+
+### 6. 新增验收任务
+
+新增SERVO-759：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| P1 | 在目标VAL3/CS9运行时确认start入口的任务创建返回、任务运行状态和首帧发送时序 | 未执行 |
+| P2 | 验证重复调用start时已存在controlTask的行为、重复任务防护和错误报告 | 未执行 |
+| P3 | 验证stop.pgx执行后controlTask是否继续运行、是否发送状态帧及是否继续访问socket | 未执行 |
+| P4 | 通过受控任务退出/应用停止实验确认运行时是否自动终止全部周期任务及其退出时序 | 未执行 |
+| P5 | 验证stopMove/resetMotion后任务尚未退出时的socket清理竞态与控制器响应 | 未执行 |
+| P6 | 验证ROS on_configure连接前VAL3应用未启动、已启动、启动中、异常退出四种状态的行为 | 未执行 |
+| P7 | 验证on_activate/on_deactivate是否应产生STOP、断开或保持连接，以及当前插件实际生命周期调用顺序 | 未执行 |
+| P8 | 验证on_cleanup不发STOP直接disconnect后VAL3任务行为与运动状态 | 未执行 |
+| P9 | 验证on_shutdown发送STOP后立即disconnect的丢包、确认、停止完成与断链时序 | 未执行 |
+| P10 | 核对目标现场VAL3 runtime、CS9固件、应用包版本/哈希、任务调度设置和受控运行时文档 | 未确认，现场证据缺失 |
+
+P1-P9全部未执行，P10现场证据缺失。未执行VAL3/CS9仿真、任务调度故障注入、ROS lifecycle集成测试、HIL、FAT/SAT或实机测试。
+
+### 7. 结论与边界
+
+固定公开原型的VAL3 start入口以4 ms周期创建controlTask；stop入口执行普通运动停止请求和socket缓冲清理，但自身没有显式任务退出/等待逻辑。ROS驱动的connect/disconnect只管理主机侧UDP接口，ROS硬件生命周期也没有显式调用VAL3 start/stop；on_cleanup仅断链，on_shutdown尝试STOP后立即断链，插件没有专门on_deactivate实现。因此“ROS硬件已激活/已清理/已关闭”不能作为“VAL3周期任务已启动/已停止”或“机械臂已安全静止”的等价证明。
+
+上述属于固定公开源码的生命周期边界和待验证契约，不证明VAL3运行时一定遗留任务、不证明stop.pgx在现场不能停止任务，也不证明ROS shutdown一定丢失STOP。VAL3运行时对应用任务的自动管理、stop入口实际调用机制、任务调度和目标控制器安全状态都需在受控CS9环境验证。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未运行VAL3/CS9仿真、ROS构建/测试、HIL、FAT/SAT或实机验证。现场部署版本和运行时行为未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
