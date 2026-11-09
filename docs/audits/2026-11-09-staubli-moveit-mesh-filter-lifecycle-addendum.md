@@ -3058,3 +3058,108 @@ AG1、AG4、AG9缺少目标版本/现场证据；AG2-AG3、AG5-AG8、AG10均未�
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/available_models.rst`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst`
 - `https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp`
+
+
+## §9.3.194｜VAL3控制循环周期预算组成与运动模式分支路径（2026-11-09）
+
+### 1. 审查范围与固定证据
+
+本节沿固定上游提交 `bd658e2d266e315d2ee35f985fb352ea88306b79` 重新检查VAL3控制循环的直接调用路径，重点区分每轮固定工作、位置控制分支、速度控制分支、STOP/ERROR分支，以及UDP子程序调用。该审查不重复§9.3.193的周期配置与overrun布尔计数语义；本节回答的是：配置为4ms的单轮控制任务究竟串行执行哪些工作，是否有源码层的分支耗时/最坏执行时间证据。
+
+| 源文件 | 固定提交Blob SHA | 本节用途 |
+|---|---|---|
+| `staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/start.pgx` | `2d72315f0da1e18c959a24d3d75622652ee1287b` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx` | `558dc2db671da45f5b859a3526148ce816eb6dd4` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx` | `72f4eb0215ceeae2c3a528013ea2a79c4dc46344` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx` | `bd4be41dff93258d5c08cbf9411af3d811b5f6c9` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointVelocityControl.pgx` | `9a41ba293561d0ac216bebcb4da69b7c99458df0` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx` | `9df5d2b3240e780e1342ea248b97bb0262c9b58d` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx` | `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0` | 控制循环/运动/通信调用链 |
+| `staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx` | `652aa04548c814febab3c8c3fc807093261efd97` | 控制循环/运动/通信调用链 |
+
+### 2. 每轮主循环的串行调用顺序
+
+`start.pgx`将`l_nCtrlPeriod`设为0.004秒，并以该周期创建`controlTask`。在`controlTask.pgx`的每轮主循环中，源码顺序为：
+
+1. 在循环开头消费`bIsOverrun`标志并更新`nOverruns`；
+2. 调用`updateState`更新RobotState；
+3. 生成序号并填入上一轮记录的命令序号延迟；
+4. 调用`encodeRobotStateMsg`，成功后调用`sendData`；
+5. 调用`readData`接收命令，若有新数据则调用`decodeRobotCommandMsg`；
+6. 计算命令序号延迟，执行延迟阈值、命令类型和模式转换检查；
+7. 根据最终命令模式进入STOP/ERROR、位置控制或速度控制分支；
+8. 执行GPIO输出位置的TODO占位；
+9. 若`l_bError`置位，执行停止、运动复位、命令/通信状态清理及`resetControlSocket`；
+10. 更新上一轮模式/接收错误状态，调用`delay(0)`后进入下一轮。
+
+因此状态发布和命令处理不是并行流水线，而是在同一控制任务迭代中按源码顺序串行调用。状态报文在本轮命令接收和运动更新之前发送；本轮命令执行结果要到后续状态更新周期才可能反映在RobotState中。该先后关系仅说明程序调用顺序，不据此推定VAL3调度器、SIO或运动API的实际阻塞时长。
+
+### 3. 位置控制分支的调用组成
+
+`updateJointPositionControl.pgx`在每次调用开始时先查询`$movejSyncState()`，随后检查motion possible、命令有效性和命令类型。首次进入位置模式时还会执行`resetMotion()`，并在状态为未启动时调用`$movejSyncBegin(mMdesc)`。之后将六个关节命令写入`jointRx`，执行`isInRange`限位判断，通过后调用`$movejSync(l_jJointPositionCmd)`，并再次调用`$movejSyncState()`检查状态。
+
+这意味着位置控制的稳态路径至少包含一次运动状态查询、一次运动命令更新和一次运动状态复查；首次进入路径还包含运动复位与movejSync启动。无效命令、motion impossible、命令类型不匹配、限位失败或movejSync错误等分支可能再进入`stopJointPositionControl`，后者查询`$movejSyncState()`，在状态非-1时调用`$movejSyncEnd()`。
+
+源码没有在这些调用前后记录时间戳，也没有将`movejSync`、`movejSyncState`、`movejSyncBegin`或`movejSyncEnd`的执行时间与4ms预算比较。不得仅凭API名称中的Sync推断这些调用必然阻塞整个任务，也不得推断它们一定是常数时间或非阻塞；其调度/阻塞/缓冲契约必须由目标CS9/VAL3版本文档及运行测量确认。
+
+### 4. 速度控制与STOP/ERROR分支的路径差异
+
+`updateJointVelocityControl.pgx`在运动许可、命令有效性和命令类型检查后，首次调用可执行`resetMotion()`，但当前固定原型中的速度命令执行仍是TODO：日志提示尚未实现，随后将错误标志置true并立即返回。因而在该固定提交中，速度模式不是与位置模式等价的已实现控制路径；它会转入主循环统一的错误处理路径。该事实是本节路径差异背景，不把已在既有审查登记的“速度控制未实现”重复登记为新问题。
+
+STOP/ERROR路径则可能先按上一模式调用`stopJointPositionControl`或`stopJointVelocityControl`，随后调用`stopMove()`和`resetMotion()`。错误处理分支在`l_nCmdMode==2`时还可能再次调用位置停止子程序，然后再次执行`stopMove()`、`resetMotion()`、清除命令有效位/控制活动状态，并调用`resetControlSocket`。因此异常/转换路径的调用数量和顺序可能显著不同于位置控制稳态路径。源码没有为该最长分支定义独立预算，也没有证明所有错误分支都能在一个4ms周期内完成。
+
+### 5. UDP收发路径与观测缺口
+
+`sendData.pgx`通过`sioSet`发送整个序列化数组，并检查返回字节数是否等于缓冲区长度；`readData.pgx`每轮最多调用两次`readDataOnce`，而`readDataOnce.pgx`通过`sioGet`读取数据并区分完整长度、正数短报文及其他返回值。上述调用在`controlTask`主循环内同步调用；本节固定源码没有显示独立通信任务将收发从控制循环剥离。
+
+但SIO调用的具体阻塞上限、超时语义、UDP接收队列行为及其与VAL3任务调度的交互，不能仅由这些调用点推断。也没有每次`sioSet/sioGet`的耗时、排队深度、重试耗时或单轮收发总耗时遥测。两次读取的静态上限只是源码循环次数上限，不是可直接换算的毫秒上限。
+
+### 6. 静态结论与边界
+
+1. 4ms是`start.pgx`的任务周期配置；固定程序没有测量单轮执行时间或各分支最坏执行时间。
+2. 每轮串行包含状态更新、状态编码/发送、命令读取/解码、延迟/模式检查及运动分支；这些工作共享同一控制任务执行路径。
+3. 位置控制稳态每轮会调用`$movejSyncState()`、`$movejSync()`及再次查询状态；首次进入与异常退出路径还有额外运动API调用。
+4. 速度控制当前固定原型仍会在TODO执行点返回错误，主循环随即进入错误复位路径；它与位置控制的执行成本不可视为相同。
+5. STOP/ERROR/模式转换路径会额外调用停止、运动复位和socket复位函数，源码未给出这些路径的WCET或周期内完成证据。
+6. SIO收发在控制循环内调用，但其阻塞时间和目标运行时调度语义未由固定源码确定。
+7. 本节没有证明现场发生周期超限、运动API阻塞或UDP调用卡顿；也没有完成实时性能测试或安全响应验证。
+
+### 7. 新增验收任务
+
+新增SERVO-777：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AH1 | 静态梳理controlTask每轮调用顺序，并对位置、速度、STOP、ERROR及模式转换路径建立调用清单 | 固定提交静态审查完成 |
+| AH2 | 获取目标CS9/VAL3版本对movejSyncBegin/movejSync/movejSyncState/movejSyncEnd、stopMove/resetMotion及delay(0)的执行/阻塞/调度契约 | 未确认，目标版本API证据缺失 |
+| AH3 | 在隔离仿真中对位置控制首次进入、稳态更新、正常停止和异常停止分别采集调用前后时间戳 | 未执行 |
+| AH4 | 分别测量状态更新、RobotState编码、sioSet发送、sioGet接收、命令解码的单项耗时及尾延迟 | 未执行 |
+| AH5 | 对位置/速度/STOP/ERROR/模式切换分支测量单轮执行时间分布、最大值、抖动和4ms预算余量 | 未执行 |
+| AH6 | 对SIO超时、无数据、连续数据、短报文和通信错误注入，测量readData最多两次读取及sendData失败路径的耗时 | 未执行 |
+| AH7 | 在受控环境测量运动API调用与UDP收发同时存在时的任务调度、周期抖动和overrun关联，不将命令序号延迟当作调度超周期 | 未执行 |
+| AH8 | 评估是否需要为各关键阶段增加低开销时间戳/直方图/最大耗时遥测，并定义时间基准、采样窗口和日志扰动控制 | 未执行 |
+| AH9 | 获取现场控制器型号、CS9/VAL3版本、部署包SHA、实际控制模式占比及带时间基准的周期日志 | 未确认，现场证据缺失 |
+| AH10 | 在隔离仿真/HIL中完成不同分支、通信扰动、运动停止/恢复和周期预算回归，独立验证安全停止链 | 未执行，需受控环境 |
+
+AH1仅完成固定提交静态审查；AH2缺少目标版本API契约；AH3-AH8及AH10未执行；AH9缺少现场证据。任何动态测试必须在隔离且具备独立安全措施的环境进行。
+
+### 8. 工程建议与限制
+
+建议将控制循环拆分为可审计的阶段预算：状态采集、状态编码/发送、命令接收/解码、命令校验、运动API、错误/停止处理及循环调度。至少记录每阶段耗时分布、最大值、超预算次数和时间戳，同时评估遥测自身对4ms循环的扰动。对于运动API和SIO调用，先取得目标版本契约并进行受控测量，再讨论是否需要异步化、限时策略或任务拆分；不得仅依据函数名称或静态代码作实时性结论。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR，`TODO-EXT-001`未授权合并。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机验证；Stäubli工程级验收未通过。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointVelocityControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/sendData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
