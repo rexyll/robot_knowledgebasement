@@ -2566,3 +2566,31 @@ AE1、AE3-AE5、AE7-AE8、AE10未执行；AE2、AE6目标版本API证据缺失�
 | AF10 | 在隔离仿真/HIL中完成任务创建失败、周期超限、计数器恢复及诊断遥测回归验证 | 未执行，需受控环境 |
 
 AF1固定仓库静态检索已完成；AF1现场部署包核对、AF3-AF4、AF6-AF8、AF10未执行；AF2目标版本API证据缺失；AF5诊断工具/权限证据缺失；AF9现场证据缺失。详见专项审计追加件§9.3.192。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.193）
+
+- 新增§9.3.193：审查VAL3超周期标志的应用层计数语义，以及VAL3控制任务周期与ROS controller_manager周期的配置匹配。
+- 固定代码显示VAL3默认任务周期为4ms/250Hz，ROS controller_manager默认update_rate为250Hz。controlTask只在每轮开头观察bIsOverrun=true时清零并递增nOverruns，因此计数代表应用观察到的布尔标志次数，不等同于调度器原生超周期事件总数；多事件合并可能性待目标运行时验证。
+- 上游文档指出TX2-60L采样周期4ms/250Hz、TX2-60L MR采样周期1ms/1kHz；VAL3应用默认设计为250Hz，MR型号文档参考为500Hz/2ms成功测试，并明确要求VAL3任务周期调整后同步更新ROS 2 control参数。该文档陈述不代表本项目独立复测。
+- 明确区分nOverruns、ROS命令序号延迟、ROS update_rate及机器人控制器采样周期，不能以单一指标替代实时周期健康度。
+- 新增SERVO-776/AG1-AG10：AG1目标VAL3 taskCreateSync语义证据缺失；AG2-AG3、AG5-AG8、AG10未执行；AG4型号/配置证据缺失；AG9现场证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+- 更新专项审计追加件、审计README、Stäubli厂商档案和第21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；现场型号、VAL3版本、部署包SHA、ROS周期配置和独立安全链仍未确认。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.194。
+
+#### SERVO-776｜VAL3超周期计数与ROS周期匹配验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AG1 | 获取目标VAL3版本taskCreateSync文档，确认超周期参数的置位、保持、清零和重复事件语义 | 未确认，目标版本API证据缺失 |
+| AG2 | 在隔离环境分别注入单次、连续及同一消费窗口内多次超周期，比较调度器事件数、bIsOverrun和nOverruns | 未执行 |
+| AG3 | 在每周期开始、循环末尾及下一周期入口记录时间戳，测量controlTask实际执行时间、调度抖动和超周期持续时间 | 未执行 |
+| AG4 | 对照TX2-60L、TX2-60L MR实际型号，核对控制器采样周期、VAL3任务周期、ROS update_rate三者配置 | 未确认，现场型号/配置证据缺失 |
+| AG5 | 在250Hz配置下测量ROS controller_manager实际周期、hardware_interface read/write周期及VAL3报文到达周期 | 未执行 |
+| AG6 | 在受控条件验证TX2-60L MR文档参考500Hz/2ms配置，确认VAL3任务和ROS update_rate同步修改后的稳定性 | 未执行，需对应型号受控环境 |
+| AG7 | 分别制造ROS命令延迟与VAL3任务超周期，验证nSequenceDelay与nOverruns是否可区分且诊断日志不混淆 | 未执行 |
+| AG8 | 评估nOverruns及周期耗时是否需要独立诊断遥测，定义采样窗口、时间戳、复位策略和上层告警阈值 | 未执行 |
+| AG9 | 获取现场控制器型号、VAL3版本、部署包SHA、ROS参数快照及带时间基准的运行日志 | 未确认，现场证据缺失 |
+| AG10 | 在隔离仿真/HIL中执行周期配置切换、超周期注入、ROS负载/网络扰动及恢复回归 | 未执行，需受控环境 |
+
+AG1、AG4、AG9缺少目标版本/现场证据；AG2-AG3、AG5-AG8、AG10均未执行。详见专项审计追加件§9.3.193。
