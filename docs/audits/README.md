@@ -289,3 +289,5 @@
 
 
 - [2026-11-09 Stäubli ROS 2 C++ API默认UDP端口与VAL3部署配置一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.197，核对C++ API默认端口8080/8081与VAL3 SIO、Xacro及文档端口11000/11001差异；标准Xacro路径显式注入11000/11001，直接使用RobotDriver便捷重载/默认NetworkConfig存在配置错配风险。新增SERVO-780/AK1-AK10，AK1-AK7静态核对完成，AK8未执行，AK9/AK10缺部署/现场证据。
+
+- [2026-11-09 Stäubli RobotDriver首次状态就绪、连接等待循环与超时边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.198，区分UDP socket/接收线程ready与首个有效新鲜RobotState；确认连接循环每500ms采样、首次成功后不提前退出、最终只看末次采样，HardwareInterface配置路径传入5000ms，现有mock测试没有连接时延断言。新增SERVO-781/AL1–AL10，AL1–AL8静态审查完成，AL9未执行，AL10缺现场证据。
