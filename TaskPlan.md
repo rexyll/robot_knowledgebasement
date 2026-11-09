@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.10  
+> 版本：v10.11  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.235 / SERVO-818；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.236 / SERVO-819；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -2966,3 +2966,50 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 与目标控制器/VAL3团队确认状态生成时间戳或周期计数、状态快照原子性、标称/最大更新周期，并基于最坏网络抖动与控制周期推导超时门限，而不是默认沿用100ms。
 
 本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.236 / SERVO-819。
+
+
+### 2026-11-09｜v10.11 本轮推进记录（§9.3.236 / SERVO-819）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查`udp_socket_impl.hpp`、`real_time_socket_subscriber.cpp/.hpp`、`robot_driver.cpp/.hpp`、`test_rt_socket_interface.cpp`和`test_robot_driver.cpp`。
+
+#### 静态审查发现
+
+1. **UDP接收线程是单io_service线程串行处理。** `start_receive_thread()`启动一个std::thread运行io_service_.run()；`async_receive_from`回调在该线程执行，调用subscriber回调反序列化并更新thread-safe box，然后重新挂起下一次接收。subscriber注释中也明确该线程未配置实时优先级/CPU亲和性（TODO）。未发现多线程并行调用同一个接收回调的实现。
+2. **接收缓冲区复用，但消息对象先反序列化后再入箱。** UDP socket持有固定recv_buffer_；回调将缓冲区传给update_message，后者构造独立MessageType对象，deserialize成功后写入本机reception_timestamp，再通过RealtimeThreadSafeBox::set发布。由此ROS侧读者获得完整消息对象副本，不会直接读取正在被反序列化的共享recv_buffer_。
+3. **错误接收仍继续调用上层回调。** `handle_data_received()`在error非空时仅记录错误，随后无条件调用reception_callback_，再在receiving_仍为true时重新发起接收。需要明确Boost.Asio错误回调中bytes_transferred及recv_buffer_的有效性；当前路径没有先return或区分operation_aborted/暂时性错误/永久错误。建议仅在无错误且数据长度符合协议时交付，错误按类别恢复或终止接收。
+4. **远端发送方校验明确处于TODO状态。** `sender_endpoint_`已由async_receive_from填充，但核对来源地址与remote_endpoint_的代码被注释，TODO明确承认意外主机可注入状态数据或干扰序号跟踪。这是UDP信任边界和状态完整性的重要风险；应按目标端点IP/端口策略过滤，必要时增加网络隔离、认证/完整性保护。
+5. **停止线程会io_service.stop并join。** `stop_receive_thread()`调用stop、join并清除receiving标志；subscriber析构调用stop_receive_thread。RobotDriver::disconnect先reset control_interface和diagnostics_subscriber，再停止socket接收线程、断开socket，最后reset_data。正常析构路径具有停止接收回调后再清理driver状态的顺序。
+6. **停止接收返回值被部分忽略。** subscriber析构中不检查stop_receive_thread返回值；RobotDriver::disconnect显式停止线程时会记录失败，但仍继续disconnect和reset_data。若join/停止异常或失败，状态清理与回调退出之间的并发安全需要故障注入确认；静态证据不足以断言发生use-after-free。
+7. **断开时只重置driver当前状态的关键标识字段。** `reset_data()`把last_valid_sequence_id和两种消息的sequence_number置0，并把message_type设INVALID；没有重建subscriber对象的缓存，也没有清空其内部first_read_/last_read_sequence_number_。但disconnect会reset subscriber/interface，正常重连会创建新subscriber，因此新实例重新初始化；仍应测试部分失败连接、重复disconnect和重新connect路径。
+8. **控制状态和诊断数据通道是独立subscriber。** control_interface接收RobotStateMessage，diagnostics_subscriber单独接收DiagnosticDataMessage；各自独立缓存、接收时间戳、序号和超时。没有跨通道原子快照或统一epoch，两个通道即使各自新鲜，也可能来自不同采样时刻。
+9. **诊断读取尚未接入连接就绪检查。** connect等待首个诊断帧时，当前代码将`diag_interface_ready=true`并注释“TODO implement diagnostic data reading once available”；因此连接成功条件实际没有验证收到首个有效诊断帧。虽有read_diagnostic_data实现与独立100ms默认超时，但连接主流程尚未调用它来建立诊断通道首帧就绪。
+10. **诊断丢包策略与状态通道不一致。** read_diagnostic_data对lost_packages>0会WARN；read_robot_state对应WARN被注释。两通道都采用subscriber最新帧缓存和各自时效判断，但诊断状态没有与机器人运动许可建立明确的安全依赖。
+11. **异常来源与恢复状态不完整。** update_message反序列化失败时只记录错误，不覆盖最后一个有效缓存，也不显式标记通信故障；后续read依靠原缓存年龄最终超时。若连续收到坏包，错误计数、连续失败阈值、连接健康状态与快速降级机制未见。socket接收error也未分类处理。
+12. **现有测试只覆盖基本接收、丢包、超时和恢复。** 测试源码中有UDP loopback、序号跳跃、重复读取、等待超时、mock robot停止发送后恢复；未见覆盖异源发送者注入、错误回调、零字节/截断帧洪泛、连续反序列化失败、disconnect时回调竞态、重连残留状态、诊断通道首帧缺失或双通道时间偏差。本轮只读测试源码，未运行。
+
+#### SERVO-819｜接收并发、错误处理与双通道一致性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DI1 | 单接收线程/io_service回调执行模型 | 完整源码静态核对完成 |
+| DI2 | 接收缓冲区到独立消息对象及thread-safe box发布 | 完整源码静态核对完成 |
+| DI3 | socket error回调分类与无效数据处理 | 完整源码确认错误后仍调用上层回调；整改未完成 |
+| DI4 | UDP sender endpoint来源校验 | 完整源码确认校验代码为TODO/注释状态 |
+| DI5 | stop/join/析构/disconnect/reset顺序 | 完整源码静态核对完成；失败竞态未动态验证 |
+| DI6 | 重连时subscriber与序号状态重建 | 正常路径源码静态核对完成；异常路径未验证 |
+| DI7 | control与diagnostics独立缓存/时间戳/序号 | 完整源码静态核对完成；跨通道原子性不存在/未见 |
+| DI8 | connect期间诊断首帧就绪验证 | 完整源码确认当前被跳过，TODO待实现 |
+| DI9 | 错包/异常回调/断连竞态/异源注入/双通道时序测试 | 未执行；现有测试源码未见充分覆盖 |
+| DI10 | 网络安全、SIL/HIL、CS9、FAT/SAT和目标机器人验收 | 未执行/未确认 |
+
+#### 风险与建议
+
+- UDP回调先检查error与bytes_transferred；仅对成功、长度合法且协议有效的数据调用反序列化；错误按operation_aborted、临时错误、永久错误分类，并设置明确的停止/重启策略。
+- 实现sender_endpoint_与配置remote_endpoint_的来源校验；如果控制器多网卡/冗余网络允许多个源地址，应显式白名单，不可完全信任任意UDP来源。
+- 反序列化失败应累计连续错误、记录最后有效帧年龄并将链路健康状态置为降级；禁止坏包让旧缓存无限期看似正常，运动许可必须依赖新鲜度。
+- connect必须验证控制状态与诊断状态的首帧有效性，或明确诊断通道非连接前置条件并从接口就绪契约中移除；不能将diag_interface_ready硬编码为true。
+- 双通道若参与同一安全决策，应增加共同epoch/控制器采样计数或最大时间差约束；否则明确诊断数据仅供非安全诊断。
+- 为disconnect/reconnect、回调中错误、异源包、错误帧、诊断首帧缺失、双通道时间错位和高负载线程调度添加可重复故障注入测试。
+- 目标系统验收必须验证接收线程调度优先级、CPU亲和性、最坏时延、网络隔离与恢复时间；单线程异步结构本身不构成实时性证明。
+
+本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.237 / SERVO-820。
