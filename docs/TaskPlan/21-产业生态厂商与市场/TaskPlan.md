@@ -2739,3 +2739,7 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli专项审查推进记录（§9.3.206 / SERVO-789）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.206，并更新Stäubli厂商档案§128.144。新增SERVO-789/AT1–AT10：AT1–AT8固定提交静态源码/测试覆盖核对完成；AT9需目标ros2_control/controller_manager版本及隔离Mock/SIL/HIL，AT10需厂家安全状态表、现场配置及隔离CS9/HIL证据。发现状态过期会使RobotDriver read失败，但硬件state_msg_保留旧状态；is_connected不检查staleness，write无独立新鲜度门禁，活动模式仅检查旧状态error_state/control_state INVALID；模式切换无时间戳门禁，HOLD仅警告，未覆盖所有独立安全状态位。不能断言read ERROR后现场仍执行运动；需按目标controller_manager时序验证。未运行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.207 / SERVO-790）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.207，并更新Stäubli厂商档案§128.145。新增SERVO-790/AU1–AU10：AU1–AU9固定提交静态源码/测试覆盖核对完成；AU10需隔离边界测试及机型规格证据。发现驱动发送路径没有显式关节位置/速度限值校验；write仅检查NaN不检查Inf；协议轴数固定6但on_init未限制最大轴数，超过6轴时NaN检查有越界访问风险；混合command interfaces按首个匹配项决定模式；模拟IO和controller_period缺少驱动侧范围/有限性门禁；STOP非零参考仅warning仍发送。上层joint limiter可能另有限制，不能据此断言全系统无任何限幅。未执行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
