@@ -268,3 +268,5 @@
 - [2026-11-09 Stäubli VAL3命令序号延迟门禁、STOP/ERROR模式覆盖与通信复位语义审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.187，确认延迟超限/负延迟分支虽记录并赋值STOP，但统一模式提取因l_bError将最终模式覆盖为ERROR，继而触发命令失效、序号复位、控制活动清除及socket重置；新增SERVO-770/AA1-AA10，AA1-AA8未执行，AA9-AA10现场证据缺失。
 
 - [2026-11-09 Stäubli VAL3通信复位、重新接入门禁与旧报文可达性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.188，审查resetControlSocket仅执行本地SIO参数设置/clearBuffer、controlTask首条完整可解码命令即重新激活、缺少会话epoch/握手/静默等待，以及ROS disconnect/connect仅重建本地socket/subscriber与状态缓存；新增SERVO-771/AB1-AB10，AB1-AB8未执行，AB9-AB10现场证据缺失。
+
+- [2026-11-09 Stäubli VAL3通信复位错误传播、控制任务存活与恢复状态一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.189，确认resetControlSocket正常返回路径无条件清除错误输出，调用方复位失败检查无法捕获其内部操作失败；start.pgx中的监督/诊断任务仍为TODO。新增SERVO-772/AC1-AC10，AC1-AC7和AC10未执行，AC8-AC9现场证据缺失。
