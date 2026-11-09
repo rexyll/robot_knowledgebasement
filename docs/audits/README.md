@@ -183,3 +183,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt OctoMap更新回调与地图服务生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.159，静态审查OccMapTree回调同步/并发/异常边界、save/load服务捕获this及析构顺序、stopMonitor服务语义、地图锁与磁盘I/O、server序列化失败发布；新增SERVO-742/M1-M12，全部未执行。
+
+
+- [2026-11-09 Stäubli MoveIt PlanningSceneMonitor OctoMap场景更新与事件回调审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.160，审查scene/tree锁顺序、scene callback递归锁与vector重入、异常通知遗漏、双订阅stop清理缺口和OctoMap回调析构屏障；新增SERVO-743/N1-N12，全部未执行。
