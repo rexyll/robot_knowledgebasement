@@ -1151,3 +1151,26 @@ I1–I15全部未执行，I16现场证据缺失。未运行VAL3编译/仿真、�
 - `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
 - `resetControlSocket.pgx`（Blob SHA `25d414065b4567c5634ef8890cc8cafd6f7e9b3e`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+
+### §9.3.171 VAL3安全状态来源、运动许可与ROS接口语义
+
+审查固定公开提交`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`中的`updateState.pgx`、`controlTask.pgx`、位置/速度控制程序、状态序列化和ROS hardware interface状态映射。
+
+**状态来源与语义发现：**
+
+1. `updateState.pgx`将`isPowered()`写入`bDrivePowered`和`bBrakeReleased`。在此原型中`brakes_released`并非独立制动器反馈，而是驱动上电状态代理；上电与制动器机械释放/反馈不是可互换概念。
+2. `nSafetyStatus=esStatus()`；`bEStopped=(nSafetyStatus != 0)`；`bWaitAck=(nSafetyStatus == 1)`。代码注释将0/1/2/3/4分别解释为无安全停止、等待安全重启、SS1、SS2、等待WMS重启。ROS `estop_pressed`来自`bEStopped`，因此任何非零安全状态均会被映射为true，不能解释成物理急停按钮的直接输入。
+3. `bMotionPossible`当前表达式为`bDrivePowered && !bEStopped`。更严格的表达式`bDrivePowered && !bEStopped && (nRobotStatus == 0)`在源码中被注释；`nRobotMode`由`workingMode(nRobotStatus)`另行更新，但没有参与当前motion_possible计算。该差异可能使软件层运动许可状态比文档语义宽，须验证Hold/Manual/Test/模式转换和控制器实际门禁。
+4. `bInError`由controlTask本地`l_bError`赋值，不是完整控制器错误码或安全诊断分类。`bMotionPossible`为false时，位置/速度控制程序会调用各自stop控制路径并设置错误；这是VAL3应用软件门禁，不等于安全额定停止功能。
+5. ROS hardware interface将这些字段导出为supervision state interfaces。字段序列化/解码成功只证明协议数据传输，不证明其语义与控制器安全硬件输入一致，也不证明数据新鲜度或安全完整性。
+
+**工程边界：**不能把`brakes_released`、`motion_possible`、`estop_pressed`等ROS状态接口当作安全PLC、STO、硬接线急停、制动器安全反馈或安全认证信号。实际安全功能、停止类别、制动器监控、双通道输入、复位条件、响应时间及认证等级必须从目标现场CS9安全配置、机器人型号安全手册、安全PLC图纸和验证记录确认。
+
+新增SERVO-754/J1-J16，J1-J15全部未执行，J16现场证据缺失。未执行VAL3/CS9仿真、安全输入注入、急停/SS1/SS2响应测量、制动器反馈故障测试、HIL、FAT/SAT或实机验证。公开原型静态结论不得归属现场部署；未修改ICube/MoveIt/ros2_control上游。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码Blob
+
+- `updateState.pgx`（Blob SHA `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
+- `updateJointPositionControl.pgx`（Blob SHA `28e2f1d6a3482a126b16474c957a608262c32218`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- `updateJointVelocityControl.pgx`（Blob SHA `72f4eb0215ceeae2c3a528013ea2a79c4dc46344`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
