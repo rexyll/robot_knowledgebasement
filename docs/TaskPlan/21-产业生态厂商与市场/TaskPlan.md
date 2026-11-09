@@ -1697,3 +1697,20 @@ PR #3907新增测试只检查`getMonitoredTopics()`在stop后不再列出两个t
 | O5 | Stäubli应用停止采集时保留最后地图还是清空的需求 | 未确认，现场证据缺失 |
 
 MoveIt main中stopMonitor仅设置active=false并调用各updater->stop，不清空tree或重置tree指针；PlanningSceneMonitor stopWorldGeometryMonitor调用该stop但保留monitor对象。start时复用已有对象并重新start。clearOctomap是独立显式清理路径，会移除scene中的OCTOMAP_NS并清空tree。因此“停止采集”与“清除地图”必须分开定义和验收。详见专项追加件§9.3.148。
+
+
+#### SERVO-732｜OccupancyMapMonitor启动编排、部分启动失败与重复启动验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| S1 | 多updater正常启动顺序、active状态及启动后更新 | 未执行 |
+| S2 | 第N个updater注入start异常后的active状态及已启动/未启动集合 | 未执行 |
+| S3 | 部分启动后stop清理与再次start恢复 | 未执行 |
+| S4 | PointCloud/DepthImage重复start/stop的publisher、subscriber端点变化 | 未执行 |
+| S5 | 并发start/stop/isActive的数据竞争（TSan或等效手段） | 未执行 |
+| S6 | updater start/stop抛异常时后续updater清理与异常传播 | 未执行 |
+| S7 | Stäubli/ICube实际插件顺序、executor及启停调用线程 | 未确认，现场证据缺失 |
+
+MoveIt main的`OccupancyMapMonitor::startMonitor()`先设置`active_=true`，再顺序调用所有updater的void `start()`；没有异常捕获、失败回滚、重复启动保护或状态检查。若插件启动抛异常，可能留下active=true且部分updater已启动的状态；这是静态控制流风险，尚未通过本项目异常注入验证。`active_`为普通bool，`isActive()`直接读取，start/stop/read没有同步机制；只有在调用方确实跨线程并发时才构成数据竞争风险，当前未取得ICube调用线程证据。
+
+内置插件start实现存在差异：PointCloud updater在检查已有subscriber前创建filtered publisher；DepthImage updater每次start都会执行CameraPublisher advertise及camera subscription创建。重复启动的资源句柄替换、ROS graph端点及回调行为必须动态确认，不能仅由静态代码推断端点泄漏或重复数据。全部S1-S7未执行；未修改上游或应用补丁。详见专项审计§9.3.149。
