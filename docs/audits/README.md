@@ -252,3 +252,6 @@
 
 
 - [2026-11-09 Stäubli VAL3 UDP接收批处理、旧命令缓存与错误恢复边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.182，检查每周期双次读取及后报文覆盖、无新报文时旧命令有效标志、sioGet返回值分支、序号陈旧门禁和clearBuffer恢复边界；新增SERVO-765/V1-V10，V1-V9未执行，V10现场证据缺失。
+
+
+- [2026-11-09 Stäubli ROS/VAL3重启、状态缓存与16位序号会话边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.183，审查ROS命令序号回显、disconnect数据重置、latest-message单槽缓存、重复序号处理、16位回绕与控制器重启边界；新增SERVO-766/W1-W10，W1-W9未执行，W10现场证据缺失。
