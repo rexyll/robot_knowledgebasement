@@ -1914,3 +1914,12 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 固定源码显示subscriber is_ready只检查socket connected/receiving；RobotDriver另行检查RobotState类型与默认100ms新鲜度。连接等待循环每500ms采样，首次成功后不break，持续运行到timeout窗口结束，并仅以末次采样结果决定连接成功；HardwareInterface配置路径传入5000ms。timeout退出还可能因固定sleep超出请求deadline最多约一个轮询周期。
 - 现有mock连接测试每4ms发送状态，但只断言最终成功，不断言首次有效状态到返回的延迟。新增SERVO-781/AL1-AL10：AL1-AL8静态源码/测试核对完成；AL9动态时序注入未执行；AL10目标部署/现场证据缺失。该结论不等同于现场连接必然延迟5秒或必然握手失败。
 - 更新专项审计追加件§9.3.198、Stäubli厂商档案§128.136、第21章TaskPlan及审计索引。00-01与21-02继续进行中；未运行ROS构建/单测、mock动态注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并；下一节点§9.3.199。
+
+
+### 2026-11-09｜v9.74 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.199，核对is_connected与状态新鲜度、on_activate、read/write、位置模式切换及诊断通道首帧验证。
+- 固定源码确认is_connected不检查状态年龄；read_robot_state按默认100ms检查新鲜度，失败时保留内部/HardwareInterface上一次成功状态缓存。on_activate只设STOP并返回SUCCESS；perform_command_mode_switch对JOINT_POSITION检查缓存error_state/motion_possible，但不独立验证状态时间戳。
+- 诊断subscriber仅检查socket/接收线程ready，connect等待循环将diag_interface_ready硬编码为true，未调用read_diagnostic_data；固件版本日志读取未在本流程更新的诊断缓存，控制器类型校验注释、VAL3版本检查仍为TODO。connect成功不能作为诊断/固件兼容性已验证的证据。
+- 新增SERVO-782/AM1–AM10：AM1–AM7固定提交静态核对完成；AM8动态注入未执行；AM9缺目标部署配置；AM10缺现场/HIL证据。该发现不等同于现场发生状态过期下运动或STOP执行失败。
+- 更新专项审计追加件§9.3.199、Stäubli厂商档案§128.137、第21章TaskPlan及审计README。00-01与21-02继续进行中；未执行ROS构建/单测、动态并发注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。下一节点§9.3.200。
