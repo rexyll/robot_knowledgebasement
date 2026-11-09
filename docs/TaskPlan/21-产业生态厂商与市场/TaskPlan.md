@@ -1749,3 +1749,22 @@ MoveIt main的`OccupancyMapMonitor::startMonitor()`先设置`active_=true`，再
 | I9 | ICube实际插件加载、node注入和析构顺序 | 未确认，现场证据缺失 |
 
 MoveIt main当前monitor调用顺序为setMonitor→middleware initialize→setParams→加入map_updaters_；updater接口头文件注释却称initialize假设setParams已执行。PointCloud和DepthImage内置插件的setParams均直接使用node_，而node_由initialize设置，因此不能简单将setParams提前。上游PR #3909通过bool返回值和失败时continue修复initialize(false)仍继续配置/启动的问题，并保留内置插件可用顺序；但PR没有解决接口注释/契约不一致。失败updater的局部shared_ptr离开作用域不等于其initialize部分创建的ROS资源一定完成回滚。PR测试未覆盖析构、弱引用、ROS graph、回调静默和ASan/TSan。全部I1-I9未执行；未修改上游或应用PR。详见专项审计§9.3.151。
+
+
+#### SERVO-735｜OccupancyMapMonitor构造展开与updater部分初始化资源回收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| E1 | initialize返回false后析构计数、weak_ptr及资源句柄归零 | 未执行 |
+| E2 | initialize创建publisher/subscription/timer/worker后返回false的清理 | 未执行 |
+| E3 | initialize创建资源后抛异常时的异常传播、插件析构与ClassLoader存活顺序 | 未执行 |
+| E4 | 第一updater成功加入、第二updater初始化抛异常时map_updaters_销毁顺序、插件先于ClassLoader卸载及回调清理 | 未执行 |
+| E5 | setParams返回false/抛异常后的部分初始化资源清理 | 未执行 |
+| E6 | save service创建成功、load service创建失败时ROS service注销和在途callback退出 | 未执行 |
+| E7 | 构造期间并发executor spin的service callback与monitor异常析构竞态 | 未执行 |
+| E8 | PointCloud/DepthImage内置updater RAII清理与第三方插件对照 | 未执行 |
+| E9 | initialize失败、setParams失败、构造异常、正常stop的生命周期契约及析构安全性 | 未执行 |
+| E10 | 目标Jazzy/RMW的ROS graph、ASan/TSan、线程退出和重复构造销毁 | 未执行 |
+| E11 | ICube自定义updater的initialize长期资源及析构策略确认 | 未确认，现场证据缺失 |
+
+静态审查显示，monitor构造期间异常会展开已构造成员和局部updater，但不会调用尚未完成构造对象的析构函数体，因此不能依赖析构函数中的stopMonitor()完成回滚。当前成员声明顺序使map_updaters_先于middleware_handle_析构，保留了插件实例先于pluginlib ClassLoader销毁的顺序。内置PointCloud/DepthImage updater在initialize阶段创建的主要资源由shared_ptr/unique_ptr管理；输入subscription与publisher主要在start阶段创建，构造尚未完成时startMonitor通常尚不可调用。但第三方插件接口没有规定initialize部分初始化后返回false/抛异常时的回滚责任，monitor失败路径也没有显式调用stop。PR #3909测试通过外部shared_ptr和GMock Return(updater)保留fake对象，不能验证析构或ROS资源回收。两个ROS service创建顺序及构造期间executor并发回调的安全性仍需目标环境验证。全部E1-E11未执行；详见专项审计§9.3.152。
