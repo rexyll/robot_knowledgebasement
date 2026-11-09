@@ -628,3 +628,7 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.206）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.206。核对subscriber时间戳、RobotDriver状态过期处理、hardware read/write及mode switch。发现RobotDriver状态超时后read_robot_state返回false，硬件read返回ERROR，但state_msg_保留上一次成功状态；is_connected只检查socket/interface ready、不检查staleness；write没有独立read成功/状态年龄门禁，活动模式只检查旧state_msg_的error_state及control_state INVALID；未直接检查motion_possible、brakes_released、estop_pressed、safety_status、power_on；mode switch无状态新鲜度门禁，仅检查error_state/motion_possible，HOLD只警告。现有测试仅覆盖RobotDriver层staleness，未覆盖硬件read ERROR后write及过期状态切换模式。新增SERVO-789/AT1–AT10：AT1–AT8静态核对完成，AT9–AT10需隔离运行时和现场安全证据。未运行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.207）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.207，覆盖硬件接口write、模式解析、RobotDriver命令发送和RobotCommand序列化。发现驱动发送路径无显式关节限值校验；write仅用std::isnan、不覆盖正负Inf；on_init仅拒绝0轴，未限制协议固定6轴，num_joints_超过6时NaN检查访问固定数组存在越界路径；混合position/velocity启动接口按vector第一个匹配项决定模式，未整体拒绝；模拟IO与controller_period缺少驱动侧有限性/范围校验；STOP非零参考仅warning后仍发送。现有硬件接口测试只覆盖正常路径。新增SERVO-790/AU1–AU10：AU1–AU9静态核对完成，AU10需隔离Mock/SIL/HIL及机型规格证据。未执行构建/单测、模糊测试、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
