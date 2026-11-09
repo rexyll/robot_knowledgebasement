@@ -3917,3 +3917,57 @@ AU1–AU9完成固定提交静态源码/测试覆盖核对；AU10未执行。未
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
+
+
+## §9.3.208｜命令UDP发送结果语义、背压丢包与发送缓冲并发审查（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开仓库`staubli_driver_ros2`提交`bd658e2d266e315d2ee35f985fb352ea88306b79`。审查`RobotDriver::send_robot_command/send_stop_all_command`、`RealTimeSocketInterface::send_message`、`UDPSocketImpl::send`、命令序号来源及相关通信测试。只做固定提交静态源码与现有测试覆盖审查；未运行UDP压力/背压或并发测试。
+
+### 静态发现
+
+1. **UDP背压时数据报明确被丢弃，但send仍返回true。** `UDPSocketImpl::send()`使用`socket_.send_to(..., MSG_DONTWAIT, err)`。当`err == would_block`时，代码记录“Packet dropped”，并说明考虑增加丢包计数器，但该分支没有返回false，函数最终返回true。上层`RealTimeSocketInterface::send_message()`因此将该次发送报告为成功；`RobotDriver::send_robot_command()`返回true；硬件`write()`可能返回OK，即使该UDP命令数据报实际没有发出。这是明确的发送结果语义不一致，可能造成控制器侧命令丢失而驱动接口报告成功。实际发生频率和机器人控制器对此的反应尚无运行时证据。
+2. **发送错误和背压没有统一的可观测计数/连续丢包处理。** would_block只warning且源码TODO提出增加drop counter或阈值触发错误；没有看到连续背压阈值、最近成功发送时间、命令丢失计数对上层的状态反馈。其他非零错误码返回false。当前上层不能可靠区分“发送成功”与“背压丢弃”。
+3. **RealTimeSocketInterface复用单一可变序列化缓冲区，没有发送互斥。** 构造函数预分配成员`data_out_`；每次send_message都把不同命令序列化到该成员后调用socket send；该类没有mutex或调用串行化声明。如果write周期发送与生命周期STOP/error处理、其他API发送在不同线程并发进入同一个接口，序列化写入及send读取可能交错。固定仓库未证明这些调用确实并发，因此定性为条件性线程安全风险，需查目标controller_manager生命周期调度及调用栈。
+4. **发送接口文档称blocking，与UDP实现的非阻塞行为不完全一致。** `real_time_socket_interface.hpp`将send_message标注为blocking call；UDP实现则使用MSG_DONTWAIT。该文档/实现语义不一致会影响调用方对最坏执行时间、背压和实时行为的判断。当前实现没有给出WCET或发送延迟测量。
+5. **命令序号沿用最近一次有效机器人状态序号，而不是本地递增发送序号。** hardware write和send_stop_all_command都从`get_current_message_sequence()`取值；该值由最近一次成功read_robot_state更新的`last_valid_sequence_id_`得到。多个控制周期可能重复使用同一状态序号，直到读到下一条有效状态。此行为可能是协议要求的状态-命令关联机制，也可能导致重发/去重歧义；仓库未包含足以确认CS9端序号语义的协议规范，故记录为需厂家协议确认项，不直接判定为缺陷。
+6. **STOP发送失败能够向调用方返回false，但背压分支会被误报成功。** `send_stop_all_command()`在send_message返回false时记录错误并返回false；但would_block被底层作为true处理，因此紧急STOP在发送缓冲背压时可能无法向上层报告失败。这一点尤其需要独立验证；不能据静态代码推断现场曾发生STOP丢失。
+7. **现有通信测试仅验证成功发送/接收路径。** `test_rt_socket_interface.cpp`的BidirectionalCommunication测试验证正常状态与命令数据报收发；未见通过注入would_block、填满内核发送缓冲、断链并发发送、共享buffer竞争或STOP背压来验证返回值与上层行为的定向测试。
+8. **没有确认UDP发送成功等于机器人执行成功。** send_message成功最多说明本机socket send调用未报告错误；没有在本轮找到命令执行确认/ACK闭环证据。是否存在独立协议层ACK、CS9命令接收确认或状态序号回显机制，需要厂家协议和控制器侧资料确认，不能将UDP send返回true描述为机器人已接受或执行命令。
+
+### 建议与验收要求
+
+- 将would_block映射为明确发送失败（或独立的DROPPED状态），不得返回成功；将错误类别、发送成功/丢弃/失败计数、连续背压次数和最近成功发送时间暴露给诊断/上层。
+- 对STOP发送失败建立明确故障响应；不能仅依赖日志。需要结合安全架构决定冗余停止通道、控制器状态确认和上层生命周期错误处理，软件UDP STOP不能替代独立安全回路。
+- 对`RealTimeSocketInterface::send_message`明确单线程调用约束，或在共享buffer和socket发送临界区增加可证明的串行化；评估实时周期是否允许锁等待，必要时采用每调用独立预分配buffer/单一发送线程队列并定义队列满策略。
+- 修正文档中的blocking/non-blocking语义，并在目标平台测量发送耗时分布、最坏延迟和背压恢复行为。
+- 取得CS9/VAL3通信规范，确认command sequence是状态回显、命令序列还是去重标识；明确ACK/执行确认与重发策略，不自行更改序号规则。
+- 增加可注入socket错误的单元测试：would_block必须导致上层不报告发送成功；其他错误、断链、序列化失败均验证；覆盖STOP和普通命令。增加内核发送缓冲饱和压力测试、发送与生命周期STOP并发测试、TSan（适用时）以及CS9/HIL丢包/恢复试验。
+- 在隔离环境验证UDP数据报是否实际送达、上层write返回码、STOP失败传播、命令ACK/状态回显及丢包恢复；记录目标网卡、内核、Boost.Asio版本和控制周期配置。
+
+### SERVO-791 / AV1–AV10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AV1 | 核对UDP would_block分支是否实际丢弃数据报 | 固定提交静态源码核对完成：日志明确Packet dropped |
+| AV2 | 核对would_block时UDPSocketImpl::send返回值 | 固定提交静态源码核对完成：分支不返回false，最终返回true |
+| AV3 | 核对send_message/write是否将丢弃误报成功 | 固定提交静态源码核对完成：上层沿用true，write可返回OK |
+| AV4 | 核对连续背压计数/阈值/诊断反馈 | 固定提交静态源码核对完成：仅warning及TODO，无计数/阈值上报 |
+| AV5 | 核对发送缓冲区是否共享及是否有互斥 | 固定提交静态源码核对完成：成员data_out_复用，类内未见mutex；实际并发调用未证实 |
+| AV6 | 核对send_message阻塞文档与UDP MSG_DONTWAIT实现 | 固定提交静态源码核对完成：文档称blocking，UDP实现采用MSG_DONTWAIT |
+| AV7 | 核对命令序号来源及递增/回显语义 | 固定提交静态源码核对完成：取最近一次有效状态序号；协议意图需CS9规范确认 |
+| AV8 | 核对STOP背压失败是否可靠传播 | 固定提交静态源码核对完成：would_block返回true，STOP上层可能误判成功 |
+| AV9 | 核对现有测试是否覆盖背压、错误注入、并发发送及STOP失败 | 固定提交静态测试覆盖核对完成：仅见成功双向收发测试 |
+| AV10 | 执行背压、STOP丢包、并发发送和CS9/HIL协议确认测试 | 未执行，需错误注入环境、目标网卡/内核及CS9/HIL证据 |
+
+AV1–AV9完成固定提交静态源码/测试覆盖核对；AV10未执行。未运行构建/单测、UDP压力/背压、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_interface.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
