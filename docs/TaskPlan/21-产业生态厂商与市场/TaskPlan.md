@@ -1732,3 +1732,20 @@ MoveIt main的`OccupancyMapMonitor::startMonitor()`先设置`active_=true`，再
 源码审查发现：PointCloud updater把捕获裸`this`的lambda注册给message_filters/TF filter，stop直接delete filter和subscriber，析构函数为空；DepthImage updater也把捕获裸`this`的lambda交给image_transport，stop与析构均调用`sub_depth_image_.shutdown()`。源码未显示显式在途回调计数、join或退出屏障。OccupancyMapMonitor析构函数体先调用stopMonitor，随后成员按逆序销毁，updater集合在tree和middleware成员之前销毁。两个callback都会访问updater成员、monitor及Octomap tree。因此必须验证stop/析构与回调执行重叠；但仅凭这些源码不能断言底层shutdown/destructor不等待，也不能认定已存在UAF。全部C1-C8未执行，现场证据缺失。详见专项审计§9.3.150。
 
 相关上游Issue #3901/#3902及PR #3909涉及updater初始化生命周期；PR #3909作者报告的Jazzy测试不是本项目验证，且不覆盖本节回调/析构竞态。
+
+
+#### SERVO-734｜OccupancyMapUpdater初始化失败回滚与生命周期契约验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| I1 | initialize返回false时updater析构、weak_ptr失效及析构计数 | 未执行 |
+| I2 | initialize部分创建ROS实体后返回false，验证publisher/subscription/timer/线程/callback清理 | 未执行 |
+| I3 | initialize抛异常时monitor构造失败路径及插件/middleware资源释放 | 未执行 |
+| I4 | PointCloud/DepthImage内置插件initialize→setParams顺序及参数缺失路径 | 未执行 |
+| I5 | 统一updater接口注释、middleware hook与插件真实生命周期契约 | 未执行 |
+| I6 | setParams返回false后的对象清理与后续插件加载行为 | 未执行 |
+| I7 | 单/多executor下失败插件无残留callback验证 | 未执行 |
+| I8 | 目标Jazzy/RMW的ROS graph、ASan/TSan及重复构造销毁矩阵 | 未执行 |
+| I9 | ICube实际插件加载、node注入和析构顺序 | 未确认，现场证据缺失 |
+
+MoveIt main当前monitor调用顺序为setMonitor→middleware initialize→setParams→加入map_updaters_；updater接口头文件注释却称initialize假设setParams已执行。PointCloud和DepthImage内置插件的setParams均直接使用node_，而node_由initialize设置，因此不能简单将setParams提前。上游PR #3909通过bool返回值和失败时continue修复initialize(false)仍继续配置/启动的问题，并保留内置插件可用顺序；但PR没有解决接口注释/契约不一致。失败updater的局部shared_ptr离开作用域不等于其initialize部分创建的ROS资源一定完成回滚。PR测试未覆盖析构、弱引用、ROS graph、回调静默和ASan/TSan。全部I1-I9未执行；未修改上游或应用PR。详见专项审计§9.3.151。
