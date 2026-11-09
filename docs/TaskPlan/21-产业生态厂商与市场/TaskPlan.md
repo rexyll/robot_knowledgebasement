@@ -2747,3 +2747,7 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli专项审查推进记录（§9.3.208 / SERVO-791）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.208，并更新Stäubli厂商档案§128.146。新增SERVO-791/AV1–AV10：AV1–AV9固定提交静态源码/测试覆盖核对完成；AV10需错误注入、目标网卡/内核和CS9/HIL证据。发现UDP would_block时数据报被丢弃但底层send仍返回true，可能导致上层write/STOP误报成功；没有背压计数/阈值；RealTimeSocketInterface复用data_out_且无发送互斥（实际并发未证实）；blocking文档与MSG_DONTWAIT实现不一致；命令序号沿用最近有效状态序号，协议意图待CS9规范确认。现有测试仅覆盖成功双向收发。未执行构建/单测、UDP压力、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.209 / SERVO-792）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.209，并更新Stäubli厂商档案§128.147。新增SERVO-792/AW1–AW10：AW1–AW9固定提交静态源码/测试覆盖核对完成；AW10需正式CS9/VAL3协议规范、控制器端证据和隔离HIL。发现命令序号复用最近一次有效状态序号；协议未定义独立ACK/command-result类型，send_robot_command不等待控制器接收/接受/执行确认；subscriber仅跟踪状态帧序号，不将状态回显与命令事务关联；未发现ACK超时、重发、去重和重连清理机制。不能据此断言协议设计错误，须先确认厂商序号和确认语义。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
