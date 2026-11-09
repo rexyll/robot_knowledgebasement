@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.43  
+> 版本：v9.44  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.168，厂商档案新增§128.119。SERVO-751/G1-G16审查ICube UDP接收新鲜度、16位序号和发送丢包语义：重复状态报文刷新本地接收时间但不推进序号，read_robot_state忽略new_message=false；序号下降一律按回绕处理；UDP would_block明确丢弃报文却返回true，可能使硬件write误判发送成功；UDP接收源地址校验留有TODO。ICube公开仓库仍是Jazzy/CS9原型而非现场部署证据。G1-G16全部未执行。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.169，厂商档案新增§128.120。SERVO-752/H1-H16审查ICube公开VAL3原型4 ms同步控制任务的overrun处理、序号回显与延迟看门狗耦合：overrun仅记录并累加nOverruns，无阈值停机或对外遥测；sequence_delay按控制任务执行序号差计算，不是墙钟超时；状态报文在本轮接收命令/计算延迟前发送，遥测滞后一轮。H1-H16全部未执行。ICube公开仓库仍是Jazzy/CS9原型而非现场部署证据。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1607,3 +1607,14 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-751/G1-G16；全部未执行。更新专项审计§9.3.168、厂商档案§128.119、第21章TaskPlan和审计README。
 - 本轮仅完成固定公开原型源码静态审查和验证设计；未运行ROS构建、网络故障注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游或应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.169。
+
+
+### 2026-11-09｜v9.44 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.169，沿§9.3.168发现的UDP丢包/命令延迟链，深入读取ICube固定公开提交中的VAL3 `controlTask`、同步任务创建、状态/命令序号、UDP读取和运动控制调用链。
+- 静态确认`start.pgx`以0.004 s创建`controlTask`同步任务；`bIsOverrun`由调度器标记，任务只记录overrun并累加`nOverruns`，未见阈值、STOP、降级或对外状态发布；`nOverruns`仅在数据表声明及该任务内初始化/递增，诊断任务启动仍留TODO。
+- 静态确认`computeSequenceDelay`使用VAL3本地状态序号与最近命令序号差值；ROS侧`set_sequence_number()`把最近收到的机器人状态序号复制到命令，不是独立的主机发送时钟。该指标是序号往返滞后，不等价于墙钟延迟或同步任务overrun计数。
+- 静态确认controlTask先发布当前状态（含上一轮`l_nSequenceDelay`），之后才接收本轮命令并重算延迟；对外`nSequenceDelay`至少滞后一轮控制任务。运动中>5、静止时>25周期的STOP逻辑仍独立存在，但overrun本身不会直接触发该STOP分支。
+- 新增SERVO-752/H1-H16，全部未执行；更新专项审计§9.3.169、厂商档案§128.120、第21章TaskPlan和审计README。
+- 本轮仅完成固定公开原型源码静态审查与验证设计；未运行VAL3编译/仿真、CS9任务调度测量、overrun注入、ROS集成、HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游或应用PR；现场版本仍未确认。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.170。
