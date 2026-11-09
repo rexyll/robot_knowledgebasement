@@ -2463,3 +2463,77 @@ Z1-Z9全部未执行，Z10现场证据缺失。未执行ROS构建/单测、mock�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+
+
+## §9.3.187｜VAL3命令序号延迟门禁、STOP/ERROR模式覆盖与通信复位语义审查
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。沿§9.3.179、§9.3.182和§9.3.186继续追踪VAL3 `controlTask.pgx`中的命令序号延迟计算、延迟阈值处理、命令模式提取、STOP/ERROR执行分支和错误恢复。
+
+| 文件 | Blob SHA |
+|---|---|
+| controlTask.pgx | 00a69c4d13879116fce744ceb1611ecd05d65edf |
+| Comm/computeSequenceDelay.pgx | e96e5b378bc263255ee4f28720306ee911b8a5c1 |
+| Comm/getNextSequenceNumber.pgx | 8bdda02a8887968b1b86e42be733f553b1e36b19 |
+| Comm/readData.pgx | bf2e0f3d26e66724b9f656261e29fe573bd5f3b0 |
+| Comm/readDataOnce.pgx | 652aa04548c814febab3c8c3fc807093261efd97 |
+
+### 1. 延迟阈值分支先写STOP，随后被统一模式提取覆盖为ERROR
+
+`controlTask.pgx`在检测到运动中序号延迟大于5、静止时大于25或负延迟时，先记录“going to STOP mode”，置 `l_bError=true` 并将 `l_nCmdMode=1`。但紧接着的统一命令模式提取分支检查 `l_bError`：只要错误标志为true，就将 `l_nCmdMode`重新赋值为0（ERROR），而不是保留1（STOP）。
+
+因此这些延迟异常路径的实际内部模式不是日志所述的STOP，而是进入后续 `l_nCmdMode<=1` 的STOP/ERROR共用执行分支，并继续触发统一错误处理。错误处理再次调用 `stopMove()`、`resetMotion()`，把命令类型置0、清除错误标志、将命令有效位清false并重置控制socket。该路径会导致通信会话重置/重新建立，而不只是停留在普通STOP等待新命令。不能据日志文本把其描述成“仅切到STOP”；也不能把软件错误处理或API调用当作停止完成确认。
+
+### 2. STOP与ERROR共享运动停止调用，但错误分支额外清理通信状态
+
+执行段对 `l_nCmdMode<=1`统一执行停止逻辑；随后 `if(l_bError)` 才执行额外的错误处理，包括再次停止/复位运动、重置序号计数和延迟、清除控制活动状态、使旧命令无效及调用 `resetControlSocket()`。因此模式数值0与1在执行入口共享部分停止动作，但其后续通信生命周期不同。延迟异常因为前述覆盖进入ERROR路径，不能等同于一个普通STOP命令。
+
+### 3. 序号延迟算法采用有阈值的16位回绕解释
+
+`computeSequenceDelay.pgx`计算 `last_sent-last_received`；仅当差值小于-60000时加65536作为uint16回绕修正。小于0但未达到回绕阈值的差值保持负数，随后由controlTask判为异常并触发错误复位。该实现把“合法回绕”和“负延迟/异常序号”按固定数值阈值区分；没有会话epoch或发送端重启标识。此处是算法边界说明，与§9.3.183已登记的重启/回绕歧义相关，不重复将其作为新的独立根因。
+
+### 4. 接收批处理结果与命令模式决策的关系
+
+`readData.pgx`每周期最多调用两次 `readDataOnce`；当已经读到一条消息、后续一次读取没有新数据时返回，若两次均读到数据则保留后一次写入的缓冲内容。该行为与§9.3.182的双次读取审查一致。本节不重复登记批处理本身，而是确认延迟判定和模式提取发生在当前缓冲命令解码之后，延迟门禁触发的 `l_bError` 会被后续统一模式提取读取并覆盖模式值。
+
+### 5. 静态结论
+
+1. 延迟超限和负延迟分支设置 `l_bError=true`，虽暂时写入STOP模式1，但统一模式提取随后将其覆盖为ERROR模式0。
+2. 上述路径进入STOP/ERROR共用停止入口，并继续执行错误处理：运动API调用、命令失效、序号/延迟复位、控制活动标志清除和控制socket重置。
+3. 因此“日志写going to STOP”不代表最终模式仍为STOP，也不代表只等待下一条命令；本地通信状态会被重置。重连握手与实际控制恢复仍需动态确认。
+4. `computeSequenceDelay`仅对差值小于-60000应用16位回绕修正；其余负值触发错误路径。该阈值与会话epoch缺失的交互需要组合测试。
+5. 以上为固定公开VAL3源码控制流静态结论；不证明现场部署该版本、不证明现场出现序号延迟，也不证明stopMove/resetMotion已使机械臂静止。
+
+### 6. 新增验收任务
+
+新增SERVO-770：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AA1 | 分别注入运动中delay=5/6及静止delay=25/26，记录日志、最终l_nCmdMode、l_bError和执行分支 | 未执行 |
+| AA2 | 注入负delay（-1、-59999、-60000、-60001），验证回绕修正边界及最终模式 | 未执行 |
+| AA3 | 对超限分支追踪统一模式提取前后l_nCmdMode，确认STOP赋值被ERROR覆盖 | 未执行 |
+| AA4 | 断言延迟超限后是否执行错误处理、清除bIsValid、重置序号并调用resetControlSocket | 未执行 |
+| AA5 | 对普通STOP与延迟异常ERROR比较运动停止调用、socket状态、控制活动标志和下一条命令接受条件 | 未执行 |
+| AA6 | 在mock VAL3/协议模型中注入旧命令、重复命令、跨回绕命令及短时乱序，验证错误分类 | 未执行 |
+| AA7 | 验证resetControlSocket失败时错误标志重新置位后的任务行为及恢复路径 | 未执行 |
+| AA8 | 将序号延迟阈值、命令接收批处理、任务overrun与状态先发送后接收组合成时序矩阵 | 未执行 |
+| AA9 | 在目标CS9/VAL3版本核对任务周期、序号类型、SIO行为、socket复位及控制恢复要求 | 未确认，现场证据缺失 |
+| AA10 | 获取现场控制器日志、UDP抓包、断连重连记录、STOP/ERROR状态轨迹及FAT/SAT验证记录 | 未确认，现场证据缺失 |
+
+AA1-AA8全部未执行，AA9-AA10现场证据缺失。未执行VAL3编译/仿真、ROS集成测试、UDP故障注入、CS9/HIL、FAT/SAT或实机测试。
+
+### 7. 结论与边界
+
+本节新增问题是延迟保护分支的“STOP日志/赋值”与统一模式提取后的最终ERROR状态不一致，以及该ERROR路径额外重置通信会话。建议后续将STOP请求、故障锁存和通信复位拆成显式状态转移，并为每条转移建立可观测状态/回执；任何上游修复仍需用户授权。本节不提出或应用补丁。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。目标现场版本、序号延迟测量、socket恢复策略和独立安全链仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
