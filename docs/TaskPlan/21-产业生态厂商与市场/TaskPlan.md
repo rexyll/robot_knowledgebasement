@@ -2095,3 +2095,35 @@ K1-K15全部未执行，K16现场证据缺失。未执行安全状态竞态注�
 - `updateJointVelocityControl.pgx`（Blob SHA `72f4eb0215ceeae2c3a528013ea2a79c4dc46344`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
 - `encodeRobotStateMsg.pgx`（Blob SHA `0dadb0cc7f03de3da165cafa86fa5f943f097ec3`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx
 - `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+
+
+#### SERVO-756｜VAL3运动停止API、movejSync结束语义与跨层停止完成条件
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| L1 | 取得目标CS9控制器对应版本的VAL3参考手册，确认stopMove/resetMotion的精确语义、限制和适用范围 | 未执行 |
+| L2 | 取得Stäubli对`$movejSyncState()`各返回值、错误状态及线程/任务调用约束的正式说明 | 未执行 |
+| L3 | 取得Stäubli对`$movejSyncEnd()`参数、返回/异常、同步/异步和停止完成语义的正式说明 | 未执行 |
+| L4 | 验证`$movejSyncState()!=-1`时包含状态-2的分支是否允许调用`$movejSyncEnd()` | 未执行 |
+| L5 | 验证`$movejSyncEnd()`调用后是否需轮询状态、等待静止或执行其他收尾步骤 | 未执行 |
+| L6 | 验证`stopJointPositionControl`无条件设置`x_bError=false`是否会掩盖结束API失败/错误状态 | 未执行 |
+| L7 | 测量`stopMove()`调用返回、实际减速开始、轨迹停止和机械臂稳定的独立时间点 | 未执行 |
+| L8 | 测量`resetMotion()`调用返回、活动/缓存运动取消、机械臂停止与稳定时间点 | 未执行 |
+| L9 | 验证stopMove后resetMotion的组合顺序、重复调用、并发调用及正在执行movejSync时的结果 | 未执行 |
+| L10 | 验证controlTask由位置模式切换STOP/ERROR时stopJointPositionControl、stopMove、resetMotion的顺序和错误传播 | 未执行 |
+| L11 | 验证独立stop.pgx与controlTask同时/交错触发时的竞态、命令缓存和运动状态 | 未执行 |
+| L12 | 验证stopJointVelocityControl调用resetMotion的路径；确认其与当前未实现的速度更新路径不构成虚假的速度停止能力声明 | 未执行 |
+| L13 | 验证ROS send_stop_all_command的本地发送成功、VAL3接收、STOP状态回读、静止反馈之间是否存在ACK/事务关联 | 未执行 |
+| L14 | 验证ROS lifecycle on_shutdown/on_error忽略STOP返回值时的故障传播和控制器侧行为 | 未执行 |
+| L15 | 分别验证软件STOP、VAL3轨迹停止、CS9安全停止（含现场配置的停止类别）的触发、响应时间、停止距离和复位条件 | 未执行 |
+| L16 | 核验现场CS9型号/固件、VAL3版本、movejSync API说明、安全功能配置、停止类别及FAT/SAT/实机停止记录 | 未确认，现场证据缺失 |
+
+固定ICube公开提交`bd658e2d266e315d2ee35f985fb352ea88306b79`静态审查：`stopJointPositionControl.pgx`读取`$movejSyncState()`，只要状态不等于-1便调用`$movejSyncEnd()`，随后无条件设置`x_bError=false`；没有对API返回结果、后续状态或机械臂稳定状态进行检查。该文件注释把-2描述为movejSync停止于错误、-1描述为未启动，故现有条件覆盖-2错误状态，但该专用API的真实状态机及调用约束尚无已核实的目标版本文档。源码Blob SHA：`bd4be41dff93258d5c08cbf9411af3d811b5f6c9`。
+
+`stopJointVelocityControl.pgx`仅调用`resetMotion()`并无条件清除错误标志；然而该原型的速度更新程序仍未实现，因此不能把该子程序视为端到端速度控制的已验证停止能力。源码Blob SHA：`9a41ba293561d0ac216bebcb4da69b7c99458df0`。
+
+VAL3参考手册D.280.935.01-F（2020）对`stopMove()`说明为沿当前轨迹停止并暂停程序运动授权；对`resetMotion()`说明为停止并取消已记录运动命令，并恢复此前由stopMove暂停的程序运动授权。两者均明确为立即返回，VAL3任务不会等待机械臂停止后再执行下一条指令。因此API调用返回不能作为停止完成、机械臂稳定、停止距离/时间合格或安全功能动作成功的证明。较早版D28062804A亦有相同警告。参考资料（公开镜像，版本适用性须由目标CS9受控手册确认）：https://bvdp.inetdoc.net/files/iut/robotiqueBUT2/Manuel_de_ref_VAL3.PDF ；https://usermanual.wiki/Document/val3referencemanual.275627616.pdf 。
+
+`controlTask.pgx`在由位置模式切入STOP/ERROR时先调用`stopJointPositionControl`，随后执行`stopMove()`与`resetMotion()`；独立`stop.pgx`执行`stopMove()`、`resetMotion()`和`clearBuffer(siSocketControl)`。这几步没有形成停止完成确认或机械臂稳定等待。ROS `send_stop_all_command()`只确认STOP报文准备和本地发送成功，不等待VAL3 ACK、STOP状态回读、静止反馈或CS9安全状态；lifecycle回调还忽略该返回值。上述三类路径必须分开验收，不得互相替代。
+
+L1-L15全部未执行，L16现场证据缺失。未执行VAL3/CS9仿真、停止时间/距离测量、并发/故障注入、HIL、FAT/SAT或实机验证。固定公开原型结论不代表现场部署；未修改ICube/MoveIt/ros2_control上游，Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见§9.3.173专项审计追加件。
