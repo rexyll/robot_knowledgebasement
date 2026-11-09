@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.21  
+> 版本：v10.22  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.246 / SERVO-829；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.247 / SERVO-830；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3501,3 +3501,54 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 以目标CS9硬件、确切VAL3版本、受控工程包和厂商安全/通信规范完成验证；静态源码和仓库中的工程声明不能代替厂商签核与现场验收。
 
 本轮未执行VAL3 Studio导入/编译、CS9控制器仿真或下载、4ms周期/WCET测量、UDP故障注入、ROS集成测试、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.247 / SERVO-830。
+
+
+### 2026-11-09｜v10.22 本轮推进记录（§9.3.247 / SERVO-830）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮聚焦诊断通道是否真正纳入连接验收、控制器监督任务/运行错误是否可观测、状态帧中的安全与运行错误标志是否有有效故障处理闭环。核查 `RobotDriver::connect/read_diagnostic_data/reset_data`、`controlTask.pgx`、`start.pgx`、`stop.pgx`、`updateState.pgx`、`sendData.pgx`、`ros2_server.dtx`及相关单测源码。
+
+#### 静态审查发现
+
+1. **诊断通道在连接阶段被逻辑性绕过。** `RobotDriver::connect()`确实建立diagnostics UDP socket和`RealTimeSocketSubscriber`，并检查subscriber ready；但等待首帧时将`diag_interface_ready=true`硬编码，旁边保留`read_diagnostic_data()` TODO。因此诊断首帧未被读取或验证，连接成功条件实际只依赖控制状态帧有效/新鲜。
+2. **控制器型号与固件兼容性检查未执行。** connect中的CS9 controller type检查整段注释；VAL3版本兼容检查仍是TODO。即使日志输出固件版本，也不能证明当前控制器型号和固件处于受支持矩阵。
+3. **诊断读取函数存在但未进入运行链路。** `read_diagnostic_data()`实现了subscriber读取、消息类型有效性及staleness检查，但全仓库调用搜索未发现实际调用点（除connect中注释掉的调用）；`current_diagnostic_data_`因此不会被正常更新。connect随后打印其firmware version，可能只是默认/重置对象中的值，不能视为从机器人读到的真实固件信息。
+4. **诊断超时没有参与运行健康判定。** diagnostics subscriber虽启动接收，但没有调用方消费其消息、更新丢包/时效状态或将诊断过期传播到硬件接口。控制状态通道的staleness门禁与诊断通道实际运行监控不等价。
+5. **VAL3监督/诊断任务明确留空。** `start.pgx`中“Setup supervision/diagnostics task”只有TODO；没有第二个监督任务对安全状态、驱动状态、机器人意外运动或运行时错误作独立周期监控。
+6. **VAL3控制任务的关键故障检测也留有TODO。** `controlTask.pgx`状态发布前的“机器人意外运动”“急停按下”“运行时错误”检测均为TODO；GPIO数字/模拟输出命令处理同样为TODO。尽管`updateState.pgx`读取`esStatus()`并生成状态字段，不能据此推断控制任务已对这些状态实施完整的停止/锁存逻辑。
+7. **任务超期只记录计数和日志。** controlTask检查`bIsOverrun`，清除标志并递增`nOverruns`，但没有看到超期达到阈值后切STOP、锁存错误或向ROS状态暴露累计超期量的逻辑。控制任务仍继续执行后续流程；实际调度超期影响未测。
+8. **状态发送失败只置错误标志，不保证故障传播到主机。** VAL3 `sendData.pgx`检查`sioSet`返回字节数；失败后controlTask置`l_bError=true`。但若状态帧无法发送，主机无法通过该帧直接获知该错误，只能依靠状态新鲜度超时等间接检测；没有独立诊断/心跳通道证明错误已上报。
+9. **ROS connect协议检查只做一次。** 初次控制状态帧后检查protocol_version；后续连续接收路径没有在本函数内重新执行协议版本兼容门禁。该风险与SERVO-798/CC审查中的持续收包协议验证缺口相关。
+10. **诊断连接失败会触发整体断开，但诊断内容失效不会。** diagnostics socket建立失败会disconnect并connect失败；但由于诊断首帧检查被跳过，socket可连接但机器人端没有诊断数据、数据格式/版本不兼容或诊断源静默时，仍可能connect成功。
+11. **VAL3错误处理并非持续故障锁存。** controlTask检测到l_bError后执行stopMove/resetMotion、将命令置无效并重置socket buffer，随后清除l_bError并重新等待命令；未见人工确认、诊断原因保留或监督层独立复位授权。该行为可能是自动重连策略，但不是经证明的安全故障锁存状态机。
+12. **现有RobotDriver单测以mock数据验证基础链路。** `test_robot_driver.cpp`中的mock server周期性发送控制状态和诊断数据，但没有针对诊断帧缺失、诊断版本/型号不匹配、诊断subscriber stale、connect跳过诊断首帧、VAL3 overrun阈值、运行时急停/意外运动监督、状态发送失败后的独立告警等负向场景的完整覆盖。本轮只读测试源码，未执行。
+13. **诊断数据的生命周期与reset行为需进一步核对。** `reset_data()`将current diagnostic header置INVALID；connect中由于未读取诊断消息，后续固件版本日志不能当作有效诊断证据。建议修复连接验收前置条件并对诊断数据时间戳/序号单独维护。
+14. **诊断/监督功能缺口影响运维可观测性和恢复决策。** 控制通道仍可发布部分RobotState，但无法证明驱动固件、控制器型号、故障代码和诊断状态在ROS侧持续新鲜；故障排查可能只看到控制链路超时，而缺少根因诊断。
+
+#### SERVO-830｜诊断、监督与故障可观测性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DM1 | ROS连接时控制通道首帧有效/新鲜检查 | 已有静态实现；动态未测 |
+| DM2 | diagnostics socket/subscriber建立 | 静态路径存在；运行连接未测 |
+| DM3 | 诊断首帧有效性与连接门禁 | 被硬编码跳过；缺陷 |
+| DM4 | 诊断消息持续读取、staleness与丢包监控 | 读取函数存在但无调用点；未形成运行监控 |
+| DM5 | 控制器型号/VAL3固件版本兼容性 | CS9检查注释、VAL3版本TODO |
+| DM6 | VAL3独立监督/诊断任务 | start.pgx明确TODO |
+| DM7 | 急停、意外运动、运行时错误的控制任务检测 | controlTask关键检查TODO |
+| DM8 | 控制任务overrun阈值、故障传播和ROS可观测性 | 仅日志/计数；未见阈值锁存/状态导出 |
+| DM9 | 诊断丢帧、版本不匹配、监督故障及恢复负向测试 | 未发现充分覆盖；本轮未执行 |
+| DM10 | CS9/VAL3版本矩阵、厂商诊断规范、SIL/HIL/FAT/SAT/实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 将诊断首帧有效、协议版本、控制器型号、固件版本、时间新鲜度和序号连续性纳入connect硬门禁；移除硬编码`diag_interface_ready=true`。
+- 在实时运行周期持续消费诊断数据，暴露诊断消息年龄、序号丢失、固件/控制器标识和故障代码；超过诊断时效阈值时进入定义明确的降级/停止策略。
+- 建立受控的Stäubli控制器型号与VAL3固件兼容矩阵；未知版本默认拒绝自动运动许可，需厂商确认后才能纳入支持列表。
+- 实现VAL3监督任务，对急停/安全状态、意外运动、驱动状态、程序错误、通信状态和控制任务overrun独立监测；监督任务本身需要活性监测与故障安全设计。
+- 为overrun建立可验证策略：累计次数、连续次数和时间窗阈值；阈值触发后的停止、锁存、状态回报及复位条件必须经风险分析和控制器实测确认。
+- 通过独立诊断通道或可验证的状态回执报告控制状态发送失败；不能依赖已失效的同一UDP通道报告自身发送失败。
+- 明确错误处理自动恢复与安全故障锁存的区别；保留故障码/时间戳，要求受控复位、缓存清理和会话重新同步后才能重新接受运动命令。
+- 增加诊断首帧缺失、诊断过期、协议/型号/固件不匹配、诊断源重启、状态发送失败、overrun持续、急停/意外运动、主机断连和自动恢复边界测试。
+- 所有监督与安全策略必须与Stäubli CS9手册、VAL3版本说明、风险评估和独立安全回路核对；软件诊断和ROS状态不能替代安全PLC、硬接线急停或STO。
+
+本轮未执行ROS构建/单测、VAL3 Studio导入/编译、CS9仿真/下载、overrun注入、诊断丢帧测试、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.248 / SERVO-831。
