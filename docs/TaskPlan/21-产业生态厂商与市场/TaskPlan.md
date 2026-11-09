@@ -4003,3 +4003,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 增加CS8/CS9/UNKNOWN、非法枚举、1.2.3边界版本、协议版本不一致、诊断帧头篡改、诊断帧缺失和VAL3兼容性负向测试。
 
 本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.239 / SERVO-822。
+
+
+### 2026-11-09｜v10.14 本轮推进记录（§9.3.239 / SERVO-822）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查`staubli_hardware_interface.cpp/.hpp`、`messages.hpp`、`r2c/staubli.r2c.xacro`、`r2c/include/staubli_r2c_joints.xacro`、`urdf/include/staubli_helpers.xacro`、`urdf/include/default_names.yaml`及硬件接口单测源码。
+
+#### 静态审查发现
+
+1. **驱动协议数组固定为六轴。** RobotStateMessage的joint_positions/joint_velocities/joint_torques和RobotCommandMessage的command_reference均为`std::array<double,6>`。描述配置中的默认关节名固定joint_1至joint_6，模型加载辅助宏注释明确目前只支持6 DoF arm。
+2. **硬件接口初始化只拒绝零关节，不拒绝非六轴。** `on_init()`将`num_joints_ = params.hardware_info.joints.size()`，只检查是否为0；没有检查是否等于协议固定6轴，也未对joint name集合、重复名、缺失名或顺序作核对。
+3. **存在明确的越界读风险。** update_state和命令填充循环使用`i < num_joints_ && i < 6`保护六元素数组，但随后NaN检查循环只使用`i < num_joints_`访问固定长度`cmd_msg.command_reference[i]`。如果URDF声明超过6个关节，该路径可能访问数组边界之外。必须在初始化阶段拒绝非6轴配置，并把所有访问统一限制于数组长度。
+4. **少于六轴配置也未被拒绝。** 当URDF只有1–5个关节时，update_state/命令循环只处理前N轴，其余协议轴如何定义、控制器是否接受部分轴命令没有证据。该配置不应默认为有效机器人配置。
+5. **关节映射按索引而非名称。** 导出接口使用`info_.joints[i].name`绑定内部数组第i项；update_state把消息数组第i项直接写入内部数组第i项；write也把内部第i项命令直接写入协议数组第i项。未见控制器轴名到ROS joint name的显式映射、重排表或校验。URDF顺序必须与控制器协议轴顺序一致，否则可能发生轴错配。
+6. **单位转换在硬件接口完成。** 状态位置/速度由`deg2rad`转换后发布ROS接口；位置/速度命令由`rad2deg`转换后写入协议数组。力矩直接复制，没有发现单位换算。仍需以控制器协议文档核实单位约定、关节方向、零位偏置和正方向。
+7. **模型与关节限制配置分离。** xacro宏从model config加载robot_model、传感器特性，并通过default_names.yaml装载固定关节/连杆名称；另行从joint_limits配置读取限制并生成接口。未发现驱动运行时把该robot_model与控制器上报型号绑定校验，也未见将URDF限制与控制器实际轴参数比较。
+8. **R2C ros2_control描述由配置生成。** `staubli.r2c.xacro`加载模型、初始位置和关节限制配置，并为实体硬件配置StaubliHardwareInterface。joint宏按joint_names列表递归生成关节接口。该描述本身可提供六轴模板，但不能证明所选配置与现场机器人型号一致。
+9. **URDF/SRDF、运动学和工具负载尚未形成运行时一致性校验。** 本轮文件中没有看到驱动连接阶段核对robot_model、joint_limits、TCP/tool frame、payload、kinematic parameters与控制器现场配置的完整机制。MoveIt规划模型与控制器真实参数一致性需在更大仓库范围进一步审查。
+10. **测试固定假设六轴但未覆盖错误轴数。** test_staubli_hardware_interface.cpp的fixture/接口数量断言以6 joints为基准；未见0轴以外的1–5轴、7轴、重复关节名、乱序关节名、轴映射错配、NaN检查边界和单位方向测试。本轮只读测试源码，未运行。
+11. **机器人型号和运动学配置来源尚未完全闭环。** R2C xacro接受robot_model_parameters_file等外部配置路径；配置中model_robot_config被导出，但本轮未能证明其值会与DiagnosticData中的控制器型号强制比对。不同型号的轴数、关节限位、安装姿态、工具与负载不能由通用六轴模板自动推断。
+
+#### SERVO-822｜机器人模型、轴数、关节映射及URDF一致性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | 协议状态/命令数组固定六轴 | 完整源码静态核对完成 |
+| DL2 | on_init轴数检查 | 完整源码确认仅拒绝0轴，未强制6轴 |
+| DL3 | >6轴时NaN检查数组边界 | 完整源码确认存在越界访问风险 |
+| DL4 | <6轴配置的协议语义 | 未确认；未见拒绝门禁 |
+| DL5 | ROS关节名与协议轴序映射 | 完整源码静态核对完成；按索引映射，无显式名称绑定 |
+| DL6 | 度/弧度转换路径 | 完整源码静态核对完成；正方向/零偏置待设备文档确认 |
+| DL7 | robot_model、joint limits、default names的xacro配置 | 完整源码静态核对完成 |
+| DL8 | URDF/SRDF/MoveIt与现场控制器型号/运动学/工具负载一致性 | 未见完整运行时校验 |
+| DL9 | 错误轴数/乱序关节/单位/边界测试 | 测试源码未见充分覆盖；未执行 |
+| DL10 | 目标型号、运动学标定、TCP/负载、控制器配置、SIL/HIL、CS9、FAT/SAT及实机验收 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 在on_init阶段明确拒绝非六轴配置（除非协议和驱动明确扩展为可变轴数）；同时检查关节名唯一、完整集合和预期顺序。
+- 修复NaN循环边界：所有对固定协议数组的访问都必须使用`min(num_joints_, command_reference.size())`，但边界保护只是防止越界，不能替代拒绝错误机器人轴数。
+- 建立显式映射配置：ROS joint name、控制器轴索引、机械轴号、正方向、零位偏置、单位及软/硬限位；禁止仅依赖URDF列表顺序。
+- 将robot_model配置、控制器上报型号、轴数、固件/VAL3版本和运动学参数形成签名化兼容矩阵；未匹配时禁止进入可运动状态。
+- 对URDF/SRDF/MoveIt规划模型、joint limits、安装姿态、TCP、工具质量/重心、payload和现场控制器配置做自动一致性检查；变更需版本化。
+- 补充1–5/7轴、乱序/重复/缺失关节名、轴交换、正反方向、零偏置、单位、限位边界和NaN数组越界负向测试。
+- 任何型号/轴数/工具/负载不一致均fail-closed；不得用通用六轴模型推断具体史陶比尔型号的安全工作空间或负载能力。
+
+本轮未执行构建、单测运行、URDF/Xacro展开、MoveIt规划验证、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.240 / SERVO-823。
