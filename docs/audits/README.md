@@ -186,3 +186,7 @@
 
 
 - [2026-11-09 Stäubli MoveIt PlanningSceneMonitor OctoMap场景更新与事件回调审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.160，审查scene/tree锁顺序、scene callback递归锁与vector重入、异常通知遗漏、双订阅stop清理缺口和OctoMap回调析构屏障；新增SERVO-743/N1-N12，全部未执行。
+
+
+
+- [2026-11-09 Stäubli MoveIt PlanningSceneWorld/CollisionObject失败原子性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.161，审查CollisionObject ADD/MOVE部分提交、PlanningSceneWorld逐项失败处理、OctoMap错误类型下scene/monitor tree一致性及full/diff空地图语义；新增SERVO-744/M1-M12，全部未执行。
