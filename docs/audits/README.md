@@ -304,3 +304,6 @@
 - [2026-11-09 Stäubli RobotDriver消息状态输出初始化与订阅器线程安全契约审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.202，确认MessageStatus无首帧失败路径未初始化lost_packages且可能保留旧time_since_received；read_message虽声明thread-safe，但first_read_/last_read_sequence_number_未同步，多读者并发属于条件性API风险。新增SERVO-785/AP1–AP10，AP1–AP6静态核对完成，AP7–AP8未执行，AP9–AP10缺部署/现场证据。
 
 - [2026-11-09 Stäubli UDP接收线程停止、重启与异步接收生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.203，确认stop只停止io_service而未显式取消挂起接收，重启时可能叠加异步接收；接收error仍无条件进入用户回调并可能继续重投递。新增SERVO-786/AQ1–AQ10，AQ1–AQ7静态核对完成，AQ8–AQ9未执行，AQ10缺目标部署/现场证据。
+
+
+- [2026-11-09 Stäubli UDP来源验证、报文长度与协议头字段边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.204，核对UDP sender_endpoint_来源过滤、RobotState/RobotCommand/DiagnosticData长度与头字段校验。发现接收端未验证来源IP/端口；反序列化未统一要求精确帧长；RobotState缺类型/版本/payload_size校验，RobotCommand缺协议版本校验，DiagnosticData在解析网络头前校验默认header字段，FrameHeader只检查magic。新增SERVO-787/AR1–AR10，AR1–AR9静态核对完成，AR10缺目标部署网络配置及隔离验证证据。
