@@ -2730,3 +2730,8 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli专项审查推进记录（§9.3.204 / SERVO-787）
 
 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.204，并更新Stäubli厂商档案§128.142。新增SERVO-787/AR1–AR10：AR1–AR9固定提交静态源码/测试覆盖核对完成，AR10缺目标部署网络ACL、端点配置及隔离CS9/HIL证据。审查发现UDP接收端未验证来源IP/端口；三类消息未统一精确长度校验；RobotState头字段漏检、RobotCommand未校验协议版本、DiagnosticData头校验顺序错误、FrameHeader未验证protocol_version。未执行构建/单测、模糊测试、网络注入、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.205 / SERVO-788）
+
+继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.205，并更新Stäubli厂商档案§128.143。新增SERVO-788/AS1–AS10：AS1–AS8固定提交静态源码/测试覆盖核对完成；AS9需具体机型及厂商/项目限值来源，AS10缺目标部署与隔离SIL/HIL验证证据。审查发现网络float解码无NaN/±Inf检查，枚举直接static_cast，操作模式状态和保留标志未验证，subscriber在语义校验前提交缓存，硬件层未校验finite或机型物理范围；update_state可能因速度有效字段缺失而在已写入位置后返回false。未运行构建/单测、模糊测试、SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
