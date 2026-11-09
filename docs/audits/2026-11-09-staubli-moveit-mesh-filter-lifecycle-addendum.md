@@ -2078,3 +2078,106 @@ V1-V9全部未执行；V10现场证据缺失。未执行VAL3编译/仿真、UDP�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
+
+
+## §9.3.183｜ROS/VAL3重启、状态订阅缓存与16位序号会话边界
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节追踪ROS RobotDriver connect/disconnect、状态接收线程的latest-message缓存、状态序号差计算、硬件接口命令序号来源，以及VAL3控制任务启动时序号初始化。
+
+| 文件 | Blob SHA |
+|---|---|
+| `robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `robot_driver.hpp` | `62c87a6741aa082db4599bb2c048aec0fcd7a464` |
+| `real_time_socket_subscriber.cpp` | `e2cd8fc50b2b13d9e31b2c024e90f9da76107622` |
+| `real_time_socket_subscriber.hpp` | `330839cb25e53fe961541f29f634722bec4a47c4` |
+| `udp_socket_impl.hpp` | `1309a8f2d59e8295869e178af82a66868bb911ff` |
+| `staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `getNextSequenceNumber.pgx` | `8bdda02a8887968b1b86e42be733f553b1e36b19` |
+
+### 1. ROS端命令序号并非本地独立计数，而是复制最近有效RobotState序号
+
+`RobotDriver::read_robot_state()`在消息有效且未超出staleness timeout后，将 `state.header.sequence_number`写入 `last_valid_sequence_id_`。硬件接口每次构造RobotCommand时，把该值转换为uint16_t作为命令头序号；STOP辅助命令也使用同一来源。因此ROS端不是自行递增命令序号，而是回显最近有效机器人状态序号。
+
+这使正常运行时ROS命令序号跟随VAL3状态序号；但也意味着命令序号是否更新取决于read路径成功读取状态。read失败时输出状态和last_valid_sequence_id_不会更新，旧序号可能继续被用于后续write，相关缓存门禁问题已在§9.3.178/179记录，本节不重复判定其控制器调度结果。
+
+### 2. RobotDriver断开时会重置状态缓存，但连接成功路径依赖收到第一份有效状态
+
+构造函数调用 `reset_data()`，将last_valid_sequence_id_置0，并把当前状态/诊断消息类型标记INVALID。disconnect()在停止接收线程、释放接口并断开socket后再次调用reset_data()。若connect()发现socket仍连接，会先disconnect()，再建立新接口。
+
+connect()创建新的RealTimeSocketInterface，订阅对象的构造函数将 `last_read_sequence_number_`置0、`first_read_`置true，并启动接收线程；连接建立后等待read_robot_state()取得有效状态。故显式disconnect→connect路径中，ROS侧状态缓存与subscriber序号跟踪均重新初始化。该路径不建立应用层会话ID，也没有与VAL3端进行新的随机挑战或双向序号协商。
+
+若底层socket状态异常变化但未经过RobotDriver::disconnect()，connect()的“是否已连接”分支和旧接口生命周期需要单独覆盖测试；本轮不推断所有异常断链场景均会自动调用reset_data()。
+
+### 3. Subscriber是latest-message单槽缓存，不是可靠队列
+
+接收线程每次成功反序列化后，将消息写入 `RealtimeThreadSafeBox<MessageType>`。read_message()只try_get当前最新消息，不维护逐包队列。高频数据在控制循环消费较慢时可能被中间覆盖；lost_packages仅根据两次被读取消息的序号差估算，不会恢复缺失消息。
+
+read_message()在比较序号前将status.new_message设为true；若序号相同，后续分支才将其设为false。RobotDriver::read_robot_state()没有使用status.new_message来拒绝重复状态，lost_packages的告警也被注释。因此重复读取同一状态时，只要其reception_timestamp仍在staleness timeout内，read_robot_state()仍可返回true并再次把相同序号写入last_valid_sequence_id_。这不是新状态确认，也不代表机器人刚刚产生了新反馈。
+
+### 4. 序号下降被一律按16位回绕计算，不能识别控制器重启与合法回绕的区别
+
+subscriber在新序号大于上次读到的序号时计算普通丢包数；序号变小时按 `MAX_FRAME_SEQUENCE_NUMBER`计算回绕丢包数。它没有根据连接重建、VAL3 task启动、机器人重启或会话代号来区分“合法16位回绕”和“发送端序号复位”。
+
+VAL3 `controlTask`启动时把本地状态序号初始化为0，随后每周期递增；错误复位路径也把本地序号清零。subscriber的first_read逻辑会让新订阅对象收到的第一帧不参与丢包比较。结合ROS命令序号回显最近状态序号，静态代码显示控制器重启后新订阅/新状态可以重新建立序号跟随，但没有会话级身份验证或旧数据报拒绝机制。
+
+这里不能仅凭序号下降断言旧命令会被接受或导致运动：VAL3还会检查序号延迟、命令格式和模式状态；旧UDP报文是否能在socket关闭/重建后残留、到达时序如何、是否被新状态序号门限拒绝，需要网络注入实测。
+
+### 5. UDP socket关闭/重建与VAL3端clearBuffer属于不同层级
+
+ROS的UDPSocketImpl::disconnect()停止接收线程并关闭本地UDP socket；connect()重新open、bind并设置remote endpoint。代码没有显式调用应用层flush，也没有会话握手。底层操作系统对已关闭UDP socket排队数据的处置属于OS网络栈语义，本仓库没有给出跨平台保证，不能把VAL3 clearBuffer与ROS socket close视为同一操作。
+
+VAL3端在controlTask启动和错误恢复路径调用clearBuffer；ROS端断开后关闭socket，重新连接时新建subscriber及其单槽消息缓存。两端各自清理本地资源，但协议没有会话nonce/epoch字段把两个生命周期绑定起来。
+
+### 6. 当前单测覆盖与缺口
+
+`test_robot_driver.cpp`的mock发送线程使用函数内static sequence_number从1开始递增；现有连接、断开、状态读取和staleness恢复测试证明基本连接/数据恢复路径可运行，但没有在同一个RobotDriver对象上完整验证VAL3序号重启、ROS断线重连、序号回绕、重复状态与旧报文交错。测试mock线程的static计数器在测试生命周期内递增，不是每次mock重启都从1重新开始，因此不能覆盖控制器序号复位情形。
+
+`test_rt_socket_interface.cpp`覆盖了消息传输和部分序号场景，但没有构造两个会话之间的延迟旧报文、跨重启重复序号或序号epoch不匹配测试。
+
+### 7. 本轮静态结论
+
+1. ROS命令序号取自最近一次有效RobotState序号，不是ROS独立递增计数器。
+2. 显式disconnect会重置RobotDriver状态缓存；新subscriber会把first_read置true，并只在接收线程latest-message单槽中保留最新消息。
+3. read_message将重复序号标记为status.new_message=false，但RobotDriver::read_robot_state()忽略该标志；重复且未过期的状态仍可能被作为有效读结果返回，命令序号因此保持旧值。
+4. 序号下降被当作16位回绕计算，代码没有识别发送端进程/VAL3任务重启的会话边界。
+5. ROS UDP socket关闭/重新绑定和VAL3 clearBuffer分别清理各自本地资源，但协议未提供会话epoch/nonce，也没有跨端重新授权握手。
+6. 以上是固定公开原型的静态结论；不能据此断言现场旧报文跨重启残留、被执行或造成危险运动。
+
+### 8. 新增验收任务
+
+新增SERVO-766：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| W1 | 同一RobotDriver对象执行disconnect→connect，验证last_valid_sequence_id_、状态类型、subscriber first_read和缓存均重置 | 未执行 |
+| W2 | 保持ROS连接，单独重启VAL3 controlTask，验证状态序号复位、subscriber回绕计数及命令序号重新跟随 | 未执行 |
+| W3 | 在状态接收线程注入重复序号且时间戳持续更新/停止更新两种情形，验证read_robot_state返回值及status.new_message | 未执行 |
+| W4 | 在latest-message单槽缓存前注入高频突发状态，量化被覆盖帧、lost_packages与实际消费序列 | 未执行 |
+| W5 | 注入16位序号65534、65535、0、1以及非回绕下降，验证回绕丢包计算与异常区分能力 | 未执行 |
+| W6 | ROS断线/重连与VAL3任务重启交错，注入旧会话延迟数据报，验证是否能被新连接接收及是否影响命令序号 | 未执行 |
+| W7 | 对本地UDP socket关闭/重绑、端口复用、接收线程停止/重启进行抓包，确认内核队列和迟到报文处置 | 未执行 |
+| W8 | 为subscriber增加重复序号、latest-message覆盖、回绕和会话复位单测，明确new_message与lost_packages契约 | 未执行 |
+| W9 | 评估会话epoch/随机nonce/启动代号及双向重同步握手设计，形成兼容性与失效安全评审，不直接修改上游 | 未执行 |
+| W10 | 获取现场ROS/CS9/VAL3版本、重启日志、UDP抓包及FAT/SAT重连验收记录 | 未确认，现场证据缺失 |
+
+W1-W9全部未执行；W10现场证据缺失。未执行ROS构建/单测、UDP重启故障注入、VAL3仿真、HIL、CS9实机或FAT/SAT。
+
+### 9. 结论与边界
+
+固定公开源码显示，ROS端命令序号跟随最近有效机器人状态序号；显式disconnect会重置RobotDriver缓存，新subscriber以first_read=true开始并使用latest-message单槽缓存。重复序号会在subscriber状态中被标为非新消息，但RobotDriver读取层没有使用该标志拒绝重复状态。序号下降一律按16位回绕估算丢包，无法区分合法回绕与发送端重启。两端资源清理没有构成协议级会话重同步或重新授权握手。
+
+这构成跨重启会话边界与验证覆盖缺口，不证明旧UDP数据报一定跨重启残留，也不证明旧命令会被执行。未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。现场部署版本、网络拓扑及控制器重启行为未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
