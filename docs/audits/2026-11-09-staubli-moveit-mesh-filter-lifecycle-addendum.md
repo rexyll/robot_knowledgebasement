@@ -728,3 +728,76 @@ D1–D14全部未执行。未运行ROS构建、动态场景测试、barrier线�
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/config/servo_parameters.yaml
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
+
+
+
+## §9.3.166 Servo停止状态、命令发布语义与下游控制器接收边界（2026-11-09）
+
+### 审查范围与固定基线
+
+沿§9.3.165继续追踪Servo从碰撞检测状态码到命令topic发布，再到典型ros2_control JointTrajectoryController接收端的行为。MoveIt固定基线仍为`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。另选取ros-controls/ros2_controllers提交`c8d26930ff87bc819db1452af1d45da5bfa3d50d`作为控制器行为对照样本；该提交不是已确认的Stäubli/ICube部署版本，不能替代现场依赖版本核对。
+
+MoveIt源码Blob SHA：
+- `servo_node.cpp`：`eef6cc4073e03863a08eebbf69dc7cefedb15ebc`
+- `servo.cpp`：`0334445a7701935a80ba064fbb6f915f6c58dba3`
+- `utils/common.cpp`：`7ce13c1805ba6bce2e58be10828034f35b60471a`
+- `utils/datatypes.hpp`：`57c0f111b3776c69a838b8ff30190226d54108f2`
+- `servo_parameters.yaml`：`b16fc6bf0c31fea680529b797c9101827ac6024f`
+
+对照控制器源码Blob SHA：
+- `joint_trajectory_controller.cpp`：`73ab7eec845fdb75c725b95740ae7f9166aca9e4`
+- `joint_trajectory_controller.hpp`：`7c8545a1d1f9274c57a8d3b46eacad763e232a4b`
+
+### 静态发现
+
+1. **HALT_FOR_COLLISION抑制本周期命令发布，但不显式发送停止命令。** `Servo::getNextJointState()`在collision_velocity_scale_为0时将状态设为`HALT_FOR_COLLISION`，跳过正常目标位置/速度计算并返回目标状态。随后`ServoNode::servoLoop()`只有在next_joint_state存在且状态既不是INVALID也不是HALT_FOR_COLLISION时才发布JointTrajectory或Float64MultiArray。碰撞HALT分支进入else，只重新读取当前机器人状态、更新本地rolling window并重置smoothing；没有发布零速度消息、hold-position轨迹、cancel请求或控制器停止服务。因此`ServoStatus=HALT_FOR_COLLISION`是Servo内部检测/状态上报，不是下游控制器已执行停止的确认。
+
+2. **Servo status topic与command topic没有事务绑定或执行确认。** Servo每个未暂停循环周期发布状态码和文本，但状态消息不包含对应命令序号、已发布命令序号、控制器接收确认或实际执行反馈关联。publisher的`publish()`调用也没有在本路径中检查控制器是否active、是否匹配订阅、是否接受轨迹或是否已经写入硬件command interface。因而状态消费者不能仅凭收到HALT状态推断控制器已经停止；命令消费者也不能仅凭收到命令推断Servo碰撞状态仍然有效。
+
+3. **Trajectory模式HALT留下最后一条已发布轨迹的下游处理问题。** Servo正常轨迹输出使用`updateSlidingWindow()`生成未来时间窗，并由`composeTrajectoryMessage()`将窗口中除末尾点外的点组成消息；`max_expected_latency`默认配置为0.1秒。HALT时Servo不再发布新轨迹，但没有主动替换或取消控制器中的旧轨迹。下游控制器如何处理旧轨迹、轨迹时间戳和无新消息，取决于实际控制器实现、配置和驱动层，不能由Servo状态码代替验证。
+
+4. **典型JointTrajectoryController对照实现显示，topic无新消息不等于立刻停止当前轨迹。** 在ros-controls/ros2_controllers固定对照提交`c8d26930ff87bc819db1452af1d45da5bfa3d50d`中，`topic_callback()`收到并验证新轨迹后才调用`add_new_trajectory_msg()`替换当前轨迹；周期性`update()`在`has_active_trajectory()`时持续采样当前轨迹并生成下一控制周期命令。没有新topic消息时，当前活动轨迹不会仅因topic沉默而在该回调中自动取消。其`cmd_timeout_`处理发生在轨迹末点之后且依赖参数配置，不是通用的“Servo停止消息丢失即立即停机”机制。该样本只证明此对照版本的行为，不证明Stäubli现场使用同版本或同参数。
+
+5. **Float64MultiArray输出路径同样没有显式停止/接收确认。** Servo在`std_msgs/Float64MultiArray`模式发布由配置的关节位置或速度字段组成的数组。该消息不携带JointTrajectory的header时间戳和轨迹时间窗；接收端的超时、零速、hold、失联检测和驱动使能语义完全依赖具体下游节点/控制器。不能将Trajectory模式的行为假设套用于MultiArray，也不能假设topic停止发布就代表硬件停止。
+
+6. **输入命令超时与碰撞HALT是不同的停止路径。** JointJog/Twist/Pose处理函数在输入命令过期后调用`smoothHalt()`，在平滑停止尚未完成时可返回停止轨迹/状态供正常输出分支发布；而碰撞HALT被servoLoop明确排除在命令发布条件之外。不得将`incoming_command_timeout`默认0.1秒的平滑停止机制误认为碰撞HALT已经发送了相同的停止轨迹。输入命令时间戳新鲜度、碰撞缩放和控制器命令超时是三个独立门禁。
+
+7. **暂停分支绕过本周期status与command发布。** `servoLoop()`检测到`servo_paused_`后重置平滑器、sleep并continue，跳过本周期状态消息发布及命令处理。pause服务返回成功只说明Servo内部暂停状态已切换，不构成控制器/驱动层停止确认；暂停前已被控制器接收的轨迹如何收尾仍依赖下游行为。该问题与§9.3.165的恢复场景校验缺口相关，但本节聚焦命令出口语义。
+
+8. **Servo status中的“emergency stop”文字不能作为安全功能证据。** `HALT_FOR_COLLISION`映射文本为“Collision detected, emergency stop”，但对应实现是普通ROS循环中抑制命令发布并发布状态消息；未见该分支直接调用Stäubli控制器安全停止、保护停止、安全PLC或安全额定停止接口。这里的文案不能解释为已触发安全等级的Emergency Stop。安全停止必须由独立、经风险评估和验证的安全链完成。
+
+### 新增验证任务 SERVO-749 / E1–E15
+
+- E1：在Trajectory输出模式注入碰撞HALT，记录最后一条已发布轨迹的header.stamp、point时间窗、Servo状态、控制器desired state与硬件command interface。
+- E2：证明HALT_FOR_COLLISION期间Servo是否发送任何零速、hold-position、空轨迹或cancel消息；预期当前固定源码路径不发布新command，测试记录不得伪造为已执行。
+- E3：在碰撞HALT时保持JTC活动轨迹，验证无新Servo轨迹时控制器是否继续采样/执行旧轨迹以及持续时间。
+- E4：对实际ICube控制器版本核对topic callback、轨迹替换、活动轨迹结束、cmd_timeout、hold/decelerate和生命周期停用语义。
+- E5：分别在Trajectory与Float64MultiArray输出模式执行碰撞HALT，比较接收端停止行为、命令缓存和硬件接口变化。
+- E6：断开/暂停Servo publisher或停止Servo进程，验证控制器对topic沉默、DDS断连和publisher销毁的反应；区分命令超时与控制器生命周期停止。
+- E7：模拟控制器inactive、订阅端不存在、QoS不兼容、消息丢弃及接收回调延迟，确认Servo是否有可观测的拒收/未送达反馈。
+- E8：将ServoStatus与command消息按序号/时间戳关联，验证HALT状态、最后发布命令和控制器接收时刻是否可追溯；评估是否需要单独ack/watchdog接口。
+- E9：验证HALT_FOR_COLLISION之后碰撞解除、命令仍持续输入时的恢复行为，确认是否必须经过人工/上层重新使能，而非自动恢复输出。
+- E10：pause/unpause期间保持下游旧轨迹活动，验证pause服务是否仅改变Servo内部状态以及下游轨迹何时终止。
+- E11：输入命令超时路径与碰撞HALT路径分别测试，验证smoothHalt会发布停止轨迹而碰撞HALT不走同一发布分支。
+- E12：检查Servo status消费者、任务调度器和机器人应用是否把HALT_FOR_COLLISION误解释为硬件已停；验证状态丢失/延迟时的安全行为。
+- E13：对Trajectory窗口边界、最后一点时间戳、控制器update周期和网络/DDS延迟做故障注入，测量停止响应上界。
+- E14：验证Stäubli控制器/安全PLC独立保护停止、驱动使能撤销和安全扫描器触发链；明确Servo topic命令不承担安全功能。
+- E15：获取现场ICube/ros2_control版本、控制器类型与参数、command interface映射、QoS、topic remap、驱动失联策略和FAT/SAT证据。
+
+E1–E15全部未执行。对照JTC提交不是现场部署证据；现场控制器类型/版本/配置仍未确认。未运行ROS构建、仿真/动态控制器测试、DDS断链测试、CS9/HIL、FAT/SAT或实机验证。
+
+### 结论与证据边界
+
+§9.3.166确认：MoveIt Servo的碰撞HALT状态不等价于下游控制器收到并执行停止命令。固定Servo源码在HALT_FOR_COLLISION分支抑制正常command publish，发布状态消息，但不显式发布零速/hold/取消轨迹命令；典型JTC对照版本在没有新topic消息时仍持续采样活动轨迹。MultiArray模式的停止语义更依赖未知接收端。pause分支也会跳过状态与命令发布。
+
+这构成“软件内部停止状态”与“执行器停止结果”之间的验证缺口，不足以证明Stäubli现场实际发生危险运动，也不证明现场采用上述JTC对照版本。必须取得ICube部署源码/版本、控制器配置、驱动行为和安全PLC证据，并通过故障注入及HIL/FAT/SAT验证停止响应。不得将Servo status文案中的“emergency stop”解释为安全认证急停。未修改MoveIt/ICube上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/utils/common.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/include/moveit_servo/utils/datatypes.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/config/servo_parameters.yaml
+- https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_trajectory_controller/src/joint_trajectory_controller.cpp
+- https://github.com/ros-controls/ros2_controllers/blob/c8d26930ff87bc819db1452af1d45da5bfa3d50d/joint_trajectory_controller/include/joint_trajectory_controller/joint_trajectory_controller.hpp
