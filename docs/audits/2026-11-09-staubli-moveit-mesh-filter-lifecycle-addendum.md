@@ -1784,3 +1784,94 @@ S1-S9全部未执行，S10现场证据缺失。未执行VAL3/CS9仿真、UDP故�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/stopJointPositionControl.pgx
+
+
+## §9.3.180｜关节位置限位一致性、异常数值过滤与命令数组边界
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节检查ROS硬件接口命令数值校验、固定六轴协议数组边界、TX2-60L模型限位配置、R2C Xacro接口生成，以及VAL3位置控制的运行时关节范围检查和目标距离检查。
+
+| 文件 | Blob SHA |
+|---|---|
+| `staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+| `robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `robot_driver_helpers.hpp` | `88a0cac08d3a299b7330eaa72b1afaaeab2fe41b` |
+| `communication/messages.hpp` | `(固定提交文件；本轮未记录独立Blob SHA)` |
+| `updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
+| `staubli_helpers.xacro` | `3a8431c4b4d4f403984ad8719c0d048de7a97bf6` |
+| `r2c/staubli.r2c.xacro` | `0013b6ea5b681e5333799f65867e7de497b54127` |
+| `tx2_60l/joint_limits.yaml` | `0f5cb789dac614747bb563867ded5cd1291fec2a` |
+| `tx2_60l_med/joint_limits.yaml` | `0f5cb789dac614747bb563867ded5cd1291fec2a` |
+| `staubli_moveit_config/config/joint_limits.yaml` | `6a2fb4c585c5caa5299a415c2e1ed1b22b8211e6` |
+
+### 1. ROS write路径只拒绝NaN，没有拒绝全部非有限数值
+
+`StaubliHardwareInterface::write()`把position/velocity command interface中的弧度值乘以rad2deg转换后写入固定六元素`RobotCommandMessage::command_reference`。随后执行的异常数值检查使用`std::isnan()`，只拒绝NaN；源码没有使用`std::isfinite()`，因此正/负Inf不被该检查识别。位置/速度命令也没有在该路径做本地min/max、增量或限速钳制；`RobotDriver::send_robot_command()`仍留有“add checks for position/velocity limits here?” TODO。
+
+该结论是代码检查范围的静态事实：Inf可通过当前NaN专用条件，并不证明VAL3一定接受Inf或现场已发生异常运动。VAL3的`isInRange()`对Inf/NaN的实际处理及序列化/运行时行为仍需目标VAL3版本验证。
+
+### 2. 六轴协议数组与可配置num_joints_之间存在条件性越界风险
+
+`communication/messages.hpp`明确将关节位置、速度、力矩和命令参考定义为固定`std::array<double, 6>`，并注释该协议面向六轴Stäubli机器人。HardwareInterface::write()在复制位置/速度命令时使用`i < num_joints_ && i < 6`，但随后NaN检查循环只使用`i < num_joints_`并直接访问`cmd_msg.command_reference[i]`。on_init()只拒绝零关节，没有在此处强制`num_joints_ == 6`。因此若配置关节数大于6，静态代码路径会越过固定数组边界；若少于6，未写入的协议槽位如何初始化及VAL3对剩余轴的解释也需要确认。
+
+仓库的消息协议和TX2-60L模型均面向六轴，因此这属于配置异常条件下的代码边界风险，不应描述为正常六轴配置必然触发。应在初始化时明确拒绝非六轴配置，或统一按协议容量做安全边界检查。
+
+### 3. 位置限位分布在多层配置，未发现统一一致性门禁
+
+TX2-60L模型配置给出六轴位置范围：J1 ±180°、J2 ±127°、J3 ±150°、J4 ±270°、J5 ±120°、J6 ±270°；并给出模型速度上限J1–J5 300°/s、J6 500°/s，以及加速度上限J1–J5 1000°/s²、J6 3000°/s²。TX2-60L MED配置在本固定提交中与TX2-60L文件内容相同，但这不证明两个实际产品的机械/安全限位可互换。
+
+独立的MoveIt `joint_limits.yaml`仅列出速度1.5 rad/s（J1–J5）、J6 2.0 rad/s及加速度5 rad/s²，未在该文件重复列出位置边界。该值比模型YAML中的名义速度/加速度上限更保守；两份配置的用途、覆盖关系和生效顺序不能混为一谈。当前审查未发现自动比较模型YAML、URDF、MoveIt限值、控制器限幅与CS9实际轴参数的一致性检查。
+
+`staubli_helpers.xacro`将模型配置的min/max position和max velocity写入URDF joint limit；但R2C ros2_control关节宏对position/velocity command interface没有生成对应min/max参数，真实HardwareInterface::write()也没有执行相应数值夹紧。R2C宏从模型限值中取出max_acceleration作为acceleration command interface的max/min参数；该接口被注释为供joint limiter使用，但write()并未把该加速度命令写入RobotCommand。由此不能仅凭URDF/YAML中存在限值，就宣称HardwareInterface发送前已经应用这些限值；实际JointLimiter插件/控制器配置及生效链仍需独立核验。
+
+### 4. VAL3 isInRange检查与目标距离检查的能力边界
+
+`updateJointPositionControl.pgx`将六个`nMotionCmdData`元素复制到`jointRx`目标后调用`isInRange(l_jJointPositionCmd)`；返回false时调用位置停止子程序、置错误并返回。该程序未在仓库内提供`isInRange`实现，因此本轮只能确认调用点存在，不能据此断言其精确边界比较方式、限位来源、单位转换、NaN/Inf行为或与TX2-60L YAML一致。
+
+紧接范围检查之后，源码明确将“Check target is close enough to current position”留为TODO。故即使目标通过当前VAL3范围函数，也不能从源码证明单周期目标跳变量、轨迹连续性、速度/加速度/jerk、路径可达性或制动距离已被独立限制。ROS Driver本身同样没有位置/速度范围检查。
+
+### 5. 本轮静态结论
+
+1. ROS write()的关节命令过滤是NaN专用检查，不是完整有限数检查；Inf可通过该条件。
+2. 命令协议固定六元素，而HardwareInterface允许任意非零num_joints_；NaN检查循环没有与六元素数组容量取最小值，配置超过六轴时存在条件性越界访问风险。
+3. 模型URDF限位、MoveIt速度/加速度配置、R2C ros2_control接口和VAL3 isInRange分属不同层；当前固定源码没有证明它们由统一来源生成并做一致性校验。
+4. VAL3位置控制有运行时isInRange调用，但其实现和限位来源未在仓库中给出；目标距离检查明确为TODO。
+5. 本轮未确认目标现场具体机器人型号、实际关节软/硬限位、控制器参数、限幅器插件配置或安全额定限位。软件限位不能替代CS9安全功能或机械硬限位。
+
+### 6. 新增验收任务
+
+新增SERVO-763：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| T1 | 对六轴position/velocity命令分别注入NaN、+Inf、-Inf、极大有限值，验证write门禁、STOP请求和VAL3解码结果 | 未执行 |
+| T2 | 初始化0、1、6、7轴及异常joint配置，验证协议固定数组边界、初始化拒绝策略和ASan结果 | 未执行 |
+| T3 | 验证ROS write()位置/速度命令与模型min/max/velocity/acceleration限值的实际执行链 | 未执行 |
+| T4 | 展开TX2-60L与TX2-60L MED Xacro/URDF，逐轴比对模型YAML、URDF、MoveIt与控制器限值 | 未执行 |
+| T5 | 确认R2C ros2_control实际加载的JointLimiter插件、参数来源、接口声明和运行时限幅效果 | 未执行 |
+| T6 | 取得目标CS9/VAL3版本对isInRange的正式定义，验证边界相等、越界、NaN/Inf及轴配置差异 | 未执行 |
+| T7 | 对位置目标设置大步长、方向反转和近限位跳变，测量movejSync目标变化、速度/加速度/jerk与停止距离 | 未执行 |
+| T8 | 验证VAL3位置范围、ROS MoveIt规划限值、控制器参数与真实机器人轴限位的一致性及配置漂移检测 | 未执行 |
+| T9 | 对数字/模拟GPIO输出注入NaN/Inf/越界值，验证输出编码、范围检查和故障处理 | 未执行 |
+| T10 | 核对现场机器人型号/序列配置、CS9轴参数、VAL3版本、限位/安全参数、JointLimiter配置及FAT/SAT记录 | 未确认，现场证据缺失 |
+
+T1-T9全部未执行，T10现场证据缺失。未执行ROS构建/单测、ASan、Xacro展开、JointLimiter集成测试、VAL3编译/仿真、CS9限位/运动实测、HIL、FAT/SAT或实机验证。
+
+### 7. 结论与边界
+
+固定公开原型的ROS命令入口仅拒绝NaN而非所有非有限数值；固定六元素协议数组与未限制为六轴的num_joints_形成条件性边界风险；模型URDF、MoveIt与硬件接口限值分散在不同配置层；VAL3位置控制调用isInRange但未提供实现，且目标距离检查仍为TODO。该证据支持开展有限数值、配置一致性和目标跳变验证，不证明Inf已进入现场、不证明越限命令被CS9接受，也不证明现场限位失效。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行任何动态、HIL、FAT/SAT或实机限位验证。现场机器人型号、软件版本、实际轴参数及安全配置未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/staubli.r2c.xacro
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/joint_limits.yaml
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l_med/joint_limits.yaml
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/joint_limits.yaml
