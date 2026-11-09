@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.89  
+> 版本：v9.90  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.214；新增SERVO-797/BB1–BB10：固定ICube提交静态核对RealTimeSocketInterface::send_message使用共享成员data_out_序列化且无发送互斥；并发调用可能发生缓冲区数据竞争及报文内容交叉。UDPSocketImpl::send在would_block时记录Packet dropped但未返回false，函数最终返回true，上层因此可能误判控制报文发送成功；没有丢包计数/阈值故障处理。RobotDriver的STOP和普通命令均可进入同一发送接口，未见统一发送队列、命令优先级/互斥或调用顺序保证；并发调用下应用层先后顺序不受保护。UDP send_to是同步非阻塞发送，单次调用不会等待控制器确认；true仅表示本地发送路径未报告错误，不能证明控制器接收或执行。BB1–BB8固定提交静态源码/现有测试核对完成；BB9并发发送、send buffer饱和与故障注入未执行；BB10目标控制器接收确认/命令回显、实时负载与隔离SIL/HIL证据缺失。未执行构建/单测、并发压力、TSan、网络拥塞注入、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.215；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -2037,3 +2037,25 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 现有 `test_rt_socket_interface.cpp`覆盖单线程双向通信与正常收发；`test_sockets.cpp`覆盖正常发送、断连发送和基础收发线程，但未见同一interface并发send_message、多个RobotDriver命令线程、强制would_block/发送缓冲区饱和、命令序号/STOP优先级或发送结果与控制器回显一致性测试。
 - 新增SERVO-797/BB1–BB10：BB1 data_out_共享缓冲区生命周期：静态核对完成；BB2 send_message并发保护：静态核对完成（未见同步）；BB3 serialize与send之间共享缓冲区访问：静态核对完成；BB4 UDP would_block分支返回值：静态核对完成（丢弃仍返回true）；BB5发送丢包计数/阈值故障处理：静态核对完成（未见实现，注释为TODO）；BB6 STOP/普通命令是否共用发送接口：静态核对完成；BB7应用层命令排序/优先级：静态核对完成（未见统一仲裁）；BB8现有发送单测覆盖：静态核对完成（未覆盖并发/拥塞）；BB9并发发送、would_block饱和与故障注入：未执行；BB10目标控制器接收确认/命令回显、实时负载和隔离SIL/HIL：未确认。
 - 未执行构建/单测、并发压力、TSan、网络拥塞注入、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.215。
+
+
+### 2026-11-09｜v9.90 本轮推进记录
+
+- 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.215，聚焦帧头、消息长度、协议版本、枚举及数值输入验证。
+- 证据文件：
+  - `staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp`（blob `773cdeb9c4bf6e2dab3cf9e15426e4e954e35dea`）
+  - `staubli_robot_driver/src/communication/protocol.cpp`（blob `d31077aefc1d5515919033aa967c431a01d49a4a`）
+  - `staubli_robot_driver/src/communication/messages.cpp`（blob `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6`）
+  - `staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp`（blob `c226d4053693a5466b8bf1aef09049d34a3321d1`）
+  - `staubli_robot_driver/include/staubli_robot_driver/types.hpp`（blob `8f62807d96a2692e2d9ee653dfdc58888d56d62e`）
+  - `staubli_robot_driver/src/robot_driver.cpp`（blob `ede48a314856a455df9d8434f354aaf9fbc47bff`）
+  - `staubli_robot_driver/src/staubli_hardware_interface.cpp`（固定提交文件已核对）
+  - `staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp`（blob `a7a84bc01456f3a8bb20993ebdc5d487defa5632`）
+- **帧头校验不统一：** `FrameHeader::deserialize`读取字段后只验证magic_number，未验证protocol_version、message_type或payload_size。RobotState反序列化读取帧头后未验证message_type和payload_size；RobotCommand在反序列化帧头后验证类型和payload长度，但不验证协议版本；DiagnosticData的类型/长度验证发生在调用`header.deserialize`之前，检查的是对象原有header而非输入报文刚解析出的header，因而校验时机错误。它随后解析新header和payload，缺少对应的后置类型/长度校验。
+- **上层检查存在但不完整：** `RobotDriver::read_robot_state`通过`is_state_msg_valid`检查消息类型，连接流程在首次状态消息后检查一次protocol_version；持续运行的状态读取路径未见每帧版本验证。诊断读取检查消息类型，但没有统一的每帧协议版本/长度校验。不能将连接阶段首次握手校验等同于整个会话持续验证。
+- **枚举和数值字段：** RobotState反序列化将控制状态、安全状态、运行模式等原始字节直接static_cast为enum，未见完整合法值白名单；RobotCommand同样将command_type直接转换。命令序列化校验帧头类型/长度，但没有校验controller_period必须有限且处于协议/控制器允许范围，也没有验证关节参考值、模拟输出是否finite或处于机器人/IO配置限值。HardwareInterface的write仅对command_reference调用`std::isnan`，未拒绝正负Inf；模拟输出未见NaN/Inf检查。update_state将接收的关节位置、速度、力矩和模拟输入转换/复制到硬件接口状态，未见统一finite校验。具体限值必须依据目标机器人型号、负载、工具、控制器配置和VAL3协议文件确定，不能臆造数值。
+- **长度/边界：** 消息类通常只检查buffer_size不少于固定消息长度；对UDP datagram额外尾随字节的拒绝策略未统一体现。固定消息长度常量与序列化实现需持续保持一致；本轮核对RobotState 132、RobotCommand 55、DiagnosticData 74字节，与当前float32线协议字段布局一致，未发现这三项长度常量本身不匹配。double在序列化层明确转换为float32，存在精度损失，应纳入协议契约与限值/容差验证。
+- 现有`test_message_serialization.cpp`主要覆盖合法消息往返、基本header往返和缓冲区不足；未见错误protocol_version、错误message_type/payload_size、DiagnosticData错误帧头、非法enum、NaN/Inf、超限命令值、额外尾随字节或截断长度矩阵。现有测试文件已静态核对，但本轮没有执行测试。
+- 新增SERVO-798/CC1–CC10：CC1 FrameHeader字段解码与magic校验：静态核对完成；CC2 protocol_version校验路径：静态核对完成（帧头层缺失，连接阶段仅首次状态握手检查）；CC3 RobotState message_type/payload_size：静态核对完成（消息类缺少后置校验，上层另有类型检查）；CC4 RobotCommand帧头类型/长度：静态核对完成（有检查，版本检查缺失）；CC5 DiagnosticData校验顺序：静态核对完成（检查旧header，时序错误）；CC6 enum合法性：静态核对完成（直接cast，未见完整白名单）；CC7命令周期/关节/IO数值finite与范围：静态核对完成（消息层无完整检查，硬件层仅部分isnan）；CC8固定消息长度和float32转换：静态核对完成（132/55/74字节布局相符，double转换float32）；CC9畸形帧、版本漂移、非法枚举、NaN/Inf和边界值注入：未执行；CC10控制器协议规范、型号/负载/工具限值及隔离SIL/HIL/FAT/SAT证据：未确认。
+- 建议统一在解析边界执行帧头/版本/类型/长度校验；解析到临时对象，全部校验成功后再提交状态；枚举采用显式白名单；命令输入在驱动边界执行finite、周期与配置限值验证，并在目标协议确认后实现。不要以静态审查推断现场已收到非法命令或发生越限运动。
+- 未执行构建/单测、畸形帧注入、数值边界测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.216。
