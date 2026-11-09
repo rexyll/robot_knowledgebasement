@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.34  
+> 版本：v9.35  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.159，厂商档案新增§128.110。新增SERVO-742/M1-M12，识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.160，厂商档案新增§128.111。新增SERVO-743/N1-N12，识别scene callback在recursive update_lock_下同步执行、回调重入修改vector的迭代器失效风险、异常回调阻断更新通知、双world订阅stop仅清理一个句柄及OctoMap in-flight callback析构屏障待验证；SERVO-743全部未执行。此前SERVO-742/M1-M12仍全部未执行。此前静态审查识别OccMapTree更新回调std::function缺少独立同步、多个updater可能并发触发回调、回调异常无隔离、save/load服务捕获monitor this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁及occupancy_map_server序列化失败后仍发布等风险/契约缺口。M1-M12全部未执行，服务析构竞态、TSan和下游空消息影响未验证。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1507,7 +1507,7 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 静态发现point_subsample=0时循环索引不前进；PointCloud2结构/字段/行步长校验不足；坐标过滤仅排除NaN而未排除Inf；ShapeMask在部分transform缺失时仍使用shape；OctoMap写入异常可能留下部分更新并继续触发通知。stop()缺少显式in-flight callback静默协议，实际销毁竞态仍待executor屏障验证。
 - 新增SERVO-741/L1-L12，覆盖配置边界、畸形PointCloud2、字段布局、非有限坐标、transform缺失、ShapeMask并发、stop/析构、OctoMap异常原子性和现场配置核实；全部未执行。
 - 本轮仅静态审查与测试设计；未运行ROS构建、ASan/UBSan/TSan、压力测试、OctoMap异常注入、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
-- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.159。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.160。
 
 
 ### §9.3.159 OctoMap更新回调、服务生命周期与读写锁边界
@@ -1517,3 +1517,12 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-742/M1-M12，覆盖TSan回调替换与并发、回调异常、service析构barrier、stop服务语义、启停状态竞争、慢盘锁持有、损坏地图加载、序列化失败和Stäubli部署核实；全部未执行。
 - 本轮仅静态审查与测试设计；未运行ROS构建、ASan/TSan、慢盘性能测试、序列化/load故障注入、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.160。
+
+
+### §9.3.160 PlanningSceneMonitor OctoMap回调与场景更新事件交互
+
+- 已完成MoveIt 2固定提交`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`的PlanningSceneMonitor/PlanningScene静态审查；源码Blob SHA、锁顺序、回调执行和生命周期结论见专项追加件§9.3.160。
+- 已确认OctoMap回调在scene/tree锁释放后触发scene event；scene/tree主要路径遵循scene mutex→tree lock。静态识别scene callback在recursive update_lock_持锁期间执行，回调重入修改vector可能使迭代器失效，回调异常可能阻断new_scene_update_更新与notify；stopWorldGeometryMonitor双订阅分支仅清理一个订阅；OctoMap updater停止/析构的in-flight callback屏障仍需动态验证。
+- 新增SERVO-743/N1-N12，覆盖回调注册表重入、递归事件、跨线程死锁、异常通知、双订阅stop/restart、析构barrier、锁顺序、场景版本一致性和Stäubli部署核实；全部未执行。
+- 本轮仅完成静态审查与测试设计；未运行ROS构建、ASan/UBSan/TSan、callback故障注入、executor barrier、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.161。
