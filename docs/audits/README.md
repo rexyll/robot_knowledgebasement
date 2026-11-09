@@ -177,3 +177,6 @@
 
 
 - [2026-11-09 Stäubli DepthImage异步输入缓冲区生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.157，确认默认异步裸指针与NaN CameraInfo提前return构成条件性悬空指针风险；正常内参路径有后续同步队列屏障。新增SERVO-740/K1-K7，尚未ASan复现或现场验证。
+
+
+- [2026-11-09 Stäubli MoveIt PointCloud/Octomap生命周期与输入校验审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.158，静态核查PointCloud updater采样参数、PointCloud2字段/行布局、ShapeMask变换失败语义、stop回调静默和OctoMap写异常一致性；新增SERVO-741/L1-L12，全部未执行，未证明Stäubli现场启用或触发。
