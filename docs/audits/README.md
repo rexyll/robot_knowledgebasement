@@ -231,3 +231,6 @@
 
 
 - [2026-11-09 Stäubli控制报文序号重启、旧命令残留与通信重置边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.175，审查VAL3错误复位时16位序号归零、ROS订阅器将序号下降视为自然回绕、无新报文时上一命令保持有效、序号差陈旧保护和resetControlSocket不检查操作结果；新增SERVO-758/N1-N10，N1-N9全部未执行，N10现场证据缺失。
+
+
+- [2026-11-09 Stäubli VAL3应用启动/停止入口、controlTask生命周期与ROS硬件生命周期解耦审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.176，审查VAL3 start.pgx以4 ms周期创建controlTask、stop.pgx未显式等待任务退出，以及ROS connect/disconnect和hardware lifecycle不调用VAL3 start/stop的边界；新增SERVO-759/P1-P10，P1-P9全部未执行，P10现场证据缺失。
