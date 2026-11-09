@@ -246,3 +246,6 @@
 
 
 - [2026-11-09 Stäubli ROS关节命令非有限数值、六轴数组边界与限位配置一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.180，审查write()仅拒绝NaN、固定六元素命令数组与num_joints_边界、模型YAML/URDF/MoveIt/R2C接口限值分层、VAL3 isInRange调用及目标距离检查TODO；新增SERVO-763/T1-T10，T1-T9全部未执行，T10现场证据缺失。
+
+
+- [2026-11-09 Stäubli ROS—VAL3命令float32精度收窄、非有限数值与解码错误传播审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.181，检查double→float32转换、NaN/Inf及溢出门禁、VAL3精确payload长度检查时序、解码后有效标志与STOP/ERROR路径；新增SERVO-764/U1-U10，U1-U8未执行，U9现场IO路径未确认，U10现场证据缺失。
