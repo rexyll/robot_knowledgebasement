@@ -4242,3 +4242,55 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - ROS controller active、MoveIt action server ready都不是安全认证或运动许可；仍须与SERVO-825的控制器安全门禁、诊断新鲜度和硬件安全链路集成。
 
 本轮未执行构建、launch_testing、控制器管理器启动、MoveIt轨迹执行、故障注入、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.244 / SERVO-827。
+
+
+
+### 2026-11-09｜v10.19 本轮推进记录（§9.3.244 / SERVO-827）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查`staubli_moveit_config/config/staubli_servo.yaml`、`staubli_moveit_config/launch/staubli_moveit.launch.py`、`staubli_moveit_config/config/moveit_controllers.yaml`、`staubli_bringup/config/controllers.yaml`、`staubli_robot_driver/src/staubli_hardware_interface.cpp`、`staubli_robot_driver/src/robot_driver.cpp`、R2C关节xacro、MoveIt 2使用说明、troubleshooting和硬件接口测试源码。
+
+#### 静态审查发现
+
+1. **MoveIt常规轨迹路径采用FollowJointTrajectory。** MoveIt Simple Controller Manager声明`joint_trajectory_controller/follow_joint_trajectory`，控制器配置六个关节、position command interface、position/velocity state interface，`allow_partial_joints_goal=false`。这是配置映射证据，不是Action运行成功证据。
+2. **ROS JointTrajectory并未由Stäubli驱动直接解析。** 仓库没有自定义FollowJointTrajectory Action Server或JointTrajectory消息处理实现；轨迹Action由外部`joint_trajectory_controller`提供，驱动通过ros2_control硬件接口每周期读取位置命令并转换为Stäubli UDP控制消息。插值、goal接受/拒绝、取消、抢占、feedback/result语义主要依赖所部署ros2_controllers版本，不能从本仓库静态代码独立证明。
+3. **硬件写入链路是逐周期位置参考流。** `write()`按当前控制模式组装RobotCommandMessage，将位置接口弧度转为度，写入固定协议命令参考数组，并携带`period.seconds()*1000`作为controller_period，再调用send_robot_command。驱动不是将整条ROS轨迹一次性传给控制器；VAL3端周期执行语义仍需协议/程序核对。
+4. **Servo配置存在确定的控制器话题断链风险。** `staubli_servo.yaml`设置`command_out_type=std_msgs/Float64MultiArray`、`command_out_topic=/forward_position_controller/commands`、发布joint positions；但bringup的`controllers.yaml`只配置joint_state_broadcaster和joint_trajectory_controller，没有forward_position_controller。R2C硬件接口导出position/velocity command interfaces并不自动创建对应ROS topic controller。当前仓库配置中没有找到该forward position controller声明，Servo开启时输出端可能无订阅者；需要确认是否由外部部署文件补充，或改为与实际控制器匹配的命令链路。
+5. **Servo不是默认启动。** launch_servo默认false；设为true才启动moveit_servo/servo_node。该条件仅控制节点启动，不验证目标command topic是否存在订阅者、控制器是否active或硬件是否处于运动许可状态。
+6. **Servo与控制器周期名义匹配但未形成实时保证。** Servo publish_period=0.004s（250Hz），Controller Manager update_rate=250Hz；相同标称频率不能证明调度相位、executor延迟、DDS队列、网络抖动和CS9控制周期满足实时deadline。硬件协议携带实际period，但没有在本轮证明端到端deadline监控/闭环补偿。
+7. **Servo停止策略是普通ROS输出行为。** incoming_command_timeout=0.1s，num_outgoing_halt_msgs_to_publish=4；这是Servo侧超时/有限halt消息配置，不是安全停止回路，也不能保证下游控制器或UDP链路丢包时机器人停止。需要对停止消息到JTC/forward controller、硬件write、UDP、VAL3 STOP状态进行端到端验证。
+8. **Servo碰撞与奇异点参数不能视为安全认证。** collision checking启用但collision_check_rate=5Hz；self/scene proximity阈值分别0.01m/0.02m，奇异点阈值100/200。静态参数不能证明规划场景完整、更新及时或满足保护距离；不得替代风险评估和安全功能。
+9. **轨迹末端约束需要按实际ros2_controllers版本核实。** 配置`allow_nonzero_velocity_at_trajectory_end=true`、`stopped_velocity_tolerance=0.01`、`goal_time=0.0`、`interpolate_from_desired_state=true`。其中允许非零末端速度的配置尤其需要确认是否符合工艺/单元停止要求；不能将Action成功等同于机器人静止或安全停止。
+10. **驱动层未发现完整的轨迹级限位与验证。** RobotDriver源码保留position/velocity limits检查TODO；硬件write将命令转换后发送，未见在本层实现轨迹点连续性、时间参数、最大速度/加速度/jerk的完整轨迹校验。需明确由MoveIt、Joint Trajectory Controller、joint limiter、VAL3及控制器各自承担的限位责任，并验证边界一致。
+11. **write的数值异常检查仍有缺口。** 本轮核对write路径看到对command_reference执行`std::isnan`检查，但未看到`std::isfinite`/Inf检查；周期period直接换算为毫秒并发送，未见本路径对零、负值或异常大周期做拒绝。此项与SERVO-823记录的风险一致，应在统一命令入口处理。
+12. **UDP发送失败会使hardware write返回ERROR，但停止结果不能据此推定。** send_robot_command失败后返回hardware_interface ERROR；该分支没有证明STOP消息已成功发送/控制器已停止，需与SERVO-825异常处理缺口联合验证。
+13. **通信延迟与周期丢失有明确运行文档提示。** troubleshooting记录VAL3在连续5个控制周期未收到命令（约20ms@250Hz）时切换STOP，并建议专用点对点以太网、避免主机控制周期超时。该说明是故障行为文档，不是实测网络预算或验收记录。
+14. **测试只覆盖硬件接口基本读写。** test_staubli_hardware_interface包含mock robot、read状态、写位置命令及接口导出测试；本轮未发现Servo目标topic连接、FollowJointTrajectory真实Action、轨迹取消/抢占、轨迹时间戳与插值边界、deadline丢失、UDP延迟/丢包后恢复的完整端到端测试。本轮未执行测试。
+
+#### SERVO-827｜轨迹/Servo命令链路与执行语义验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | MoveIt FollowJointTrajectory名称、Action路径及关节集合 | 静态核对一致；未运行Action |
+| DL2 | JointTrajectory解析、插值及轨迹执行实现归属 | 驱动不直接解析；依赖外部JTC版本，未动态验证 |
+| DL3 | 硬件write逐周期参考值转换、单位和controller_period | 静态核对完成；端到端周期未验证 |
+| DL4 | Servo输出类型/topic与控制器订阅者 | 配置不匹配；未找到forward_position_controller声明 |
+| DL5 | Servo启动条件与controller/hardware ready gate | 默认关闭；启动时未见topic订阅/active/安全许可门禁 |
+| DL6 | Servo/JTC/ros2_control/UDP/VAL3频率与deadline | 标称250Hz；实时性能未测 |
+| DL7 | trajectory cancel/preempt/pause/feedback/result | 依赖外部JTC/Action实现；未验证端到端语义 |
+| DL8 | timeout/halt消息、UDP丢包及停止确认 | 配置有限halt消息；停止闭环未验证，非安全停止 |
+| DL9 | 轨迹限位、末端速度、NaN/Inf、period异常 | 有配置和部分NaN检查；Inf/period及跨层限位验证不足 |
+| DL10 | 端到端轨迹、Servo、网络故障注入、VAL3、SIL/HIL、CS9、FAT/SAT和实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 对Servo二选一明确受支持的命令架构：新增并正确配置forward_position_controller（同时核对command interface、joint list、lifecycle与安全门禁），或把Servo输出改为当前实际存在且语义兼容的控制器接口；不能只修改topic字符串而不验证消息类型和控制器订阅接口。
+- 启动Servo前执行硬门禁：目标topic类型匹配、唯一预期controller订阅者存在、controller active、hardware component active、状态数据新鲜、命令模式匹配；门禁失败则不开放Servo输入。
+- 为普通MoveIt轨迹和Servo实时流定义互斥命令仲裁，禁止两个控制器/输入源同时争用同一组关节position接口；切换必须经过STOP、清空旧命令、同步当前状态、验证新控制器active后再允许新命令。
+- 为FollowJointTrajectory明确JTC版本、轨迹插值算法、时间戳/未来起始时间、速度/加速度/jerk限制、goal tolerance、末端速度策略、取消/抢占行为和feedback/result语义，并通过该版本文档与集成测试锁定。
+- 驱动入口使用有限值检查（NaN与正负Inf）、周期范围检查、六轴完整性检查、命令时间戳/序列新鲜度和速度/加速度/jerk约束；异常必须fail-closed，并独立记录STOP发送/确认结果。
+- 建立端到端延迟预算和实时监控：Servo 4ms输出、controller_manager 4ms更新、ROS executor/DDS、UDP、VAL3周期逐段采集时间戳；注入CPU负载、网络拥塞、丢包、乱序和延迟，验证5周期失联策略及恢复锁存。
+- 对取消、抢占、暂停、急停、超时和控制器崩溃分别定义命令撤销与停止确认语义；ROS Action取消不等于安全急停，Servo halt消息不等于安全停止。
+- 轨迹末端非零速度配置须结合工艺风险与控制器版本评审；若工艺要求停稳，应配置/验证相应终点速度和容差，并用实际状态反馈判定静止，而不是只看Action result。
+- 增加launch_testing/ROS集成测试：Servo目标topic无订阅者、错误消息类型、controller inactive、双控制器争用、轨迹取消/抢占、轨迹时间戳异常、NaN/Inf、周期异常、UDP丢包/延迟、VAL3 STOP和重连恢复。
+
+本轮未执行构建、单测、MoveIt Action、Servo节点、真实控制器轨迹、网络故障注入、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.245 / SERVO-828。
