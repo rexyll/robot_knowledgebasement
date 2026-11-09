@@ -2390,3 +2390,47 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 | DK10 | 完成故障恢复状态机覆盖、VAL3仿真、目标控制器SIL/HIL、CS9、FAT/SAT及现场验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.224 / SERVO-807。
+
+
+
+### 2026-11-09｜v9.99 本轮推进记录（§9.3.224 / SERVO-807）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：通信重连后的序号基线、控制器状态帧序列、驱动器端状态缓存重置及旧报文/重启代际隔离。本轮通过GitHub搜索获得`controlTask.pgx`、`Comm/getNextSequenceNumber.pgx`、`Comm/computeSequenceDelay.pgx`、`robot_driver.cpp`、`real_time_socket_subscriber.cpp`及头文件的局部片段。完整文件接口未重新成功读取；以下只陈述搜索片段明确支持的事实。
+
+#### 静态审查发现
+
+1. **VAL3控制任务启动时将状态序号计数器置零。** `controlTask.pgx`搜索片段显示初始化包含`l_nSequenceNumber = 0`、`l_nSequenceDelay = 1000`，并将命令模式复位到STOP/Idle。状态发布路径随后调用`getNextSequenceNumber(l_nSequenceNumber)`，再将结果写入`robot_state_msg.header.nMsgSequenceNumber`。因此控制任务重新初始化时，状态序号存在从零重新开始的路径；这是状态消息序号，不应与ROS命令事务ID混为一谈。
+2. **VAL3序号生成器执行递增。** `Comm/getNextSequenceNumber.pgx`命中片段显示`x_nSequenceNumber = x_nSequenceNumber + 1`。由于未完整取得程序余下内容，本轮不推断其上限、回绕规则或溢出处理。必须在目标VAL3版本确认计数器类型及边界行为。
+3. **驱动器状态接收缓存重置会把有效序号基线归零。** `RobotDriver::reset_data()`片段显示`last_valid_sequence_id_ = 0`，并把当前机器人状态与诊断消息的sequence number置0、message type设为INVALID。头文件声明`get_current_message_sequence()`返回`last_valid_sequence_id_`；而硬件接口写命令时将该值写入命令帧sequence_number（SERVO-804已记录）。因此调用reset_data后，命令帧可能重新以0作为状态基准序号，直到收到有效状态帧更新基线。
+4. **状态订阅器按严格数值大小检查序号前进。** `RealTimeSocketSubscriber`构造时`last_read_sequence_number_=0`、`first_read_=true`。搜索片段显示首次读取后，若新序号大于上一序号则按差值计算丢包；若新序号小于上一序号则进入另一个分支。片段未完整显示较小序号分支的最终处置，也没有足够证据证明它能识别控制器重启、序号回绕与旧数据报重放之间的区别。
+5. **状态序号重置与接收端订阅器生命周期之间存在潜在耦合。** 若控制器重启使VAL3序号回到1，而ROS接收器仍保留重启前较大的`last_read_sequence_number_`，严格大小比较可能将新一代合法状态视为序号倒退；若订阅器被重建并重新first_read，则第一帧又可能作为新基线接受。以上是由独立初始化/比较片段推导出的边界风险，不是已通过运行验证的故障结论。必须查明订阅器在断连、重连和RobotDriver reset_data时是否重建或重置。
+6. **状态序号不具备会话代际标识的证据。** 已检索到的消息字段/接收逻辑未显示session_epoch、boot_id或nonce；当前可见序号只能表达计数顺序，无法单独区分控制器重启前后的同号帧，也不能从数值上证明报文属于当前通信会话。完整协议定义仍需进一步复核。
+7. **VAL3命令延迟计算依赖最近状态序号与最近命令序号。** `controlTask.pgx`调用`computeSequenceDelay(l_nSequenceNumber, robot_command_msg.header.nMsgSequenceNumber, l_nSequenceDelay)`；无有效命令时将延迟设为1000。helper参数名为`nLastSequenceSent`和`nLastSequenceReceived`。这表明控制器以序号差跟踪命令新鲜度，但在序号重置、回绕、旧包延迟抵达或ROS/控制器重启不同步时，差值语义必须单独验证，不能直接视为时间戳。
+8. **新命令到达会激活控制任务并记录连接建立。** `controlTask.pgx`片段显示`l_bNewCmdMessage and !l_bControlActive`时设置`l_bControlActive=true`并记录“connection to controller established”。这只能证明应用层将新命令消息作为激活标志；不能证明命令经过session握手、旧命令清空、操作员重新授权或安全使能检查。
+9. **当前没有充分证据证明旧数据报隔离。** 已有`resetControlSocket`与本地缓冲清理线索，但没有session epoch、控制器启动代际或重连nonce的明确证据；也没有完成延迟/重复UDP包跨重连的注入验证。故不能宣称旧命令必然被丢弃，也不能宣称旧命令必然会被执行。
+10. **回绕与重启语义仍是未闭环项。** 本轮搜索片段没有充分展示VAL3序号生成器的完整边界处理、接收器较小序号分支、订阅器重建时机、reset_data调用点和跨重启握手流程。必须获取完整文件及目标运行日志后，才能判定是否存在确定性重连故障。
+
+#### 建议
+
+- 在协议层增加或明确`session_epoch/boot_id`与独立命令事务ID；每次控制器或驱动通信会话重建时更换代际标识，所有命令与状态帧都绑定该标识。不能只依赖会回绕/重置的sequence number。
+- 重新连接必须经过明确握手：先确认当前控制器身份/启动代际，再同步序号基线，清空旧发送队列和接收缓存，拒绝旧epoch数据，等待新的有效状态帧后才允许发出新的运动命令。
+- 对`reset_data()`所有调用点进行调用链审查，确认何时清零`last_valid_sequence_id_`、状态有效性及诊断缓存；对照RealTimeSocketSubscriber的构造/析构与重建时机，避免发送端和接收端序号基线不一致。
+- 对序号比较增加明确的回绕算法和重启判据；采用有限位宽序号时，应定义模数、最大允许窗口和乱序容忍范围，并以session epoch解决重启歧义。
+- 在仿真/SIL/HIL中测试：控制器重启后序号归零、ROS进程重启、仅UDP断连重连、重连前数据报延迟到达、重复/乱序包、序号回绕边界、reset_data与订阅器生命周期不一致；验证旧epoch命令被拒绝且不会导致运动续行。
+
+#### SERVO-807｜重连序号与会话隔离验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | 核对VAL3控制任务初始化的状态序号基线 | 固定提交搜索片段核对完成：l_nSequenceNumber置0，随后用于状态帧 |
+| DL2 | 核对getNextSequenceNumber递增行为 | 静态片段核对完成：可见加1；上限/回绕规则未确认 |
+| DL3 | 核对RobotDriver reset_data对有效状态序号与缓存的影响 | 静态片段核对完成：last_valid_sequence_id及状态/诊断缓存序号归零并标记INVALID |
+| DL4 | 核对RealTimeSocketSubscriber的序号比较策略 | 静态片段核对完成：首帧特殊处理，后续以大于/小于比较；小于分支完整处理未确认 |
+| DL5 | 核对控制器重启序号重置与接收器生命周期之间的交互 | 风险关联分析完成；订阅器重建/重置调用链未确认 |
+| DL6 | 核对命令序号与状态序号差值计算、无有效命令时的延迟处理 | 静态片段核对完成：调用computeSequenceDelay；无有效命令时delay=1000 |
+| DL7 | 核对新命令激活控制任务是否具备会话握手/重新授权 | 静态片段核对完成：新命令会置control active；session握手与安全授权未见证据 |
+| DL8 | 核对session epoch/boot ID/nonce及跨重连旧报文隔离 | 未确认：当前搜索片段未显示会话代际字段或完整拒绝逻辑 |
+| DL9 | 控制器/ROS重启、UDP重连、旧包延迟/重复/乱序、序号回绕与基线失配注入 | 未执行 |
+| DL10 | 完成会话隔离、序号边界、VAL3仿真、SIL/HIL、CS9、FAT/SAT与现场验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查与跨模块风险关联；未执行构建、单测、VAL3编译/仿真、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.225 / SERVO-808。
