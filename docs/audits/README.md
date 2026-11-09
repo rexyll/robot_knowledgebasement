@@ -297,3 +297,6 @@
 
 
 - [2026-11-09 Stäubli RobotDriver状态新鲜度阈值API取值与并发更新审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.200，核对state/diagnostic staleness setter默认100ms但无零/负值/超大值范围校验；零/负值会使所有消息判stale，过大值可能放宽旧缓存接受窗口，duration字段无mutex/atomic使运行期并发修改成为条件性数据竞争。新增SERVO-783/AN1–AN10，AN1–AN6静态核对完成，AN7–AN9未执行，AN10缺现场证据。
+
+
+- [2026-11-09 Stäubli RobotDriver 16位序号回绕、乱序帧与重连重同步审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.201，发现16位序号回绕丢包公式多计1；较小序号未区分回绕和乱序，旧帧可能覆盖新缓存并回退RobotDriver状态序号；disconnect/reconnect会重置本地跟踪，但协议缺少session/boot epoch。新增SERVO-784/AO1–AO10，AO1–AO7静态核对完成，AO8–AO9未执行，AO10缺目标部署/现场证据。
