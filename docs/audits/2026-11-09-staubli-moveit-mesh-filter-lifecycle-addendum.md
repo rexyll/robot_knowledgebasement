@@ -3327,3 +3327,74 @@ AJ1仅完成固定协议布局与算术模型；AJ2、AJ4–AJ5、AJ9缺少目�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
 
+
+
+## §9.3.197｜ROS 2 C++ API默认UDP端口与VAL3部署端口配置一致性（2026-11-09）
+
+### 1. 审查范围与固定证据
+
+本节检查固定ICube公开原型中C++通信API默认端口、ros2_control硬件参数注入、Xacro启动配置与VAL3 SIO配置是否一致。固定上游提交：`bd658e2d266e315d2ee35f985fb352ea88306b79`。仅做源码/配置静态审查，不推断现场控制器当前配置。
+
+| 文件 | 固定Blob SHA | 关键证据 |
+|---|---|---|
+| `protocol.hpp` | `773cdeb9c4bf6e2dab3cf9e15426e4e954e35dea` | `DEFAULT_CONTROL_PORT=8080`、`DEFAULT_DIAGNOSTICS_PORT=8081` |
+| `robot_driver.hpp` | `62c87a6741aa082db4599bb2c048aec0fcd7a464` | `NetworkConfig`四个端口成员默认继承上述常量 |
+| `robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` | `connect(robot_ip, timeout_ms)`创建默认`NetworkConfig`，仅赋值robot_ip后转调配置重载 |
+| `staubli.r2c.xacro` | `0013b6ea5b681e5333799f65867e7de497b54127` | 控制/诊断远端与本地端口显式设为11000/11001 |
+| `staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` | `on_configure`读取四个硬件参数并写入`NetworkConfig` |
+| `sio.cfx` | `76ad0c9f4b1902f26f21ea08eed0ef5f16e63d9e` | VAL3 control/diagnostics socket端口分别为11000/11001 |
+| `val3/README.md` | `560e9c7e281b19bc79c22e0fe286427a9cf0b9f7` | 手动配置表同样列出11000/11001 |
+| `overview.rst` | `ce3e3dcba07864ac0f3e2b48595283f24d73620c` | 文档将四个端口参数默认值均描述为11000/11001 |
+
+### 2. 配置路径对照
+
+| 调用/部署路径 | ROS侧本地端口 | 控制器远端端口 | 静态结论 |
+|---|---:|---:|---|
+| `RobotDriver::NetworkConfig{}`默认构造 | 8080 / 8081 | 8080 / 8081 | 与仓库VAL3配置不一致 |
+| `RobotDriver::connect(robot_ip, timeout_ms)` | 8080 / 8081 | 8080 / 8081 | 通过默认配置重载，继承不一致值 |
+| 仓库默认Xacro硬件接口路径 | 11000 / 11001 | 11000 / 11001 | 与仓库VAL3 SIO配置一致 |
+| 手动部署VAL3并按README配置 | 由ROS参数提供 | 11000 / 11001 | 文档部署基线一致 |
+
+### 3. 影响分析与边界
+
+1. `RobotDriver::connect(robot_ip, timeout_ms)`仅设置robot_ip，端口仍取`NetworkConfig`默认值8080/8081；而仓库VAL3 `sio.cfx`的control/diagnostics端口为11000/11001。若调用方直接使用该便捷重载并部署仓库默认VAL3配置，静态配置存在端口错配风险。
+2. `NetworkConfig`默认构造后再调用`connect(config)`而不显式赋端口，也具有相同风险。
+3. 仓库标准ros2_control路径由Xacro显式传入11000/11001；`StaubliHardwareInterface::on_configure`再将参数写入`NetworkConfig`，因此不能把C++结构体默认值差异直接扩大为“标准bringup必然连不上”。
+4. `overview.rst`、VAL3 README与`sio.cfx`均描述/配置11000/11001；C++ API常量8080/8081与此形成文档/API默认值不一致。使用者若只阅读参数文档而绕开Xacro，可能误判直接API默认行为。
+5. UDP socket的`connect`实现会绑定本地端口并设置远端endpoint；端口错配会影响本地接收绑定及发送目的端口。实际是否表现为连接超时、仅单向无数据或其他症状，取决于控制器配置、路由和应用握手，当前没有现场抓包或连接复现，不能写成已发生故障。
+6. 本节不判断控制器现场端口、其他版本发行包或用户自定义launch是否沿用上述值；只对固定提交中的默认值和仓库配套配置作静态比较。
+
+### 4. 建议的工程闭环
+
+- 为端口配置建立单一权威来源：让C++默认常量、Xacro参数默认值、VAL3 SIO配置与文档表格从同一版本化配置生成，或在构建/测试阶段做一致性断言。
+- 明确区分“C++库API默认值”“ros2_control/Xacro参数默认值”“VAL3控制器端监听/配置端口”，不要只用一个“默认端口”标签。
+- 对`RobotDriver::connect(robot_ip)`增加回归测试，验证其默认端口与仓库默认VAL3部署一致；对显式`NetworkConfig`保留覆盖端口测试。
+- 在mock与集成测试中分别覆盖默认配置和Xacro等价配置，避免测试只使用自定义回环端口而遗漏部署默认值。
+- 在现场部署前采集ROS参数转储、VAL3 SIO配置文件SHA、控制器端口配置及双向pcap；以同一部署版本归档。
+
+### 5. 新增验收任务 SERVO-780 / AK1–AK10
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AK1 | 核对协议常量8080/8081 | 固定源码静态核对完成 |
+| AK2 | 核对`NetworkConfig`默认成员继承关系 | 固定源码静态核对完成 |
+| AK3 | 核对便捷重载是否仅赋值robot_ip并继承默认端口 | 固定源码静态核对完成 |
+| AK4 | 核对Xacro是否显式覆盖为11000/11001 | 固定源码静态核对完成 |
+| AK5 | 核对HardwareInterface参数注入路径 | 固定源码静态核对完成 |
+| AK6 | 核对VAL3 SIO配置及部署README端口 | 固定源码/文档静态核对完成 |
+| AK7 | 核对overview参数默认值与C++ API默认值差异 | 固定文档/源码静态核对完成 |
+| AK8 | 构建并运行默认API端口回归测试及mock双向握手测试 | 未执行 |
+| AK9 | 验证Xacro/launch端口覆盖与目标控制器配置一致 | 未执行，目标部署环境缺失 |
+| AK10 | 获取现场ROS参数、VAL3配置SHA、控制器端口配置和双向pcap | 未确认，现场证据缺失 |
+
+AK1–AK7仅完成固定提交的静态核对；AK8未执行；AK9–AK10缺目标部署/现场证据。未执行ROS构建、mock集成、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码与部署资料
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/staubli.r2c.xacro
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/overview.rst
