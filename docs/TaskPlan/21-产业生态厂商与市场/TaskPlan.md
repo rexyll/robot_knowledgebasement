@@ -1640,3 +1640,17 @@ PR #3909的测试除局部`updater`变量外，还把该shared_ptr交给GMock的
 新增分层验收：L1 weak_ptr/析构计数；L2 RAII资源token；L3 ROS graph实体；L4 executor运行时旧topic回调静默；L5 ASan/TSan。L1/L2不能替代L3-L5。真实ROS测试必须传入有效Node和实际executor，PR当前initialize(nullptr) mock不具备此能力。
 
 上游契约建议明确initialize(false)/setParams(false)失败原子性，或定义可在部分初始化状态调用的幂等rollback/stop接口及回调退出等待语义。该建议尚未实现。详见专项审计§9.3.144。
+
+
+#### SERVO-728｜DepthImageOctomapUpdater停止时发布端点生命周期
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| D1 | 单次start/stop后的CameraPublisher ROS graph状态 | 未执行 |
+| D2 | 重复start/stop幂等性与publisher endpoint数量 | 未执行 |
+| D3 | stop后订阅回调静默、无数据输出 | 未执行 |
+| D4 | updater析构后publisher/subscriber全部撤销 | 未执行 |
+| D5 | raw与compressed transport分别验证 | 未执行 |
+| 现场适用性 | Stäubli/ICube是否启用DepthImage updater及具体sensor配置 | 未确认，现场证据缺失 |
+
+固定MoveIt main源码显示，DepthImage updater的start创建三个CameraPublisher成员和一个CameraSubscriber；stop及析构函数只shutdown CameraSubscriber，未显式shutdown/reset三个publisher。OccupancyMapMonitor::stopMonitor只委托stop，updater仍保留在map_updaters_中。因此静态上只能确认publisher句柄仍由updater持有，不能将stop描述为完整撤销所有端点；ROS graph实际可见性、重复启停端点数量与transport行为待目标Jazzy环境动态验证。不得据此推断持续发布、重复端点或安全故障。详见专项追加件§9.3.145。
