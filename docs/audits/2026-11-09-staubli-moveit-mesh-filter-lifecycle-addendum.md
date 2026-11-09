@@ -1485,3 +1485,106 @@ P1-P9全部未执行，P10现场证据缺失。未执行VAL3/CS9仿真、任务�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+
+
+## §9.3.177｜VAL3工作模式编码、ROS OperationMode枚举与运动许可状态一致性
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，重点追踪VAL3 `workingMode()` 与 `nRobotStatus`、RobotState报文编码、ROS枚举反序列化、hardware_interface模式切换门禁，以及位置控制中的movejSync状态处理。
+
+| 文件 | Blob SHA |
+|---|---|
+| `val3/userapp/ros2_server/updateState.pgx` | `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf` |
+| `val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx` | `0dadb0cc7f03de3da165cafa86fa5f943f097ec3` |
+| `val3/userapp/ros2_server/Control/updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
+| `include/staubli_robot_driver/types.hpp` | `8f62807d96a2692e2d9ee653dfdc58888d56d62e` |
+| `src/communication/messages.cpp` | `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6` |
+| `src/staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+| `include/staubli_robot_driver/communication/messages.hpp` | `77f21d8edcb12a39fc6732c2e146586b7fc346fe` |
+
+### 1. VAL3与ROS OperationMode枚举的数值映射不一致
+
+VAL3 `updateState.pgx`将`workingMode(x_state.nRobotStatus)`结果写入`nRobotMode`。该文件注释定义的数值为：
+
+- 0：Invalid / safety transition
+- 1：Manual
+- 2：Test
+- 3：Automatic - Local
+- 4：Automatic - Remote
+
+`encodeRobotStateMsg.pgx`将`nRobotMode`原样写入一个字节，没有转换映射表。ROS `types.hpp`中的`OperationMode`却定义为UNKNOWN=0、MANUAL=1、AUTOMATIC=2、REMOTE=3；`messages.cpp`反序列化时直接将收到的字节`static_cast<OperationMode>`。
+
+因此按固定源码的注释/实现逐值对照，至少存在确定的枚举契约不一致：
+
+| VAL3工作模式原值 | VAL3语义 | ROS枚举解释 |
+|---:|---|---|
+| 0 | Invalid / safety transition | UNKNOWN（表面可对应，但语义未定义） |
+| 1 | Manual | MANUAL |
+| 2 | Test | AUTOMATIC（不一致） |
+| 3 | Automatic - Local | REMOTE（不一致） |
+| 4 | Automatic - Remote | 超出已定义OperationMode枚举成员 |
+
+此处是公开原型内VAL3发送端与ROS接收端的静态协议映射缺口。对原始数值4的enum class转换不应被视为得到有效的REMOTE枚举值；当前代码没有显式拒绝未知值或映射为UNKNOWN。必须在协议层统一枚举定义、编码/解码映射和兼容性测试。该发现不能单独证明现场控制器使用了相同VAL3版本/workingMode返回值。
+
+### 2. operation_mode_status被当成通用HOLD标志使用
+
+VAL3注释说明`nRobotStatus`的意义依赖运行模式；对自动模式，0=Move（programmed movement）、1=Move（connection movement）、2=Hold。该值被编码为`operation_mode_status`并由ROS原样接收。
+
+但`perform_command_mode_switch()`中只要`operation_mode_status != 0`便记录“Robot is on HOLD”的warning，不区分自动模式下的connection movement与Hold，也没有依据operation_mode本身解释状态值。由于状态码含义依赖模式，该warning会把自动模式状态1也归为HOLD；对手动/测试模式也不能套用自动模式状态解释。更关键的是，该条件只产生warning，不构成运动模式授权门禁。
+
+### 3. motion_possible并不等同于自动远程运动授权
+
+VAL3 `updateState.pgx`计算：
+
+`bMotionPossible = bDrivePowered AND NOT bEStopped`
+
+而同一函数也读取`workingMode()`和`nRobotStatus`，但它们没有参与该布尔量。源码中还保留一行注释掉的候选表达式，将`nRobotStatus == 0`纳入条件；该注释不能视为实际执行逻辑。
+
+ROS `perform_command_mode_switch()`在切换到JOINT_POSITION时检查`error_state`和`motion_possible`，随后对`operation_mode_status != 0`仅警告；未检查`operation_mode`是否处于AUTOMATIC/REMOTE，也未根据完整安全/工作模式矩阵拒绝模式切换。VAL3位置控制子程序再次只检查`bMotionPossible`、命令有效性和命令类型，然后调用`$movejSync`。因此应用层的显式条件没有形成“处于允许的远程自动模式且状态适合运动”的完整、可追踪授权判定。
+
+这不证明CS9安全控制器会接受任何不允许的运动；控制器/驱动/安全系统可能仍有独立互锁，且movejSync在某些暂停状态可能锁定命令。静态结论仅限于该公开应用层协议字段和ROS门禁未完整表达/执行模式授权契约，必须通过目标控制器手册与受控实验确认。
+
+### 4. movejSync状态2被观察但错误处置被注释
+
+`updateJointPositionControl.pgx`注释定义`$movejSyncState()==2`为movejSync运行中，但因运动被停止（例如eStop、moveHold、stopMove）而锁定命令。当前代码检测到状态2的分支只保留被注释掉的日志和`x_bError=true`赋值，实际不将状态2标记为错误。于是ROS/VAL3上层可能仍看到控制模式为JOINT_POSITION，而底层同步运动命令处于锁定状态；是否为预期的可恢复Hold行为，必须由目标VAL3手册和动态恢复测试定义，不能将该状态当成“运动许可正常”或“命令已执行”。
+
+### 5. 安全状态4与wait_for_ack派生字段
+
+`updateState.pgx`注释列出安全状态4为“Waiting restart from WMS”，但`bWaitAck`只在安全状态等于1（Waiting safety Restart）时置true。ROS硬件接口的`wait_for_ack`也只在`SafetyStatus::WAIT_FOR_RESTART`时置true，不包含`WAIT_FOR_WMS`。原始`safety_status`仍会透传，因此并非状态完全丢失；但下游若只订阅通用名称`wait_for_ack`，将无法从该字段获知WMS重启等待状态。需澄清该接口字段语义是“等待安全重启”还是“等待任意人工/WMS确认”。
+
+### 6. 新增验收任务
+
+新增SERVO-760：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| Q1 | 对照目标VAL3 runtime手册验证workingMode()返回值及0-4全部模式语义 | 未执行 |
+| Q2 | 对VAL3发送端、ROS接收端建立单一OperationMode映射表并执行0-4逐值序列化/反序列化测试 | 未执行 |
+| Q3 | 对未知/保留OperationMode值（含4及超范围值）验证ROS端拒绝、告警或安全降级行为 | 未执行 |
+| Q4 | 验证自动模式status 0/1/2与ROS operation_mode_status解释、warning文本的一致性 | 未执行 |
+| Q5 | 验证Manual/Test/Automatic Local/Automatic Remote各模式下prepare/perform switch是否正确拒绝或允许JOINT_POSITION | 未执行 |
+| Q6 | 验证drive powered、各SafetyStatus、robot mode/status组合与motion_possible的真值矩阵 | 未执行 |
+| Q7 | 在Hold、moveHold、急停、STOP后分别注入位置命令，记录movejSyncState、ROS control_state及恢复条件 | 未执行 |
+| Q8 | 验证movejSyncState==2时继续发送更新命令是否缓存、丢弃、恢复执行或需要显式重启 | 未执行 |
+| Q9 | 验证SafetyStatus WAIT_FOR_RESTART与WAIT_FOR_WMS时wait_for_ack及原始safety_status下游表现 | 未执行 |
+| Q10 | 核对目标现场CS9控制器、安全配置、VAL3版本、operation mode状态定义和远程授权策略 | 未确认，现场证据缺失 |
+
+Q1-Q9全部未执行，Q10现场证据缺失。未执行VAL3/CS9仿真、协议映射测试、ROS集成测试、HIL、FAT/SAT或实机测试。
+
+### 7. 结论与边界
+
+固定公开原型中VAL3的工作模式编码0-4与ROS的OperationMode枚举0-3存在数值语义不一致；VAL3自动模式状态码依赖工作模式，但ROS端将所有非零状态统一提示为HOLD；motion_possible仅基于驱动上电和非急停，ROS模式切换只将非零operation_mode_status作为warning，未显式验证REMOTE/AUTOMATIC运行授权；movejSync状态2的错误处理代码被注释；安全状态4不会置位wait_for_ack派生字段。
+
+这些是静态协议/门禁/遥测语义缺口，不能直接推导为现场运动越权或安全功能失效。安全控制器的独立互锁、VAL3 runtime具体语义、现场程序版本和真实模式切换行为均需受控验证。应将“操作模式映射”“模式授权策略”“底层安全功能”作为三个独立验收层，不能用ROS布尔状态代替CS9安全认证/安全回路。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行VAL3/CS9仿真、HIL、FAT/SAT或实机验证。现场部署版本和安全配置未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/encodeRobotStateMsg.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
