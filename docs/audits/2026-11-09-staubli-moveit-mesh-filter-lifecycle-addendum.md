@@ -3398,3 +3398,66 @@ AK1–AK7仅完成固定提交的静态核对；AK8未执行；AK9–AK10缺目�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/README.md
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/quickstart/overview.rst
+
+
+## §9.3.198 RobotDriver连接等待循环、首次状态就绪与超时边界
+
+### 1. 固定审查基线
+
+本节固定审查ICube公开仓库提交 bd658e2d266e315d2ee35f985fb352ea88306b79，仅对公开原型源码作静态判断，不代表Stäubli/ICube现场部署版本。
+
+| 文件 | Blob SHA |
+|---|---|
+| staubli_robot_driver/src/robot_driver.cpp | ede48a314856a455df9d8434f354aaf9fbc47bff |
+| staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp | 62c87a6741aa082db4599bb2c048aec0fcd7a464 |
+| staubli_robot_driver/src/real_time_socket_subscriber.cpp | e2cd8fc50b2b13d9e31b2c024e90f9da76107622 |
+| staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp | 330839cb25e53fe961541f29f634722bec4a47c4 |
+| staubli_robot_driver/src/real_time_socket_interface.cpp | eda0a830cfe0118e07bc3423ad0f455bd50d610c |
+| staubli_robot_driver/include/staubli_robot_driver/real_time_socket_interface.hpp | e4d4650f59d2eb95133f5e948431ebe2073a6667 |
+| staubli_robot_driver/src/communication/udp_socket_impl.hpp | 1309a8f2d59e8295869e178af82a66868bb911ff |
+| staubli_robot_driver/test/unit_tests/test_robot_driver.cpp | 44da0046ce37fe52649a84ab0833ffee3d9973c5 |
+
+### 2. 就绪层级与调用链
+
+1. **UDP socket connect不是机器人应用握手。** RobotDriver::connect先分别连接控制与诊断socket，再创建实时subscriber/interface。RealTimeSocketSubscriber::is_ready定义仅为socket存在、is_connected为true且is_receiving为true，不证明已收到任何数据报。
+2. **首次状态帧门槛在更高一层。** connect在socket/subscriber初始化后调用read_robot_state等待状态。该方法要求control interface ready、缓存中曾收到消息、message_type为ROBOT_STATE且消息年龄小于state_staleness_timeout。因此“socket已连接/接收线程已运行”与“收到有效且新鲜的RobotState”是不同状态；本节不把前者单独视为机器人控制链ready。
+3. **状态新鲜度默认阈值为100ms。** RobotDriver构造时调用无参set_state_staleness_timeout，头文件默认参数为100ms。subscriber接收回调在反序列化成功后写入reception_timestamp；读取时按该时间戳计算age。若没有新包但缓存曾收到过消息，read_message仍返回缓存帧并由上层进行staleness检查。
+4. **连接等待循环以500ms间隔采样。** connect循环每次先调用read_robot_state，再执行rclcpp::sleep_for(500ms)；timeout由连接开始时刻与循环条件比较。轮询间隔大于默认100ms staleness阈值，但接收线程持续异步更新latest-message缓存，因此稳定250Hz状态流下通常可读到较新帧；不能仅凭500ms轮询就推断稳定流必然被判stale。
+5. **首次成功后没有提前退出。** 即使某次read_robot_state已成功，代码仍继续sleep并循环，直到timeout条件不再成立；最终interfaces_ready只由最后一次迭代写入的cmd_interface_ready和诊断布尔值决定，而不是记录“曾经成功”或首次成功时刻。因此连接调用仍会占用调用线程直至整个timeout窗口结束；若最后一次采样时状态已stale/失效，连接会失败，即使窗口早些时候曾出现过有效状态。稳定持续状态流下该失败条件不必然触发。
+6. **timeout边界受轮询粒度影响。** 每次循环在重新检查deadline前先sleep 500ms，故超时退出可能相对请求timeout延后最多约一个轮询周期，另加线程调度延迟。
+7. **现有mock测试没有测量连接耗时。** test_robot_driver.cpp的mock robot每4ms发送RobotState和DiagnosticData，ConnectionTest调用connect(...,1000)并只断言返回成功/connected；没有断言成功后立即返回、最大连接耗时或首次有效状态时间。因此该测试不能发现“已经ready仍持续等待”的时延问题，也没有覆盖只短暂出现状态后停止的窗口末端情形。
+8. **范围排除。** 诊断通道readiness占位、diagnostic数据实际读取缺失等问题已在既有连接握手审查节点登记；本节不重复计为新发现。本节只聚焦控制状态首次有效后连接循环的等待/采样语义。
+
+### 3. 工程影响与建议
+
+- 连接调用延迟由配置timeout主导，而不是首次有效RobotState到达时间；HardwareInterface的on_configure固定传入5000ms，因此标准硬件配置路径在状态很早到达时仍可能等待接近完整5秒。此为静态控制流推导，尚未实测具体耗时。
+- 若有效状态在连接窗口中途出现但在最后一次采样前停止或变旧，最终采样值会覆盖先前成功结果，可能导致连接失败。该路径需要受控报文注入验证，不能说现场必然发生。
+- 建议把循环改为“满足所有必需握手条件即记录成功并break”；若要求连续稳定性，应另设明确的连续有效帧数量/稳定时间门槛，而不是无说明地等待完整timeout并仅看最后一帧。
+- 将deadline检查与sleep策略设计成剩余时间受限的等待，避免500ms固定sleep造成timeout超调；同时分开记录socket建立、接收线程启动、首个可解码帧、首个有效新鲜RobotState及上层控制/安全许可状态。
+- 连接成功后仍应持续由read/watchdog检查状态新鲜度；首次握手成功不能替代运行期断流监控，也不能代替CS9安全状态、操作模式或命令接受确认。
+
+### 4. 新增验收任务 SERVO-781 / AL1–AL10
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AL1 | 核对UDP socket连接与receive thread启动顺序 | 固定提交静态核对完成 |
+| AL2 | 核对subscriber is_ready仅表示socket connected/receiving | 固定提交静态核对完成 |
+| AL3 | 核对首次RobotState是否经过反序列化、message_type和staleness检查 | 固定提交静态核对完成 |
+| AL4 | 核对state staleness默认100ms及reception_timestamp更新点 | 固定提交静态核对完成 |
+| AL5 | 核对connect等待循环500ms采样间隔 | 固定提交静态核对完成 |
+| AL6 | 核对首次成功后循环是否break、最终结果是否只取末次采样 | 固定提交静态核对完成 |
+| AL7 | 核对timeout sleep超调边界及5s on_configure调用参数 | 固定提交静态核对完成 |
+| AL8 | 检查现有mock ConnectionTest是否断言连接耗时/首帧时刻 | 固定测试源码审查完成：无此类断言 |
+| AL9 | 在mock中测量首次有效状态后connect返回时间，并注入状态中断/过期 | 未执行 |
+| AL10 | 在目标CS9/VAL3及ROS部署中记录连接阶段时间戳、状态流中断和控制许可 | 未确认，目标部署/现场证据缺失 |
+
+AL1–AL8完成固定提交静态源码/测试审查；AL9未执行；AL10缺目标部署及现场证据。未运行ROS构建/单测、mock时序注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
