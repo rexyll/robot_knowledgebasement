@@ -1768,3 +1768,21 @@ MoveIt main当前monitor调用顺序为setMonitor→middleware initialize→setP
 | E11 | ICube自定义updater的initialize长期资源及析构策略确认 | 未确认，现场证据缺失 |
 
 静态审查显示，monitor构造期间异常会展开已构造成员和局部updater，但不会调用尚未完成构造对象的析构函数体，因此不能依赖析构函数中的stopMonitor()完成回滚。当前成员声明顺序使map_updaters_先于middleware_handle_析构，保留了插件实例先于pluginlib ClassLoader销毁的顺序。内置PointCloud/DepthImage updater在initialize阶段创建的主要资源由shared_ptr/unique_ptr管理；输入subscription与publisher主要在start阶段创建，构造尚未完成时startMonitor通常尚不可调用。但第三方插件接口没有规定initialize部分初始化后返回false/抛异常时的回滚责任，monitor失败路径也没有显式调用stop。PR #3909测试通过外部shared_ptr和GMock Return(updater)保留fake对象，不能验证析构或ROS资源回收。两个ROS service创建顺序及构造期间executor并发回调的安全性仍需目标环境验证。全部E1-E11未执行；详见专项审计§9.3.152。
+
+
+#### SERVO-736｜addUpdater多插件TransformCache回调状态转换与生命周期验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| T1 | 单updater设置provider后动态添加第二个updater，验证provider仍调用且handle映射正确 | 未执行 |
+| T2 | provider先设置，再依次添加1/2/3个updater，验证0→1→2→N状态转换 | 未执行 |
+| T3 | 先添加多个updater再设置provider，验证常规多updater路径 | 未执行 |
+| T4 | 多updater各index的mesh_handles映射、excludeShape/forgetShape与handle冲突矩阵 | 未执行 |
+| T5 | 外部shared_ptr使updater晚于monitor存活，触发transform callback并以ASan检测悬空this | 未执行 |
+| T6 | stop与in-flight transform callback并发，验证stop/析构是否等待或清空callback | 未执行 |
+| T7 | PlanningSceneMonitor provider与OccupancyMapMonitor wrapper双层捕获this的析构顺序 | 未执行 |
+| T8 | 并发addUpdater/excludeShape/forgetShape/transform callback的TSan测试，或明确禁止运行期并发修改 | 未执行 |
+| T9 | monitor析构前清空callback的API/实现方案评估及回归 | 未执行 |
+| T10 | Stäubli/ICube是否运行期动态装载/替换updater及外部shared_ptr持有情况 | 未确认，现场证据缺失 |
+
+静态审查发现一个明确的状态转换缺口：当仅有一个updater时调用setTransformCacheCallback()，实现只把provider直接传给updater，没有保存在monitor成员；若之后动态添加第二个updater，addUpdater会把原callback替换为捕获monitor this的wrapper，而wrapper调用getShapeTransformCache时发现monitor成员provider为空，返回false。常规PlanningSceneMonitor路径通常在构造完updater后才设置provider，不一定触发，但addUpdater为公开API，未禁止运行期添加。多updater wrapper还捕获OccupancyMapMonitor裸this；若外部shared_ptr使updater晚于monitor存活，或存在在途callback，需验证悬空this风险。map_updaters_/mesh_handles_的运行期并发修改也没有共同锁。本轮仅静态分析，未证明动态故障。详见专项审计§9.3.153。
