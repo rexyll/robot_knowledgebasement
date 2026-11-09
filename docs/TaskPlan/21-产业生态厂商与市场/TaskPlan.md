@@ -1977,3 +1977,44 @@ H1-H15全部未执行，H16现场证据缺失。未运行VAL3编译/仿真、CS9
 - `updateState.pgx`（Blob SHA `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
 - `ros2_server.dtx`（Blob SHA `558dc2db671da45f5b859a3526148ce816eb6dd4`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx
 - Stäubli CS9 synchronous task scheduling reference (secondary-hosted copy of Stäubli document TSS.000.014.04-A): https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf
+
+
+#### SERVO-753｜VAL3 controlTask退出/停止入口与ROS硬件生命周期验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| I1 | `stop.pgx`调用后controlTask任务是否仍处于运行状态、是否继续执行周期 | 未执行 |
+| I2 | `l_bStopControlTask`所有赋值点、外部引用及实际退出条件 | 未执行 |
+| I3 | stop程序调用与controlTask并发时的执行顺序、竞态和socket访问 | 未执行 |
+| I4 | stop.pgx清空socket后，缓存的上一条RobotCommand是否仍有效及是否再次下发 | 未执行 |
+| I5 | 无新命令时staleness TODO的实际表现、阈值、失效命令清理和停止时延 | 未执行 |
+| I6 | RobotState消息初始化失败时controlTask直接return后的任务状态、运动状态及报警 | 未执行 |
+| I7 | RobotCommand消息初始化失败时controlTask直接return后的任务状态、运动状态及报警 | 未执行 |
+| I8 | resetControlSocket失败时controlTask直接return、socket恢复和任务重启行为 | 未执行 |
+| I9 | taskCreateSync创建失败、任务异常终止、runtime error及VAL3应用重启的检测机制 | 未执行 |
+| I10 | start.pgx重复执行时是否重复创建controlTask、旧任务/socket残留及状态复位 | 未执行 |
+| I11 | stop.pgx、controlTask内部STOP、VAL3应用停止/卸载三种路径的差异 | 未执行 |
+| I12 | ROS on_cleanup、on_shutdown、on_error、析构函数各自调用条件与停止/断连顺序 | 未执行 |
+| I13 | on_shutdown/on_error忽略send_stop_all_command返回值时的错误传播与生命周期状态 | 未执行 |
+| I14 | ROS进程崩溃、SIGKILL、主机掉电、网络断开时是否存在机器人侧独立失联停止机制 | 未执行 |
+| I15 | VAL3任务退出/卡死与UDP丢包/命令缓存组合故障下的停止响应时间和安全链 | 未执行 |
+| I16 | 目标现场VAL3应用、CS9固件、启动/停止调用方、ROS lifecycle配置及安全PLC链核实 | 未确认，现场证据缺失 |
+
+固定公开提交`bd658e2d266e315d2ee35f985fb352ea88306b79`静态审查发现：`stop.pgx`只执行`stopMove()`、`resetMotion()`、`clearBuffer(siSocketControl)`，没有设置`l_bStopControlTask`或调用可见的任务停止/删除API。`controlTask.pgx`将局部`l_bStopControlTask`初始化为false，并以`while !l_bStopControlTask`作为主循环条件；全仓库搜索未发现其被置true。故该stop程序并未从源码上证明controlTask退出。若该程序被作为应用停止入口调用，而controlTask仍运行，则清空UDP缓冲不等于清除其内存中的`robot_command_msg`；当前循环在无新包时对有效旧命令的staleness处理仍为TODO，存在旧命令继续被控制逻辑消费的静态风险。该竞态、任务调度及真实动作必须通过VAL3仿真/CS9验证，不能仅凭静态代码断言现场必然复现。
+
+`controlTask`初始化RobotState消息、RobotCommand消息或控制socket失败时，将本地`l_bError`设为true并直接return；这些分支没有统一的STOP/清理/重试逻辑。`start.pgx`只执行`taskCreateSync`，没有可见的任务存活检查或失败恢复；启动程序中supervision/diagnostics task仍为TODO。由此形成需要验证的任务静默退出/启动失败可观测性缺口，但实际VAL3任务运行语义、外部系统监督和现场额外逻辑尚不清楚。
+
+ROS插件生命周期路径也不对称：`on_cleanup()`仅disconnect；`on_shutdown()`在连接且状态非STOP时尝试`send_stop_all_command()`再disconnect；`on_error()`尝试发送STOP；析构函数仅disconnect。`on_shutdown()`和`on_error()`均忽略STOP发送函数的bool返回值并返回SUCCESS，因此回调成功不构成机器人收到/执行STOP的确认。进程崩溃、SIGKILL或主机掉电也不会保证这些回调被执行。以上仅为公开原型源码路径分析，不能推断现场安全PLC或控制器独立失联保护不存在。
+
+I1-I15全部未执行，I16现场证据缺失。未运行VAL3编译/仿真、任务停止/重启/初始化故障注入、ROS lifecycle测试、CS9/HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游或应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码Blob
+
+- `stop.pgx`（Blob SHA `8d88991f087ea2be2e65daacff742da5d58ac73c`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx
+- `start.pgx`（Blob SHA `2d72315f0da1e18c959a24d3d75622652ee1287b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `ros2_server.pjx`（Blob SHA `b58dbbf1daf778da64e4ff9551d890ee9ec8514b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- `resetControlSocket.pgx`（Blob SHA `25d414065b4567c5634ef8890cc8cafd6f7e9b3e`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
