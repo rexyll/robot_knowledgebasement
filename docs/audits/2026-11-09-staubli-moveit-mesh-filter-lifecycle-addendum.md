@@ -3971,3 +3971,63 @@ AV1–AV9完成固定提交静态源码/测试覆盖核对；AV10未执行。未
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
+
+
+## §9.3.209｜命令与状态序号关联、ACK确认及丢包恢复语义审查（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开仓库`staubli_driver_ros2`提交`bd658e2d266e315d2ee35f985fb352ea88306b79`。审查FrameHeader/MessageType、RobotCommandMessage、RobotStateMessage、RobotDriver状态读取与命令发送、硬件write命令序号赋值、RealTimeSocketSubscriber序号跟踪及现有测试。只做固定提交静态源码和测试覆盖核对；没有CS9/VAL3协议手册、控制器端源码或HIL抓包证据。
+
+### 静态发现
+
+1. **命令序号不是独立的本地命令流水号。** `StaubliHardwareInterface::write()`通过`get_current_message_sequence()`填充command.header.sequence_number；RobotDriver的该方法返回最近一次成功read_robot_state时保存的`last_valid_sequence_id_`。RobotDriver读取状态时将机器人状态帧的sequence_number复制到该字段。因此命令序号复用最近状态帧序号，而不是每次write递增的命令序号。
+2. **辅助函数也明确采用状态序号。** `set_sequence_number(RobotCommandMessage&, RobotStateMessage&)`直接把state.header.sequence_number赋给命令头；`prepare_robot_command_message()`以最近状态准备STOP命令。固定仓库未提供CS9协议规范解释该字段是状态关联号、命令去重号还是其他含义，不能直接认定重复序号就是协议错误。
+3. **协议定义了三类消息，没有单独的ACK/命令执行确认类型。** `MessageType`仅包含INVALID、ROBOT_STATE、ROBOT_COMMAND、DIAGNOSTIC_DATA；本轮未发现command-ack或command-result消息结构。RobotState含control_state、in_motion及状态标志，但其帧序号是状态帧自己的sequence_number，源码没有将其定义为被确认命令的序号回显。
+4. **发送成功只代表本机发送调用返回成功。** `send_robot_command()`调用`send_message()`，成功后即返回true；没有等待CS9确认、状态回显或运动完成。结合§9.3.208，UDP would_block还可能被底层误报true。因此驱动send返回true不能解释为控制器已接收、接受或执行命令。
+5. **状态订阅器只跟踪状态流序号。** `RealTimeSocketSubscriber::read_message()`比较新状态帧与上次读取的状态序号，计算丢包数并处理回绕；同序号被视为重复状态。此机制没有维护待确认命令表，也没有根据命令序号匹配控制器响应。
+6. **状态丢包统计仅告警用途，不触发命令恢复协议。** RobotDriver在状态包丢失时读取`status.lost_packages`，但warning被注释；不因此重发命令、停止发送或触发命令确认超时。状态序号缺口与命令数据报丢失不是同一事件，不能由状态丢包统计推断命令是否送达。
+7. **没有命令重发、超时、去重及恢复状态机。** 在固定仓库审查范围内未发现待确认命令队列、ACK超时、重试预算、幂等键、重复命令抑制或断线重连后命令恢复机制。对周期性位置/速度设定值，重发是否安全取决于协议语义与时效；对STOP和IO写入也不能擅自假定可安全重复。
+8. **状态回显只能提供当前机器人状态，不能证明特定命令完成。** state.control_state、in_motion、joint_positions等字段可描述控制器/机器人状态，但当前驱动未将这些字段与某一条命令做事务级关联。需要协议规定的command echo/ack或控制器任务反馈，才能区分接收、接受、执行完成和被拒绝。
+9. **现有测试验证消息传输，不验证命令事务闭环。** `BidirectionalCommunication`测试通过loopback双向发送状态和命令并检查字段；RobotDriver测试模拟状态流和连接生命周期。未见命令序号推进/重复策略、ACK超时、丢失重发、乱序响应、重复命令去重、重连旧命令清理或STOP确认的定向测试。
+10. **协议兼容性与序号回绕行为必须由CS9规格确认。** FrameHeader序号为uint16_t，状态接收端按16位序号计算回绕丢包；命令复用最近状态序号。若引入独立命令计数器、ACK或重发机制，必须先确认VAL3/CS9端是否按现有序号关联或去重，避免破坏现有协议兼容性。
+
+### 建议与验收要求
+
+- 取得并归档与目标CS9/VAL3固件匹配的正式协议规范，明确command sequence字段含义、命令接受/执行确认方式、状态序号与命令序号关系、回绕、重复包和乱序包规则。
+- 在协议允许的前提下建立明确的发送结果状态：本机排队/内核发送、控制器接收、命令接受、执行完成、拒绝/超时分别表达；不得将UDP send成功等同命令完成。
+- 若协议没有ACK，明确将接口语义限定为“尽力发送”，并设计由状态反馈/控制器任务状态实现的可验证闭环；不能在没有事务关联字段时仅凭机器人当前状态猜测命令完成。
+- 在明确幂等性前不自动重发运动命令。分别定义位置/速度周期命令、STOP、数字/模拟IO命令的重发策略、有效期、去重和最大重试次数。
+- 明确状态流丢包与命令发送丢包的独立诊断指标；背压、socket错误、状态超时、控制器拒绝应分别计数并向上层传播。
+- 对断线/重连清理过期命令，禁止恢复后补发已经过时的运动参考；STOP恢复策略必须按安全架构设计，不能替代硬接线急停/安全控制器。
+- 增加模拟CS9协议测试：命令序号相同/递增/回绕、状态序号回显、ACK缺失/延迟/重复/乱序、命令丢失、重复包、断线重连、STOP与IO重复请求；记录抓包并核对控制器端实际接受/执行状态。
+- 在隔离CS9/HIL验证命令发出、接收、接受、执行的端到端时间和异常恢复，不得仅以本机socket返回值作为通过标准。
+
+### SERVO-792 / AW1–AW10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AW1 | 核对hardware write命令序号来源 | 固定提交静态源码核对完成：来自最近一次成功状态帧序号 |
+| AW2 | 核对RobotDriver状态读取是否更新last_valid_sequence_id_ | 固定提交静态源码核对完成：只在状态通过有效性/新鲜度检查后更新 |
+| AW3 | 核对辅助命令构造函数的序号关联规则 | 固定提交静态源码核对完成：set_sequence_number直接复制RobotState序号 |
+| AW4 | 核对协议MessageType是否定义独立ACK/command-result | 固定提交静态源码核对完成：枚举仅INVALID/ROBOT_STATE/ROBOT_COMMAND/DIAGNOSTIC_DATA |
+| AW5 | 核对send_robot_command是否等待控制器接收/接受/执行确认 | 固定提交静态源码核对完成：发送成功后直接返回，无ACK等待 |
+| AW6 | 核对状态订阅器是否按命令序号匹配响应 | 固定提交静态源码核对完成：只跟踪状态序号、丢包和重复状态 |
+| AW7 | 核对丢包统计是否触发命令重发/停止/恢复 | 固定提交静态源码核对完成：仅有状态lost_packages统计，驱动处理warning被注释 |
+| AW8 | 核对固定提交是否实现ACK超时、重发、去重和重连清理 | 固定提交静态源码核对完成：审查范围未发现命令事务状态机 |
+| AW9 | 核对现有测试是否覆盖命令ACK/重试/重复/乱序/重连闭环 | 固定提交静态测试覆盖核对完成：仅见双向消息传输和状态流mock测试 |
+| AW10 | 对照目标CS9/VAL3协议并执行命令端到端ACK/丢包/恢复HIL测试 | 未执行，缺正式协议规范、控制器端证据和隔离CS9/HIL环境 |
+
+AW1–AW9完成固定提交静态源码/测试覆盖核对；AW10未执行。未运行构建/单测、协议仿真、抓包压力测试、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/types.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
