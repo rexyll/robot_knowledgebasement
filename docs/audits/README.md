@@ -190,3 +190,7 @@
 
 
 - [2026-11-09 Stäubli MoveIt PlanningSceneWorld/CollisionObject失败原子性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.161，审查CollisionObject ADD/MOVE部分提交、PlanningSceneWorld逐项失败处理、OctoMap错误类型下scene/monitor tree一致性及full/diff空地图语义；新增SERVO-744/M1-M12，全部未执行。
+
+
+
+- [2026-11-09 Stäubli MoveIt PlanningSceneMonitor发布线程与订阅端同步审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.162，审查首帧全量快照锁、pending event清零竞态、condition_variable丢唤醒、事件mask与diff累积语义及订阅端恢复；新增SERVO-745/N1-N12，全部未执行。
