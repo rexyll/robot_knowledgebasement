@@ -2321,3 +2321,39 @@ W1-W9全部未执行，W10现场证据缺失。未执行ROS构建/单测、UDP�
 | X10 | 获取现场ROS/Boost/OS/CS9/VAL3版本、网络ACL/抓包、状态超时参数与FAT/SAT异常报文测试记录 | 未确认，现场证据缺失 |
 
 X1-X9全部未执行，X10现场证据缺失。详见专项审计追加件§9.3.184。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.185）
+
+- 新增§9.3.185：沿§9.3.184解码后的RobotState继续检查ros2_control硬件接口状态缓存、joint/GPIO state interface导出、JOINT_POSITION模式初值和数值质量传播。
+- 静态确认update_state()对关节位置/速度/力矩及analog input没有finite门禁；JOINT_POSITION模式初始化直接复制hw_joint_positions_到位置命令缓存；write()的NaN-only门禁无法拒绝Inf（该门禁本身已由§9.3.180记录，本节新增的是输入状态向命令初值的传播链）。
+- 静态确认digital/analog输入has_*标志为false时保留上次缓存值，导出接口未同时导出有效标志/数据年龄；位置字段先写入、速度字段缺失时函数返回false，缓存可能部分更新。SupervisionGpio成员没有显式初始值，首次成功update_state前即被导出。
+- 当前硬件接口单测主要覆盖正常有限状态值、接口导出和正常read/write，没有覆盖异常数值、GPIO valid flag翻转、部分状态更新与监督GPIO初始读取。
+- 新增SERVO-768/Y1-Y10；Y1-Y9全部未执行，Y10现场证据缺失。未执行ROS构建/单测、mock socket异常注入、ASan/UBSan、VAL3/CS9仿真、HIL、FAT/SAT或实机验证。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并；根计划00-01与并行任务21-02继续进行中，专项下一节点§9.3.186。
+
+#### SERVO-768｜RobotState数值质量与ros2_control状态/命令传播验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| Y1 | 通过RobotState协议分别注入joint position的NaN、+Inf、-Inf，记录deserialize、read、update_state和导出state interface值 | 未执行 |
+| Y2 | 对joint velocity注入NaN/±Inf，检查状态缓存、read返回值和下游状态接口 | 未执行 |
+| Y3 | 在has_joint_torques=true时注入NaN/±Inf，并对比has_joint_torques=false时effort清零行为 | 未执行 |
+| Y4 | 先发送有效digital/analog输入，再将valid flags置false，验证缓存是否保留旧值及下游接口可见值 | 未执行 |
+| Y5 | 位置有效、速度无效及相反组合分别注入，记录update_state成员写入顺序、read错误返回和缓存回滚行为 | 未执行 |
+| Y6 | 在收到非有限位置状态后切换JOINT_POSITION，检查position command是否复制该值及模式切换门禁 | 未执行 |
+| Y7 | 通过mock socket验证write对NaN/+Inf/-Inf的处理、序列化结果和send调用；只做隔离测试，不接真实机械臂 | 未执行 |
+| Y8 | 在首次成功read前后读取全部supervision state interfaces，验证初始化值、首次更新与生命周期顺序 | 未执行 |
+| Y9 | 将valid flag翻转、连续状态丢失和恢复组合成矩阵，验证关节/GPIO/监督状态的清空、保留、部分更新及恢复语义 | 未执行 |
+| Y10 | 获取现场ROS 2/ros2_control/ICube版本、状态数据抓包、IO valid flag定义、控制器日志及FAT/SAT异常状态验收记录 | 未确认，现场证据缺失 |
+
+固定公开源码静态审查确认：has_*仅控制字段是否写入，不代表数值finite；状态接口对外暴露缓存地址；位置模式切换复制状态缓存为命令初值；digital/analog invalid flag路径保留旧值，effort invalid路径则清零；缺失velocity可使update_state在position缓存更新后返回false。SupervisionGpio未显式初始化且首次update_state前已经可导出。该结论不证明现场实际传入非有限值或下游已消费旧值/异常命令。
+
+Y1-Y9全部未执行，Y10现场证据缺失。未执行ROS构建/单测、mock socket异常注入、ASan/UBSan、VAL3/CS9仿真、HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.185。
+
+#### 固定源码位置
+
+- \`staubli_hardware_interface.cpp\`（Blob SHA \`4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- \`staubli_hardware_interface.hpp\`（Blob SHA \`a84d0c63b15db168ea453a15571ab1494b8f9e99\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp
+- \`test_staubli_hardware_interface.cpp\`（Blob SHA \`12326353052408a7a040926328dbe7da22625553\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
+- \`test_staubli_hardware_interface.hpp\`（Blob SHA \`f474af023d35b4fd2fc2669092fc9f8bea7cdd19\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp
