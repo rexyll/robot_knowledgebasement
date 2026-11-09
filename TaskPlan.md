@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.22  
+> 版本：v10.23  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.247 / SERVO-830；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.248 / SERVO-831；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3552,3 +3552,52 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 所有监督与安全策略必须与Stäubli CS9手册、VAL3版本说明、风险评估和独立安全回路核对；软件诊断和ROS状态不能替代安全PLC、硬接线急停或STO。
 
 本轮未执行ROS构建/单测、VAL3 Studio导入/编译、CS9仿真/下载、overrun注入、诊断丢帧测试、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.248 / SERVO-831。
+
+
+### 2026-11-09｜v10.23 本轮推进记录（§9.3.248 / SERVO-831）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮审查诊断UDP协议的两端实现完整性、VAL3工程清单、诊断帧序列化/反序列化头部验证、诊断字段生产者与测试覆盖。核查 `ros2_server.pjx`、`ros2_server.dtx`、`messages.hpp/.cpp`、`protocol.hpp/.cpp`、`serialization.hpp`、`robot_driver.cpp`及消息序列化单测。
+
+#### 静态审查发现
+
+1. **VAL3工程清单中没有诊断消息发送实现。** `ros2_server.pjx`仅登记control socket读写、RobotState/RobotCommand消息初始化与编解码、controlTask等程序；未登记诊断消息类型、诊断编码器或诊断发送任务。工程Types也只有MessageHeader、RobotState、RobotStateMsg、RobotCommand、RobotCommandMsg及ThrottleLogMsg，没有DiagnosticDataMsg。
+2. **VAL3数据库仅定义控制UDP socket。** `ros2_server.dtx`中可见`siSocketControl`并链接`UdpSocket\\control`，未发现diagnostics socket变量或独立诊断端口配置。结合SERVO-830中ROS端固定连接diagnostics_port并等待诊断数据、却将ready硬编码为true，当前仓库可审查的VAL3工程与ROS诊断通道之间缺少可追溯的发送端实现。除非另有未纳入该工程的外部程序/固件服务，否则该诊断通道无法由仓库内VAL3程序产生有效诊断帧；必须由供应方提供另一端实现或协议证据。
+3. **诊断消息在C++侧定义为74字节。** 帧头8字节，控制器类型1字节，固件版本3字节，10个错误码共20字节、10个时间戳共40字节、控制任务状态2字节，合计74字节；结构本身可序列化，但结构存在不等于VAL3端实际生产。
+4. **诊断反序列化头部检查顺序存在确定缺陷。** `DiagnosticDataMessage::deserialize()`先用对象当前`header.payload_size`和`header.message_type`做校验，再调用`header.deserialize(buffer,...)`。默认构造对象的字段恰好是合法诊断帧值，因此前置检查检查的是本地默认值，不是接收帧头。读取帧头后没有重新验证payload_size/message_type。
+5. **通用FrameHeader反序列化只校验Magic Number。** `FrameHeader::deserialize()`读取magic、protocol_version、message_type、sequence_number、payload_size，最终只拒绝Magic Number不匹配；不拒绝未知协议版本、错误消息类型或不匹配payload长度。RobotCommand/RobotState部分消息类会在header.deserialize之后自行验证部分字段，但诊断类的检查顺序错误，且协议版本在这些反序列化路径中没有统一硬门禁。
+6. **诊断帧接收缺少帧长度精确匹配。** DiagnosticDataMessage只要求buffer_size不小于74字节，并未要求收到数据报长度严格等于74；即使头部payload_size被读取，也没有与实际UDP数据报长度、预期66字节payload做后置一致性校验。若subscriber传入固定大小缓冲区，需进一步确认真实datagram长度是否被保留；当前消息反序列化接口本身不能证明拒绝尾随数据。
+7. **诊断字段的语义和生产路径没有闭合。** C++定义error_log时间戳为毫秒、最多10条，control_task_status为16位；但本仓库VAL3工程没有相应诊断类型、字段映射、时间基准、错误码表或生产程序。不能把ROS对象中的默认0值解释为“控制器无故障”。
+8. **诊断协议版本与消息类型校验不统一。** FrameHeader包含protocol_version和message_type，但通用解析只校验magic；RobotState/RobotCommand反序列化校验消息类型和payload_size，诊断解析则在读取帧头前检查对象默认值。需要在统一协议入口验证版本、类型、长度、序号和数据报实际长度。
+9. **错误日志时间戳语义尚不明确。** 字段声明为uint32毫秒，但没有明确epoch、单调时钟/墙上时钟、启动复位、溢出回绕和控制器重启语义。若按毫秒计数，32位约49.7天回绕；跨重启比较必须另有boot/session标识。
+10. **诊断序列号没有在读取函数中建立新鲜度判定证据。** Header虽有uint16 sequence_number，但`read_diagnostic_data()`静态路径主要验证消息状态、类型与staleness，未见对诊断帧序号连续性、重复、乱序和重放的明确策略。且SERVO-830已确认该读取函数没有实际调用点。
+11. **现有序列化测试仅覆盖合法往返。** `DiagnosticDataMessageSerializationDeserialization`构造合法默认消息、序列化后再解码并比较字段；未覆盖错误Magic、错误protocol_version、错误message_type、错误payload_size、短包/超长包、畸形控制器枚举、序号重复/回绕、错误时间戳和错误日志内容。未执行测试。
+12. **连接成功日志可能误报固件信息。** ROS connect在诊断帧读取被跳过后仍打印`current_diagnostic_data_`固件版本；该对象由默认构造/重置逻辑初始化为UNKNOWN和0.0.0，不能作为真实设备版本证明。与SERVO-830的诊断首帧硬编码绕过形成链路性缺陷。
+13. **协议结构的字节序和VAL3实现仍需互操作证据。** C++ serialization.hpp限定little-endian并直接memcpy整数/float；VAL3 RobotState编码使用toBinary的little-endian格式。诊断帧没有VAL3编码实现，故无法对诊断字段顺序、端序、时间戳和错误日志数组布局做双端一致性确认。
+
+#### SERVO-831｜诊断协议两端一致性与解析健壮性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DP1 | VAL3工程是否包含诊断类型、socket、编码器和发送任务 | 固定工程清单/数据库未发现；发送端证据缺失 |
+| DP2 | C++诊断帧74字节布局与字段长度 | 静态计算/源码核对完成；双端互操作未验证 |
+| DP3 | DiagnosticData反序列化帧头校验顺序 | 校验先于header读取；确定缺陷 |
+| DP4 | Magic/version/type/payload/datagram长度统一校验 | 通用只验magic；诊断后置校验缺失 |
+| DP5 | 控制器类型、固件版本、错误日志与任务状态字段语义 | C++定义存在；VAL3生产/字段映射未发现 |
+| DP6 | 错误时间戳时钟域、回绕、重启与session语义 | 未定义/未验证 |
+| DP7 | 诊断序号新鲜度、重复/乱序/重放防护 | 未发现完整策略；读取函数未接入 |
+| DP8 | 诊断连接、固件日志和默认值可信度 | connect跳过诊断帧仍打印默认/重置对象 |
+| DP9 | 畸形诊断帧、版本漂移和双端互操作负向测试 | 仅合法往返测试；专项覆盖不足且未执行 |
+| DP10 | VAL3/CS9真实诊断源、厂商协议签核及SIL/HIL/FAT/SAT/实机 | 未提供/未执行/未确认 |
+
+#### 风险与整改建议
+
+- 先由供应方明确诊断数据究竟由VAL3工程、CS9固件内建服务还是外部诊断服务产生；提供可复现的端口配置、服务启动方式、帧抓包、协议文档及版本兼容矩阵。没有发送端证据前，不得宣称仓库已实现端到端诊断通道。
+- 将帧头解析改为先读取到临时FrameHeader，再统一验证Magic Number、协议版本、消息类型、期望payload_size、数据报实际长度和允许的序号窗口；校验通过后才解析payload并提交对象状态。
+- 对DiagnosticDataMessage修复“先验默认header、后覆盖真实header”的顺序缺陷；对所有消息类型采用统一验证器，拒绝尾随字节和截断包。
+- 将诊断枚举值、错误码字典、control_task_status位定义、时间戳单位/时钟域、错误日志排序及清空规则写入协议规范，并与VAL3/CS9供应方逐字段签核。
+- 为诊断帧增加boot/session ID与单调序号窗口；定义重复、乱序、重放、回绕和控制器重启的处理规则。
+- 只有收到并验证有效诊断帧后才记录设备型号/固件版本；UNKNOWN或0.0.0应明确标为“未取得”，不能伪装成实际设备信息。
+- 增加错误Magic/version/type/payload、短包/超长包、错误枚举、异常时间戳、序号重放/回绕、诊断源缺失、端序差异和VAL3实际抓包互操作测试。
+- 保留SERVO-830整改项：诊断subscriber必须进入真实读取链路，诊断首帧和持续新鲜度纳入连接/运行健康门禁；在实现之前不得把诊断通道状态标为ready。
+
+本轮只读固定上游提交源码和测试；未执行构建、单测、模糊测试、VAL3编译、CS9下载/仿真、抓包互操作、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.249 / SERVO-832。
