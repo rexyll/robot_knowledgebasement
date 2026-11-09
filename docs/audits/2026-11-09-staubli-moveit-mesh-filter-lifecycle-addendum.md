@@ -902,3 +902,114 @@ F1–F13、F16均未执行；F14–F15未确认，现场证据缺失。以上均
 - VAL3 updateJointPositionControl： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx （Blob SHA 28e2f1d6a3482a126b16474c957a608262c32218）
 - VAL3 computeSequenceDelay： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx （Blob SHA e96e5b378bc263255ee4f28720306ee911b8a5c1）
 - ICube troubleshooting： https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_driver_ros2/sphinx/demo_applications/troubleshooting.rst （Blob SHA fffd7d2b1fcb9cd95621f6e94191ff6cff49ba91）
+
+
+### §9.3.168 ICube UDP报文接收新鲜度、序号单调性与发送丢包语义
+
+#### 1. 固定基线与范围
+
+本节固定审查ICube-Robotics/staubli_driver_ros2提交bd658e2d266e315d2ee35f985fb352ea88306b79，重点覆盖RealTimeSocketSubscriber、RobotDriver::read_robot_state()、UDPSocketImpl::send()、UDP接收线程及VAL3 16位序号算法。该仓库README明确其为Jazzy/CS9开发原型，不是现场部署证明。
+
+#### 2. 接收缓冲区与新鲜度判断存在语义错位
+
+RealTimeSocketSubscriber::update_message()每收到一条可反序列化报文，就在接收线程中将本机接收时间写入reception_timestamp，再将消息放入RealtimeThreadSafeBox。该box只提供最新消息快照，不保留可供读取端逐条消费的完整队列。
+
+read_message()读取最新快照并计算time_since_received。如果本次读取的序号与上次相同，会将status.new_message=false；但仍返回true，并保留该报文最近一次到达本机的时间戳。
+
+RobotDriver::read_robot_state()检查接口ready、读取函数返回值、消息类型及时间戳新鲜度，但没有检查status.new_message。因此：
+- 同一序号的重复报文只要持续到达，reception_timestamp就会不断刷新；
+- read_message()虽识别出重复序号并标记new_message=false，上层仍会把该状态作为有效状态返回；
+- 这可能使ros2_control继续使用未推进的关节状态样本，而时间戳年龄仍小于默认100 ms；
+- 机器人端VAL3命令序号看门狗可能最终发现命令携带的状态序号未推进，但不能替代ROS侧对状态新鲜度的正确判断。
+
+这不是证明现场一定出现重复报文或危险运动，而是固定源码中“接收时间新鲜”与“状态样本前进”没有绑定的逻辑缺口。
+
+#### 3. 16位序号下降被无条件解释为回绕
+
+FrameHeader.sequence_number为uint16_t，最大值65535。RealTimeSocketSubscriber::read_message()在新序号大于上次序号时计算普通差值；相等时标记重复；只要新序号小于上次序号，就按65535→0回绕公式计算丢包数。
+
+该逻辑没有使用模数序号的半区间判定，也没有拒绝小幅倒退的旧报文。例如上次读到100、随后收到99，会被当作回绕并计算出65535个丢包，随后还会把last_read_sequence_number_更新为99。后续101又会按99为基准计算。因而乱序旧包可能污染序号基准并造成虚假的巨大丢包计数。
+
+真正的65535→0回绕在该算法下可以得到0丢包，但这并不能证明其他下降均为合法回绕。需要用边界测试区分回绕、乱序、重复、重启后序号复位及长时间断连后的重新同步。
+
+#### 4. 状态丢包统计没有形成可观测的故障门禁
+
+read_robot_state()对status.lost_packages的告警代码被注释掉，且当前返回成功条件不要求丢包数为0，也不要求序号连续或单调。读取端仅把最新状态复制给调用方，并更新last_valid_sequence_id_。
+
+该实现倾向于“最新样本优先”，可以容忍中间状态样本丢失；但丢包统计没有转化为可查询的诊断量、阈值策略或控制器降级门禁。需要明确允许丢包的窗口、连续丢包阈值、状态样本最大年龄和重新同步规则，不能仅凭read成功推断反馈链健康。
+
+#### 5. UDP发送would_block时上层仍可能收到成功
+
+固定源码UDPSocketImpl::send()在boost::asio::error::would_block分支记录“Packet dropped”，但该分支没有返回false，而是继续走到函数末尾返回true。源码注释说明这代表内核发送缓冲区满或socket忙，当前报文已被丢弃；并明确留下TODO：增加丢包计数器并在超过阈值时触发错误，或实现异步发送。
+
+RealTimeSocketInterface::send_message()将序列化后的报文交给socket发送；上层RobotDriver::send_robot_command()以该返回值作为发送结果。由此在would_block路径上：
+- 报文实际未发送；
+- socket层返回true；
+- RobotDriver可能把命令视为发送成功；
+- 硬件write不一定收到ERROR，也不一定触发controller_manager错误停用；
+- 该丢包不会通过现有错误返回值直接进入on_error() STOP尝试。
+
+这与“UDP发送成功不等于机器人执行确认”不同：这里甚至不能保证报文已离开本机内核发送路径。持续丢包是否最终由VAL3序号滞后看门狗触发STOP，取决于机器人侧序号进展、命令周期及任务调度；实际触发时间仍未验证。
+
+#### 6. UDP接收来源校验与协议头验证边界
+
+UDPSocketImpl::handle_data_received()在收到数据后调用上层接收回调；源码TODO明确指出尚需验证sender_endpoint_是否与配置的远端地址匹配，并建议丢弃非预期发送方报文。该提交没有在此回调中执行来源地址检查。部署风险取决于控制网络隔离、路由/防火墙和UDP socket行为，不能据此直接断言外部网络可达或可利用；但来源身份校验确属待验证边界。
+
+FrameHeader::deserialize()读取magic、protocol version、message type、sequence和payload size，但只检查magic number。协议版本在RobotDriver连接建立阶段对当前状态消息进行比较；固定代码没有显示每一条后续状态报文都独立执行同样的版本门禁。RobotStateMessage反序列化中的“Validate header fields”段落没有实际校验逻辑；RobotDriver随后只检查message_type是否为ROBOT_STATE。需继续验证报文长度、payload size、协议版本、消息类型、发送方及控制器重启后重新握手的组合边界。
+
+#### 7. 最新快照缓冲与接收线程错误路径
+
+接收线程在每次反序列化成功后覆盖ThreadSafeBox中的最新消息。如果读取周期低于接收频率，中间样本不会逐条交给read()；序号差可估算中间缺失数量，但不能恢复其状态。对于状态估计/控制用途，这属于采样策略而非天然错误，但必须把采样频率、控制频率和最大允许样本年龄纳入验收。
+
+UDP接收回调在error非空时记录错误后仍继续调用上层callback；随后只要is_receiving()仍为true就重新挂起下一次接收。需验证持续错误时是否形成高频日志/回调循环、线程是否继续存活、is_ready()是否仍仅反映socket connected与receive thread running而无法识别“长时间没有有效报文”。
+
+#### 8. 本节结论
+
+1. 本地接收时间戳不等于机器人状态序号推进；重复报文能刷新本地接收时间，而read_robot_state()忽略new_message=false。
+2. 任意序号下降都被当作uint16回绕；小幅乱序旧包会产生虚假大丢包计数并倒退序号基准。
+3. 状态丢包计数没有形成可观测告警/阈值门禁；read成功不等于状态流连续健康。
+4. UDP would_block实际丢弃报文但仍返回true；上层可能把实际丢弃的命令当作发送成功，且没有丢包计数器。
+5. UDP接收回调缺少源码明确标注的发送方地址验证；安全影响需结合现场网络拓扑和过滤规则判断。
+6. 接收端只保留最新快照；采样频率不匹配会丢失中间状态样本，虽可估计序号缺口但无法重建样本。
+7. 上述均为固定公开原型源码静态审查结论，不证明现场部署该代码或已发生报文丢失、伪造、乱序和危险运动。
+
+#### 9. 新增验证任务 SERVO-751 / G1–G16
+
+- G1：重复发送相同RobotState序号但刷新到达时间，验证read_message的new_message及read_robot_state返回值/状态接口变化。
+- G2：序号100后注入99、98、101，验证回绕误判、lost_packages数值和last_read_sequence_number_倒退。
+- G3：验证65534→65535→0→1、65535→0以及跨回绕丢包的边界计算。
+- G4：验证机器人重启/VAL3任务重启后序号复位时的重新同步、误判及控制器门禁。
+- G5：在接收频率高于controller read频率时注入突发状态，验证ThreadSafeBox覆盖样本数、lost_packages统计和控制周期取样。
+- G6：为状态重复、序号不前进、乱序和丢包建立明确的状态健康度/最大年龄/降级策略。
+- G7：在UDP send触发would_block时验证函数返回值、实际报文到达率、RobotDriver返回值和hardware write结果。
+- G8：验证连续would_block时VAL3 sequence_delay增长、STOP触发时间及机器人真实停止响应。
+- G9：核对would_block以外的UDP错误是否正确返回false，并验证错误注入到on_error/STOP调用链。
+- G10：实现/验证发送丢包计数、阈值报警和控制器降级/停止策略；明确不能将本机send_to成功等同机器人ACK。
+- G11：从非预期源地址发送格式正确的状态报文，验证当前部署的UDP来源过滤、网络隔离与状态注入防护。
+- G12：验证FrameHeader协议版本、message_type、payload_size、实际长度、magic及消息体字段一致性。
+- G13：验证控制器/VAL3版本升级或重启后协议协商、序号重新同步和旧报文隔离。
+- G14：注入UDP接收错误、socket关闭、线程仍running但无有效数据、持续错误回调，核实is_ready与有效状态门禁。
+- G15：验证diagnostic subscriber的重复/乱序/丢包/过期行为及其是否能及时暴露控制任务故障。
+- G16：在隔离测试环境完成重复、乱序、丢包、回绕、would_block、非预期源地址等组合故障注入，并形成HIL/FAT/SAT证据。
+
+G1–G16全部未执行。上述项目不得标记为已测试。
+
+#### 10. 证据边界、状态更正与验收
+
+本节对§9.3.167“发送成功不构成接收/执行确认”的表述作进一步细化：UDP普通发送返回true本来就不等于机器人接收/执行确认；此外，固定实现的would_block分支明确丢弃报文却仍返回true，因此该分支连“本机已成功提交发送”也不能成立。§9.3.167中“发送失败返回ERROR”只适用于send()实际返回false的错误路径，不覆盖would_block丢包路径。
+
+本轮未运行ROS构建、单元测试、网络故障注入、UDP发送缓冲区压力测试、VAL3编译/仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游或应用PR。现场驱动版本、网络隔离、源地址过滤、CS9协议部署和安全链均未确认。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码Blob
+
+- ICube README与原型状态：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/README.md
+- RealTimeSocketSubscriber实现：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp （Blob SHA e2cd8fc50b2b13d9e31b2c024e90f9da76107622）
+- Subscriber接口/MessageStatus：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp （Blob SHA 330839cb25e53fe961541f29f634722bec4a47c4）
+- RobotDriver读取与staleness：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp （Blob SHA ede48a314856a455df9d8434f354aaf9fbc47bff）
+- UDP发送与接收线程：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp （Blob SHA 1309a8f2d59e8295869e178af82a66868bb911ff）
+- UDP socket接口：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/udp_socket.hpp （Blob SHA 31eb5e2e9218e17160fc10dfbd72d77be4b3b0e5）
+- FrameHeader与16位序号：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp （Blob SHA 773cdeb9c4bf6e2dab3cf9e15426e4e954e35dea）
+- FrameHeader反序列化：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/protocol.cpp （Blob SHA d31077aefc1d5515919033aa967c431a01d49a4a）
+- 消息反序列化：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp （Blob SHA 86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6）
+- UDP socket测试：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp （Blob SHA 9d54374f3b1327f73b5ae276719f27b6a7b62858）
+- RobotDriver测试：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp （Blob SHA 44da0046ce37fe52649a84ab0833ffee3d9973c5）
