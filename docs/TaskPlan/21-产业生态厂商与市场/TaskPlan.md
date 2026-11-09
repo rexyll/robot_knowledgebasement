@@ -1786,3 +1786,25 @@ MoveIt main当前monitor调用顺序为setMonitor→middleware initialize→setP
 | T10 | Stäubli/ICube是否运行期动态装载/替换updater及外部shared_ptr持有情况 | 未确认，现场证据缺失 |
 
 静态审查发现一个明确的状态转换缺口：当仅有一个updater时调用setTransformCacheCallback()，实现只把provider直接传给updater，没有保存在monitor成员；若之后动态添加第二个updater，addUpdater会把原callback替换为捕获monitor this的wrapper，而wrapper调用getShapeTransformCache时发现monitor成员provider为空，返回false。常规PlanningSceneMonitor路径通常在构造完updater后才设置provider，不一定触发，但addUpdater为公开API，未禁止运行期添加。多updater wrapper还捕获OccupancyMapMonitor裸this；若外部shared_ptr使updater晚于monitor存活，或存在在途callback，需验证悬空this风险。map_updaters_/mesh_handles_的运行期并发修改也没有共同锁。本轮仅静态分析，未证明动态故障。详见专项审计§9.3.153。
+
+
+
+#### SERVO-737｜多 updater ShapeHandle 映射清理、运行期扩容与异常回滚验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| H1 | 多 updater exclude→forget循环后检查mesh_handles_条目数与内存增长 | 未执行 |
+| H2 | DepthImage updater重复forget同一handle的异常与幂等性 | 未执行 |
+| H3 | 单 updater已exclude shape后动态添加第二updater，再forget旧handle并检查原updater残留 | 未执行 |
+| H4 | 动态新增updater后，既有shape是否补登记到新updater | 未执行 |
+| H5 | updater A成功、updater B返回0时的映射及transform cache行为 | 未执行 |
+| H6 | updater A成功、updater B抛异常时，回滚A的mask/mesh及global handle | 未执行 |
+| H7 | forget阶段A成功、B抛异常时的后续清理、映射清理和重试策略 | 未执行 |
+| H8 | 多 updater反复替换robot links/world objects/attached bodies的长时间压力测试 | 未执行 |
+| H9 | ShapeHandle边界与mesh_handle_count_窄化/溢出行为 | 未执行 |
+| H10 | PointCloud ShapeMask与DepthImage MeshFilter remove的重复/未知handle语义 | 未执行 |
+| H11 | ICube自定义updater部分失败、返回0及forget异常契约 | 未确认，现场证据缺失 |
+
+静态审查发现：多updater forgetShape()调用各插件清理后未删除mesh_handles_[i]中的global→local映射，长期反复exclude/forget会使monitor映射表持续增长。若单updater阶段已经exclude shape，之后动态增加第二个updater，旧handle没有global映射；forgetShape切换到多updater映射路径后无法正确清理旧updater，新增updater也不会补登记旧shape。excludeShape()逐个调用插件，前一插件成功、后一插件抛异常时没有回滚；forgetShape()中某插件抛异常会中断后续清理。DepthImage updater的底层MeshFilterBase::removeMesh对未知handle会抛runtime_error，而monitor未清除映射，因此重复forget可能再次触发异常。详见专项审计§9.3.154。
+
+历史MoveIt ROS Issue #320曾报告多传感器时每个updater都递增global mesh handle造成错位；当前main已通过每次excludeShape仅首次成功时分配global handle修复该历史问题。本节点不将该旧问题错误登记为当前缺陷。
