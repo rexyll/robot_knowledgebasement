@@ -599,3 +599,8 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.200）
 
 继续固定ICube基线`bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.200。核对state/diagnostic staleness timeout setter及read路径：默认100ms，setter直接赋值且不校验零/负值/超大值；零/负值使所有接收帧被判stale，过大值可能放宽旧缓存接受窗口；duration字段无mutex/atomic，运行期并发修改存在条件性数据竞争，仓库未见该调用证据。新增SERVO-783/AN1–AN10：AN1–AN6静态核对完成，AN7–AN9未执行，AN10缺目标部署/现场证据。更新专项§9.3.200、厂商档案§128.138、第21章TaskPlan、根计划和审计README。未运行构建、单测、TSan、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。
+
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.201）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79审查至§9.3.201。静态核对RealTimeSocketSubscriber的16位序号统计、接收邮箱更新、RobotDriver状态序号更新和disconnect/reconnect生命周期。发现回绕丢包公式多计1；序号回退未区分乱序与回绕，乱序旧帧可覆盖邮箱并回退上层状态序号；重连重置本地计数但协议没有session/boot epoch。新增SERVO-784/AO1–AO10：AO1–AO7静态核对完成，AO8–AO9未执行，AO10缺目标部署/现场证据。未运行ROS构建/单测、Mock/SIL、TSan、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。
