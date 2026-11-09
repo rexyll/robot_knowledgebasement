@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.25  
+> 版本：v9.26  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.150，厂商档案新增§128.101。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.151，厂商档案新增§128.102。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1342,3 +1342,26 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/include/moveit/depth_image_octomap_updater/depth_image_octomap_updater.hpp（Blob SHA `dbbfd2d431b61d5e2bbdaef45255e3585c2b92a6`）
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp（Blob SHA `d30741a6cb7635821e89f480d1142a1c8a8c6bb6`）
 - 上游Issue #3901、#3902及PR #3909；专项厂商档案§128.101。
+
+
+### §9.3.151 OccupancyMapUpdater初始化顺序、失败拒绝与部分初始化资源回收
+
+- MoveIt main当前源码（occupancy_map_monitor.cpp Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）仍按 setMonitor(this) → middleware_handle_->initializeOccupancyMapUpdater(updater) → updater->setParams(sensor_name) → map_updaters_.push_back(updater) 执行；当前main的middleware hook返回void，调用方无法根据initialize失败拒绝插件。该顺序与updater头文件注释（Blob SHA fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b）所写“initialize assumes setMonitor() and setParams() have been called”不一致。
+- 内置PointCloud updater的initialize(node)先赋值node_并建立TF buffer/timer接口（Blob SHA e11a9f41d6dad68de31c83268e6bd686728eee9e），而setParams()直接通过node_->get_parameter读取参数；DepthImage updater同样在initialize中设置node_，setParams直接解引用node_（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）。因此简单把monitor顺序改为setParams先于initialize，会使这两个内置插件在配置阶段访问尚未初始化的node_；这不是安全修复。
+- 上游Issue #3901与#3902截至本轮刷新仍为Open。#3901报告接口文档顺序与实际调用/插件前置条件冲突；#3902报告initialize返回false仍继续setParams并start，报告序列在3/3次复现。两项问题需要同时处理，不能以机械重排调用顺序解决其中一项而破坏内置插件。
+- PR #3909补丁head 3fc0594f708730008da2c4b3709368ade65302f2将middleware初始化hook改为bool，并在initialize失败时continue，避免失败updater继续setParams和注册/启动；补丁保留initialize后setParams顺序，符合当前内置插件对node_的实际依赖。PR测试新增成功/失败两条路径，检查成功时initialize,set_params,start及失败时仅initialize。上游作者报告Jazzy构建和4项测试0失败；该结果仅是上游报告，不是本项目验证。
+- PR #3909没有解决#3901的公开接口契约不一致：updater头文件仍要求setParams先于initialize，而monitor及内置插件实际要求initialize先于setParams。需要明确统一契约，或拆分“注入node/准备middleware上下文”和“读取参数/订阅启动”阶段，更新接口注释、插件实现、middleware抽象、迁移文档和顺序测试。不能将现有注释当作已兑现行为。
+- PR失败路径的updater局部shared_ptr在continue离开作用域时释放，monitor不再保存该updater；但这只证明所有权引用离开当前作用域，不证明initialize失败前创建的ROS实体、后台线程、timer、callback或外部资源已被完整回滚。接口没有明确规定initialize返回false时必须保持对象无副作用，或由析构函数同步停止所有部分初始化资源。PR新增测试的state对象与updater由测试shared_ptr持有，主要断言调用序列和started标志；未覆盖析构计数、弱引用失效、ROS graph资源消失、在途回调退出或ASan/TSan。
+- 静态审查不等于已经证实PR存在泄漏或UAF。当前证据支持的结论是：PR #3909针对#3902的拒绝逻辑方向正确且保留了内置插件可用的调用顺序；但接口契约和失败初始化的资源回收保证仍未闭环。PR是否已合并、CI状态与最新head需持续刷新；本项目main未应用该PR。
+- 新增SERVO-734：I1为initialize false时验证updater析构、weak_ptr失效及析构计数；I2构造部分ROS实体后返回false，检查publisher/subscription/timer/线程/callback清理；I3模拟initialize抛异常并检查monitor构造失败时插件与middleware资源释放；I4对PointCloud/DepthImage内置插件核验initialize→setParams顺序及参数缺失路径；I5统一updater接口文档、middleware hook和插件实际生命周期契约；I6测试setParams false后的清理与后续插件是否继续加载；I7在单/多executor下验证失败插件没有残留callback；I8对目标Jazzy/RMW执行ROS graph、ASan/TSan与重复构造销毁测试；I9核实ICube实际加载插件、node注入和析构顺序。全部未执行，现场证据缺失。
+- 本轮仅完成MoveIt main静态源码审查、PR #3909补丁/测试审阅、Issue状态刷新及验证设计；未运行本项目ROS构建、动态测试、ASan/TSan、HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_updater.hpp（Blob SHA fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA e11a9f41d6dad68de31c83268e6bd686728eee9e）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）
+- https://github.com/moveit/moveit2/pull/3909（补丁head 3fc0594f708730008da2c4b3709368ade65302f2）
+- https://github.com/moveit/moveit2/issues/3901
+- https://github.com/moveit/moveit2/issues/3902
+- 上一节点§9.3.150；厂商档案§128.102。
