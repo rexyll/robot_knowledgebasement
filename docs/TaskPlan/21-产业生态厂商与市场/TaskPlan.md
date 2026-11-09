@@ -2830,3 +2830,40 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | AZ10 | 获取目标网卡/内核/端口配置并完成隔离SIL/HIL验证 | 未确认，目标证据缺失 |
 
 未执行构建/单测、动态网络注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.213。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.213 / SERVO-796）
+
+本轮继续固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，审查RobotDriver公共API、接口对象生命周期、状态重置及测试覆盖。证据文件：
+
+- `staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp`（blob `62c87a6741aa082db4599bb2c048aec0fcd7a464`）
+- `staubli_robot_driver/src/robot_driver.cpp`（blob `ede48a314856a455df9d8434f354aaf9fbc47bff`）
+- `staubli_robot_driver/src/real_time_socket_subscriber.cpp`（blob `e2cd8fc50b2b13d9e31b2c024e90f9da76107622`）
+- `staubli_robot_driver/test/unit_tests/test_robot_driver.cpp`（blob `44da0046ce37fe52649a84ab0833ffee3d9973c5`）
+
+#### 静态审查发现
+
+1. **RobotDriver公共成员缺少类内生命周期同步。** `connect()`创建/替换 `control_interface_` 与 `diagnostics_subscriber_`；`disconnect()`对其执行reset；`read_robot_state()`、`read_diagnostic_data()`、`send_robot_command()`、`send_stop_all_command()`和`is_connected()`直接访问这些shared_ptr成员。头文件虽包含mutex相关标准库，但类成员中未见互斥量；上述访问也未使用锁或原子shared_ptr快照。若生命周期操作与控制循环/命令线程并发，对同一shared_ptr对象的读写可能构成数据竞争；状态缓存及`last_valid_sequence_id_`也会在read/reset路径中并发访问。上层是否保证串行调用需结合实际ROS 2 control生命周期与调用线程确认。
+2. **STOP发送路径空指针保护不一致。** `send_robot_command()`先检查`control_interface_`与`is_ready()`，但检查与send之间没有锁，无法保护并发disconnect；`send_stop_all_command()`则没有空指针或ready检查，直接调用`control_interface_->send_message()`。在未连接/断连后调用时存在空指针解引用条件；并发disconnect时还存在shared_ptr成员竞争。
+3. **disconnect状态重置与读路径可能并发。** `disconnect()`reset接口对象、关闭socket，最后调用`reset_data()`写入当前状态/诊断消息头及`last_valid_sequence_id_`；`read_robot_state()`会更新`current_robot_state_`和序号，诊断读也更新`current_diagnostic_data_`。未见类内互斥保护，若上层未串行化，可能发生状态对象数据竞争或读到生命周期切换中的状态。
+4. **Subscriber析构的回调对象生命周期有一层保护。** `RealTimeSocketSubscriber::~RealTimeSocketSubscriber()`调用`socket_->stop_receive_thread()`，而底层stop在接收线程运行时join；接收回调捕获`this`，正常单线程析构顺序下线程join后Subscriber才销毁，因此未发现该顺序本身必然造成回调悬空。但此机制不保护RobotDriver公共API与disconnect并发，也不等价于整个RobotDriver具备线程安全性。
+5. **现有RobotDriver单测不覆盖并发生命周期。** `test_robot_driver.cpp`验证正常connect/is_connected、disconnect、read及staleness恢复；调用按顺序执行，没有并发disconnect/read/send、并发connect/disconnect或TSan场景。不能把这些串行单测视为线程安全验收。
+
+建议：明确RobotDriver API的线程安全契约；若支持并发调用，应对连接状态与接口对象使用统一生命周期锁/不可变快照，并保证reset_data与状态读写有一致同步策略；对STOP发送增加断连/ready检查及原子生命周期保护；为连接、断连、读状态、发送命令并发交错建立确定性测试和TSan作业。未修改上游代码。
+
+#### SERVO-796｜RobotDriver生命周期并发与STOP发送验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| BA1 | 核对connect/disconnect对接口shared_ptr成员的写入 | 静态核对完成 |
+| BA2 | 核对read/send/is_connected对接口成员的读取 | 静态核对完成 |
+| BA3 | 核对类内锁、原子快照或串行调用契约 | 静态核对完成：未见明确保护/契约 |
+| BA4 | 核对reset_data与状态读写之间的同步 | 静态核对完成：未见内部同步 |
+| BA5 | 核对send_stop_all_command空指针/ready门禁 | 静态核对完成：未见门禁 |
+| BA6 | 核对send_robot_command检查与使用之间的生命周期竞态 | 静态核对完成：无生命周期锁 |
+| BA7 | 核对Subscriber析构与回调线程join顺序 | 静态核对完成：析构stop并join接收线程 |
+| BA8 | 核对RobotDriver现有单测的并发覆盖 | 静态核对完成：仅覆盖串行生命周期 |
+| BA9 | 并发connect/disconnect/read/send压力、竞态注入与TSan | 未执行 |
+| BA10 | 确认目标controller_manager调用时序、生命周期契约并完成隔离SIL/HIL | 未确认，目标证据缺失 |
+
+未执行构建/单测、并发注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.214。
