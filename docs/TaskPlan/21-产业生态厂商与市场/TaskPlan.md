@@ -2684,3 +2684,26 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 诊断subscriber ready仅表示socket连接及接收线程运行；connect将diag_interface_ready硬编码true，没有调用read_diagnostic_data，之后的固件版本日志不能证明诊断帧有效。控制器类型校验被注释，VAL3版本检查仍为TODO。
 - 新增SERVO-782/AM1–AM10：AM1–AM7固定源码静态核对完成；AM8未执行；AM9缺目标部署配置；AM10缺现场/HIL证据。未执行构建、动态并发注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
 - 下一节点：§9.3.200。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### §9.3.200｜RobotDriver状态新鲜度阈值API边界
+
+- 审查RobotDriver的state/diagnostic staleness setter、read路径比较逻辑、调用点和并发访问同步。
+- 固定源码确认默认100ms但setter不校验零/负值/超大值；零值/负值会使read始终判定stale；大阈值可能接受旧缓存。duration字段没有mutex/atomic，运行期并发调用setter属于条件性数据竞争；仓库内未见运行期并发更新证据。
+- 新增SERVO-783/AN1–AN10：AN1–AN6静态核对完成；AN7–AN9未执行；AN10缺目标部署/现场证据。未运行构建、单测、TSan、Mock/SIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
+- 下一节点§9.3.201；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+#### SERVO-783｜staleness timeout配置验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AN1 | setter默认值与实现 | 静态核对完成 |
+| AN2 | read的age比较方向 | 静态核对完成 |
+| AN3 | 零/负阈值逻辑推导 | 静态核对完成，动态未执行 |
+| AN4 | 阈值与控制周期/安全预算范围 | 静态核对完成，未见门禁 |
+| AN5 | setter/read并发同步 | 静态核对完成，未见mutex/atomic |
+| AN6 | 仓库调用点与并发更新检索 | 静态核对完成 |
+| AN7 | 修正@return文档并验证上游修复 | 未执行 |
+| AN8 | 边界值单元测试 | 未执行 |
+| AN9 | 运行期并发setter/read的TSan测试 | 未执行 |
+| AN10 | 目标部署阈值、报文周期与外部调用证据 | 未确认，现场证据缺失 |
