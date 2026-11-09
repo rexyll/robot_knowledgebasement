@@ -3396,3 +3396,55 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 增加launch_testing/ROS集成测试：Servo目标topic无订阅者、错误消息类型、controller inactive、双控制器争用、轨迹取消/抢占、轨迹时间戳异常、NaN/Inf、周期异常、UDP丢包/延迟、VAL3 STOP和重连恢复。
 
 本轮未执行构建、单测、MoveIt Action、Servo节点、真实控制器轨迹、网络故障注入、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.245 / SERVO-828。
+
+
+
+### 2026-11-09｜v10.20 本轮推进记录（§9.3.245 / SERVO-828）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查UDP socket实现、RealTimeSocketSubscriber/Interface、RobotDriver、StaubliHardwareInterface及socket单元测试源码。
+
+#### 静态审查发现
+
+1. UDP Asio接收线程反序列化状态帧后，通过`realtime_tools::RealtimeThreadSafeBox<MessageType>::set()`更新消息箱；控制循环通过`try_get()`读取。线程安全交换路径存在，但未核实具体realtime_tools版本内部锁/分配行为，不能据此认定无锁或硬实时。
+2. 消息箱采用latest-value语义，新消息覆盖尚未读取的旧消息；序列号可统计丢包，但RobotDriver对丢包仅警告/统计，不自动故障锁存。必须结合状态新鲜度门禁。
+3. 接收时间戳在反序列化后使用`rclcpp::Clock().now()`记录，读取时仍用ROS clock计算年龄。仿真时间、时钟跳变或时钟未同步会影响超时判断；实时新鲜度应采用steady/monotonic clock，ROS时间仅用于日志/仿真语义。
+4. UDP异步回调遇到error只记录日志，随后仍调用用户回调并重新投递接收；错误时bytes_transferred可能无效。应先拒绝错误帧，再按错误类别决定有限重试。
+5. 接收端没有校验sender_endpoint_与remote_endpoint_，源码明确保留TODO；意外主机可能注入状态帧或扰乱序列号。应校验源地址/端口，并评估消息认证和完整性保护。
+6. **高优先级缺陷：UDP would_block丢包仍返回true。** `MSG_DONTWAIT`遇到`boost::asio::error::would_block`时记录Packet dropped，但函数最终返回true；上层send_message和hardware write因此可能把已丢弃的控制周期命令视为成功。必须向上层传播DROP/失败状态、计数并触发经安全论证的故障策略。
+7. 发送路径在调用线程同步执行序列化和socket send。UDP non-blocking降低发送缓冲区满时阻塞风险，但不能证明序列化、系统调用、日志和调度最坏执行时间满足4ms周期；接口注释中的blocking call须区分具体协议实现。
+8. stop_receive_thread使用io_service.stop()+thread.join()同步等待；没有join超时或停止耗时上界。若回调阻塞，disconnect/cleanup可能被拖延。
+9. receiving_/is_connected_为atomic，但socket、io_service、recv_buffer_和reception_callback_等共享对象没有统一生命周期状态机；start/stop/disconnect/send并发约束未在API层完整表达或验证。正常路径通过stop/join收尾，不代表并发调用已安全。
+10. RealTimeSocketSubscriber析构调用stop_receive_thread；接收回调捕获subscriber的this并调用update_message。必须保证回调退出并join后对象才销毁。当前路径有停止动作，但未见并发析构、回调阻塞及重复停止的专项测试。
+11. RealTimeSocketInterface构造时预分配data_out_并在发送时复用，可减少周期内重复分配；但同一buffer不支持并发send，类内未见send互斥，需明确单写者约束。
+12. socket测试源码包含loopback收发、50条消息和断连重连用例；本轮未运行。未见would_block语义、异步error、伪造源地址、并发start/stop/disconnect/send、回调阻塞时join、消息箱高频覆盖、ROS时钟跳变和4ms deadline专项测试。
+13. 接收线程优先级/CPU affinity仍是TODO；未见从UDP收包到read/write/send的WCET、抖动、deadline miss计数和最大延迟监控。250Hz配置不等于实时性证明。
+14. 与SERVO-820缺陷联动：would_block虽丢弃命令却向上层返回true，hardware write可能误报成功，不能触发预期错误路径；应统一处理发送结果、丢包计数、连续丢包阈值和停止状态确认。
+
+#### SERVO-828｜并发、缓冲、实时与线程生命周期验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | 接收线程到RealtimeThreadSafeBox再到控制循环的数据交换 | 静态路径核对；内部锁/实时属性未验证 |
+| DL2 | latest-value覆盖、序列号丢包与状态新鲜度 | 静态核对；高负载丢帧行为未测 |
+| DL3 | 时间戳时钟域与时钟跳变 | 使用ROS clock；单调时钟语义未建立 |
+| DL4 | UDP error处理、发送者校验与异常帧拒绝 | error后仍调用回调；sender校验TODO |
+| DL5 | would_block/UDP发送失败向hardware write传播 | would_block丢包但返回true；高优先级缺陷 |
+| DL6 | send序列化、系统调用、日志及4ms周期WCET | 发送buffer预分配；WCET/抖动未测 |
+| DL7 | stop/join/disconnect及回调捕获对象生命周期 | 静态路径核对；并发析构/阻塞回调未测 |
+| DL8 | 共享send buffer和socket API并发访问约束 | 未见类内send互斥；需确认单写者约束 |
+| DL9 | 网络异常、并发生命周期、时钟跳变和deadline测试 | 源码有常规loopback测试；负向测试未见/未运行 |
+| DL10 | 250Hz实时性、WCET、抖动、丢包阈值、VAL3、SIL/HIL、CS9、FAT/SAT及实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 修复would_block语义：返回false或显式枚举结果；记录原子丢包计数、连续丢包计数和时间窗，达到阈值时锁存故障并执行经安全论证的停止策略。系统调用成功仅代表内核接受数据，不代表机器人已收到/执行，仍需序列号/状态回执闭环。
+- UDP回调先检查error及bytes_transferred范围；错误或长度非法时不调用deserialize，分类记录并有限重试。
+- 校验sender address+port；网络隔离不能替代协议认证。
+- 实时超时采用steady_clock/单调时钟；ROS时间用于日志和仿真语义，避免时钟跳变延长状态有效期。
+- 为socket建立单一生命周期状态机；start/stop/disconnect/reconnect由单一所有者串行执行，取消操作、等待回调退出、join成功后才释放捕获对象和缓冲区。
+- 核实RealtimeThreadSafeBox及目标realtime_tools版本的实时特性，测量锁等待、内存分配和线程优先级。
+- 对send buffer强制单写者或增加同步；控制周期内避免动态分配，日志异步汇总。
+- 增加would_block、系统错误、截断帧、伪造源地址、乱序/重复/丢包、并发生命周期、回调阻塞析构、重连旧回调、ROS时钟跳变、CPU负载和deadline miss测试。
+- 记录端到端单调时间戳：收包、反序列化、buffer set/get、hardware read/write、send syscall及机器人回执；形成平均/P99/P99.9/最大延迟、jitter、连续丢包和deadline miss指标。
+
+本轮未执行构建、单测、TSAN、网络故障注入、WCET/实时性能测量、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.246 / SERVO-829。
