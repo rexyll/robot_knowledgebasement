@@ -294,3 +294,6 @@
 
 
 - [2026-11-09 Stäubli状态新鲜度、控制模式准入与诊断通道首帧验证审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.199，核对is_connected不检查RobotState新鲜度、read失败保留旧状态缓存、on_activate仅设STOP并成功返回、JOINT_POSITION切换读取缓存状态但无独立时间戳门禁；诊断subscriber仅检查socket/接收线程ready，connect将diag_interface_ready硬编码true且不读取首个诊断帧，固件版本日志不能证明诊断有效。新增SERVO-782/AM1–AM10，AM1–AM7静态核对完成，AM8未执行，AM9缺部署配置，AM10缺现场/HIL证据。
+
+
+- [2026-11-09 Stäubli RobotDriver状态新鲜度阈值API取值与并发更新审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.200，核对state/diagnostic staleness setter默认100ms但无零/负值/超大值范围校验；零/负值会使所有消息判stale，过大值可能放宽旧缓存接受窗口，duration字段无mutex/atomic使运行期并发修改成为条件性数据竞争。新增SERVO-783/AN1–AN10，AN1–AN6静态核对完成，AN7–AN9未执行，AN10缺现场证据。
