@@ -272,3 +272,5 @@
 - [2026-11-09 Stäubli VAL3通信复位错误传播、控制任务存活与恢复状态一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.189，确认resetControlSocket正常返回路径无条件清除错误输出，调用方复位失败检查无法捕获其内部操作失败；start.pgx中的监督/诊断任务仍为TODO。新增SERVO-772/AC1-AC10，AC1-AC7和AC10未执行，AC8-AC9现场证据缺失。
 
 - [2026-11-09 Stäubli VAL3启动前置条件、monitor speed与boxcar delay性能门禁审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.190，确认monitor speed低于100时仅记录Warning且等待动作被注释，boxcar delay只读取/记录且滤波器频率设置被注释；固定4 ms控制周期没有与上述前置条件建立显式预算/准入关联。新增SERVO-773/AD1-AD10，动态测试未执行，现场API/配置证据缺失。
+
+- [2026-11-09 Stäubli VAL3控制任务退出条件可达性、重复启动与启停残留状态审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.191，确认controlTask的停止标志是局部变量且固定程序内没有后续置true写入点；stop.pgx未显式终止/等待任务，start.pgx未见同名任务防重入门禁。taskCreateSync同名任务语义及stop→start竞态须目标CS9/VAL3受控验证；新增SERVO-774/AE1-AE10，动态测试未执行，目标版本API和现场编排证据缺失。
