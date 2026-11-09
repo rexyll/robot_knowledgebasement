@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.27  
+> 版本：v9.28  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.152，厂商档案新增§128.103。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.153，厂商档案新增§128.104。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1390,3 +1390,26 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）
 - https://github.com/moveit/moveit2/pull/3909
 - 上一节点§9.3.151；厂商档案§128.103。
+
+
+### §9.3.153 addUpdater多插件TransformCache回调重绑定与monitor生命周期
+
+- 当前MoveIt main occupancy_map_monitor.cpp（Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）中，addUpdater先将updater加入map_updaters_；当数量变为2时，给第0和第1个updater分别设置捕获[this]的lambda，之后新增updater也设置捕获[this, index]的lambda。lambda最终调用getShapeTransformCache(index, ...)；该函数依赖monitor成员transform_cache_callback_，再将外部shape transform结果按mesh_handles_[index]映射回该updater的handle。
+- setTransformCacheCallback()存在一个可由静态控制流确定的状态转换缺口：当map_updaters_.size()==1时，它只把transform_callback直接传给唯一updater，不保存到monitor的transform_cache_callback_；当updater数量为0或大于1时则保存到monitor成员。若运行时顺序为“先添加一个updater→设置transform callback→再添加第二个updater”，第二次addUpdater会用内部lambda覆盖两个updater原有callback，而monitor的transform_cache_callback_仍为空；后续getShapeTransformCache立即返回false，self-filter transform cache无法更新。该结论是代码路径推导，尚未通过本项目动态测试。正常PlanningSceneMonitor路径在创建OctomapMonitor后设置callback，且默认插件在构造时已加入，因此通常不会触发；但addUpdater是公开方法，接口未禁止运行时添加。
+- 多updater路径的callback lambda捕获OccupancyMapMonitor裸this，并存储在各updater的transform_provider_callback_中。monitor析构体调用stopMonitor后，map_updaters_成员销毁；若外部仍持有传入addUpdater的shared_ptr，updater对象可晚于monitor存活，其transform callback仍保留悬空this。若插件存在在途回调，或外部在monitor销毁后仍触发updater内部transform cache更新，可能访问已析构monitor。当前未证明目标executor下必然发生UAF；需用延长updater shared_ptr和阻塞回调的ASan测试验证。monitor析构前没有显式把各updater的transform callback清空，也没有统一等待in-flight transform callback退出的屏障。
+- 多updater getShapeTransformCache会遍历外部callback返回的temp_cache，并用mesh_handles_[index]映射shape handle；index来自addUpdater注册时捕获的map_updaters_下标。该索引与mesh_handles_依赖同步维护，当前addUpdater按size resize并按当前size-1捕获；但公开运行时addUpdater与excludeShape/forgetShape、transform callback并发时，map_updaters_、mesh_handles_没有围绕这组操作的共同锁。若允许运行时并发添加和更新，可能出现vector/map数据竞争或索引失配；当前源码没有声明该API线程安全，不能据静态代码直接断言实际并发故障。
+- 单updater路径不做handle remap，直接将provider传给updater；多updater路径则将provider放在monitor层并对每个updater执行独立handle映射。这个优化要求updater数量在设置provider后保持稳定，或者setTransformCacheCallback/addUpdater必须在状态转换时重新配置所有callback并保存统一provider。当前实现没有显式状态机/锁来维持该不变量。
+- PlanningSceneMonitor源码（Blob SHA 83f67e15cb167957ddf15bde8fc239d053ed727c）在创建octomap_monitor_后设置TransformCacheCallback，传入的lambda捕获PlanningSceneMonitor裸this；这意味着上层PSM和下层OccupancyMapMonitor存在嵌套callback生命周期。当前应区分两层：PSM provider的owner是PlanningSceneMonitor，updater wrapper的owner是OccupancyMapMonitor。销毁顺序、stop返回后的在途callback、PSM先销毁还是monitor先销毁需结合实际持有关系和executor验证；不能仅凭shared_ptr所有权推断捕获的this仍有效。
+- 新增SERVO-736：T1 单updater创建后设置provider，再动态添加第二个updater，断言provider仍被调用且两个handle映射正确；T2 先设置provider再依次添加1/2/3个updater，验证0→1→2→N状态转换；T3 先添加多个updater再设置provider，验证正常路径；T4 多updater每个index的mesh_handles映射、excludeShape/forgetShape与不同updater handle冲突矩阵；T5 updater外部shared_ptr延长至monitor析构之后，触发transform callback并用ASan检测悬空this；T6 stop与in-flight transform callback并发，验证stop/析构是否等待或清空callback；T7 PSM callback捕获this与OMM wrapper捕获this的嵌套析构顺序测试；T8 并发addUpdater/excludeShape/forgetShape/transform callback的TSan测试，或明确禁止运行时并发修改；T9 monitor析构前清空callback的API/实现方案评估及回归；T10 Stäubli/ICube是否在运行期动态装载或替换updater、是否保留updater外部shared_ptr的现场确认。全部未执行，现场证据缺失。
+- 当前上游Issue #3901仍Open；PR #3909截至本轮GitHub connector刷新仍Open，描述仍为initialize失败时跳过updater，未改变本节addUpdater/transform callback逻辑。PR作者列出的Jazzy 4项测试0失败是上游自报测试，不是本项目验证。
+- 本轮仅完成MoveIt main静态源码审查、PlanningSceneMonitor调用路径审查及测试设计；未运行本项目ROS动态测试、ASan/TSan、HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp（Blob SHA d30741a6cb7635821e89f480d1142a1c8a8c6bb6）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_updater.hpp（Blob SHA fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_updater.cpp（Blob SHA 7520e9fccd5d18414e137e3f14c313de50b22cf8）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp（Blob SHA 83f67e15cb167957ddf15bde8fc239d053ed727c）
+- https://github.com/moveit/moveit2/pull/3909
+- https://github.com/moveit/moveit2/issues/3901
+- 上一节点§9.3.152；厂商档案§128.104。
