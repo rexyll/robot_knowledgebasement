@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.17  
+> 版本：v10.18  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.242 / SERVO-825；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.243 / SERVO-826；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3295,3 +3295,52 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 只有经控制器安全链路、VAL3、SIL/HIL、CS9目标配置、FAT/SAT和现场风险评估验证后，才能判定具体机器人单元具备安全运行条件。
 
 本轮未执行构建、单测运行、故障注入、控制器安全功能验证、STO/安全PLC验证、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.243 / SERVO-826。
+
+
+### 2026-11-09｜v10.18 本轮推进记录（§9.3.243 / SERVO-826）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查`staubli_bringup/launch/launch_robot_control.launch.py`、`config/controllers.yaml`、`launch/launch_moveit.launch.py`、`scripts/wait_for_robot_ready.py`、`staubli_moveit_config/config/moveit_controllers.yaml`、`staubli_moveit.launch.py`及硬件接口command mode switch实现。
+
+#### 静态审查发现
+
+1. **控制器管理器以250Hz运行。** controllers.yaml声明joint_state_broadcaster和joint_trajectory_controller；轨迹控制器使用joint_1..joint_6、position command interface、position/velocity state interface，且`allow_partial_joints_goal=false`。
+2. **控制器加载与激活分成两步。** launch先通过spawner以`--inactive`加载joint_trajectory_controller；若start_controller参数指定该控制器，则在spawner进程退出后执行`ros2 control set_controller_state ... active`。默认start_controller=none，因此单独启动robot_control launch时轨迹控制器保持inactive。
+3. **激活触发只看进程退出，不检查退出码。** OnProcessExit无论spawner成功还是失败都会触发后续事件；activation_condition满足时仍会调用set_controller_state active。启动失败可能产生误导性激活尝试/错误日志，未见有条件的失败分支或明确launch fail-fast。
+4. **Demo launch存在启动时序竞争。** launch_demo同时包含robot_control和launch_moveit；launch_moveit另启wait_for_robot_ready，待robot_description和joint_states各收到首条消息即退出并启动MoveIt。该等待器不检查controller_manager服务可用性、joint_trajectory_controller是否active、硬件是否已连接、状态/诊断帧是否有效或机器人是否安全就绪。joint_states通常只证明broadcaster开始发布，不能证明运动控制器已激活。
+5. **等待器没有超时/取消机制。** wait_for_robot_ready使用spin_until_future_complete等待两个topic首帧，没有deadline、失败状态或process shutdown恢复策略；缺任一topic时可能无限等待，且上层OnProcessExit对等待器任意退出均触发launch_moveit。
+6. **MoveIt与ros2_control控制器名称/action一致。** MoveIt Simple Controller Manager配置joint_trajectory_controller、FollowJointTrajectory action namespace和六关节，与bringup控制器名称/关节列表一致；但MoveIt配置default=false，静态文件本身没有证明运行时controller已active或MoveIt能够成功执行轨迹。
+7. **硬件接口command mode切换验证不完整。** `prepare_command_mode_switch()`只从start_interfaces解析第一个匹配的position/velocity/effort/acceleration，stop_interfaces被忽略；注释明确TODO要求验证接口成组停止/启动，混合position和velocity不应被接受。多接口顺序可能影响resolve_mode结果。
+8. **当前实现只接受STOP和POSITION。** velocity/effort模式明确拒绝；acceleration-only请求被视为STOP（加速度接口仅供limiter使用）。prepare缓存pending_mode，perform消费；如果未调用prepare，perform默认STOP。尚未看到基于当前active mode和stop_interfaces的完整合法转换矩阵。
+9. **控制器激活不等于硬件安全许可。** perform_command_mode_switch进入POSITION只检查error_state和motion_possible，operation_mode_status非零仅WARN；没有检查状态新鲜度、诊断首帧、estop_pressed和完整safety_status。Controller active只说明ROS控制器生命周期状态，不代表机器人控制器安全使能。
+10. **控制器切换期间命令残留需验证。** perform在切换时把position command复制为当前hw_joint_positions并将velocity/acceleration buffer清零，属于部分安全初始化；未见对stop_interfaces所含关节接口进行完整集合校验，也未见控制器切换事务失败/半切换后的命令缓存恢复验证。
+11. **测试证据不足。** 本轮搜索与检查的上游测试源码未发现覆盖spawner失败后禁止激活、waiter超时、controller_manager不可用、trajectory controller inactive时阻止MoveIt、mixed interface/partial stop/重复切换/切换中断等完整集成测试。本轮未运行测试。
+12. **模拟硬件默认值风险。** launch_robot_control默认`use_mock_hardware=true`，真实机器人必须显式传`false`。Demo launch把该参数透传；部署流程需防止生产启动误用mock并清晰核验硬件插件/robot_ip。
+13. **MoveIt launch与robot control并非由同一个明确的控制器ready gate串行协调。** 当前MoveIt waiter仅依赖描述和joint_states topic；即使trajectory controller加载/激活失败，MoveIt也可能先启动并暴露规划/执行入口，执行时才因action server不可用失败。
+
+#### SERVO-826｜Controller Manager、Spawner、MoveIt联动及切换验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | controller_manager频率及控制器配置 | 静态核对完成 |
+| DL2 | spawner inactive加载/条件激活流程 | 静态核对完成 |
+| DL3 | spawner失败退出码与激活门禁 | 未检查退出码；存在启动流程缺口 |
+| DL4 | robot_ready等待条件/超时 | 仅等待robot_description与joint_states首帧；无超时 |
+| DL5 | MoveIt FollowJointTrajectory映射 | 静态名称/action/关节一致；运行未验证 |
+| DL6 | MoveIt启动前controller active门禁 | 未见 |
+| DL7 | prepare/perform接口切换与stop_interfaces | 仅首个匹配接口解析；stop集合忽略，TODO明确 |
+| DL8 | 切换初始化、缓存和异常中断 | 部分初始化；事务恢复未验证 |
+| DL9 | spawner失败、waiter超时、混合接口、切换竞态集成测试 | 未见充分覆盖；未执行 |
+| DL10 | 真实控制器、MoveIt执行、mock/real隔离、SIL/HIL、CS9、FAT/SAT和实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 将控制器加载与激活改为有结果检查的显式launch状态链：spawner成功退出才允许激活；激活服务返回成功且controller state确认为active后才释放MoveIt执行入口；失败应fail-fast并撤销/保持非运动状态。
+- wait_for_robot_ready增加deadline、shutdown/cancel、失败退出码；检查robot_description解析、joint_states完整且持续更新、hardware component active/connected、joint_state_broadcaster active、trajectory controller active及FollowJointTrajectory action server可用。
+- MoveIt启动和轨迹执行分别设置就绪门禁；规划可以按产品策略独立开放，但执行能力必须在controller action server和硬件/安全状态确认后开放。
+- command mode switch对start/stop interfaces做集合级验证：同一组关节接口必须原子切换，禁止混合position/velocity/effort；校验stop集合与当前active mode一致，拒绝重复、部分、冲突或未知接口。
+- 为切换设计明确事务状态及失败回滚：准备、停止旧命令、清理命令缓存、激活新模式、验证状态；任何阶段失败均保持STOP并报告可观测错误。
+- 生产launch显式要求`use_mock_hardware=false`并验证robot_ip/硬件插件；mock默认只用于仿真/开发profile，避免生产误启动mock。
+- 增加launch_testing集成测试覆盖spawner非零退出、激活失败、controller_manager延迟、topic缺失超时、trajectory action缺失、controller inactive、切换混合接口/部分stop/重复调用/中途失败及mock误配置。
+- ROS controller active、MoveIt action server ready都不是安全认证或运动许可；仍须与SERVO-825的控制器安全门禁、诊断新鲜度和硬件安全链路集成。
+
+本轮未执行构建、launch_testing、控制器管理器启动、MoveIt轨迹执行、故障注入、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.244 / SERVO-827。
