@@ -2265,3 +2265,32 @@ V1-V9全部未执行，V10现场证据缺失。未执行VAL3编译/仿真、UDP�
 - `resetControlSocket.pgx`（Blob SHA `25d414065b4567c5634ef8890cc8cafd6f7e9b3e`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
 - `computeSequenceDelay.pgx`（Blob SHA `e96e5b378bc263255ee4f28720306ee911b8a5c1`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx
 - `getNextSequenceNumber.pgx`（Blob SHA `8bdda02a8887968b1b86e42be733f553b1e36b19`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
+
+
+#### SERVO-766｜ROS/VAL3重启、状态缓存与序号会话边界验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| W1 | 同一RobotDriver对象执行disconnect→connect，验证状态缓存和subscriber first_read均重置 | 未执行 |
+| W2 | 保持ROS连接，单独重启VAL3 controlTask，验证状态序号复位、subscriber回绕计数及命令序号重新跟随 | 未执行 |
+| W3 | 注入重复序号且时间戳持续更新/停止更新两种情形，验证read_robot_state及status.new_message | 未执行 |
+| W4 | 在latest-message单槽缓存前注入高频突发状态，量化被覆盖帧和实际消费序列 | 未执行 |
+| W5 | 注入16位序号65534、65535、0、1及非回绕下降，验证回绕丢包计算 | 未执行 |
+| W6 | ROS断线/重连与VAL3任务重启交错，注入旧会话延迟数据报，验证接收及命令序号影响 | 未执行 |
+| W7 | 对UDP socket关闭/重绑、端口复用和接收线程重启抓包，确认内核队列及迟到报文处置 | 未执行 |
+| W8 | 增加subscriber重复序号、latest-message覆盖、回绕和会话复位单测 | 未执行 |
+| W9 | 评估会话epoch/随机nonce/启动代号及双向重同步握手设计，不直接修改上游 | 未执行 |
+| W10 | 获取现场ROS/CS9/VAL3版本、重启日志、UDP抓包及FAT/SAT重连验收记录 | 未确认，现场证据缺失 |
+
+固定公开源码静态审查确认：ROS命令序号回显最近有效RobotState序号；显式disconnect重置RobotDriver数据，新subscriber从first_read状态启动并使用latest-message单槽缓存。subscriber将重复序号标记为非新消息，但RobotDriver读取层忽略该标志；序号下降一律按16位回绕计算，无法区分发送端重启与正常回绕。ROS UDP socket关闭/重绑与VAL3 clearBuffer是两端本地资源清理，不构成协议级会话epoch或重新授权握手。
+
+W1-W9全部未执行，W10现场证据缺失。未执行ROS构建/单测、UDP重启故障注入、VAL3仿真、HIL、CS9实机或FAT/SAT。静态审查不证明旧UDP报文跨重启残留或旧命令被执行。未修改上游或应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.183。
+
+#### 固定源码位置
+
+- `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- `robot_driver.hpp`（Blob SHA `62c87a6741aa082db4599bb2c048aec0fcd7a464`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- `real_time_socket_subscriber.cpp`（Blob SHA `e2cd8fc50b2b13d9e31b2c024e90f9da76107622`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- `real_time_socket_subscriber.hpp`（Blob SHA `330839cb25e53fe961541f29f634722bec4a47c4`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
+- `udp_socket_impl.hpp`（Blob SHA `1309a8f2d59e8295869e178af82a66868bb911ff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
