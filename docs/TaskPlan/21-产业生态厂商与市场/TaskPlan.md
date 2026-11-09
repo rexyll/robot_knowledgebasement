@@ -2432,3 +2432,29 @@ AA1-AA8全部未执行，AA9-AA10现场证据缺失。以上是静态审查和�
 - `getNextSequenceNumber.pgx`（Blob SHA `8bdda02a8887968b1b86e42be733f553b1e36b19`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
 - `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
 - `readDataOnce.pgx`（Blob SHA `652aa04548c814febab3c8c3fc807093261efd97`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.188）
+
+- 新增§9.3.188：检查VAL3 resetControlSocket本地SIO缓冲清理、controlTask重新接入门槛、ROS disconnect/connect重建和旧会话数据报可达性。
+- 静态确认resetControlSocket仅设置timeout/endOfString、clearBuffer并清除错误标志，不关闭重建socket、不建立session epoch/nonce、不执行重新授权握手。
+- 静态确认错误复位会清除本地bIsValid/l_bControlActive并归零序号；下一条完整可解码RobotCommand即可重新置位控制活动标志，显式等待/首包授权门禁仍为TODO。
+- ROS disconnect/connect重建本地socket接口和subscriber、清理状态缓存并等待有效RobotState，但没有协议级会话代际同步；命令序号继续回显最近有效RobotState序号。
+- clearBuffer之后才到达的在途旧报文是否能通过序号门禁，取决于到达时序、16位回绕、机器人运动快照及目标SIO运行时；静态分析仅确认缺少协议级旧会话排除机制，不证明旧命令已被执行。
+- 新增SERVO-771/AB1-AB10；AB1-AB8全部未执行，AB9-AB10现场证据缺失。未执行VAL3仿真、ROS集成、UDP延迟/乱序/重放注入、CS9/HIL、FAT/SAT或实机测试。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。目标现场版本、网络拓扑、CS9 SIO行为和独立安全链未确认；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。专项下一节点§9.3.189。
+
+#### SERVO-771｜VAL3通信复位后重新接入与旧报文隔离验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AB1 | 在mock VAL3中于clearBuffer前、执行期间、执行后分别注入旧RobotCommand，记录接收/解码/执行路径 | 未执行 |
+| AB2 | 验证复位后无报文、STOP报文、位置命令、速度命令及错误类型报文的首包行为 | 未执行 |
+| AB3 | 对复位后状态序号1/2/25/26及旧命令序号65530/65535/0/1组合测试回绕和延迟门禁 | 未执行 |
+| AB4 | 在静止与运动快照下分别注入延迟旧命令，记录最终模式、bIsValid、l_bControlActive及运动更新调用 | 未执行 |
+| AB5 | 在clearBuffer调用前后安排UDP在途包/延迟包，验证VAL3 SIO接收缓冲与任务周期竞态 | 未执行 |
+| AB6 | 验证resetControlSocket失败、clearBuffer运行时异常或socket不可用时错误标志与控制任务行为 | 未执行 |
+| AB7 | ROS disconnect→connect后验证新subscriber首帧、状态序号重置、命令序号回显与旧数据隔离 | 未执行 |
+| AB8 | 设计并验证协议级session epoch/nonce或等价重同步门禁；未实现前以测试证明旧会话报文被拒绝 | 未执行 |
+| AB9 | 核对目标CS9/VAL3版本的SIO clearBuffer语义、UDP接收队列语义、任务调度和应用部署配置 | 未确认，现场证据缺失 |
+| AB10 | 获取现场抓包、VAL3日志、ROS reconnect日志、序号轨迹、故障恢复记录及FAT/SAT验收证据 | 未确认，现场证据缺失 |
+
+AB1-AB8全部未执行，AB9-AB10现场证据缺失。以上仅为固定公开原型静态审查与验收设计；未执行动态测试或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.188。
