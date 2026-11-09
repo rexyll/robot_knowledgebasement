@@ -3694,3 +3694,65 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DE10 | VAL3仿真、SIL/HIL、CS9、FAT/SAT及实机安全验收 | 未确认 |
 
 本轮已取得固定提交三个文件的完整源码，较前几轮搜索片段证据有所提升；VAL3端到端执行与安全回路仍缺证据。本轮未执行构建、单测、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.233 / SERVO-816。
+
+
+### 2026-11-09｜v10.08 本轮推进记录（§9.3.233 / SERVO-816）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮完整读取`types.hpp`、`messages.hpp`、`messages.cpp`和`staubli_hardware_interface.cpp`；VAL3状态发布程序在仓库路径下未能取得（fetch返回404），因此仅能确认ROS协议类型、序列化/反序列化和GPIO映射，不能确认控制器端各字段的真实来源与时序。
+
+#### 静态审查发现
+
+1. **SafetyStatus枚举完整值已确认。** `types.hpp`定义：`NO_SAFETY_STOP=0x00`、`WAIT_FOR_RESTART=0x01`、`SS1=0x02`、`SS2=0x03`、`WAIT_FOR_WMS=0x04`。这是驱动协议代码枚举定义；具体每种状态在目标控制器/安全系统上的语义、触发条件、复位要求和停止类别仍须以对应型号手册、安全配置和控制器程序确认。
+2. **RobotState消息将安全状态与控制状态分开传输。** `messages.hpp`分别定义`control_state`和`safety_status`，另有`operation_mode`与原始`uint8_t operation_mode_status`。不能把STOP、WAIT_FOR_RESTART或operation mode status互相等同。
+3. **安全状态反序列化没有枚举范围校验。** `messages.cpp::RobotStateMessage::deserialize()`读取uint8后直接static_cast到SafetyStatus、CommandType、OperationMode；本函数未拒绝0x05–0xFF等未定义SafetyStatus值，也未检查OperationMode未知编码。未知安全状态不应被解释为NO_SAFETY_STOP；应使整帧无效或进入fail-closed状态。
+4. **安全位字段独立于SafetyStatus枚举。** 16-bit status_flags分别映射POWER_ON、BRAKES_RELEASED、MOTION_POSSIBLE、IN_MOTION、ERROR_STATE、ESTOP_PRESSED。消息中同时携带SafetyStatus和多个状态位；当前协议代码没有证明这些字段之间的一致性约束，例如ESTOP_PRESSED与NO_SAFETY_STOP并存时如何判定，也未见对矛盾组合的拒绝。
+5. **GPIO监督接口完整映射已确认。** `update_state()`将operation_mode、operation_mode_status、safety_status、control_sequence_delay、brakes_released、motion_possible、in_motion、error_state、estop_pressed导出到supervision GPIO；`wait_for_ack`仅在`safety_status == WAIT_FOR_RESTART`时置1。SS1、SS2、WAIT_FOR_WMS不会映射为wait_for_ack=1，但仍保留独立safety_status字段。
+6. **wait_for_ack只是状态映射，不是安全复位动作。** 当前代码只把WAIT_FOR_RESTART映射为GPIO状态值，没有显示它会执行安全复位、清除急停、释放制动器或重新使能。不得把wait_for_ack=0理解为没有安全停止，也不得把wait_for_ack=1理解为允许自动重启。
+7. **write运动命令门禁仍不完整。** 已在SERVO-815确认write非STOP路径仅检查error_state与control_state==INVALID；本轮确认safety_status、brakes_released、estop_pressed并未在该write许可分支中检查。perform模式切换会检查motion_possible，但HOLD/operation_mode_status只WARN。静态代码路径没有形成由所有安全状态字段共同决定的统一许可矩阵。
+8. **状态字段发布源与端到端真实性未确认。** VAL3程序文件未能从固定提交的预期路径读取；因此不能证明SafetyStatus各值由哪个VAL3变量、安全PLC或控制器功能生成，也不能确认字段是否原子快照、更新周期、状态优先级和故障时默认值。
+9. **协议注释与目标安全功能之间存在证据断层。** 驱动层枚举名称SS1/SS2具有安全停止术语含义，但仅凭名称不能证明系统实现了符合标准的SS1/SS2功能、达到任何PL/SIL等级，或制动时间/距离满足目标风险评估。
+10. **当前允许得出的结论。** 可以确认协议定义了5种SafetyStatus、6个状态flag以及ROS监督GPIO映射；不能确认这些字段构成完整安全链，也不能确认ROS驱动具有安全认证或可替代安全PLC/机器人控制器安全功能。
+
+#### 安全状态与运动命令许可矩阵（静态审查建议基线）
+
+| 状态/字段 | 驱动当前可见行为 | 建议的非STOP命令策略 | 证据边界 |
+|---|---|---|---|
+| NO_SAFETY_STOP | safety_status默认/映射值；write不检查该字段 | 仍须检查其他状态、反馈新鲜度和控制器许可 | 不等于全系统运动许可 |
+| WAIT_FOR_RESTART | wait_for_ack=1；write不检查 | 禁止自动运动；等待经验证的复位/重新启动流程及新鲜确认 | GPIO映射不是复位协议 |
+| SS1 | 原样导出safety_status；write不检查 | 默认禁止新运动命令，直至控制器安全状态明确恢复并重新授权 | 停止类别/完成条件需型号资料 |
+| SS2 | 原样导出safety_status；write不检查 | 默认禁止新运动命令，直至明确许可 | 不得仅凭枚举名推断安全等级 |
+| WAIT_FOR_WMS | 原样导出safety_status；wait_for_ack=0；write不检查 | 默认禁止新运动命令，直至WMS/控制器许可语义核实 | WMS含义及互锁关系未确认 |
+| estop_pressed=true | GPIO导出；write分支未检查 | 禁止非STOP命令并由独立安全链执行急停功能 | ROS字段不能替代硬件急停回路 |
+| brakes_released=false | GPIO导出；write分支未检查 | 禁止非STOP命令 | 不能仅靠软件门禁控制制动安全 |
+| motion_possible=false | perform切换到JOINT_POSITION时拒绝；write未独立检查 | 禁止非STOP命令 | 依赖反馈新鲜性和真实性 |
+| error_state=true / control_state INVALID | write非STOP时发STOP并返回ERROR | 禁止非STOP命令 | 未知枚举值当前可能绕过INVALID比较 |
+| 状态未知、矛盾或过期 | 未形成统一fail-closed策略 | 禁止非STOP命令，状态恢复后要求重新握手 | 需要动态验证 |
+
+以上矩阵是整改建议，不是厂商安全功能声明或已验证行为。
+
+#### 风险与建议
+
+- 对SafetyStatus、CommandType、OperationMode建立合法枚举值检查；未知值拒绝整帧，禁止将未知安全状态默认为无安全停止。
+- 建立状态一致性规则：ESTOP_PRESSED、BRAKES_RELEASED、MOTION_POSSIBLE、ERROR_STATE、SafetyStatus及operation_mode_status之间的合法组合由控制器协议/安全设计给出；收到矛盾组合时fail-closed。
+- 在非STOP命令发送前统一检查：新鲜状态、序号/epoch、合法SafetyStatus、非急停、制动器状态、motion_possible、error_state、control_state确认、operation mode许可和人工授权。任何未知/过期/矛盾状态均拒绝运动命令。
+- 不把ROS GPIO监督接口作为安全功能实现；急停、SS1/SS2、制动控制和安全复位必须由目标控制器安全选件、安全PLC/安全继电器及经验证的安全架构承担。
+- 取得目标机器人型号及控制器版本对应的VAL3工程、状态协议说明、安全功能手册、配置备份和安全I/O映射，逐字段追踪来源、极性、周期、默认值和故障行为。
+- 对WAIT_FOR_RESTART、SS1、SS2、WAIT_FOR_WMS、急停、制动未释放、反馈丢失、非法枚举、矛盾状态组合进行仿真/SIL/HIL注入；验证不会发送非STOP命令，复位后必须有新鲜状态与明确授权。
+- 分别验收ROS监督状态正确性、VAL3命令拒绝行为、安全控制器响应、机械停止性能和安全等级证据，不能以任一层替代其他层。
+
+#### SERVO-816｜安全状态字段与许可验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DF1 | SafetyStatus五种枚举值 | 完整源码静态核对完成 |
+| DF2 | control_state/safety_status/operation_mode字段分离 | 完整源码静态核对完成 |
+| DF3 | 安全枚举反序列化合法值校验 | 完整源码核对完成：未见范围校验 |
+| DF4 | 六个StatusFlag位映射 | 完整源码静态核对完成 |
+| DF5 | supervision GPIO及wait_for_ack映射 | 完整源码静态核对完成 |
+| DF6 | write运动许可是否检查SafetyStatus/急停/制动器 | 完整源码关联核对完成：write门禁未检查这些字段 |
+| DF7 | VAL3字段源、安全PLC映射、状态周期及复位语义 | 未确认；目标VAL3文件路径fetch 404 |
+| DF8 | 未知枚举、矛盾状态、急停/SS1/SS2/WMS故障注入 | 未执行 |
+| DF9 | 状态—许可矩阵及人工复位/重新授权闭环测试 | 未执行 |
+| DF10 | 目标控制器安全功能、PL/SIL、停止性能、SIL/HIL、CS9、FAT/SAT及实机验收 | 未确认 |
+
+本轮已取得4个固定提交源码文件（其中VAL3目标文件未能读取）；本轮未执行构建、单测、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.234 / SERVO-817。
