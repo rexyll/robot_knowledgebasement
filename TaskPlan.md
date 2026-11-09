@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.87  
+> 版本：v9.88  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.212；新增SERVO-795/AZ1–AZ10：固定ICube提交静态核对显示stop_receive_thread仅调用io_service_.stop并join，不取消底层socket异步接收；io_service_.reset后再次start_receive会注册新的async_receive_from，旧操作仍可能在后续run中完成。disconnect先stop再close，close触发的operation_aborted完成处理可能滞留至下一次reset/run；handle_data_received未按error过滤仍调用当前reception_callback_，可能把旧操作完成事件送入新回调并再次投递接收。receive_once每次结束只stop线程不关闭socket，重复调用存在遗留异步操作累积风险。start_receive_thread在检查is_receiving前先写reception_callback_，重复启动调用与接收线程并发时存在std::function读写竞态风险。上述均为静态控制流/生命周期风险，不代表已复现现场污染或数据竞争；需隔离注入验证。AZ1–AZ8固定提交静态源码/现有测试核对完成；AZ9重启/取消完成处理/旧会话注入与TSan未执行；AZ10目标控制器网络、端口复用及隔离SIL/HIL证据缺失。未执行构建/单测、动态注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.213；新增SERVO-796/BA1–BA10：固定ICube提交静态核对RobotDriver生命周期与并发访问。disconnect会reset control_interface_和diagnostics_subscriber_，而read_robot_state/send_robot_command/send_stop_all_command/is_connected等公共方法直接读取这些成员；connect/disconnect/reset_data/read_robot_state亦会写共享指针或状态成员，类内未见互斥/原子快照保护，若调用线程并发则存在shared_ptr对象读写及状态对象数据竞争风险。send_stop_all_command未检查control_interface_为空，断连调用或与disconnect竞态时可能空指针解引用。Subscriber析构通过stop_receive_thread并join接收线程后才销毁捕获this的回调目标，顺序析构下有生命周期保护；但RobotDriver没有声明并发调用契约，测试仅串行连接/断开/读取，未覆盖生命周期并发。BA1–BA8静态源码与现有测试核对完成；BA9并发connect/disconnect/read/send压力及TSan未执行；BA10需目标controller_manager调用时序、生命周期约束与隔离SIL/HIL证据。未执行构建/单测、并发注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -2015,3 +2015,14 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 现有测试覆盖基本connect/disconnect、单次回调、连续收包、disconnect后reconnect、receive_once、double start/stop；未覆盖stop→start但不close、连续receive_once、close取消回调跨reset/run、快速端口复用、旧会话包/取消完成事件隔离及并发修改回调对象。
 - 新增SERVO-795/AZ1–AZ10：AZ1 stop是否取消异步操作：静态核对完成（未取消）；AZ2 reset后旧操作是否仍可能完成：静态核对完成（存在待处理操作路径）；AZ3 receive_once是否遗留下一次接收：静态核对完成（回调先重投）；AZ4 disconnect close取消与完成处理排队关系：静态核对完成（运行时顺序待测）；AZ5 旧完成事件是否调用新回调：静态核对完成（成员回调被后续start替换，错误仍进入回调）；AZ6 缓冲区/endpoint生命周期与多操作共用：静态核对完成（同一成员缓冲区和sender_endpoint_）；AZ7 回调对象并发读写：静态核对完成（未见同步）；AZ8现有单测覆盖：静态核对完成（缺少定向场景）；AZ9重启/取消完成处理/旧会话注入、并发压力及TSan：未执行；AZ10目标网卡/内核、端口复用和隔离SIL/HIL证据：未确认。
 - 未执行构建/单测、动态网络注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.213。
+
+
+### 2026-11-09｜v9.88 本轮推进记录
+
+- 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.213，范围扩展至 `RobotDriver` 公共API与连接/断开生命周期、Subscriber回调析构顺序及现有单测。
+- 静态核对 `robot_driver.hpp` 与 `robot_driver.cpp`：`connect()`/ `disconnect()`会创建、reset或替换 `control_interface_`、`diagnostics_subscriber_`；`read_robot_state()`、`read_diagnostic_data()`、`send_robot_command()`、`send_stop_all_command()`、`is_connected()`直接读取相同成员。类内未见用于保护这些shared_ptr成员的互斥量或原子快照，也未见串行调用契约；若生命周期操作与控制循环/命令线程并发，针对同一个shared_ptr对象的读写可能构成C++数据竞争，读/写状态对象和last_valid_sequence_id_也可能竞态。是否由上层controller_manager严格串行化需按目标集成版本确认，不推断现场已触发。
+- `send_stop_all_command()`与 `send_robot_command()`不同：前者在准备消息后直接解引用 `control_interface_`，未做空指针/ready检查；断连后调用存在空指针风险，若与disconnect并发还叠加成员访问竞态。后者有空指针和ready检查，但检查与后续调用之间没有生命周期锁，不能消除并发reset风险。
+- `disconnect()`先reset接口对象，再关闭socket并调用 `reset_data()`；`reset_data()`写入current_robot_state_、current_diagnostic_data_及last_valid_sequence_id_。这些字段同时被read路径读写，未见内部同步。Subscriber析构函数会调用 `socket_->stop_receive_thread()`，底层stop会join接收线程；因此在正常单线程析构路径中，捕获 `this` 的接收回调线程会在Subscriber析构完成前退出，未发现单纯析构顺序导致的必然回调悬空。但若外部并发调用read/connect/disconnect，仍有上层对象成员竞态。
+- `test_robot_driver.cpp`覆盖正常连接、断开、读取及staleness恢复；测试按顺序调用，没有并发disconnect/read/send、connect/disconnect竞态或TSan覆盖。socket/Subscriber单测也没有替代RobotDriver层的生命周期并发验收。
+- 新增SERVO-796/BA1–BA10：BA1 connect/disconnect对接口shared_ptr写入：静态核对完成；BA2 read/send/is_connected对成员读取：静态核对完成；BA3类内同步机制与调用契约：静态核对完成（未见锁/快照或串行契约）；BA4 reset_data与状态读取/写入并发：静态核对完成（无内部同步）；BA5 send_stop_all_command空指针门禁：静态核对完成（未见门禁）；BA6 send_robot_command检查与使用之间的竞态：静态核对完成（检查不能保护并发reset）；BA7 Subscriber析构与回调线程join顺序：静态核对完成（析构调用stop/join）；BA8现有RobotDriver测试覆盖：静态核对完成（串行场景）；BA9并发connect/disconnect/read/send压力、故障注入及TSan：未执行；BA10目标controller_manager调用时序、生命周期契约和隔离SIL/HIL证据：未确认。
+- 未执行构建/单测、并发注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.214。
