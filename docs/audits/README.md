@@ -286,3 +286,6 @@
 
 
 - [2026-11-09 Stäubli ROS—UDP—VAL3双向报文名义流量与MTU边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.196，基于RobotState 132 B、RobotCommand 55 B及双向名义250 Hz建立单会话500 datagrams/s、46.75 kB/s应用层负载模型；按IPv4/UDP/Ethernet II并计FCS、前导码/SFD与IFG估算约638 kbit/s线速占用，理论数据报160 B/83 B低于常见1500 B MTU。明确不代表现场网络性能；新增SERVO-779/AJ1-AJ10，AJ1静态算术基线完成，AJ2/AJ4-AJ5/AJ9待配置/现场证据，AJ3/AJ6-AJ8/AJ10未执行。
+
+
+- [2026-11-09 Stäubli ROS 2 C++ API默认UDP端口与VAL3部署配置一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.197，核对C++ API默认端口8080/8081与VAL3 SIO、Xacro及文档端口11000/11001差异；标准Xacro路径显式注入11000/11001，直接使用RobotDriver便捷重载/默认NetworkConfig存在配置错配风险。新增SERVO-780/AK1-AK10，AK1-AK7静态核对完成，AK8未执行，AK9/AK10缺部署/现场证据。
