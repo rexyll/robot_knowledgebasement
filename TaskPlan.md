@@ -1562,7 +1562,7 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - rclcpp Client API明确async_send_request返回future应由executor处理；PSM已为内部pnode_配置private executor及专用spin线程，调用方需避免在该private executor回调内同步重入请求。
 - 新增SERVO-747/C1-C12，覆盖primary/secondary配置、executor时序、失败门禁、RViz状态、OMPL/打印工具、Python绑定、调用点清点、超时资源生命周期和Stäubli现场拓扑；全部未执行。
 - 本轮仅完成静态审查和验证设计；未运行ROS构建、集成/并发/故障注入、CS9/HIL、FAT/SAT或实机验证。未修改MoveIt/ICube上游、未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。
-- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.165。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.166。
 
 
 ### 2026-11-09｜v9.40 本轮推进记录
