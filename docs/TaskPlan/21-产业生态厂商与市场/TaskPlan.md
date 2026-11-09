@@ -2018,3 +2018,40 @@ I1-I15全部未执行，I16现场证据缺失。未运行VAL3编译/仿真、任
 - `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
 - `resetControlSocket.pgx`（Blob SHA `25d414065b4567c5634ef8890cc8cafd6f7e9b3e`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+
+#### SERVO-754｜VAL3安全状态来源、运动许可与ROS接口语义验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| J1 | `esStatus()`各返回值与CS9安全状态/安全功能定义逐项对照 | 未执行 |
+| J2 | 急停输入、SS1、SS2、等待重启状态的触发/复位和状态转换 | 未执行 |
+| J3 | `estop_pressed`是否把所有非零安全状态映射为true，名称/语义是否准确 | 未执行 |
+| J4 | `bBrakeReleased=isPowered()`与真实制动器反馈、驱动上电状态的差异 | 未执行 |
+| J5 | 上电、驱动使能、制动器释放、制动器反馈异常/断线的组合状态 | 未执行 |
+| J6 | `bMotionPossible`是否应包含机器人模式/工作状态门禁；被注释条件的原设计依据 | 未执行 |
+| J7 | Manual/Test/Automatic Local/Remote及Hold状态下motion_possible实测 | 未执行 |
+| J8 | `workingMode()`和`nRobotStatus`返回值映射及异常/过渡状态处理 | 未执行 |
+| J9 | updateState调用失败、API异常或状态采集不一致时bIsValid及各字段有效性 | 未执行 |
+| J10 | bInError由VAL3本地l_bError产生的覆盖范围、清除时机和错误码丢失 | 未执行 |
+| J11 | SafetyStatus枚举值与C++ enum、协议版本、未知枚举值兼容性 | 未执行 |
+| J12 | 状态序列化、解码、ROS GPIO接口更新的端到端位级一致性 | 未执行 |
+| J13 | motion_possible为false时位置/速度控制路径停止动作及停止响应 | 未执行 |
+| J14 | 急停/SS1/SS2/制动器异常发生时控制任务、movejSync与ROS控制器的行为 | 未执行 |
+| J15 | 状态包过期、重复、乱序、源地址异常时安全状态是否被错误保留为旧值 | 未执行 |
+| J16 | 目标现场CS9安全配置、硬接线急停、安全PLC、STO/制动器安全链与认证文件核实 | 未确认，现场证据缺失 |
+
+固定公开提交`bd658e2d266e315d2ee35f985fb352ea88306b79`静态审查发现：VAL3 `updateState.pgx`以`isPowered()`同时填充`bDrivePowered`和`bBrakeReleased`，没有独立读取制动器反馈的代码；因此ROS导出的`brakes_released`在该原型中实际是驱动上电状态代理，不能据名称认定为真实制动器位置/反馈。`bMotionPossible`计算为`bDrivePowered && !bEStopped`，源码中另有包含`nRobotStatus == 0`的条件表达式，但该表达式被注释。机器人工作模式由`workingMode()`读取并写入`nRobotMode`，当前motion_possible公式并未将其纳入门禁。
+
+`nSafetyStatus=esStatus()`；`bEStopped=(nSafetyStatus != 0)`；`bWaitAck=(nSafetyStatus == 1)`。源码注释将值0定义为无安全停止、1为等待安全重启、2为SS1、3为SS2、4为等待WMS重启。因而`estop_pressed`由`bEStopped`映射时，任何非零安全状态都会变成true，语义比物理急停按钮是否按下更宽；ROS接口名可能引发误读。必须依据目标控制器文档和实测区分E-stop输入、SS1/SS2、安全停止和等待复位，不得据此声称安全功能实现或认证。
+
+`bInError`由controlTask中的本地`l_bError`写入，源码注释说明updateState本身不负责该字段；这不是完整的控制器诊断码或安全故障分类。`bMotionPossible`在关节位置/速度控制程序中作为运动门禁；门禁为false时调用对应stop控制程序并设置错误。但此软件门禁依赖VAL3任务正常调度和状态采集，不能替代安全PLC、控制器安全功能、STO或硬接线急停。
+
+J1-J15全部未执行，J16现场证据缺失。未执行VAL3/CS9仿真、安全输入注入、急停/SS1/SS2响应测量、制动器反馈故障测试、HIL、FAT/SAT或实机验证。公开原型静态结论不能归属现场部署；未修改ICube/MoveIt/ros2_control上游。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码位置
+
+- `updateState.pgx`（Blob SHA `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `updateJointPositionControl.pgx`（Blob SHA `28e2f1d6a3482a126b16474c957a608262c32218`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointPositionControl.pgx
+- `updateJointVelocityControl.pgx`（Blob SHA `72f4eb0215ceeae2c3a528013ea2a79c4dc46344`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Control/updateJointVelocityControl.pgx
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
