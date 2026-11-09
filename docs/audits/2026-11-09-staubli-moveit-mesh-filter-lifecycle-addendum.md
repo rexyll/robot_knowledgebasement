@@ -210,3 +210,94 @@ L1–L12均未执行。没有ROS构建、ASan/UBSan/TSan、点云畸形输入测
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_updater.hpp
 - https://github.com/ros2/common_interfaces/blob/rolling/sensor_msgs/include/sensor_msgs/point_cloud2_iterator.hpp
+
+
+### §9.3.159 OctoMap更新回调、服务生命周期与读写锁边界
+
+#### 1. 审查基线
+
+本节基于MoveIt 2提交`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`静态审查：
+
+- `moveit_core/collision_detection/include/moveit/collision_detection/occupancy_map.hpp`，Blob SHA `514cd5a06136eb045abf5c31baad6b7aacd1933c`
+- `moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp`，Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`
+- `moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp`，Blob SHA `d30741a6cb7635821e89f480d1142a1c8a8c6bb6`
+- `moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor_middleware_handle.cpp`，Blob SHA `4e870ca9f8f58ecd395beaecbdbff2ccad36eade`
+- `moveit_ros/occupancy_map_monitor/src/occupancy_map_server.cpp`，Blob SHA `4976eb473e76d88ea06651dae11432eb6427fce7`
+- `moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp`，Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`
+- `moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp`，Blob SHA `e11a9f41d6dad68de31c83268e6bd686728eee9e`
+- `moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp`，沿用§9.3.157已记录的源码基线。
+- `moveit_ros/perception/lazy_free_space_updater/src/lazy_free_space_updater.cpp`，Blob SHA `9f092f4181637f369bfbdd0bd31d07214826b6db`
+
+本节只审查MoveIt通用实现，不代表Stäubli/ICube现场使用了这些服务、server节点或多updater组合。
+
+#### 2. 静态核查结论
+
+1. **OctoMap树锁不保护更新回调对象。** `OccMapTree`的`tree_mutex_`只用于树读写；`setUpdateCallback()`直接给`update_callback_`赋值，`triggerUpdateCallback()`直接检查并调用该成员，二者都没有单独的互斥保护。PointCloud/DepthImage/Lazy updater以及load map路径在释放tree写锁后调用`triggerUpdateCallback()`。因此若系统在更新过程中并发替换/清空回调，存在对同一个`std::function`对象并发读写的数据竞争。常见初始化阶段先注册、再启动updater的顺序可避免该条件，但API没有把“只能在启动前设置、运行时不可更改”写成明确契约。
+
+2. **多updater可并发触发同一个回调，未见全局串行化。** PointCloud和DepthImage回调来自各自ROS订阅执行路径，LazyFreeSpaceUpdater还有自己的process线程；各自更新后同步调用同一棵树的`triggerUpdateCallback()`。树写锁会串行化树写入，但回调在解锁后运行，所以两个更新线程可能在不同时间并发进入同一个回调。回调本身必须线程安全，或由OccMapTree统一串行化；当前接口没有明确保证。PlanningSceneMonitor的`octomapUpdateCallback()`使用`scene_update_mutex_`串行化场景更新，但这只是该消费者自己的保护，不是OccMapTree的全局保证。
+
+3. **回调异常会从triggerUpdateCallback向上游传播。** `triggerUpdateCallback()`没有try/catch。PointCloud/Lazy/Depth updater在树写更新try/catch结束、unlock后调用它；若外部回调抛异常，异常会越过updater的地图更新异常处理边界。具体后果取决于回调执行线程和executor；可能导致ROS回调异常退出，Lazy updater线程则可能因未捕获异常终止。需定义回调异常隔离策略，并用故障注入验证。
+
+4. **save/load服务回调捕获裸this，服务资源释放晚于树等核心成员。** OccupancyMapMonitor构造时创建两个lambda，均捕获`[this]`并转发到`saveMapCallback/loadMapCallback`。middleware handle持有ROS service shared_ptr；在类声明中`middleware_handle_`是首个成员，因此按C++逆序析构它最后销毁。析构函数体只调用`stopMonitor()`，并没有显式先禁用/销毁服务、等待in-flight service callback退出。其后`tree_`等成员会先于middleware_handle_销毁，而服务对象在此期间仍由middleware_handle_持有。若executor在监视器析构期间继续调度save/load请求，回调可能访问已销毁或正在析构的成员。该路径是**条件性服务生命周期风险**，需在目标rclcpp版本和多线程executor下做barrier/ASan验证，不能声称已复现UAF。
+
+5. **stopMonitor不停止save/load服务。** `stopMonitor()`只将`active_`设为false并调用每个updater的`stop()`；服务句柄并未取消。因此“监控停止”不等于“地图服务停止”，停止后仍可请求保存/加载地图。这可能是有意设计，但API语义和系统关闭流程必须区分updater停止与monitor/service销毁。
+
+6. **start/stop/isActive的active_没有同步。** `active_`是普通bool；`startMonitor()`、`stopMonitor()`写入，`isActive()`直接读取，源码未见原子或互斥保护。若应用允许多个线程并发启停和查询，构成数据竞争。若生命周期严格由单线程管理，则不触发；应明确线程调用约束或将状态改为受同步保护的状态。
+
+7. **save/load的tree锁覆盖磁盘I/O，正确保护一致性但可能长时间阻塞传感器更新。** `saveMapCallback()`持有共享读锁直到`writeBinary()`完成；`loadMapCallback()`持有独占写锁直到`readBinary()`完成。save期间允许其他读者，但阻塞所有写更新；load期间阻塞读写。大地图、慢存储或网络文件系统可能让点云更新长期等待。当前没有超时、异步快照或耗时指标。应通过大地图/慢盘测试量化最坏阻塞时间；不可仅凭源码断言现场实时性不达标。
+
+8. **手工锁释放目前覆盖了可见catch路径，但缺少RAII统一保证。** save/load回调在catch之后统一unlock；PointCloud/Lazy updater的read/write阶段也有手工catch/unlock。正常捕获异常时锁能释放；但未来新增提前return、抛出点或回调路径容易遗漏。OccMapTree已经提供`reading()/writing()`返回`std::shared_lock/std::unique_lock`，可以优先使用RAII。此前§9.3.158关于写更新非事务性的结论仍成立：锁释放不等于部分写入已回滚。
+
+9. **load成功后在写锁外触发更新回调，顺序合理但消费者可能观察到下一帧更新。** `loadMapCallback()`在`readBinary()`返回成功后释放写锁，再触发回调；回调读取树时不会因同线程仍持有写锁而死锁。但另一updater可能在load释放锁与回调读取之间先取得写锁并更新地图，因此回调读取到的状态可能已经是“加载结果+后续传感器更新”，而不是严格的load完成瞬间快照。若系统要求精确加载快照，需要版本号/快照隔离或暂停updater协议；若只要求最终状态通知，则当前顺序可接受。
+
+10. **occupancy_map_server在二进制序列化失败后仍无条件publish。** `publishOctomap()`在`binaryMapToMsgData()`返回false或抛异常时只记录日志，随后仍执行`octree_binary_pub->publish(map)`。此时map可能只有header而data为空/不完整；下游若把空消息当作有效地图，可能清空或破坏消费者侧地图状态。需要改为成功标志门控发布，并用模拟序列化失败的测试确认不会发送无效消息。当前仅确认服务端源码的无条件发布路径，尚未验证下游对空消息的实际解释。
+
+11. **PlanningSceneMonitor消费者在回调中重新读取树，靠自身scene锁保护场景，但生命周期依赖停止顺序。** `octomapUpdateCallback()`检查`octomap_monitor_`、更新frame transforms、取得`scene_update_mutex_`并对树加读锁，处理Octomap后释放锁再触发场景事件。PlanningSceneMonitor析构顺序会调用`stopWorldGeometryMonitor()`，后者只调用`octomap_monitor_->stopMonitor()`，未在此处reset monitor或显式等待已经进入的OccMapTree update callback退出。该闭包捕获PSM的`this`，因此仍需验证正在执行的树更新回调是否可能越过PSM析构边界。此项与既有SERVO-729/741生命周期矩阵有交叉，新增本节只补充树回调调度路径，不重复宣称已证实故障。
+
+12. **Stäubli现场使用范围仍未确认。** 当前没有现场证据证明启用了OccupancyMapMonitor的save/load服务、独立occupancy_map_server、多个updater并行或PlanningSceneMonitor Octomap回调组合。以上风险不得归因于Stäubli现场已部署或已发生。
+
+#### 3. 修复建议（未修改上游）
+
+- 对`update_callback_`明确线程契约：推荐在初始化阶段设置、启动后不可变；若支持运行时替换，应通过mutex保护复制回调快照，锁外执行，避免持锁调用用户代码。
+- 定义回调并发与异常契约：若消费者不保证线程安全，则在树对象内部串行派发；捕获并记录回调异常，避免异常逃逸至后台线程入口。
+- 增加显式shutdown：先拒绝新save/load请求并销毁service实体，再等待in-flight服务回调退出，之后停止updater并销毁tree及其他成员。具体次序应避免shutdown等待依赖已停止的executor。
+- 明确`stopMonitor()`只停止传感器updater，不代表service shutdown；增加单独的服务停用接口或将服务生命周期纳入monitor关闭协议。
+- 将`active_`改为atomic或用同一生命周期mutex保护start/stop/isActive，并规定start/stop不可并发重入。
+- save/load采用RAII读写锁；对大地图评估快照/临时文件写入与原子rename，避免磁盘慢操作长时间占用地图锁及失败时破坏已有文件。
+- server序列化失败时不要发布无效map；用成功标志门控publish，并提供失败计数/日志节流。
+- 若需要严格的load快照通知，加入地图generation/version，或在load期间暂停updater并在恢复后统一通知。
+
+#### 4. 新增验收任务
+
+新增SERVO-742：
+
+- **M1**：多线程持续触发`triggerUpdateCallback()`同时调用`setUpdateCallback()`替换/清空回调，使用TSan确认当前实现是否报数据竞争；比较初始化前注册、运行时替换两种用法。
+- **M2**：两个独立updater线程通过barrier同时调用trigger，回调记录并发进入计数，确认是否重叠执行；验证回调的可重入和线程安全契约。
+- **M3**：回调内调用`getOcTreePtr()->lockRead()`并读取树，确认trigger发生时写锁已释放且不死锁；同时覆盖回调抛异常。
+- **M4**：使用会抛异常的回调分别从PointCloud、DepthImage、LazyFreeSpaceUpdater和load service触发，验证异常是否逃逸ROS callback/后台线程、是否导致线程终止或executor异常。
+- **M5**：多线程executor中在save/load服务回调内设置barrier，同时析构OccupancyMapMonitor；使用ASan验证服务先停用、in-flight回调排空与tree成员销毁顺序。覆盖停止后请求服务和析构窗口内请求服务。
+- **M6**：验证`stopMonitor()`后save_map/load_map服务仍可访问；明确产品所需语义，并测试显式shutdown后的拒绝行为。
+- **M7**：并发startMonitor/stopMonitor/isActive，运行TSan；同时验证单线程串行调用的重启行为、重复start/stop幂等性。
+- **M8**：大尺寸地图在慢盘/网络文件系统上save/load，测量读写锁持有时长、点云回调等待时间、更新丢弃率和端到端延迟。
+- **M9**：对loadMap输入有效、缺失、截断、损坏文件，分别检查readBinary返回值、异常路径、原树是否保持、成功回调次数和下游地图版本；不预设失败加载是否会部分改写树。
+- **M10**：在occupancy_map_server中注入binaryMapToMsgData返回false及异常，确认当前是否仍发布空/不完整消息；验证修复后失败不发布且下游地图不被清空。
+- **M11**：PSM Octomap update callback处设置barrier，同时stopWorldGeometryMonitor并析构PSM；使用ASan/TSan验证捕获的this、scene_、octomap_monitor_生命周期和scene_update_mutex_顺序。
+- **M12**：在Stäubli/ICube目标部署核实OccupancyMapMonitor插件列表、独立server启用情况、save/load服务暴露情况、PSM是否启用Octomap、executor线程数及回调组配置。
+
+M1–M12全部未执行。没有ROS构建、TSan/ASan、慢盘性能测试、序列化失败注入、load损坏文件测试、CS9/HIL或实机证据。
+
+#### 5. 结论与边界
+
+§9.3.159确认：OccMapTree的树读写锁并不保护update_callback_；回调是同步调用且没有统一串行化/异常隔离；save/load service回调捕获monitor裸this且service资源销毁晚于tree等核心成员，存在条件性析构竞态；stopMonitor并不停止服务；active_没有同步；save/load磁盘I/O处于树锁保护区；occupancy_map_server序列化失败后仍无条件发布消息。多线程触发、回调替换、服务析构竞态和下游空消息效应仍需动态验证。
+
+本轮仅完成静态审查与测试设计。未运行ROS构建、ASan/TSan、慢盘性能测试、load故障注入、序列化失败注入、CS9/HIL或实机验证；未修改MoveIt/ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/collision_detection/include/moveit/collision_detection/occupancy_map.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor_middleware_handle.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/src/occupancy_map_server.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/perception/lazy_free_space_updater/src/lazy_free_space_updater.cpp
