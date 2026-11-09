@@ -2294,3 +2294,30 @@ W1-W9全部未执行，W10现场证据缺失。未执行ROS构建/单测、UDP�
 - `real_time_socket_subscriber.hpp`（Blob SHA `330839cb25e53fe961541f29f634722bec4a47c4`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp
 - `udp_socket_impl.hpp`（Blob SHA `1309a8f2d59e8295869e178af82a66868bb911ff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
 - `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.184）
+
+- 新增专项审查§9.3.184：固定检查ROS UDP async receive错误回调、来源地址校验、RobotState Header字段/长度/浮点值反序列化、latest-message缓存写入条件、旧缓存时间戳与RobotDriver状态消费门禁。
+- 静态确认接收error非零时仍调用reception_callback并可能重新挂起接收；sender endpoint校验仍为注释TODO。deserialize失败不会覆盖缓存或刷新旧时间戳，旧状态在100 ms默认staleness门限前仍可能被重复读取。
+- 静态确认RobotState解码仅要求至少132字节，FrameHeader只检查magic；RobotState路径没有逐帧检查protocol_version/message_type/payload_size，允许额外尾随字节且不检查状态浮点数组NaN/Inf。错误message_type帧可能先覆盖缓存再被RobotDriver拒绝；protocol_version/payload_size不匹配但type正确的帧未被read路径逐帧拒绝。
+- 新增SERVO-767/X1-X10；X1-X9未执行，X10现场证据缺失。仅完成固定公开源码静态审查与验证设计，不代表现场部署或工程验收。
+- 未执行ROS构建/单测、协议模糊测试、UDP错误/来源注入、VAL3/CS9仿真、HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根计划v9.59；专项下一节点§9.3.185。
+
+#### SERVO-767｜ROS UDP接收错误、状态反序列化校验与缓存新鲜度验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| X1 | 注入0、7、8、131、132、133字节UDP报文，记录RobotState deserialize返回值、缓存内容及时间戳 | 未执行 |
+| X2 | 分别篡改magic、protocol_version、message_type、payload_size，验证RobotState与RobotCommand两种反序列化路径 | 未执行 |
+| X3 | 对RobotState六轴位置/速度/力矩、F/T和模拟输入注入NaN、±Inf、float32边界值，验证上层状态接口及日志 | 未执行 |
+| X4 | 从预期和非预期源IP/端口发送合法长度状态帧，验证sender endpoint过滤、网络ACL和缓存写入 | 未执行 |
+| X5 | 在目标Boost.Asio/OS下制造receive error、0字节及非零bytes_transferred组合，验证callback调用、重新挂起和错误恢复 | 未执行 |
+| X6 | 在持续有效状态流中交替注入短包、错误magic、错误Header与随机数据，测量缓存替换/保留、时间戳及错误日志 | 未执行 |
+| X7 | 先发送有效状态，再连续发送反序列化失败报文，测量旧缓存在100 ms门限前后的read_robot_state返回值与write调用链 | 未执行 |
+| X8 | 构造magic正确、长度≥132但message_type错误的帧，验证错误帧覆盖缓存后是否回退到最后有效状态 | 未执行 |
+| X9 | 在已建立连接后动态切换protocol_version/payload_size，验证每帧校验、缓存刷新及恢复策略 | 未执行 |
+| X10 | 获取现场ROS/Boost/OS/CS9/VAL3版本、网络ACL/抓包、状态超时参数与FAT/SAT异常报文测试记录 | 未确认，现场证据缺失 |
+
+X1-X9全部未执行，X10现场证据缺失。详见专项审计追加件§9.3.184。
