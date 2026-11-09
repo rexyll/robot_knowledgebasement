@@ -171,3 +171,6 @@
 
 
 - [2026-11-08 Stäubli MoveIt Servo Jazzy发布供应链审计追加件](2026-11-08-staubli-moveit-servo-release-chain-addendum.md)：新增§9.3.144，进一步识别PR #3909失败测试中GMock \`Return(updater)\`动作也可能保留shared_ptr，提出Invoke临时创建对象、weak_ptr/析构计数的U13/U14测试改造，并建立对象、RAII、ROS graph、回调静默、ASan/TSan五层验收；失败原子性/rollback契约仍待上游定义。
+
+
+- [2026-11-09 Stäubli MoveIt MeshFilter/OpenGL worker生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.156，静态核查MeshFilter worker初始化/job异常边界、GLRenderer/GLEW失败回滚、FilterJob异常等待和OpenGL context线程归属；新增SERVO-739/J1-J9，全部未执行，不代表Stäubli现场复现或工程验收。
