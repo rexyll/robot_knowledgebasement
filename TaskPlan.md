@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.28  
+> 版本：v9.29  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.153，厂商档案新增§128.104。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.154，厂商档案新增§128.105。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1413,3 +1413,28 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/pull/3909
 - https://github.com/moveit/moveit2/issues/3901
 - 上一节点§9.3.152；厂商档案§128.104。
+
+
+### §9.3.154 多 updater ShapeHandle 映射清理、运行期扩容与异常安全
+
+- 当前MoveIt main occupancy_map_monitor.cpp（Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）中，单 updater 的excludeShape直接返回updater本地ShapeHandle，不写mesh_handles_；多 updater路径为每次成功的本地handle分配一个monitor级ShapeHandle，并将global→local映射写入mesh_handles_[i]。forgetShape在多updater路径遍历映射并调用updater->forgetShape(local)，但没有erase该global handle对应的map条目。
+- 因此多updater模式下每次成功excludeShape后再forgetShape，updater内部资源可以释放，但monitor层mesh_handles_历史映射仍保留。PlanningSceneMonitor会在机器人link、attached body、world object更新时反复执行exclude/include流程；长期运行会使每个updater的std::map随历史shape生命周期持续增长。global handle单调递增，旧映射通常不再被正常查询命中，但仍占用内存。当前是源码确定的容器清理缺失；本项目尚未量化实际增长速度/内存影响。
+- 运行期从单 updater 扩展到多 updater还有ShapeHandle语义切换：单updater阶段excludeShape返回的是本地handle且没有建立global映射；新增第二个updater后forgetShape切换为查找mesh_handles_中的global handle映射，旧handle没有对应记录，无法再正确转发给原updater。新增updater也不会自动补登记此前已排除的shape。因此运行期添加updater不仅触发§9.3.153的TransformCache provider状态转换问题，也会破坏已有shape handle的清理语义。构造期一次性加载updater的常规路径不一定触发，但公开addUpdater接口没有禁止动态扩容。
+- excludeShape按updater顺序执行虚函数并逐个写映射。若较早updater成功并返回本地handle、monitor已分配global handle并写入映射，而后续updater抛异常，异常会直接传播；没有回滚前面updater的mask/mesh，也没有把已分配global handle交还调用方，形成不可通过正常forgetShape(handle)清理的部分状态。当前内置updater的正常shape添加路径未证明常见抛异常，但第三方插件、分配失败和底层mesh构造失败均需覆盖。
+- forgetShape同样按顺序调用插件虚函数，任一updater抛异常都会中断后续updater清理，且映射没有删除。DepthImage updater调用MeshFilterBase::removeMesh；该实现对不存在的handle会抛runtime_error，因此重复forget同一global handle在映射仍残留时可能再次进入插件并抛异常，不具备幂等性。PointCloud ShapeMask重复remove行为需单独核验，不将DepthImage行为推广到所有插件。
+- 当前多updater代码对“某个updater返回0、其他updater成功”会只记录成功updater的映射，并返回非零global handle；这是合理的部分支持语义，但需要测试transform cache只对有映射的updater返回成功，且forget只向实际成功注册的updater转发。若所有updater均返回0，则返回0，不应被上层记录。
+- 历史上MoveIt ROS Issue #320曾报告多传感器下每次updater成功都递增global mesh handle导致映射错位；当前main代码已用if (h == 0)只在每次excludeShape首次成功时分配一次global handle，不能把旧问题当作当前缺陷。当前新问题是forget后不erase、异常部分提交以及单/多updater动态切换语义。
+- PlanningSceneMonitor在includeRobotLinksInOctree/includeAttachedBodiesInOctree/includeWorldObjectsInOctree中遍历保存的handle并调用forgetShape，随后清空上层handle容器；因此下层mesh_handles_条目不会因上层vector/map清空而自动释放。PSM的shape_handles_lock_保护其自身调用路径，但OccupancyMapMonitor内部map_updaters_/mesh_handles_没有覆盖所有公开调用方的统一锁；并发调用仍需单独TSan验证。
+- 新增SERVO-737：H1 多updater exclude→forget循环后检查mesh_handles_映射条目数量与内存增长；H2 DepthImage updater重复forget同一handle的异常/幂等性；H3 单updater已exclude shape后动态添加第二updater，再forget旧handle并检查原updater残留；H4 动态新增updater后已有shape是否向新updater补登记；H5 updater A成功、updater B返回0的映射与transform cache行为；H6 updater A成功、updater B抛异常时回滚A的mask/mesh及global handle；H7 forget阶段A成功、B抛异常时后续updater清理、映射清理和重试策略；H8 多updater反复替换robot links/world objects/attached bodies的长时间压力测试；H9 ShapeHandle边界与mesh_handle_count_窄化/溢出行为；H10 PointCloud ShapeMask与DepthImage MeshFilter remove的重复/未知handle语义；H11 ICube自定义updater部分失败、返回0及forget异常契约。全部未执行，现场证据缺失。
+- 本轮仅完成静态源码审查和测试设计；未运行本项目ROS动态测试、ASan/TSan、长时间内存压力、HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_updater.hpp（Blob SHA fa29cd1aceca82e3498ccda0d1c1f8c26d4f648b）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA e11a9f41d6dad68de31c83268e6bd686728eee9e）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/src/mesh_filter_base.cpp（Blob SHA 333a7031925cb47fb201af34fe61431a9ccf2a6f）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/test/occupancy_map_monitor_tests.cpp（Blob SHA f4328ad9742eeff07feaf0d50867702ac0b79a96）
+- https://github.com/moveit/moveit2/issues/320（历史问题，当前代码已包含单次global handle分配修复）
+- https://github.com/moveit/moveit2/pull/3909
+- 上一节点§9.3.153；厂商档案§128.105。
