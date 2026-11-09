@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.26  
+> 版本：v9.27  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.151，厂商档案新增§128.102。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.152，厂商档案新增§128.103。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1365,3 +1365,28 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/issues/3901
 - https://github.com/moveit/moveit2/issues/3902
 - 上一节点§9.3.150；厂商档案§128.102。
+
+
+### §9.3.152 OccupancyMapMonitor构造异常展开、updater部分初始化与插件资源回收
+
+- 当前MoveIt main的OccupancyMapMonitor构造函数在构造体内依次取得参数、创建Octomap tree、逐个加载updater、调用setMonitor、middleware initialize、setParams并addUpdater，最后创建save/load两个ROS service（occupancy_map_monitor.cpp Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）。initialize/setParams的异常未在该构造函数内捕获；异常会向外传播。构造函数未完成时不会调用OccupancyMapMonitor析构函数体中的stopMonitor()，只会析构已构造的成员以及当前作用域局部对象。
+- C++成员析构顺序与当前头文件声明顺序有利于pluginlib安全卸载：map_updaters_在middleware_handle_之前析构（occupancy_map_monitor.hpp Blob SHA d30741a6cb7635821e89f480d1142a1c8a8c6bb6），因此已注册插件实例在ClassLoader所属middleware handle销毁前释放。构造期间当前updater局部shared_ptr也在middleware_handle_仍存活时离开作用域。此顺序应保留并用回归测试固定。
+- 对当前内置插件，initialize阶段主要创建RAII管理的资源：PointCloud updater设置node_、tf_buffer_、tf_listener_和shape_mask_；DepthImage updater设置node_、四个ImageTransport对象、TF引用、LazyFreeSpaceUpdater及mesh_filter_。PointCloud的原始message_filters订阅器/filter只在start()中创建；DepthImage的camera subscription及publisher也只在start()中创建。monitor构造尚未返回，外部不能正常调用startMonitor，因此当前内置插件的构造失败路径不会由monitor自动触发start()。源码Blob SHA分别为PointCloud e11a9f41d6dad68de31c83268e6bd686728eee9e、DepthImage 3dbb114ab6bfd0654823724b6848c881caa2d8ee。
+- PointCloud updater没有显式析构函数，其shared_ptr/unique_ptr成员会按RAII销毁；DepthImage updater显式析构时调用sub_depth_image_.shutdown()，其transport和mesh/free-space成员随后自动析构。对当前内置实现，initialize完成后setParams返回false会使局部updater引用释放；由于start尚未执行，源码未显示订阅回调已启动。此结论仅限当前内置实现，不应外推到第三方插件。
+- 第三方updater接口没有规定initialize()部分创建资源后返回false或抛异常时必须自行回滚，也没有规定析构函数必须清理所有initialize阶段资源；monitor在initialize失败时continue（PR #3909提议）或setParams失败时continue，均不会显式调用stop()。如果插件在initialize阶段启动线程、创建subscription/timer或注册外部回调，失败返回/异常时可能留下资源，是否发生取决于插件析构实现和底层资源所有权。当前未证明存在实际泄漏；这是接口契约与测试覆盖缺口。
+- 同理，若前一个updater已成功initialize、setParams并addUpdater，随后下一个updater初始化抛异常，monitor构造展开会释放map_updaters_中的插件对象，但不会执行monitor析构函数体的stopMonitor()。当前内置插件未在initialize/start前创建输入subscription；第三方插件若把启动动作放入initialize，必须保证析构可安全停止，否则可能有残留回调/线程。应明确initialize只能做可回滚准备，或规定失败/析构时的强清理契约；不可假定monitor自动调用stop。
+- 构造函数末尾先createSaveMapService再createLoadMapService。如果第二个service创建抛异常，middleware_handle_成员在构造展开时析构，已创建的save_map_srv_共享指针随middleware handle销毁；其ROS graph注销及在途service callback退出语义仍应在目标rclcpp/executor版本验证。两个service callback均捕获monitor的裸this。若外部executor在构造期间并发spin，需测试第一个service已创建而第二个尚未完成/构造随后失败时的回调与对象析构竞态；静态源码不足以断言真实回调可在该窗口执行或一定发生UAF。
+- middleware handle构造函数先创建pluginlib::ClassLoader，再读取节点参数并形成sensor_plugins；loader由unique_ptr管理，构造中异常会自动回收已构造成员。loader创建处捕获PluginlibException后使用throw ex;，属于按捕获静态类型重新抛出而非throw;，需在插件加载失败测试中核实异常类型/诊断是否被切片。loadOccupancyMapUpdater只捕获PluginlibException，其他异常会向monitor构造传播。middleware handle源码Blob SHA 4e870ca9f8f58ecd395beaecbdbff2ccad36eade，头文件Blob SHA aacfc8e03e0b482e83d8a546463e97d2645fc858。
+- PR #3909新增的RecordingUpdater测试只记录initialize/set_params/start；测试通过外部shared_ptr及GMock Return(updater)保留updater所有权，不能验证失败对象析构。测试中的initialize接收nullptr且fake updater不创建任何ROS实体，也不能证明Jazzy真实node/executor资源回收。PR作者报告的4项测试0失败属于上游测试结果，不是本项目执行。
+- 新增SERVO-735：E1 initialize返回false后检查析构计数、weak_ptr、资源句柄归零；E2 initialize创建publisher/subscription/timer/worker后返回false，验证失败对象析构时资源清理；E3 initialize创建资源后抛异常，检查异常传播、插件析构和ClassLoader存活顺序；E4 第一updater成功加入、第二updater初始化抛异常，验证map_updaters_逆序销毁、插件实例先于ClassLoader卸载且无残留回调；E5 setParams返回false/抛异常后的部分初始化清理；E6 第一个ROS service创建成功、第二个创建失败时验证service注销和在途callback退出；E7 构造期间并发executor spin的service callback/monitor析构竞态；E8 PointCloud/DepthImage内置updater的RAII资源清理与第三方插件对照；E9 明确initialize失败、setParams失败、构造异常和正常stop的生命周期契约，验证stop幂等性及析构安全性；E10 对目标Jazzy/RMW执行ROS graph、ASan/TSan、线程退出和重复构造销毁测试；E11 核实ICube自定义updater是否在initialize内创建长期资源及其析构策略。全部未执行，现场证据缺失。
+- 本轮仅完成MoveIt main源码静态审查、PR #3909测试补丁审阅和验证设计；未运行本项目ROS构建、动态测试、ASan/TSan、HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA 7b8bb7a42eed1eea01323458c816993828df3370）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor.hpp（Blob SHA d30741a6cb7635821e89f480d1142a1c8a8c6bb6）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor_middleware_handle.cpp（Blob SHA 4e870ca9f8f58ecd395beaecbdbff2ccad36eade）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/include/moveit/occupancy_map_monitor/occupancy_map_monitor_middleware_handle.hpp（Blob SHA aacfc8e03e0b482e83d8a546463e97d2645fc858）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA e11a9f41d6dad68de31c83268e6bd686728eee9e）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）
+- https://github.com/moveit/moveit2/pull/3909
+- 上一节点§9.3.151；厂商档案§128.103。
