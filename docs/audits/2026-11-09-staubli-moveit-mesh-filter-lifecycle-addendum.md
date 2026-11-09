@@ -2283,3 +2283,96 @@ X1-X9全部未执行，X10现场证据缺失。未执行ROS构建/单测、协�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+
+
+## §9.3.185｜RobotState非有限数值、ros2_control状态接口与位置命令初始化传播边界
+
+### 审查范围与固定基线
+
+固定审查 \`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79\`。本节从§9.3.184已识别的RobotState解码字段缺少finite校验继续向下追踪，范围限定为 \`StaubliHardwareInterface::read()/update_state()\`、导出的joint/GPIO state interfaces、位置命令模式初始化，以及硬件接口现有单元测试。不重复判断UDP帧解析本身，也不把静态路径推导当作实际机器人已接受命令。
+
+| 文件 | Blob SHA |
+|---|---|
+| \`staubli_hardware_interface.cpp\` | \`4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0\` |
+| \`staubli_hardware_interface.hpp\` | \`a84d0c63b15db168ea453a15571ab1494b8f9e99\` |
+| \`test_staubli_hardware_interface.cpp\` | \`12326353052408a7a040926328dbe7da22625553\` |
+| \`test_staubli_hardware_interface.hpp\` | \`f474af023d35b4fd2fc2669092fc9f8bea7cdd19\` |
+| \`messages.cpp\` | \`86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6\` |
+| \`robot_driver.cpp\` | \`ede48a314856a455df9d8434f354aaf9fbc47bff\` |
+
+### 1. RobotState关节测量值进入硬件状态缓存前没有有限值门禁
+
+\`StaubliHardwareInterface::read()\`先调用 \`robot_driver_->read_robot_state(state_msg_)\`，成功后调用 \`update_state(state_msg_)\`。后者只根据 \`has_joint_positions\` 与 \`has_joint_velocities\` 标志判断对应字段是否存在，然后逐轴将 \`state_msg_.joint_positions/velocities\` 经 \`deg2rad()\` 写入 \`hw_joint_positions_/hw_joint_velocities_\`；对这些输入没有 \`std::isfinite\`、NaN或Inf拒绝。
+
+关节力矩在 \`has_joint_torques=true\` 时直接复制；标志为false时才将effort缓存清零。状态消息解析路径缺少非有限数值过滤已在§9.3.184识别；本节进一步确认硬件接口没有在写入导出的joint state buffers前补上第二道数值门禁。因此，只要上游给出字段有效标志且反序列化成功的非有限关节测量，静态代码路径允许NaN/Inf进入内部状态缓存。
+
+### 2. 状态接口导出与位置命令模式初始化形成状态到命令的直通路径
+
+\`export_state_interfaces()\`将 \`hw_joint_positions_\`、\`hw_joint_velocities_\` 和 \`hw_joint_efforts_\` 的元素地址直接注册为各关节position/velocity/effort状态接口；没有伴随导出的finite/quality/validity状态。
+
+切入 \`JOINT_POSITION\` 时，\`perform_command_mode_switch()\`在检查 \`error_state\` 与 \`motion_possible\` 后，把 \`hw_joint_positions_\` 整个复制到 \`hw_joint_position_commands_\` 作为安全初始化值。该复制前没有额外finite检查。故非有限位置测量不仅可能呈现在joint state interfaces，也可能被复制成位置命令的初始值。
+
+后续 \`write()\` 将位置命令转换成度并只使用 \`std::isnan()\` 检查命令数组；\`std::isnan(+/-Inf)\`不会命中该门禁。该NaN-only门禁及六元素数组边界已在§9.3.180记录，本节只说明输入测量值到命令初始化之间的传播关系。静态审查不能证明该值已经通过所有序列化/网络环节并被VAL3执行；必须以mock socket、协议抓包和目标控制器测试验证后续行为。
+
+### 3. GPIO输入有效标志为false时保留上一次缓存值
+
+\`update_state()\`仅在 \`has_digital_inputs\` 为true时更新 \`hw_digital_inputs_\`，仅在 \`has_analog_inputs\` 为true时更新 \`hw_analog_inputs_\`。这两个标志为false时没有将缓存清零，也没有记录“当前样本无效”的状态。两个向量在 \`on_init()\` 时初始化为0，但在之后收到过一次有效输入后，如下一帧将valid flag置false，缓存将保持先前样本。
+
+\`export_state_interfaces()\`仍会按配置导出所有digital_input/analog_input接口，没有相应的有效位或样本年龄接口供下游区分“当前值”与“上次有效值”。因此可确认存在旧IO值保留语义；不能仅凭此推断下游业务必然把它当作新值，也不能推断VAL3现场输入字段标志会如何变化。
+
+对照处理：\`has_joint_positions=false\`或 \`has_joint_velocities=false\` 会使 \`update_state()\`返回false；\`has_joint_torques=false\`会将effort置零；digital/analog输入缺失则静默保留旧值。不同字段的missing-data策略并不一致。
+
+### 4. update_state不是整帧原子更新；监督GPIO首次写入前也没有显式初始化
+
+\`update_state()\`按字段顺序原地修改成员缓存。若位置字段有效而速度字段无效，则位置数组已经更新，函数随后因缺少速度数据返回false；\`read()\`因而返回 \`hardware_interface::return_type::ERROR\`，但位置成员并未回滚。控制器管理器在该read错误后的调度/消费行为取决于目标ros2_control版本和配置，本次不据此断言后续write必然发生或必然停止。
+
+此外，头文件中的 \`SupervisionGpio\` 是仅含double成员的结构体，没有成员默认值；硬件接口构造函数和 \`on_init()\` 未显式初始化 \`supervision_gpio_copy_\`。而 \`export_state_interfaces()\` 会导出这些成员的地址，只有 \`update_state()\` 成功执行到末尾时才逐项写入当前状态。故首次成功状态更新之前，这些接口的初值没有由本插件明确设定；是否存在读取窗口及其可观察行为需按目标hardware_interface lifecycle动态确认。
+
+### 5. 当前硬件接口测试未覆盖异常状态字段传播
+
+固定提交的 \`test_staubli_hardware_interface.cpp\` 覆盖构造、初始化、插件加载、接口名称/数量和正常LifecycleTransitions；mock robot只发送有限位置/速度值，随后验证正常read、state interface更新和正常write。现有测试没有注入NaN/Inf、缺失速度字段、扭矩/IO valid flag翻转、非有限位置模式初始化或监督GPIO首次read前的值。
+
+这说明测试覆盖不足，不等于上述路径已在目标控制器或实际机器人上触发。
+
+### 6. 本轮静态结论
+
+1. \`update_state()\`依据has_*标志判断字段存在，但对joint position/velocity/torque及analog input数值没有finite门禁；位置/速度可进入导出状态缓存。
+2. \`JOINT_POSITION\`切换会把当前joint position缓存复制到位置命令缓存；该复制前没有finite过滤，形成从RobotState输入到命令初值的静态传播链。
+3. \`write()\`的NaN-only检测不能拒绝正负Inf；此检测缺口已在§9.3.180记录。本节不将“write未拒绝Inf”升级为“VAL3已收到/执行Inf命令”。
+4. digital/analog输入valid flag为false时，成员缓存保留上次有效值；导出的state interfaces不同时暴露有效标志或数据年龄。
+5. \`update_state()\`可能在位置数据写入后因速度字段缺失返回false，形成非事务式部分更新；监督GPIO成员在首次成功更新之前没有由插件显式初始化。
+6. 上述均为固定公开原型静态事实；未证明现场状态数据含非有限值、IO字段曾失效、控制器读取了旧值或异常位置命令到达机器人。
+
+### 7. 新增验收任务
+
+新增SERVO-768：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| Y1 | 通过RobotState协议分别注入joint position的NaN、+Inf、-Inf，记录deserialize、read、update_state和导出state interface值 | 未执行 |
+| Y2 | 对joint velocity注入NaN/±Inf，检查状态缓存、read返回值和下游状态接口 | 未执行 |
+| Y3 | 在has_joint_torques=true时注入NaN/±Inf，并对比has_joint_torques=false时effort清零行为 | 未执行 |
+| Y4 | 先发送有效digital/analog输入，再将valid flags置false，验证缓存是否保留旧值及下游接口可见值 | 未执行 |
+| Y5 | 位置有效、速度无效及相反组合分别注入，记录update_state成员写入顺序、read错误返回和缓存回滚行为 | 未执行 |
+| Y6 | 在收到非有限位置状态后切换JOINT_POSITION，检查position command是否复制该值及模式切换门禁 | 未执行 |
+| Y7 | 通过mock socket验证write对NaN/+Inf/-Inf的处理、序列化结果和send调用；只做隔离测试，不接真实机械臂 | 未执行 |
+| Y8 | 在首次成功read前后读取全部supervision state interfaces，验证初始化值、首次更新与生命周期顺序 | 未执行 |
+| Y9 | 将valid flag翻转、连续状态丢失和恢复组合成矩阵，验证关节/GPIO/监督状态的清空、保留、部分更新及恢复语义 | 未执行 |
+| Y10 | 获取现场ROS 2/ros2_control/ICube版本、状态数据抓包、IO valid flag定义、控制器日志及FAT/SAT异常状态验收记录 | 未确认，现场证据缺失 |
+
+Y1-Y9全部未执行，Y10现场证据缺失。未执行ROS构建/单测、mock socket异常注入、ASan/UBSan、VAL3/CS9仿真、HIL、FAT/SAT或实机验证。
+
+### 8. 结论与边界
+
+本节确认RobotState字段有效标志与数值质量是两种不同契约：has_*只说明发送端声明该字段存在，不能替代数值finite检查；状态接口导出也没有附带质量/年龄信息。位置状态可能被直接用作位置命令模式的初始化值；IO字段缺失时旧缓存保持不变；部分状态缺失时更新过程不是整帧事务。需要在独立mock环境先验证输入值、缓存值、状态接口和write报文，再决定是否开展目标CS9/HIL测试。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。目标现场版本、控制器调度行为、IO配置及安全配置仍未确认。Stäubli工程级验收未通过，\`TODO-EXT-001\`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
