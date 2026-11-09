@@ -2059,3 +2059,39 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-798/CC1–CC10：CC1 FrameHeader字段解码与magic校验：静态核对完成；CC2 protocol_version校验路径：静态核对完成（帧头层缺失，连接阶段仅首次状态握手检查）；CC3 RobotState message_type/payload_size：静态核对完成（消息类缺少后置校验，上层另有类型检查）；CC4 RobotCommand帧头类型/长度：静态核对完成（有检查，版本检查缺失）；CC5 DiagnosticData校验顺序：静态核对完成（检查旧header，时序错误）；CC6 enum合法性：静态核对完成（直接cast，未见完整白名单）；CC7命令周期/关节/IO数值finite与范围：静态核对完成（消息层无完整检查，硬件层仅部分isnan）；CC8固定消息长度和float32转换：静态核对完成（132/55/74字节布局相符，double转换float32）；CC9畸形帧、版本漂移、非法枚举、NaN/Inf和边界值注入：未执行；CC10控制器协议规范、型号/负载/工具限值及隔离SIL/HIL/FAT/SAT证据：未确认。
 - 建议统一在解析边界执行帧头/版本/类型/长度校验；解析到临时对象，全部校验成功后再提交状态；枚举采用显式白名单；命令输入在驱动边界执行finite、周期与配置限值验证，并在目标协议确认后实现。不要以静态审查推断现场已收到非法命令或发生越限运动。
 - 未执行构建/单测、畸形帧注入、数值边界测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.216。
+
+
+### 2026-11-09｜v9.91 本轮推进记录（§9.3.216 / SERVO-799）
+
+- 固定ICube提交 bd658e2d266e315d2ee35f985fb352ea88306b79，检查UDP接收边界、短/长/截断报文、解析失败与RobotDriver状态提交。
+- 证据：socket.hpp blob 230af198337e5d047b29b2bbf6354a698fb3a390；udp_socket_impl.hpp blob 1309a8f2d59e8295869e178af82a66868bb911ff；protocol.cpp blob d31077aefc1d5515919033aa967c431a01d49a4a；messages.cpp blob 86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6；real_time_socket_subscriber.cpp blob e2cd8fc50b2b13d9e31b2c024e90f9da76107622；real_time_socket_subscriber.hpp blob 330839cb25e53fe961541f29f634722bec4a47c4；robot_driver.cpp blob ede48a314856a455df9d8434f354aaf9fbc47bff；test_sockets.cpp blob 4fd06a9da38157a543766669c1cdda4bdb698029；test_rt_socket_interface.cpp blob 9d54374f3b1327f73b5ae276719f27b6a7b62858。
+
+#### 静态审查发现
+
+1. UDP接收缓冲区常量为1024字节，async_receive_from使用该缓冲区；其容量并非UDP协议最大数据报。超出缓冲区的报文可能以message_size等错误完成，具体Boost版本的bytes_transferred语义未动态确认。
+2. handle_data_received在error非零时只记录错误，仍调用用户回调，并在receiving_为true时重新投递接收；截断/接收错误没有在socket层统一阻断协议解析。
+3. Subscriber将bytes_transferred传入反序列化。三类消息先拒绝小于固定长度的输入（RobotState 132、RobotCommand 55、DiagnosticData 74字节），但不统一要求输入长度恰好等于固定长度。RobotState等路径可能按标准帧前缀解析并接受尾随字节；RobotCommand/DiagnosticData也缺少统一精确datagram长度门禁。
+4. update_message使用局部消息对象，只有deserialize成功才刷新接收时间戳并写入RealtimeThreadSafeBox；失败不会发布部分对象，先前有效邮箱值保留。此路径未见连续解析错误计数、节流告警或安全降级机制。
+5. RobotState deserialize对magic/最小长度之后的header语义、protocol_version、message_type、payload_size、枚举与finite数值校验不完整；Subscriber仅以deserialize返回true作为发布条件，因此结构解析成功但语义无效的帧可能进入邮箱。
+6. RobotDriver::read_robot_state先将邮箱消息复制到current_robot_state_，再调用is_state_msg_valid和staleness检查。无效类型帧会使函数返回false且不更新输出state/last_valid_sequence_id_，但内部缓存已被覆盖；需继续追踪STOP命令准备等内部缓存消费者。此为条件性缓存污染风险，不是已复现现场故障。
+7. Subscriber邮箱按整条消息交换，避免邮箱层逐字段拼接；但RobotDriver缓存不是验证后提交。输出参数与last_valid_sequence_id_则仅在valid/staleness检查通过后更新。
+8. 现有socket测试覆盖128字节普通数据、基本收发/重连/receive_once；Subscriber测试覆盖正常帧、序号和staleness。未见短帧、尾随字节、>1024字节报文、message_size截断、非法header/enum、连续错误恢复、邮箱保留及RobotDriver缓存污染定向测试。
+
+建议在socket层按错误类别丢弃非零error完成；明确最大协议帧与UDP接收容量并检测截断；协议解析统一验证精确数据报长度、payload长度、类型、版本、枚举和数值；先解析/验证临时对象再发布邮箱及更新RobotDriver缓存；对连续错误采用有界计数和经安全分析批准的降级策略。长度和安全动作必须由CS9/VAL3正式协议及目标配置决定。
+
+#### SERVO-799｜验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DD1 | UDP接收缓冲区与协议帧长度 | 静态核对完成：1024字节；协议帧132/55/74字节 |
+| DD2 | 接收error是否阻断回调 | 静态核对完成：非零error仍调用回调 |
+| DD3 | 短帧与尾随字节策略 | 静态核对完成：短帧拒绝，尾随字节未统一拒绝 |
+| DD4 | 截断报文进入解析路径 | 静态核对完成：错误仍传回调；Asio实际返回值待动态确认 |
+| DD5 | 反序列化失败是否发布部分对象 | 静态核对完成：局部对象失败不写邮箱 |
+| DD6 | 结构成功但语义无效帧是否入邮箱 | 静态核对完成：仅以deserialize成功作为发布条件 |
+| DD7 | RobotDriver验证后提交顺序 | 静态核对完成：先覆盖内部缓存，后做语义/陈旧性检查 |
+| DD8 | 现有测试对边界/恢复覆盖 | 静态核对完成：未见定向覆盖 |
+| DD9 | 短/长/截断/非法帧/连续错误恢复及邮箱缓存原子性注入 | 未执行 |
+| DD10 | CS9/VAL3协议、目标Boost/内核/网卡与隔离SIL/HIL/FAT/SAT | 未确认 |
+
+未执行构建/单测、报文注入、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。根任务00-01与第21章21-02继续进行中；工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.217。
