@@ -3507,3 +3507,47 @@ AM1–AM7完成固定提交静态源码核对；AM8未执行；AM9缺目标部�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+
+
+## §9.3.200｜RobotDriver状态新鲜度阈值API的取值边界与并发更新契约
+
+### 审查基线与静态发现
+
+固定ICube公开提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，检查`RobotDriver::set_state_staleness_timeout()`、`set_diagnostic_staleness_timeout()`及对应读取路径。
+
+1. **默认阈值为100ms，但公开setter不校验输入范围。** 构造函数调用两个setter默认参数`rclcpp::Duration(0, 1e8)`；头文件也将默认值描述为100ms。实现只记录传入duration并直接赋值，没有拒绝零值、负值或不合理的大值。
+2. **零值和负值会使所有消息被判定为stale。** `read_robot_state()`及`read_diagnostic_data()`均使用`status.time_since_received >= *_staleness_timeout_`作为过期条件。接收年龄为非负值；阈值为0或负数时，即使刚收到消息，比较也成立，读取持续失败。此为比较逻辑的静态推导，尚未通过测试验证。
+3. **过大的正阈值会放宽旧状态可被接受的窗口。** setter允许任意duration，未将状态阈值与控制周期、通信周期或安全策略关联。将阈值设得很大可能使长时间未更新的缓存状态仍被read接受；不代表用户当前这样配置，仓库默认仍为100ms。
+4. **setter与读取字段没有显式同步。** 两个duration成员由setter直接写入，read路径直接读取；该字段没有atomic或mutex保护。若外部调用方在实时read线程并发修改阈值，按C++对象并发访问规则存在数据竞争风险。仓库内可见调用主要为构造阶段默认设置及测试中的配置调用，未发现运行期并发更新证据，因此这是条件性API线程安全缺口，不是已复现数据竞争。
+5. **头文件注释与函数签名不一致。** 两个setter的Doxygen注释均写有`@return True if timeout was set successfully`，实际返回类型为`void`；调用方无法通过返回值判断配置是否被接受，而实现也没有拒绝路径。
+6. **诊断阈值的运行时意义当前更弱。** `read_diagnostic_data()`具备同样的staleness比较，但connect流程将diagnostic ready硬编码为true且未读取诊断首帧（详见§9.3.199）；因此不能把diagnostic timeout setter存在解释为诊断通道已在启动流程受其保护。
+
+### 建议与验收要求
+
+- 将setter改为有明确成功/失败结果的配置接口，拒绝`<= 0`阈值，并设置可解释的上限或明确由应用层负责的策略边界。
+- 若允许运行期调整，应使用互斥/原子化快照或生命周期约束，保证read线程不会与duration写入并发冲突；否则在API文档明确只允许连接前、单线程设置。
+- 将状态阈值与实际RobotState发送周期、ROS控制周期和目标故障检测时间预算关联；不得为了消除偶发read ERROR而无依据地放宽阈值。
+- 增加0、负值、极小正值、默认100ms、阈值边界前后和超大值测试；增加setter与read并发的TSan测试；诊断通道单独验证首帧、陈旧和断流处理。
+
+### SERVO-783 / AN1–AN10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AN1 | 核对两个staleness setter默认值及实现 | 固定提交静态核对完成 |
+| AN2 | 核对read路径的age与threshold比较方向 | 固定提交静态核对完成 |
+| AN3 | 推导零值/负值阈值下的读取结果 | 静态逻辑核对完成，动态测试未执行 |
+| AN4 | 核对超大阈值与控制周期/安全策略之间是否有关联 | 静态核对完成：未见范围门禁 |
+| AN5 | 核对setter与read访问是否有mutex/atomic同步 | 静态核对完成：未见同步 |
+| AN6 | 核对仓库内setter调用位置及是否存在运行期并发更新 | 固定仓库静态检索完成；现场外部调用未知 |
+| AN7 | 修正并验证Doxygen @return与void签名一致性 | 未执行，属于上游修复建议 |
+| AN8 | 对0、负值、极小/默认/边界/超大阈值执行单元测试 | 未执行 |
+| AN9 | 对运行期并发修改与read执行开展TSan/线程屏障测试 | 未执行 |
+| AN10 | 在目标部署确认实际阈值、RobotState周期、外部setter调用和诊断数据路径 | 未确认，目标部署/现场证据缺失 |
+
+AN1–AN6完成固定提交静态源码/调用点核对；AN7–AN9未执行；AN10缺目标部署及现场证据。未运行ROS构建/单测、TSan、Mock/SIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
