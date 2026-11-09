@@ -180,3 +180,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt PointCloud/Octomap生命周期与输入校验审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.158，静态核查PointCloud updater采样参数、PointCloud2字段/行布局、ShapeMask变换失败语义、stop回调静默和OctoMap写异常一致性；新增SERVO-741/L1-L12，全部未执行，未证明Stäubli现场启用或触发。
+
+
+- [2026-11-09 Stäubli MoveIt OctoMap更新回调与地图服务生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.159，静态审查OccMapTree回调同步/并发/异常边界、save/load服务捕获this及析构顺序、stopMonitor服务语义、地图锁与磁盘I/O、server序列化失败发布；新增SERVO-742/M1-M12，全部未执行。
