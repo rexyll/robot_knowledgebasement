@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.20  
+> 版本：v9.21  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.145，厂商档案新增§128.96。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.146，厂商档案新增§128.97。MoveIt PR #3907仍Open/未合并；PR #3909仍Open/未合并，head 3fc0594，CI run 37457932979与Formatting run 37457933046均completed/failure，jobs接口无可读详情、失败原因未知。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，与当前实现/内置插件依赖冲突。SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1260,3 +1260,18 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/blob/main/moveit_ros/occupancy_map_monitor/src/occupancy_map_monitor.cpp（Blob SHA `7b8bb7a42eed1eea01323458c816993828df3370`）
 - https://github.com/ros-perception/image_common/blob/rolling/image_transport/include/image_transport/camera_publisher.hpp
 - 厂商档案§128.96。
+
+
+### §9.3.146 PlanningSceneMonitor双World Geometry订阅单次停止缺陷
+
+- MoveIt main源码Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`中，`startWorldGeometryMonitor()`可分别创建CollisionObject与PlanningSceneWorld两个subscriber；`stopWorldGeometryMonitor()`使用if/else if，单次stop只reset其中一个。双topic同时启用时，单次stop后PlanningSceneWorld subscriber残留。
+- Issue #3897报告在Ubuntu 24.04、ROS Jazzy、MoveIt 2.12.4、FastRTPS下，单次stop后PlanningSceneWorld消息仍替换scene；作者报告单次stop复现3/3，二次stop对照3/3。此为上游issue报告，未在本项目独立复现。
+- PR #3907分别reset两个subscriber，并新增双topic单次stop后的getMonitoredTopics断言测试。该测试覆盖topic成员登记，但不验证消息回调静默、重复stop、重配置或Octomap生命周期。PR仍Open/未合并，main仍保留if/else if。
+- 新增SERVO-729/W1-W6：双topic单次stop回调静默、重复stop、双topic到单/空topic重配置、显式stop/restart、Octomap独立停止、目标版本/RMW复验；全部未执行。ICube现场MoveIt版本、topic与Octomap配置未取得，现场适用性未知。
+- 未修改上游/ICube、未应用PR补丁。不得把issue作者复现或PR作者测试视为本项目验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
+- https://github.com/moveit/moveit2/issues/3897
+- https://github.com/moveit/moveit2/pull/3907
+- 专项厂商档案§128.97。
