@@ -220,3 +220,5 @@
 - [2026-11-09 Stäubli ICube VAL3 controlTask退出/停止入口与ROS硬件生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.170，审查stop.pgx未显式停止controlTask、退出标志未发现true赋值、初始化失败直接return、旧命令staleness仍为TODO，以及ROS cleanup/shutdown/error回调停止确认缺口；新增SERVO-753/I1-I16，全部未执行，现场版本/安全链证据缺失。
 
 - [2026-11-09 Stäubli ICube VAL3安全状态来源、运动许可与ROS状态接口语义审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.171，审查isPowered到brakes_released代理映射、esStatus到estop_pressed的非零映射、motion_possible未包含机器人模式门禁及bInError仅为应用本地错误标志；新增SERVO-754/J1-J16，全部未执行，现场安全链证据缺失。
+
+- [2026-11-09 Stäubli ICube VAL3安全状态采样时序、控制周期竞态与ROS状态快照审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.172，审查4 ms同步任务周期配置、状态先采样再收命令/执行、位置控制复用旧安全状态快照、ROS read/write状态年龄门禁缺失及速度控制未实现；新增SERVO-755/K1-K16，全部未执行，现场证据缺失。
