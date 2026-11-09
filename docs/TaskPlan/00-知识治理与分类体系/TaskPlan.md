@@ -559,3 +559,6 @@
 
 
 | 2026-11-09 | 00-01 | 推进Stäubli MoveIt感知审查至§9.3.159：审查OccMapTree回调对象、OccupancyMapMonitor save/load服务、middleware service handle、occupancy_map_server和PlanningSceneMonitor消费者。识别update_callback_缺少独立同步、updater可能并发触发同一回调、异常传播、服务闭包捕获this且缺少析构前服务静默屏障、stopMonitor不停止服务、active_无同步、磁盘I/O持有树锁、序列化失败后仍publish。新增SERVO-742/M1-M12，全部未执行。更新专项§9.3.159、厂商档案§128.110、根TaskPlan v9.34和审计README。00-01及21-02继续进行中；未运行ROS构建、ASan/TSan、慢盘性能测试、损坏地图/序列化故障注入、CS9/HIL或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 OccMapTree/OccupancyMapMonitor/occupancy_map_server/PlanningSceneMonitor源码；专项追加件§9.3.159；厂商档案§128.110 |
+
+
+| 2026-11-09 | 00-01 | 推进Stäubli MoveIt感知审查至§9.3.160：检查PlanningSceneMonitor OctoMap callback、scene/tree锁顺序、update callback注册表、world topic订阅stop/restart和PSM析构。确认主要路径按scene mutex→tree lock，事件回调在两把锁释放后执行；识别recursive update_lock_持锁调用外部callback、回调重入修改vector/递归事件风险、异常阻断通知、双订阅stop的else-if清理缺口及updater in-flight callback析构屏障待验证。新增SERVO-743/N1-N12，全部未执行。更新专项§9.3.160、厂商档案§128.111、根TaskPlan v9.35和审计README。00-01及21-02继续进行中；未运行ROS构建、ASan/UBSan/TSan、callback故障注入、executor barrier、CS9/HIL或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 PlanningSceneMonitor/PlanningScene固定提交源码；专项追加件§9.3.160；厂商档案§128.111 |
