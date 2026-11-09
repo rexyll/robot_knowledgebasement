@@ -206,3 +206,6 @@
 
 
 - [2026-11-09 Stäubli MoveIt Servo停止状态与下游控制器命令接收边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.166，审查HALT_FOR_COLLISION命令发布抑制、ServoStatus与command无确认关联、Trajectory旧轨迹/MultiArray停止语义、pause静默分支；新增SERVO-749/E1-E15，全部未执行。
+
+
+- [2026-11-09 Stäubli Servo—ros2_control—ICube—VAL3跨层命令生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.167，使用ICube公开Jazzy/CS9原型源码追踪JTC活动轨迹、controller_manager硬件write、StaubliHardwareInterface UDP发送及VAL3 sequence-delay watchdog。发现Servo topic静默不必然触发机器人端通信看门狗；新增SERVO-750/F1-F16，动态/HIL/现场部署核验均未执行，公开原型不代表现场版本。
