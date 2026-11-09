@@ -3557,3 +3557,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DQ10 | 完成逐型号约束链、最终发送边界审查、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.230 / SERVO-813。
+
+
+
+### 2026-11-09｜v10.05 本轮推进记录（§9.3.230 / SERVO-813）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：ros2_control命令模式解析、prepare/perform切换两阶段流程、模式缓冲区初始化及旧模式命令残留风险。本轮依据固定提交GitHub搜索片段核对`staubli_hardware_interface.cpp`与头文件；未重新取得完整文件全文，结论限于片段级。
+
+#### 静态审查发现
+
+1. **模式解析依据start_interfaces。** `resolve_mode(start_interfaces)`根据接口字符串识别命令模式；片段显示匹配velocity可解析为`JOINT_VELOCITY`，头文件注释说明不支持的模式返回`INVALID`。未取得函数全文，具体position/effort匹配规则、匹配优先级、未知字符串和多个不同模式同时启动时的行为仍需完整审查。
+2. **prepare阶段缓存待切换模式。** `prepare_command_mode_switch()`从start_interfaces解析incoming_mode，并将结果缓存至`pending_mode_`，同时设置`switch_prepared_=true`。片段还显示对JOINT_POSITION接受；JOINT_VELOCITY和JOINT_TORQUE分别记录“不支持”并返回ERROR。即当前可见策略明确拒绝速度和力矩/effort模式。
+3. **停止接口解析路径疑似未启用。** 搜索片段显示“Determine outgoing mode (from interfaces being stopped)”及`resolve_mode(stop_interfaces)`代码被注释。由此不能确认stop_interfaces是否参与模式冲突校验或出站模式一致性检查；需完整审查实际代码和ros2_control调用契约。
+4. **perform阶段消费prepare缓存。** 片段显示`new_mode = switch_prepared_ ? pending_mode_ : CommandType::STOP`，随后立即将`switch_prepared_=false`。若未执行prepare（例如启动），则按STOP处理。此处建立了两阶段状态传递，但并发调用、prepare失败后遗留pending_mode_及重复perform场景未验证。
+5. **切换时安全初始化命令缓冲区。** perform片段显示将当前`hw_joint_positions_`复制到`hw_joint_position_commands_`，并将速度和加速度命令缓冲区清零。注释称这是安全初始化位置命令到当前关节位置并重置速度/加速度，且使用copy/fill避免重新分配导致CommandInterface裸指针失效。这是降低旧位置/速度/加速度目标残留风险的正面证据。
+6. **缓冲区初始化仍有前置条件。** 复制动作依赖`hw_joint_positions_`为有效且新鲜的反馈；若其来自陈旧状态或部分字段更新，初始化位置命令仍可能继承不可靠值。应把状态有效性、时间戳、序号/epoch和关节数量检查作为模式切换提交条件。
+7. **JOINT_POSITION切换有机器人错误状态检查。** perform片段显示在提交JOINT_POSITION前检查`state_msg_.error_state`；错误时将`current_control_mode_`设为STOP并返回ERROR。片段未显示同时检查control_state INVALID、bInMotion、状态新鲜度或操作员重新使能；这些条件不能推定存在。
+8. **成功切换的最终模式提交语句尚未在搜索片段中完整确认。** 已确认perform使用new_mode、执行位置/速度/加速度缓冲区初始化，并有JOINT_POSITION错误检查；但未取得完整尾部以准确确认current_control_mode_在所有成功/失败路径中的赋值、pending_mode_清理及返回行为。
+9. **旧模式值处理。** 当前可见代码在perform切换时把位置目标同步到当前关节位置并清零速度/加速度目标，未发现该片段清零position command后继续使用旧值的情况；但未完整核对每一种模式、STOP模式、切换失败及控制器切换中断的缓冲区语义，因此不能宣称所有旧模式命令均已隔离。
+10. **测试覆盖未确认。** 本轮未取得覆盖多接口冲突、start/stop组合、prepare/perform失败/重复调用、速度/力矩模式拒绝、反馈陈旧时切换、切换时命令缓冲区清零与旧目标不重放的测试证据，也未执行测试。
+
+#### 风险与建议
+
+- 完整核对resolve_mode对所有接口字符串的映射，明确多个start interface同时指向不同模式时是拒绝还是采用首个匹配；禁止静默选择一个模式。
+- 在prepare阶段同时验证start/stop接口组合、当前模式、目标模式及切换合法性；明确stop_interfaces被注释的解析代码是否有意设计，避免依赖不明确的出站模式。
+- perform提交前要求有效且新鲜的机器人状态快照，验证关节数/数组长度、状态序号和会话epoch；不满足条件时拒绝切换并保持明确STOP/ERROR状态。
+- 切换时位置命令同步当前实测位置、速度/加速度清零是合理的缓冲区初始化策略，但需确认实际硬件反馈完整且新鲜；不得把软件命令缓冲区归零当作物理停止证明。
+- 明确prepare成功后perform未调用、prepare连续调用、perform重复调用、切换过程中控制器取消/超时和错误回滚策略；pending_mode_与switch_prepared_必须无歧义。
+- 增加测试：空start_interfaces、未知接口、position+velocity冲突、stop-only、position到STOP、STOP到position、prepare拒绝后perform、无prepare启动、重复perform、反馈过期、机器人error、切换前设置非零position/velocity/acceleration目标并断言缓冲区初始化与VAL3命令不重放。
+- 获取完整源码和目标ros2_control版本后，核对模式切换生命周期及硬件write在切换边界是否可能并发消费旧缓冲区。
+
+#### SERVO-813｜命令模式切换与缓冲区隔离验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DR1 | 核对resolve_mode按start_interfaces解析模式 | 静态片段核对完成；完整映射未确认 |
+| DR2 | 核对prepare缓存pending_mode_及switch_prepared_ | 静态片段核对完成 |
+| DR3 | 核对JOINT_POSITION接受、VELOCITY/TORQUE拒绝 | 静态片段核对完成 |
+| DR4 | 核对stop_interfaces出站模式解析 | 片段显示相关解析代码注释；实际冲突校验未确认 |
+| DR5 | 核对perform消费prepared mode及无prepare时STOP默认 | 静态片段核对完成 |
+| DR6 | 核对切换时位置同步当前状态、速度/加速度清零 | 静态片段核对完成；状态新鲜度前置条件未确认 |
+| DR7 | 核对JOINT_POSITION提交前机器人error_state门禁 | 静态片段核对完成；其他状态门禁未确认 |
+| DR8 | 核对成功/失败模式提交、pending清理和旧命令隔离完整语义 | 未确认：缺完整函数尾部及调用时序 |
+| DR9 | 多接口冲突、失败回滚、陈旧反馈、重复切换和旧命令重放测试 | 未执行 |
+| DR10 | 完整模式切换生命周期、read/write并发边界、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.231 / SERVO-814。
