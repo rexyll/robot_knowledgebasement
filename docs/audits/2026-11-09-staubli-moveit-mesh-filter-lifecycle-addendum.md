@@ -1875,3 +1875,102 @@ T1-T9全部未执行，T10现场证据缺失。未执行ROS构建/单测、ASan�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l/joint_limits.yaml
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/config/tx2_60l_med/joint_limits.yaml
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_moveit_config/config/joint_limits.yaml
+
+
+## §9.3.181｜ROS—VAL3命令报文浮点精度、解码长度校验与错误传播
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节沿ROS HardwareInterface → RobotCommandMessage → 二进制序列化 → UDP → VAL3 decodeRobotCommandMsg → controlTask → 位置控制/GPIO的命令路径，检查浮点精度转换、非有限值校验、负载长度和解码错误传播。
+
+| 文件 | Blob SHA |
+|---|---|
+| `staubli_hardware_interface.cpp` | `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0` |
+| `robot_driver.cpp` | `ede48a314856a455df9d8434f354aaf9fbc47bff` |
+| `communication/messages.cpp` | `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6` |
+| `communication/serialization.hpp` | `c226d4053693a5466b8bf1aef09049d34a3321d1` |
+| `communication/messages.hpp` | `77f21d8edcb12a39fc6732c2e146586b7fc346fe` |
+| `test_message_serialization.cpp` | `a7a84bc01456f3a8bb20993ebdc5d487defa5632` |
+| `decodeRobotCommandMsg.pgx` | `612f5ce9fff12c0bd6c4e90e5685ea1d4b59bcdd` |
+| `decodeHeader.pgx` | `41017a697f0ada9a19bc8bc2296fdab439856356` |
+| `initRobotCommandMsg.pgx` | `ab254d2b65caadbacf7fa171c51994ca24f3f450` |
+| `controlTask.pgx` | `00a69c4d13879116fce744ceb1611ecd05d65edf` |
+| `updateJointPositionControl.pgx` | `28e2f1d6a3482a126b16474c957a608262c32218` |
+
+### 1. C++ double命令在协议层统一收窄为IEEE单精度float32
+
+`serialization.hpp`中的`serialize_type(const double&)`先将double静态转换为float，再按4字节写入；反序列化则先读float再扩展为double。RobotCommand报文的固定长度为55字节：8字节header、4字节controller period、1字节命令类型、6×4字节关节命令、2字节数字输出掩码和4×4字节模拟输出。VAL3解码程序使用`fromBinary(...,"4.0l",...)`读取同样的float32 little-endian字段，字段宽度在当前两端实现中一致。
+
+因此ROS侧double接口值在传输前会发生float32精度收窄；大幅值会有量化误差，超过float32可表示范围的有限double在转换时可能变成Inf。这里是协议精度和数值域边界，不代表常规机器人关节工作范围内的精度必然不足。实际可接受误差预算应按目标机器人、控制周期和运动性能要求验证。
+
+### 2. 当前NaN门禁发生在float32转换之前，且没有覆盖Inf/转换溢出
+
+HardwareInterface::write()在调用send_robot_command()前对joint command_reference做`std::isnan()`检查。该检查不拒绝+Inf/-Inf；有限double在后续`static_cast<float>`时若超出float32范围也可能转成Inf，而门禁发生在此转换之前，因此不会捕获这种转换后产生的非有限值。RobotDriver::send_robot_command()本身仍只有位置/速度限值TODO，没有补充有限值检查。
+
+同一序列化函数也把controller_period和四路analog_outputs从double收窄为float32；本路径未见针对这些字段的统一`std::isfinite()`校验。HardwareInterface::write()对analog_outputs直接复制，没有像joint command_reference那样做NaN检查。VAL3解码程序将四路模拟输出写入命令结构，但controlTask中的数字/模拟输出执行段仍是TODO；所以本轮只能确认解码数据路径缺少明确有限值门禁，不能声称这些模拟值已被输出到现场IO。
+
+### 3. VAL3解码器先检查报文总长度关系，但没有在固定字段读取前验证精确命令payload长度
+
+`initRobotCommandMsg.pgx`设置固定header size和payload size=47，并将序列化数组调整为header+payload。接收解码器先检查`size(nSerializedData) == header.nHeaderSize + header.nPayloadSize`，随后调用`decodeHeader`；header解码检查magic number=43981及protocol version=1。命令解码随后检查message type=2，并按固定偏移依次读取controller period、命令类型、六个float32关节值、数字输出掩码及四个float32模拟输出。
+
+但`decodeRobotCommandMsg.pgx`没有在这些固定偏移读取之前明确断言`header.nHeaderSize == 8`且`header.nPayloadSize == 47`。它只在所有字段读取之后检查最终偏移是否等于数组长度。若输入负载长度与预期不一致，源码没有在固定字段读取前提供独立的精确负载长度门禁；VAL3的`fromBinary`在短缓冲区情况下具体如何报错/保护，仍需目标VAL3 runtime验证，不能仅凭静态源码断言会发生越界访问。多余负载则会在最终offset检查处被标记为解码错误。
+
+### 4. 解码成功后没有对float32字段做isFinite校验，bIsValid会被置真
+
+在完成字段读取且最终offset匹配后，VAL3解码器直接设置`bIsValid=true`并清除`x_bError`；没有对六个`nMotionCmdData`、controller period或四个analog output逐项执行NaN/Inf/有限范围检查。随后controlTask检查命令类型数值范围（小于0或大于4则报错），但这不是浮点命令数据检查。位置控制程序再调用`isInRange()`检查关节位置范围，但其实现和NaN/Inf语义不在该仓库内；速度控制当前未实现。由此只能确认解码成功标记本身不等于浮点数值安全验证完成。
+
+### 5. 解码错误向STOP/ERROR传播的静态路径
+
+`decodeRobotCommandMsg.pgx`在header/message type错误时将命令模式设置为STOP并返回；在最终offset不匹配时还将`bIsValid=false`、命令模式设置为STOP并返回。controlTask在收到新命令后检查解码错误，置`l_bError=true`并设置STOP模式；后续命令模式提取会把错误转为ERROR mode，进入错误处理，调用停止程序、`stopMove()`、`resetMotion()`，将命令类型置为0、清除有效标志并重置control socket。
+
+该错误传播链对明确的解码错误有静态处理分支，但不能由源码静态分析证明停止指令的物理完成时刻、机械臂停止距离或网络异常时的最终安全状态；这些仍需目标CS9/VAL3动态验证。若解码器将包含NaN/Inf的float32报文视为字段格式合法，则其不会因数值非有限而走上述解码错误分支，后续安全效果依赖位置范围函数及控制器运行时行为。
+
+### 6. 现有序列化单测覆盖有限
+
+`test_message_serialization.cpp`中的RobotCommandMessage序列化测试使用普通有限数值（关节值1.1至6.6、周期0.008、模拟输出5.5至8.8），验证往返误差；没有覆盖NaN、+Inf、-Inf、float32最大/最小有限边界、有限double收窄为Inf、次正规数/精度损失、异常payload长度或跨语言VAL3解码一致性。该测试可证明常规样例的序列化往返，不构成异常浮点值或协议模糊输入的验证。
+
+### 7. 本轮静态结论
+
+1. ROS double字段在协议序列化时收窄为float32，VAL3端按float32解码；精度预算和极端值行为需要单独验证。
+2. ROS joint NaN检查发生在float32收窄前，只检查NaN，不检查Inf；double转float产生的Inf也不在该门禁覆盖范围内。controller_period与analog_outputs同样缺少统一有限值检查。
+3. VAL3命令解码器验证总长度与header/payload长度关系、magic、protocol和message type，并在末尾检查最终offset；但未在固定字段读取前验证精确payload=47及固定header=8。
+4. 解码成功后直接将命令标记为valid，没有逐字段NaN/Inf检查；命令类型数值范围检查不替代浮点数据检查。
+5. 明确解码错误会在controlTask中转入STOP/ERROR处理并重置socket；不能由此推断物理停止完成或非有限值一定触发解码错误。
+6. 现有C++单测仅覆盖正常有限值往返，没有异常浮点、收窄溢出、错误长度或C++/VAL3跨语言协议测试。
+
+### 8. 新增验收任务
+
+新增SERVO-764：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| U1 | 对关节命令注入NaN、±Inf、FLT_MAX附近值及超过FLT_MAX的有限double，记录write门禁、float32编码字节和VAL3解码结果 | 未执行 |
+| U2 | 对controller_period及四路analog_outputs注入NaN、±Inf、float32溢出值，验证编码/解码及控制任务处置 | 未执行 |
+| U3 | 测量float64→float32→VAL3 num的绝对/相对误差、次正规数和边界舍入，建立型号/工况相关误差预算 | 未执行 |
+| U4 | 构造payload长度0、1、46、47、48及header长度异常报文，验证VAL3 fromBinary边界行为、错误标志和任务恢复 | 未执行 |
+| U5 | 构造magic、protocol、message type、sequence、payload_size不一致报文，验证解码器错误传播和socket重置 | 未执行 |
+| U6 | 为C++序列化新增NaN/Inf/float32溢出/精度边界单测，并增加跨语言黄金报文测试 | 未执行 |
+| U7 | 对包含NaN/Inf但字段长度合法的float32报文验证bIsValid、isInRange及位置控制错误路径 | 未执行 |
+| U8 | 在VAL3仿真及受控HIL环境中验证解码错误后的停止顺序、错误锁存、socket重连和重新授权 | 未执行 |
+| U9 | 确认四路模拟输出在目标现场的执行路径是否启用；若启用，验证范围/有限值门禁与失效安全状态 | 未确认，现场路径证据缺失 |
+| U10 | 获取目标机器人型号、CS9/VAL3版本、协议部署版本、现场报文抓包及FAT/SAT数值异常测试记录 | 未确认，现场证据缺失 |
+
+U1-U8全部未执行；U9现场模拟输出执行路径未确认；U10现场证据缺失。未执行ROS构建/单测、VAL3编译/仿真、协议模糊测试、HIL、CS9实机或FAT/SAT验证。
+
+### 9. 结论与边界
+
+本轮固定公开源码静态审查确认：ROS double命令经float32传输；当前NaN门禁无法覆盖Inf及double收窄溢出；VAL3解码器没有对成功解码的浮点字段做有限值检查，也没有在固定字段读取前单独校验精确payload长度；明确解码错误存在STOP/ERROR与socket reset路径。上述内容是代码路径与测试覆盖的静态结论，不证明现场已发送非有限数值、不证明VAL3对异常报文发生越界访问，也不证明物理停止功能失效。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。现场机器人型号、CS9/VAL3版本、部署协议版本和IO执行路径未确认，Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/initRobotCommandMsg.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_message_serialization.cpp
