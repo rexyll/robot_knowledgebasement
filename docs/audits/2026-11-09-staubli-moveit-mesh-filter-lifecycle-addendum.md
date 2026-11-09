@@ -605,19 +605,19 @@ O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并
 
 1. **Servo次级PSM路径忽略初始场景请求失败，仍继续启动发布。** `createPlanningSceneMonitor()`先启动joint state、scene topic和world geometry monitor；若`is_primary_planning_scene_monitor=true`则提供GetPlanningScene服务，否则调用`requestPlanningSceneState()`，但不检查bool返回值。随后无条件设置发布频率并启动`UPDATE_SCENE`发布器，最后返回PSM。因而次级PSM在服务不可用、超时或同步应用失败时，不会在该函数中阻止初始化，也不会明确报告同步失败；其本地场景是否由后续topic更新补齐取决于外部拓扑。若未补齐，该PSM仍会继续向自己的发布topic发布本地场景。该风险只适用于secondary配置路径；Servo参数默认`is_primary_planning_scene_monitor=true`，示例配置也设为true，不能据此泛化为默认配置必然请求服务。
 
-2. **Servo次级同步请求可能早于其节点executor开始spin。** `ServoNode`构造函数创建node并在构造过程中调用`createPlanningSceneMonitor()`，之后才完成Servo和服务/订阅设置；C++ demo也在建立PSM时先调用common函数，demo主流程未展示一个在此之前运行的executor。若采用secondary配置且调用时没有另一个线程持续spin该node，`requestPlanningSceneState()`仅等待`async_send_request`返回的future，无法自行处理响应，可能在固定等待窗口后超时。组件容器或外部程序若已在其他线程spin则行为不同，需按部署执行模型验证，不把构造时序推断为所有部署必然失败。
+2. **PSM自带private executor，外部node executor未spin本身不是这些直接调用点的失败原因。** 进一步复核`PlanningSceneMonitor::initialize()`发现：PSM创建独立`pnode_`，将其加入`private_executor_`（SingleThreadedExecutor），并启动`private_executor_thread_`持续spin；`requestPlanningSceneState()`也在该`pnode_`上创建client。因此Servo构造期间、C++ demo主流程、OMPL工具或场景打印工具没有显式spin其外部node executor，并不能据此推断PSM service future必然超时。真正的条件性阻塞场景是：调用`requestPlanningSceneState()`的线程本身正是PSM private executor正在执行回调的线程；同步等待会阻止该单线程executor处理client response。已审查的Servo/RViz/OMPL/print直接调用点分别在构造/普通主线程或RViz background job中，没有静态证据证明它们从PSM private executor回调内部调用；Python调用方上下文需另行验证。
 
-3. **OMPL状态数据库工具检查bool，但请求时没有executor spin路径。** `generate_state_database.cpp`在`use_current_scene`时检查`requestPlanningSceneState()`并在false时退出；但该main路径创建node和PSM后直接同步请求，未创建/启动executor，也未调用`spin_until_future_complete`。结合PSM客户端仅`async_send_request()`后`future.wait_for(5s)`，而rclcpp客户端响应需由executor处理，服务即使可发现也可能无法完成future，最终走超时退出。若存在该工具之外的全局executor机制则需运行验证；当前文件自身未显示该机制。
+3. **OMPL状态数据库工具检查bool，是调用方中较明确的失败门禁。** `generate_state_database.cpp`在`use_current_scene`时检查`requestPlanningSceneState()`并在false时退出。虽然工具main本身未spin外部node executor，但PSM的private executor会处理其内部client，因此不能将外部executor未spin列为此调用点的静态缺陷。仍需注意§9.3.163中的bool语义缺陷：若服务响应应用失败被底层忽略，OMPL仍可能收到true并继续生成数据库；若服务不可用/超时则会退出。
 
-4. **print_planning_scene_info创建并添加executor但从未spin，且忽略请求结果。** 工具创建`MultiThreadedExecutor`并`add_node(node)`，随后调用请求、打印本地已知对象并退出，没有`executor.spin()`或`spin_until_future_complete()`。同时忽略bool结果。因此它既不能从本文件确认服务响应能被处理，也不能区分远端请求失败、超时与本地空/旧场景，打印结果不能视为已从服务端取得最新场景。
+4. **print_planning_scene_info忽略请求结果，不能证明打印的是远端最新场景。** 工具创建`MultiThreadedExecutor`并`add_node(node)`但未显式spin该外部node；然而PSM有独立private executor负责其`pnode_`上的service client，所以不能据此认定请求必然超时。该工具仍忽略`requestPlanningSceneState()`的bool结果，随后无条件打印本地已知对象；服务不可用/超时或底层apply失败时，输出可能是空/旧/部分场景，且工具没有报告同步失败。
 
 5. **RViz正确采用后台任务并处理bool，但受底层bool语义缺陷污染。** `changedPlanningSceneTopic()`启动scene topic订阅后，将service请求放入background job；bool为true时安排主线程`onNewPlanningSceneState()`，false时设置“Requesting initial scene failed”警告。后台执行避免直接阻塞UI主循环，且显式处理false；但由于§9.3.163发现底层在场景应用返回false时仍可能返回true，RViz仍可能显示成功刷新并触发更新回调，而本地场景实际上部分应用。需将底层应用结果正确向上传递。
 
 6. **Python绑定暴露bool但文档未解释成功语义。** pybind直接绑定C++方法并要求显式传入`service_name`，没有说明返回值含义、超时和executor spin前提。Python调用者虽可检查bool，但同样继承底层“应用失败返回true”的问题；需要在绑定文档和示例中区分transport/response/apply结果。
 
-7. **调用点的返回值处理不一致。** Servo common与print工具忽略返回值；RViz处理bool；OMPL工具检查bool但其调用执行上下文存在spin缺口；Python暴露bool给调用方。故不能将“调用方检查了bool”视为完整保护，必须同时修复API结果语义和executor执行前提。
+7. **调用点的返回值处理不一致。** Servo common与print工具忽略返回值；RViz处理bool；OMPL工具检查bool并在false时退出；Python暴露bool给调用方。PSM private executor负责内部service client的响应处理，但同一private executor回调中同步调用会形成条件性阻塞。故不能将“调用方检查了bool”视为完整保护，必须同时修复API结果语义并明确禁止同executor线程同步重入。
 
-8. **rclcpp异步客户端的executor前提是关键契约。** 本次调用链中PSM仅创建client、`async_send_request()`、然后在普通future上`wait_for(5s)`；它本身没有spin或spin_until_future_complete。rclcpp Client API明确说明返回future应交给Executor的`spin_until_future_complete()`等待。只有其他线程/进程内executor正在处理该node时，普通future wait才可能按预期完成。当前调用点未统一证明此条件成立。
+8. **rclcpp异步客户端的executor前提由PSM private executor满足，但存在同线程重入阻塞边界。** rclcpp Client API明确说明async request返回future应由executor处理。PSM为其`pnode_`创建SingleThreadedExecutor并启动专用线程，因而常规外部线程调用同步请求时无需额外spin外部node。若从该private executor自身的回调中同步调用请求，则private executor线程被future wait占用，无法处理响应，可能超时；需要禁止这种调用上下文或改为异步/独立执行。
 
 9. **超时后调用点缺少一致的状态门禁。** OMPL工具退出是相对保守的失败路径，但底层错误bool可能漏报应用失败；Servo secondary路径继续运行；print工具继续打印本地场景；RViz显示警告（但受错误true影响）。建议将“初始场景同步未成功或完整性未知”作为明确状态，不允许Servo在碰撞场景来源/完整性未确认时被误认为ready。此项是下游安全设计建议，不是声称当前MoveIt Servo已发生危险运动。
 
@@ -626,13 +626,13 @@ O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并
 - C1：服务端返回可解析但含无效world对象的消息，确认PSM bool、RViz UI状态、Servo secondary状态一致反映apply failure。
 - C2：Servo primary配置true时确认不请求远端service，仅提供本地service；验证默认参数和示例配置。
 - C3：Servo secondary配置false，service正常、executor已在独立线程spin时验证初始场景同步与world/OctoMap完整性。
-- C4：Servo secondary配置false，构造PSM时executor尚未spin，记录请求等待、超时、发布器启动及Servo是否进入ready状态。
+- C4：Servo secondary配置false，在外部node executor尚未spin时调用请求，确认PSM private executor仍可处理client response；验证private executor启动/关闭时序。
 - C5：service不存在/超时/响应apply失败时，确认Servo secondary不以“场景同步成功”状态启动碰撞依赖路径；评估显式fail-closed门禁。
 - C6：RViz后台请求分别注入transport失败、apply失败、完整成功，确认Warn/成功UI反馈无误。
-- C7：运行`print_planning_scene_info`，对比无executor spin、独立线程spin、显式spin_until_future_complete三种模式的服务响应与输出。
-- C8：运行OMPL `generate_state_database`，在`use_current_scene=true`下验证无executor和外部executor两种场景的退出码、日志和场景内容。
+- C7：运行`print_planning_scene_info`，对比PSM private executor正常运行、停止/关闭及请求从private executor回调重入三种模式的服务响应与输出。
+- C8：运行OMPL `generate_state_database`，在`use_current_scene=true`下验证PSM private executor正常运行时的返回值、失败门禁、场景完整性和退出码。
 - C9：Python binding验证返回值、异常、service_name解析、executor要求与超时文档；补充可运行示例。
-- C10：全仓库枚举`requestPlanningSceneState`调用点，要求每处显式记录返回值策略、spin owner、超时行为和scene readiness gate。
+- C10：全仓库枚举`requestPlanningSceneState`调用点，要求每处显式记录返回值策略、调用线程是否可能属于PSM private executor、超时行为和scene readiness gate。
 - C11：验证请求future超时/取消后client pending request资源生命周期及重复调用的资源增长；区分client局部析构与长期复用client。
 - C12：在Stäubli/ICube真实启动拓扑中核对Servo primary/secondary参数、service provider、node executor/callback group、scene topic、碰撞检测开关及初始化门禁。
 
@@ -640,7 +640,7 @@ C1–C12全部未执行。未运行ROS构建、集成测试、executor调度测�
 
 ### 结论与证据边界
 
-§9.3.164发现调用点存在不同程度的失败处理缺口：Servo secondary路径忽略请求失败并继续启动发布；RViz虽使用后台任务并检查bool，但底层bool可能错误报告apply failure为成功；OMPL状态数据库工具检查bool但本文件未显示executor spin；场景打印工具创建executor却未spin且忽略bool；Python绑定暴露bool但没有说明执行契约。rclcpp Client API说明async request future应交由executor处理，因此调用端必须明确spin owner与调用线程。Servo参数默认primary=true，secondary风险不可泛化到默认配置。
+§9.3.164发现调用点存在不同程度的失败处理缺口：Servo secondary路径忽略请求失败并继续启动发布；RViz虽使用后台任务并检查bool，但底层bool可能错误报告apply failure为成功；OMPL状态数据库工具检查bool但本文件未显示executor spin；场景打印工具创建executor却未spin且忽略bool；Python绑定暴露bool但没有说明执行契约。rclcpp Client API说明async request future应交由executor处理；PSM通过专用private executor处理内部client，调用端仍需避免在该executor线程的回调中同步重入请求。Servo参数默认primary=true，secondary风险不可泛化到默认配置。
 
 本节为固定MoveIt 2源码静态审查及rclcpp API契约对照，不证明Stäubli/ICube现场使用上述具体工具、Servo secondary配置或同样executor拓扑，也不证明现场已发生碰撞漏检、危险运动或停机事件。所有C1–C12均未执行；未运行ROS构建、集成/并发/故障注入、CS9/HIL、FAT/SAT或实机验证。未修改MoveIt/ICube上游、未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。
 
