@@ -428,3 +428,76 @@ M1–M12全部未执行。没有运行ROS构建、单元测试、ASan/UBSan/TSan
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/collision_detection/src/world.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/collision_detection/include/moveit/collision_detection/world.hpp
+
+
+---
+
+## §9.3.162｜PlanningSceneMonitor 发布线程、diff 累积与订阅端同步审查
+
+### 审查基线与文件
+
+固定审查基线：MoveIt 2 commit `6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。
+
+- `moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp`（Blob SHA `83f67e15cb167957ddf15bde8fc239d053ed727c`）
+- `moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp`（Blob SHA `8ed8bd8fb8a3b25cfcb3357f2cc5de499a6fbd51`）
+- `moveit_core/planning_scene/src/planning_scene.cpp`（Blob SHA `71d4eac188cd7446b2013b61cf25b8b319e073c3`）
+
+### 发现
+
+1. **发布线程启动时的第一份全量快照未持有scene mutex。** `scenePublishingThread()`启动后立即调用`scene_->getPlanningSceneMsg(msg)`，仅在有`octomap_monitor_`时取得OctoMap tree读锁；没有取得`scene_update_mutex_`。与之对照，后续增量序列化位于`scene_update_mutex_`写锁内。若启动发布时另一executor回调正在修改RobotState、World或PlanningScene，首份快照可能与写操作并发，形成数据竞争或内部字段不一致。此项由静态锁路径可直接确认，实际触发仍需TSan/并发barrier复现。
+
+2. **更新事件位存在“新事件被发布线程清零覆盖”的竞态。** `triggerSceneUpdateEvent()`在`update_lock_`下执行回调并对原子`new_scene_update_`进行load-OR-store；发布线程在`scene_update_mutex_`下读取待发事件、构建消息后无条件将其赋为`UPDATE_NONE`。两者没有共同互斥协议：若发布线程已读取旧事件，随后新的scene update完成并OR写入新事件，而发布线程之后再执行清零，新事件位会被覆盖。原子变量保证单次读写原子性，但不使“并发OR与无条件清零”成为原子事务。结果可能是场景已经变化而没有对应发布事件；后续其他更新或全量快照可能掩盖，但不能作为可靠保证。
+
+3. **事件通知与condition_variable的谓词锁不一致。** 发布线程在`scene_update_mutex_`保护下检查`new_scene_update_ == UPDATE_NONE`并等待；触发方更新原子事件并notify，但不取得`scene_update_mutex_`。因此存在检查谓词与进入wait之间的通知竞态窗口：通知可能在等待线程真正阻塞前发出，线程随后睡眠，而谓词已经非空。由于没有下一次事件，发布可能一直停滞。应通过同一mutex保护谓词变更/通知，或采用具备可靠序列号/事件队列的等待协议。是否能在目标rclcpp/标准库环境稳定复现需barrier测试。
+
+4. **事件bitmask是“触发门控”，并非逐类过滤已累积diff。** 发布线程判断`publish_update_types_ & new_scene_update_`是否命中；命中后调用`getPlanningSceneDiffMsg()`并`pushDiffs()/clearDiffs()`，取出的是当前diff scene已累积的整体差异，而不是只序列化命中的事件类别。未命中的事件会清掉pending event bits，但不会清除scene diff accumulator；之后一个命中事件到来时，之前未命中的类别可能随同本次diff一起发布。这可能是为避免丢失变化而采用的累积策略，但接口的event mask语义必须明确：它控制发布触发时机，不保证对消息内容做类别过滤。集成方不能把“仅订阅UPDATE_STATE”理解为几何数据绝不会搭载在某次state触发消息中。
+
+5. **事件合并使UPDATE_STATE专用剥离逻辑仅在精确相等时生效。** 代码只在`new_scene_update_ == UPDATE_STATE`时清空diff中的`attached_collision_objects`。若STATE与GEOMETRY事件在一次发布前合并为复合bitmask，该分支不执行，attached collision objects随完整diff保留。若几何事件本来就需要同步attached objects，这是合理行为；但应测试并文档化复合事件行为，不能假设state bit存在就会剥离attached objects。
+
+6. **完整场景与增量发布的恢复语义不同。** 发布器启动时发送一次全量场景；之后只有`UPDATE_SCENE`事件强制发送全量场景，其余命中事件发送diff。发布端没有显示周期性全量校准或订阅端确认/重传机制。若订阅端启动晚于初始全量快照、丢失消息、重启或错过增量，则仅靠后续diff未必能恢复其完整状态，除非应用层另行请求全量PlanningScene。ROS publisher history depth为100并不等于对任意迟加入订阅者保证可获取初始快照；实际QoS durability和late-join行为须在目标配置下验证。
+
+7. **stop/start发布生命周期缺少并发调用契约。** `stopPublishingPlanningScene()`通过swap移动`publish_planning_scene_`并notify/join线程，但发布线程自身在wait predicate和do-while条件中读取同一个unique_ptr；该unique_ptr的读写没有共同锁。若start/stop被多个线程并发调用，存在对unique_ptr并发读写的风险。若API只允许由单一管理线程串行调用，应明确文档约束；若允许并发，则需要状态mutex/atomic stop flag和join生命周期协议。此项不应推断为常规单线程调用必然有问题。
+
+8. **全量/增量消息的序列化与发布不是一个端到端事务。** 线程先在scene锁内构建消息，释放锁后调用ROS publisher。锁释放后scene可继续前进，因此消息代表的是构建时快照而非publish调用时最新状态；这是正常快照语义，但消息缺少本地单调版本号/确认序列时，订阅端难以检测缺口并判断是否需要重新请求全量状态。应考虑在应用层携带generation/sequence并提供全量同步入口。
+
+### 修复建议
+
+- 首次全量快照也必须在`scene_update_mutex_`下序列化；同时按统一锁顺序取得OctoMap tree读锁，避免scene与OctoMap来自不同时间点。
+- 将pending event更新、读取和清零纳入同一同步协议。可在同一mutex下交换pending bitmask到局部变量后再构建消息；或使用原子`exchange(UPDATE_NONE)`并确保并发OR不会被覆盖。condition_variable谓词更新也必须与wait使用同一mutex协调。
+- 推荐以单调generation计数或有界事件队列记录变更；发布线程消费特定generation，消息构建失败/发布失败时保留待重试状态。
+- 明确publish event mask只控制“哪些事件可触发一次diff发送”，还是要求过滤diff内容；如果要求内容过滤，应分类型维护diff accumulator或从不可变快照中按组件构建消息。
+- 明确复合事件行为，覆盖STATE、GEOMETRY、TRANSFORMS及UPDATE_SCENE同时/连续到达的情况。
+- 对迟加入、重启、消息缺口提供显式全量快照请求/同步握手；必要时加入generation与sequence检查和定期全量校准。
+- 将publisher lifecycle限定为单线程串行调用，或为start/stop/join增加专用状态锁和原子停止标志；禁止线程并发访问同一个unique_ptr。
+- 订阅端收到diff前必须已建立同一基线快照；检测到sequence gap、model mismatch或diff apply失败时请求完整场景，而不是继续使用不确定的scene。
+
+### SERVO-745｜发布线程与订阅端一致性验证矩阵
+
+新增以下验证项，均为待执行：
+
+- **N1 启动全量快照竞态**：在startPublishingPlanningScene与RobotState/World写入之间设置barrier；TSan检查首份`getPlanningSceneMsg()`是否与写线程并发，校验消息内部RobotState、World和OctoMap快照一致。
+- **N2 pending event清零覆盖**：阻断发布线程在读取pending mask与写回NONE之间，注入第二个事件；验证第二个事件必须被发布或保留待发，不得被旧批次清除。
+- **N3 condition_variable丢唤醒**：在谓词检查与wait进入之间注入事件，确认线程不会在pending非空时无限睡眠；覆盖多次事件和stop唤醒。
+- **N4 并发事件合并**：同时注入STATE、GEOMETRY、TRANSFORMS、SCENE，记录event bitmask、实际PlanningScene消息组件、attached_collision_objects及diff accumulator清理边界。
+- **N5 publish_update_types门控语义**：分别只启用STATE/GEOMETRY/TRANSFORMS，先注入未启用事件再注入启用事件；验证未启用类别是否会随累积diff搭载，确保行为与文档一致。
+- **N6 STATE与GEOMETRY合并**：验证复合bitmask下attached collision objects、robot_state.is_diff及world object变化都能正确应用，不能把复合事件误当纯STATE。
+- **N7 UPDATE_SCENE全量恢复**：构造先diff、后UPDATE_SCENE的序列，确认全量消息可覆盖订阅端旧对象/旧ACM/旧OctoMap等残留状态。
+- **N8 late-join与subscriber restart**：分别在publisher启动前后加入订阅者、重启订阅端、丢弃一条diff；验证QoS实际行为、全量请求机制和恢复时间。
+- **N9 sequence/generation缺口检测**：在测试harness中为每个逻辑scene update打序号，随机丢弃/重排/重复diff，验证订阅端能识别缺口并请求full scene。
+- **N10 start/stop并发与重复调用**：多线程调用start/stop/stop，使用TSan/ASan检查unique_ptr读写、线程join、publisher销毁和重启竞态；另验证串行调用幂等性。
+- **N11 publish序列化压力**：大World/OctoMap与高频RobotState并发更新，测量scene lock持有时间、发布延迟、积压bitmask和diff大小；检查是否长期饥饿。
+- **N12 Stäubli/ICube目标部署核实**：记录publish_planning_scene、publish_geometry_updates、publish_state_updates、publish_transforms_updates、publish_planning_scene_hz、publisher topic/QoS、late-join策略、订阅端是否请求全量快照，以及真实executor线程/回调组配置。
+
+N1–N12全部未执行。没有运行ROS构建、单元测试、TSan/ASan、barrier并发测试、QoS late-join测试、消息丢弃/重排注入、CS9/HIL、FAT/SAT或实机验证。
+
+### 结论与证据边界
+
+§9.3.162识别PlanningSceneMonitor发布路径的三个优先并发风险：启动全量快照缺少scene mutex；pending event bitmask可能被发布线程清零覆盖；condition_variable谓词更新与等待未共享同一mutex，存在丢唤醒窗口。另确认事件mask是发布触发门控而非逐类过滤累积diff，且发布器没有内建订阅端确认/缺口恢复握手。以上是MoveIt固定提交源码静态结论，不证明Stäubli现场使用相同发布参数/QoS，也不证明现场已发生场景消息丢失或规划安全事件。
+
+本轮仅完成静态审查与测试设计。未运行ROS构建、单元测试、TSan/ASan、barrier并发测试、QoS late-join测试、消息丢弃/重排注入、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ICube上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
