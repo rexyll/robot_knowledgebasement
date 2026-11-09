@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.86  
+> 版本：v9.87  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.211；新增SERVO-794/AY1–AY10：UDP异步接收回调在error非零时仍调用用户回调，随后只要receiving_为true便重新投递接收；未见按错误类别停止/退避、连续错误计数或故障熔断，持续错误可能造成无效回调与日志放大，实际资源影响需注入测量。start_receive_thread启动后io_service_.run()没有异常捕获/退出状态回写，若回调或处理链抛出异常，线程可能退出而receiving_仍为true，造成ready状态与实际线程运行状态不一致；该路径需以异常注入验证。stop_receive_thread调用io_service_.stop并join，但停止/重启、未完成异步操作及线程异常恢复语义需验证。AY1–AY8固定提交静态源码/测试覆盖核对完成，AY9需错误/异常/重启故障注入，AY10需目标网卡/内核及隔离SIL/HIL证据。未执行构建/单测、错误注入、压力测试、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.212；新增SERVO-795/AZ1–AZ10：固定ICube提交静态核对显示stop_receive_thread仅调用io_service_.stop并join，不取消底层socket异步接收；io_service_.reset后再次start_receive会注册新的async_receive_from，旧操作仍可能在后续run中完成。disconnect先stop再close，close触发的operation_aborted完成处理可能滞留至下一次reset/run；handle_data_received未按error过滤仍调用当前reception_callback_，可能把旧操作完成事件送入新回调并再次投递接收。receive_once每次结束只stop线程不关闭socket，重复调用存在遗留异步操作累积风险。start_receive_thread在检查is_receiving前先写reception_callback_，重复启动调用与接收线程并发时存在std::function读写竞态风险。上述均为静态控制流/生命周期风险，不代表已复现现场污染或数据竞争；需隔离注入验证。AZ1–AZ8固定提交静态源码/现有测试核对完成；AZ9重启/取消完成处理/旧会话注入与TSan未执行；AZ10目标控制器网络、端口复用及隔离SIL/HIL证据缺失。未执行构建/单测、动态注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -2004,3 +2004,14 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 新增SERVO-794/AY1–AY10：AY1–AY8固定提交静态源码/现有测试覆盖核对完成；AY9错误/异常/重启故障注入未执行；AY10目标网卡/内核、错误分布及隔离SIL/HIL证据缺失。未执行构建/单测、错误注入、压力测试、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收。
 - 未修改ICube/MoveIt/ros2_control上游，未应用PR；根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.212。
 
+
+
+### 2026-11-09｜v9.87 本轮推进记录
+
+- 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.212，检查 `udp_socket_impl.hpp` 的异步操作注册、停止/重启、disconnect/close、receive_once和回调对象生命周期，并核对 `test_sockets.cpp` 的现有覆盖。
+- 静态确认 `stop_receive_thread` 仅调用 `io_service_.stop()` 后join，不取消socket上的异步接收操作；`start_receive_thread` 随后调用 `io_service_.reset()` 并无条件再次 `start_receive()`。停止但不关闭socket时，旧的 `async_receive_from` 仍可能在下一次run中完成，与新注册操作并存。尤其 `receive_once` 在收到首帧后，回调会先重投下一次接收，调用方随后stop线程但不关闭socket；重复receive_once可能积累挂起操作。实际完成顺序、缓冲区重叠影响和运行时后果需注入验证。
+- 静态确认disconnect路径先stop/join，再close socket；Asio关闭socket会取消未完成操作，但其完成处理可能排队等待io_service后续run。重新connect并reset/run后，旧操作的operation_aborted回调可能被调度；当前 `handle_data_received` 对error只记录日志，仍调用当时的成员 `reception_callback_`，并在receiving_为true时再次投递接收。因此存在旧会话完成事件进入新回调/新会话接收链的条件性风险；不能据此断言旧数据报已跨会话执行或污染机器人状态。
+- 另确认 `start_receive_thread` 在检查socket连接状态和receiving_之前先赋值 `reception_callback_`；若接收线程正在读取该std::function时另一个线程调用重复start，存在无同步读写竞态的静态可能。现有DoubleStartReceiveThread测试仅顺序调用，未构造并发回调访问。
+- 现有测试覆盖基本connect/disconnect、单次回调、连续收包、disconnect后reconnect、receive_once、double start/stop；未覆盖stop→start但不close、连续receive_once、close取消回调跨reset/run、快速端口复用、旧会话包/取消完成事件隔离及并发修改回调对象。
+- 新增SERVO-795/AZ1–AZ10：AZ1 stop是否取消异步操作：静态核对完成（未取消）；AZ2 reset后旧操作是否仍可能完成：静态核对完成（存在待处理操作路径）；AZ3 receive_once是否遗留下一次接收：静态核对完成（回调先重投）；AZ4 disconnect close取消与完成处理排队关系：静态核对完成（运行时顺序待测）；AZ5 旧完成事件是否调用新回调：静态核对完成（成员回调被后续start替换，错误仍进入回调）；AZ6 缓冲区/endpoint生命周期与多操作共用：静态核对完成（同一成员缓冲区和sender_endpoint_）；AZ7 回调对象并发读写：静态核对完成（未见同步）；AZ8现有单测覆盖：静态核对完成（缺少定向场景）；AZ9重启/取消完成处理/旧会话注入、并发压力及TSan：未执行；AZ10目标网卡/内核、端口复用和隔离SIL/HIL证据：未确认。
+- 未执行构建/单测、动态网络注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.213。
