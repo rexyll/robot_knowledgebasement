@@ -234,3 +234,6 @@
 
 
 - [2026-11-09 Stäubli VAL3应用启动/停止入口、controlTask生命周期与ROS硬件生命周期解耦审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.176，审查VAL3 start.pgx以4 ms周期创建controlTask、stop.pgx未显式等待任务退出，以及ROS connect/disconnect和hardware lifecycle不调用VAL3 start/stop的边界；新增SERVO-759/P1-P10，P1-P9全部未执行，P10现场证据缺失。
+
+
+- [2026-11-09 Stäubli VAL3工作模式编码、ROS OperationMode枚举与运动许可状态一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.177，识别VAL3 workingMode 0-4与ROS OperationMode 0-3枚举语义不一致、operation_mode_status通用HOLD告警、motion_possible未纳入运行模式、movejSync状态2错误处理被注释及WAIT_FOR_WMS未置位wait_for_ack；新增SERVO-760/Q1-Q10，Q1-Q9未执行，Q10现场证据缺失。
