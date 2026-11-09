@@ -243,3 +243,6 @@
 
 
 - [2026-11-09 Stäubli ROS UDP发送成功、VAL3命令接收/执行与状态反馈确认边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.179，审查send_robot_command成功仅代表本地序列化/socket send成功、STOP辅助路径使用缓存状态序号且无停止完成确认、VAL3旧命令缓存与序号差陈旧保护、movejSync状态1刷新超时处理被注释，以及速度控制未实现；新增SERVO-762/S1-S10，S1-S9未执行，S10现场证据缺失。
+
+
+- [2026-11-09 Stäubli ROS关节命令非有限数值、六轴数组边界与限位配置一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.180，审查write()仅拒绝NaN、固定六元素命令数组与num_joints_边界、模型YAML/URDF/MoveIt/R2C接口限值分层、VAL3 isInRange调用及目标距离检查TODO；新增SERVO-763/T1-T10，T1-T9全部未执行，T10现场证据缺失。
