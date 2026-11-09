@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.92  
+> 版本：v9.93  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.215；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
@@ -2139,3 +2139,46 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 | DE10 | 获取控制器序号生成规范、会话协议与目标网络配置，并完成隔离SIL/HIL/FAT/SAT | 未确认 |
 
 未执行构建/单测、序号边界注入、乱序/重放/重连测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.218。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.218 / SERVO-801）
+
+固定审查ICube提交 bd658e2d266e315d2ee35f985fb352ea88306b79，检查接收时间戳来源、staleness计算、系统时钟跳变、ROS use_sim_time关联、控制器时间戳与低频读取语义。
+
+证据文件：
+- staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp（blob 773cdeb9c4bf6e2dab3cf9e15426e4e954e35dea）
+- staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp（blob 330839cb25e53fe961541f29f634722bec4a47c4）
+- staubli_robot_driver/src/real_time_socket_subscriber.cpp（blob e2cd8fc50b2b13d9e31b2c024e90f9da76107622）
+- staubli_robot_driver/src/robot_driver.cpp（blob ede48a314856a455df9d8434f354aaf9fbc47bff）
+- staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp（blob 9d54374f3b1327f73b5ae276719f27b6a7b62858）
+- staubli_bringup/launch/launch_robot_control.launch.py（blob a45cea3615898c9e64419e5bc83f4e24355d15c7）
+- staubli_bringup/launch/launch_moveit.launch.py（blob df8856d398da749f0d619631da91f2a08cddb2cc）
+
+#### 静态审查发现
+
+1. **时间戳是本机接收/反序列化时间，不是控制器采样时间。** Message::reception_timestamp注释明确标记local clock；Subscriber在成功deserialize后调用rclcpp::Clock().now()写入。FrameHeader只有magic、version、type、sequence、payload_size，没有控制器采样时间/发送时间字段。因此status.time_since_received表示本机成功反序列化后的年龄，不包含网络传输、控制器排队或采样至发送之间的延迟，也不能用于计算端到端状态新鲜度。
+2. **接收和读取各自临时构造默认Clock。** update_message与read_message均调用rclcpp::Clock().now()，不是通过同一个注入时钟或Node::get_clock()取得时间。两处采用相同默认构造方式，通常意图是同类本机时钟差；但代码未显式声明clock_type，也未把节点use_sim_time时钟注入Subscriber。launch_robot_control和launch_moveit都声明use_sim_time参数（默认false），仅凭该参数存在不能证明Subscriber的独立Clock会跟随ROS仿真时间。具体ROS 2发行版默认Clock类型及运行时行为需按实际依赖版本确认。
+3. **墙上时钟跳变会影响年龄计算。** 代码以now-reception_timestamp计算duration，再以age>=timeout判断stale。若底层默认时钟为可调整的系统时间，向前跳会使消息年龄突然增大并可能立即判 stale；向后跳会产生负年龄，使比较条件暂时不成立，可能把旧状态当作未过期。当前实现没有检测时间跳变、负年龄或时钟源变化，也未使用steady_clock/单调时钟作为elapsed-time基准。需在目标ROS发行版与clock_type确认后进行定向验证。
+4. **staleness阈值只针对接收年龄。** RobotDriver默认state/diagnostic timeout为100ms；read_robot_state和read_diagnostic_data比较status.time_since_received与各自阈值。它不检查控制器采样时间、网络时延上界或状态帧生成时刻，因此“接收刚刚发生”不等价于“机器人状态刚刚采样”。
+5. **低频读取与高频接收采用最新值邮箱语义。** Subscriber每次成功deserialize后覆盖RealtimeThreadSafeBox；read_message读取当时最新消息并根据本地reception_timestamp计算年龄。若控制循环慢于接收线程，中间帧可被覆盖而不逐帧交付；读取端看到的是最新可用帧的接收年龄，而不是上一次控制循环以来的帧数/平均年龄。序号差可提示间隔，但受前序SERVO-793/800已记录的邮箱覆盖、序号回绕与乱序统计缺陷影响。
+6. **重复序号与时间戳语义仍不一致。** 每个成功deserialize的帧都会刷新reception_timestamp，即使序号重复；read_message之后才把相同序号标记new_message=false。因此重复/重放帧可延长本地staleness窗口，不能把时间戳刷新视为机器人状态已更新。
+7. **现有测试只验证普通时间流逝。** test_rt_socket_interface.cpp通过sleep约1秒验证staleness，并检查新消息与重复读取；没有系统时钟前跳/回拨、ROS时间暂停/加速、use_sim_time、负age、时钟源不一致、接收延迟注入、控制器采样时间与接收时间偏差、低频读取/邮箱覆盖压力等测试。本轮未执行这些测试。
+
+建议：把“接收时间”与“控制器采样时间”作为不同字段和不同质量指标；本机经过时间使用明确的单调时钟（例如steady clock）测量，避免墙上时钟调整改变超时判定；ROS消息时间仅用于展示/跨系统关联，不应用于安全超时，除非明确时钟同步与跳变处理；验证重复序号/旧帧不得刷新有效状态新鲜度；记录接收时间、控制器时间、序号、时钟源及同步不确定度，并在目标控制器协议允许时增加发送采样时间戳。安全超时阈值须基于控制周期、网络上界和风险分析确定，不臆造。
+
+#### SERVO-801｜时间基准与状态新鲜度验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DF1 | 核对reception_timestamp语义及来源 | 静态核对完成：本机deserialize成功时间 |
+| DF2 | 核对协议是否携带控制器采样/发送时间 | 静态核对完成：FrameHeader无此字段 |
+| DF3 | 核对接收与读取时间基准 | 静态核对完成：两处各自构造默认rclcpp::Clock |
+| DF4 | 核对use_sim_time与Subscriber时钟注入 | 静态核对完成：launch声明参数；Subscriber未注入Node clock；默认Clock行为待目标ROS版本确认 |
+| DF5 | 核对系统时钟前跳/回拨与负age处理 | 静态核对完成：直接duration比较，无跳变/负值专门处理；动态未验证 |
+| DF6 | 核对staleness timeout的实际含义 | 静态核对完成：只度量本机接收后年龄，默认100ms |
+| DF7 | 核对低频读取、高频接收及邮箱覆盖语义 | 静态核对完成：最新值邮箱，中间帧可覆盖 |
+| DF8 | 核对重复/重放帧是否刷新新鲜度 | 静态核对完成：每次deserialize成功均更新时间戳，不要求序号前进 |
+| DF9 | 时钟跳变、ROS仿真时间、负age、延迟注入、低频读取与重复帧测试 | 未执行 |
+| DF10 | 确认目标ROS发行版clock_type、控制器采样时间协议、网络时延预算并完成隔离SIL/HIL/FAT/SAT | 未确认 |
+
+未执行构建/单测、时钟跳变注入、ROS仿真时间测试、网络延迟/低频读取压力、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.219。
