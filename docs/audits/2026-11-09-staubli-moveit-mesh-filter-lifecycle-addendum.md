@@ -655,3 +655,76 @@ C1–C12全部未执行。未运行ROS构建、集成测试、executor调度测�
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_py/src/moveit/moveit_ros/planning_scene_monitor/planning_scene_monitor.cpp
 - https://github.com/ros2/rclcpp/blob/rolling/rclcpp/include/rclcpp/client.hpp
 - https://docs.ros.org/en/jazzy/p/rclcpp/generated/classrclcpp_1_1Client.html
+
+
+
+## §9.3.165 MoveIt Servo碰撞监测启动门禁、场景新鲜度与命令发布路径（2026-11-09）
+
+### 审查范围与固定基线
+
+继续基于MoveIt 2固定提交 `6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`，将§9.3.164的GetPlanningScene调用方审查延伸到Servo运行时消费端，检查初始场景同步是否真正成为碰撞监测/运动命令的启动前置条件，以及场景失联、过期和碰撞线程首轮检查的行为。
+
+审查文件及Blob SHA：
+- `moveit_ros/moveit_servo/src/utils/common.cpp`：`7ce13c1805ba6bce2e58be10828034f35b60471a`
+- `moveit_ros/moveit_servo/src/servo.cpp`：`0334445a7701935a80ba064fbb6f915f6c58dba3`
+- `moveit_ros/moveit_servo/src/servo_node.cpp`：`eef6cc4073e03863a08eebbf69dc7cefedb15ebc`
+- `moveit_ros/moveit_servo/src/collision_monitor.cpp`：`f1e8c8c9111a65903a62704fa80303cb9d320785`
+- `moveit_ros/moveit_servo/include/moveit_servo/collision_monitor.hpp`：`91c1dfdb9a8168c372f5bfdc0aec4fcc135f6de8`
+- `moveit_ros/moveit_servo/include/moveit_servo/servo.hpp`：`c4596711e5ea359b48fdfaf40f16dcadcc03150e`
+- `moveit_ros/moveit_servo/config/servo_parameters.yaml`：`b16fc6bf0c31fea680529b797c9101827ac6024f`
+- `moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp`：本轮复核固定提交中的`last_update_time_`写入点及`triggerSceneUpdateEvent()`
+- `moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp`：`getLastUpdateTime()`契约明确为“by any monitor”的最近场景更新时刻。
+
+### 静态发现
+
+1. **Servo启动等待的不是“远端场景已同步”，而是PSM出现任意一次更新。** `ServoNode::servoLoop()`记录启动时间后，循环等待`planning_scene_monitor_->getLastUpdateTime()`不早于启动时间。PSM头文件将该时间定义为“by any monitor”的最后更新时间；源码中CurrentStateMonitor更新会写入`last_update_time_`并触发`UPDATE_STATE`。因此，单纯收到机器人关节状态就可能满足Servo启动等待条件；该门禁不能证明CollisionObject/PlanningSceneWorld/OctoMap已到达，也不能证明§9.3.164中secondary PSM的GetPlanningScene请求成功或完整应用。
+
+2. **secondary PSM同步失败后仍可能进入正常Servo循环。** §9.3.164已确认`createPlanningSceneMonitor()`在secondary配置下调用`requestPlanningSceneState()`但忽略bool结果。随后无条件启动PlanningScene发布器并返回PSM。Servo构造只等待完整机器人状态，之后创建并启动CollisionMonitor；ServoNode再创建命令订阅、输出发布器和servo loop线程。结合第1点，若远端场景服务不可用/超时、而本地joint state持续更新，源码没有要求等待有效world scene，Servo仍可能进入命令处理路径。该结论是静态控制流推导；是否形成现场风险取决于Stäubli/ICube实际primary/secondary配置、场景topic及上层运动使能互锁。
+
+3. **碰撞监测没有场景有效性/新鲜度门禁。** `CollisionMonitor::checkCollisions()`循环获取`LockedPlanningSceneRO`，直接从当前PlanningScene读取robot state、CollisionEnv和AllowedCollisionMatrix并计算环境碰撞/自碰撞距离。该循环没有读取PSM的`getLastUpdateTime()`、场景来源时间戳、world几何更新时间、同步generation或“场景尚未初始化/已过期”标志；没有在场景长时间未更新时将`collision_velocity_scale_`置零或发布独立故障状态。因此场景为空、部分应用、仅有旧world或外部场景发布端停止更新时，碰撞线程仍会对当前可读场景执行计算；它不会仅凭场景陈旧自动进入fail-closed。静态代码不证明现场一定存在陈旧场景，也不意味着静态环境必须周期性发布；需要按场景来源定义新鲜度和失联策略。
+
+4. **碰撞线程首轮检查与首条命令之间没有完成握手。** `Servo::Servo()`在等待完整joint state后创建CollisionMonitor并调用`start()`，该方法只启动独立线程并立即返回。共享的`collision_velocity_scale_`在`servo.hpp`中初始化为`1.0`；CollisionMonitor线程在首次完成碰撞检查前没有将其置为“未知/禁止运动”，也没有ready事件供ServoNode等待。ServoNode启动loop后可处理输入命令；`getNextJointState()`读取该原子缩放值，值为1.0时不产生collision halt/decelerate状态。由此存在“首轮碰撞检查尚未完成，命令路径已可使用初始全速缩放值”的启动竞态窗口。是否能在目标机器上观测到取决于线程调度和首次场景锁/碰撞计算耗时，尚未动态复现。
+
+5. **场景更新停滞时，旧碰撞结果可持续被使用。** CollisionMonitor按`collision_check_rate`周期运行；配置默认10 Hz。循环每次重新读取当前PlanningScene，但没有设置最大场景年龄或连续未更新计数。若外部发布端停止发送world geometry更新而本地保留旧场景，监测线程会继续基于旧几何计算距离；这与“碰撞检查线程仍在运行”不同于“场景数据仍然新鲜”。对静态工作单元，产品可以定义静态场景无需周期刷新，但至少应定义启动完整性、动态障碍源超时、地图版本/时间戳和恢复门禁。
+
+6. **默认OctoMap采集配置与碰撞检测总开关是两个不同参数。** `check_collisions`默认true，控制Servo是否执行碰撞检测；`check_octomap_collisions`默认false，并作为`startWorldGeometryMonitor()`的`load_octomap_monitor`参数。故默认配置仍会进行PlanningScene中的环境碰撞与自碰撞检查，但不会通过该调用默认启用OccupancyMapMonitor的传感器OctoMap更新路径。不能把“默认OctoMap monitor关闭”表述为“默认碰撞检查关闭”，也不能假设现场点云/深度图OctoMap一定参与Servo环境碰撞检查。外部PlanningScene消息是否携带地图及目标配置需现场核实。
+
+7. **暂停/恢复会重启碰撞线程，但不验证场景状态。** `pauseServo()`暂停时调用`setCollisionChecking(false)`，恢复时刷新机器人状态、清空轨迹窗口并调用`setCollisionChecking(true)`。CollisionMonitor的`start()`仅重置stop标志并启动线程；没有在恢复前请求全量场景、验证world更新或等待首轮collision check完成。因而恢复流程修复了机器人状态/平滑器基准，但没有补足场景同步/新鲜度握手。此结论仅描述软件状态机，不等同于pause服务可绕过所有外部安全控制。
+
+8. **碰撞结果只影响速度缩放，不能替代安全认证或安全PLC。** 碰撞距离检查由普通Servo软件线程执行，碰撞结果通过atomic缩放值影响下一个关节命令；源码未将该路径定义为安全额定停止功能。必须与Stäubli控制器安全功能、外部安全扫描器、保护停止和风险评估分开审查，不能把MoveIt Servo collision monitor作为CS9/机器人安全等级的替代证据。
+
+### 新增验证任务 SERVO-748 / D1–D14
+
+- D1：secondary PSM请求GetPlanningScene服务失败，但持续注入joint_states；确认`getLastUpdateTime()`被state update推进且Servo loop是否继续启动。
+- D2：secondary PSM收到transport成功但PlanningScene apply失败的响应；跟踪请求bool、场景对象清单、Servo构造和命令发布状态。
+- D3：只发布joint_states、不发布CollisionObject/PlanningSceneWorld，验证Servo启动门禁是否错误地将state update视为world scene就绪。
+- D4：在CollisionMonitor启动处加入barrier，阻止首次collision check完成，同时输入可导致非零运动的命令；记录初始`collision_velocity_scale_`、status及是否发布首条命令。
+- D5：使用已知碰撞场景，测量CollisionMonitor首轮检查完成前后速度缩放和HALT状态的切换时序。
+- D6：停止scene/world publisher但持续发送joint_states，记录场景年龄、collision check线程状态、输出命令及是否存在超时/失联状态。
+- D7：动态障碍物消息中断、恢复、乱序及旧消息重放，验证场景新鲜度门禁和恢复策略。
+- D8：注入部分full scene应用失败，确认CollisionMonitor是否对部分场景继续计算，Servo是否仍可输出命令。
+- D9：分别测试`check_collisions=true/false`与`check_octomap_collisions=true/false`四种配置组合，区分自碰撞、普通world geometry和OctoMap输入路径。
+- D10：暂停Servo、停止场景源、恢复Servo，验证恢复前是否重新校验场景完整性及等待首轮碰撞检查。
+- D11：验证`collision_check_rate`低频/高负载/scene lock竞争时首次检查延迟与命令发布的相对时序。
+- D12：定义并验证静态场景、动态障碍场景和OctoMap场景各自的新鲜度/失联策略；对超时采取明确的禁止运动/外部互锁策略。
+- D13：核对Servo status topic是否能区分“碰撞安全检查未就绪/场景过期/同步失败”，并验证上层控制器是否消费该状态。
+- D14：获取Stäubli/ICube真实Servo primary配置、scene topic、world geometry来源、OctoMap配置、命令输出控制器、pause/unpause调用链和安全PLC互锁证据。
+
+D1–D14全部未执行。未运行ROS构建、动态场景测试、barrier线程测试、ASan/TSan、压力测试、CS9/HIL、FAT/SAT或实机验证。
+
+### 结论与证据边界
+
+§9.3.165将§9.3.164发现的GetPlanningScene同步失败路径追踪到Servo实际运动命令和CollisionMonitor消费端。固定源码显示：Servo loop的初始等待由PSM任意monitor更新满足，关节状态更新即可推进该时间；CollisionMonitor没有场景有效性/新鲜度检查；碰撞线程启动后没有首轮检查ready握手，而共享缩放值初始为1.0；暂停恢复也没有重新验证场景。默认`check_collisions=true`与`check_octomap_collisions=false`必须分开解释。
+
+这些发现表明存在需要验证的fail-open/启动时序风险，不证明Stäubli现场使用secondary配置、已发生碰撞漏检或危险运动。现场配置、场景发布拓扑、控制器互锁及安全PLC证据仍缺。未运行动态测试、CS9/HIL、FAT/SAT或实机验证；未修改MoveIt/ICube上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 来源
+
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/utils/common.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/servo_node.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/src/collision_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/include/moveit_servo/servo.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/moveit_servo/config/servo_parameters.yaml
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
