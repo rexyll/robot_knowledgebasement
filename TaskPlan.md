@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.84  
+> 版本：v9.85  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.209；新增SERVO-792/AW1–AW10：hardware write命令序号复用最近一次有效状态帧序号；协议MessageType没有独立ACK/command-result，send_robot_command本机send成功即返回，不等待控制器接收/接受/执行确认；subscriber只跟踪状态帧序号和丢包，不维护待确认命令队列；未发现ACK超时、命令重发、去重或重连清理状态机。命令序号协议意图需CS9/VAL3规范确认，不直接认定重复序号错误。AW1–AW9固定提交静态源码/测试覆盖核对完成，AW10需正式协议规范、控制器端证据和隔离CS9/HIL。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.210；新增SERVO-793/AX1–AX10：异步接收线程只将最新解码帧写入RealtimeThreadSafeBox，慢读者可能跳过中间帧；lost_packages按读端序号差计算，无法区分网络丢包与邮箱覆盖/读端采样合并；每个成功deserialize均刷新reception_timestamp，即使序号重复；read_message对重复序号返回true但status.new_message=false，RobotDriver::read_robot_state未消费new_message标志，仍会复制并接受该帧，故重复/重放帧可能刷新staleness年龄而不代表状态更新。需结合来源端过滤、序号单调性、会话epoch及协议认证进一步验证；不据此断言现场已发生重放。AX1–AX8固定提交静态源码/测试核对完成，AX9需定向重复/乱序/邮箱覆盖注入，AX10需目标网络/控制器与隔离SIL/HIL证据。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机验收；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1983,3 +1983,13 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 发现hardware write命令序号复用最近一次有效状态帧序号；协议MessageType没有独立ACK/command-result，send_robot_command本机send成功即返回，不等待控制器接收/接受/执行确认；subscriber只跟踪状态帧序号和丢包，不维护待确认命令队列；未发现ACK超时、命令重发、去重或重连清理状态机。命令序号协议意图需CS9/VAL3规范确认，不直接认定重复序号错误。UDP send成功不等于控制器执行成功。
 - 新增SERVO-792/AW1–AW10：AW1–AW9固定提交静态源码/测试覆盖核对完成；AW10需正式协议规范、控制器端证据和隔离CS9/HIL。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。
 - 更新审计追加件§9.3.209、Stäubli厂商档案§128.147、审计索引及00/21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.210。
+
+
+### 2026-11-09｜v9.85 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.210，固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，审查异步UDP接收线程、RealtimeThreadSafeBox最新帧邮箱、读端序号统计、状态时间戳刷新及RobotDriver消费路径。
+- 静态确认：`update_message`每次deserialize成功即刷新`reception_timestamp`并覆盖线程安全邮箱；邮箱不构成逐帧队列，读端在两次read之间可能只取得最新帧。lost_packages由读端上次序号与当前序号差计算，不能区分网络丢包、邮箱覆盖和读端未及时采样。
+- `read_message`在序号相同的分支将`status.new_message=false`，但仍返回true；`RobotDriver::read_robot_state`没有检查该标志，仍将该帧复制到输出并更新last_valid_sequence_id_。同时重复序号帧的成功deserialize会刷新接收时间戳，因此重复/重放内容可能使staleness年龄变新，但不证明机器人状态发生新变化。该风险需结合§9.3.204来源端点校验缺口及§9.3.201序号/会话epoch缺口综合评估；尚无现场重放证据。
+- 新增SERVO-793/AX1–AX10：AX1–AX8固定提交静态源码/测试覆盖核对完成；AX9重复/乱序/邮箱覆盖/时间戳注入未执行；AX10目标网络配置、控制器协议语义及隔离SIL/HIL证据缺失。未执行构建/单测、网络重放或压力注入、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。
+- 更新根TaskPlan与第21章TaskPlan；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与并行任务21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.211。
+
