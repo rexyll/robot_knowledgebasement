@@ -2735,3 +2735,7 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli专项审查推进记录（§9.3.205 / SERVO-788）
 
 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.205，并更新Stäubli厂商档案§128.143。新增SERVO-788/AS1–AS10：AS1–AS8固定提交静态源码/测试覆盖核对完成；AS9需具体机型及厂商/项目限值来源，AS10缺目标部署与隔离SIL/HIL验证证据。审查发现网络float解码无NaN/±Inf检查，枚举直接static_cast，操作模式状态和保留标志未验证，subscriber在语义校验前提交缓存，硬件层未校验finite或机型物理范围；update_state可能因速度有效字段缺失而在已写入位置后返回false。未运行构建/单测、模糊测试、SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.206 / SERVO-789）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.206，并更新Stäubli厂商档案§128.144。新增SERVO-789/AT1–AT10：AT1–AT8固定提交静态源码/测试覆盖核对完成；AT9需目标ros2_control/controller_manager版本及隔离Mock/SIL/HIL，AT10需厂家安全状态表、现场配置及隔离CS9/HIL证据。发现状态过期会使RobotDriver read失败，但硬件state_msg_保留旧状态；is_connected不检查staleness，write无独立新鲜度门禁，活动模式仅检查旧状态error_state/control_state INVALID；模式切换无时间戳门禁，HOLD仅警告，未覆盖所有独立安全状态位。不能断言read ERROR后现场仍执行运动；需按目标controller_manager时序验证。未运行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
