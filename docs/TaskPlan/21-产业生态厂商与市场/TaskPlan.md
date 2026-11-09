@@ -2397,3 +2397,38 @@ Z1-Z9全部未执行，Z10现场证据缺失。未执行ROS构建/单测、mock�
 - `messages.cpp`（Blob SHA `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
 - `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
 - `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.187）
+
+- 新增§9.3.187：审查VAL3 controlTask序号延迟保护分支、统一模式提取覆盖、STOP/ERROR共用执行入口、错误复位及socket重置。
+- 静态确认运动中delay>5、静止delay>25及负delay分支暂时写入STOP模式1，但同时置l_bError=true；紧接着统一模式提取将最终模式覆盖为ERROR模式0。
+- 延迟异常进入错误处理路径，执行stopMove/resetMotion、命令失效、序号/延迟复位、控制活动标志清除和resetControlSocket；普通STOP与该ERROR复位路径不能混为一谈。
+- computeSequenceDelay仅对差值小于-60000执行uint16回绕修正，其余负值进入错误路径；未引入会话epoch，需与重启/回绕组合验证。
+- 新增SERVO-770/AA1-AA10；AA1-AA8全部未执行，AA9-AA10现场证据缺失。未执行VAL3编译/仿真、ROS集成、UDP故障注入、CS9/HIL、FAT/SAT或实机验证。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。现场版本、序号延迟测量、socket恢复策略和独立安全链仍未确认；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。专项下一节点§9.3.188。
+
+#### SERVO-770｜VAL3序号延迟门禁与STOP/ERROR模式转移验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AA1 | 注入运动中delay=5/6及静止delay=25/26，记录日志、最终l_nCmdMode、l_bError和执行分支 | 未执行 |
+| AA2 | 注入负delay（-1、-59999、-60000、-60001），验证回绕修正边界及最终模式 | 未执行 |
+| AA3 | 追踪超限分支统一模式提取前后l_nCmdMode，确认STOP赋值被ERROR覆盖 | 未执行 |
+| AA4 | 断言延迟超限后是否执行错误处理、清除bIsValid、重置序号并调用resetControlSocket | 未执行 |
+| AA5 | 对比普通STOP与延迟异常ERROR的运动停止调用、socket状态、控制活动标志和下一条命令接受条件 | 未执行 |
+| AA6 | 在mock协议模型中注入旧命令、重复命令、跨回绕命令及短时乱序，验证错误分类 | 未执行 |
+| AA7 | 验证resetControlSocket失败后错误标志重新置位时的任务行为及恢复路径 | 未执行 |
+| AA8 | 将序号延迟阈值、双次接收、任务overrun和状态先发送后接收组合成时序矩阵 | 未执行 |
+| AA9 | 在目标CS9/VAL3版本核对任务周期、序号类型、SIO行为、socket复位及控制恢复要求 | 未确认，现场证据缺失 |
+| AA10 | 获取现场控制器日志、UDP抓包、断连重连记录、STOP/ERROR状态轨迹及FAT/SAT验证记录 | 未确认，现场证据缺失 |
+
+AA1-AA8全部未执行，AA9-AA10现场证据缺失。以上是静态审查和验证设计，不代表已执行动态测试或实机验证。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码位置
+
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `computeSequenceDelay.pgx`（Blob SHA `e96e5b378bc263255ee4f28720306ee911b8a5c1`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx
+- `getNextSequenceNumber.pgx`（Blob SHA `8bdda02a8887968b1b86e42be733f553b1e36b19`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
+- `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- `readDataOnce.pgx`（Blob SHA `652aa04548c814febab3c8c3fc807093261efd97`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
