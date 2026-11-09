@@ -1081,3 +1081,73 @@ H1–H15全部未执行，H16现场证据缺失。未运行VAL3编译/仿真、C
 - `updateState.pgx`（Blob SHA `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
 - `ros2_server.dtx`（Blob SHA `558dc2db671da45f5b859a3526148ce816eb6dd4`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx
 - Stäubli CS9同步任务调度参考（TSS.000.014.04-A）：https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf
+
+
+### §9.3.170 VAL3 controlTask退出/停止入口、初始化失败与ROS硬件生命周期
+
+#### 1. 审查范围
+
+固定ICube公开提交`bd658e2d266e315d2ee35f985fb352ea88306b79`，沿§9.3.169任务overrun与§9.3.168命令失联问题，读取VAL3 `start.pgx`、`stop.pgx`、`controlTask.pgx`、`readData.pgx`、`resetControlSocket.pgx`、工程`ros2_server.pjx`以及ROS `StaubliHardwareInterface`生命周期回调和`RobotDriver::send_stop_all_command()`。该仓库是公开Jazzy/CS9开发原型，不代表Stäubli现场应用版本。
+
+#### 2. VAL3 stop程序未显式停止controlTask
+
+`stop.pgx`的全部动作只有：记录退出日志、调用`stopMove()`、`resetMotion()`、清空`siSocketControl`缓冲区。未发现其设置`l_bStopControlTask`，也未发现任务停止/删除调用。`controlTask.pgx`把局部变量`l_bStopControlTask`初始化为false，主循环条件为`while !l_bStopControlTask`；全仓库搜索只发现声明和false初始化，没有任何true赋值。因而固定源码无法证明执行`stop.pgx`后周期控制任务会退出。
+
+这不等于已经证明该任务在所有VAL3运行模式下必然继续运行；需验证`stop.pgx`是否被外部应用管理器调用、VAL3任务上下文与停止语义、是否存在未纳入仓库的外部停任务机制。
+
+#### 3. 清空socket不等于使缓存命令失效
+
+`controlTask`将最近解码命令保存在局部`robot_command_msg`。若没有新包但缓存命令`bIsValid`仍为true，代码中的“检查上一条命令staleness”分支仍是TODO；随后继续基于缓存命令计算sequence delay并选择运动模式。`stop.pgx`清空UDP接收缓冲，但没有显式将该缓存命令置为invalid，也没有改变controlTask局部的`l_nCmdMode`或`l_bStopControlTask`。
+
+因此若stop程序与controlTask并发执行，存在stopMove/resetMotion完成后，控制任务在后续周期仍消费旧命令或重新进入位置控制更新的静态风险。实际是否发生、任务调度顺序、movejSync状态约束和延迟看门狗是否先行触发，均须通过VAL3仿真/CS9故障注入确定。不能据此声称现场机器人必然会重启运动。
+
+#### 4. controlTask初始化失败与静默退出可观测性
+
+`controlTask`初始化RobotState消息、RobotCommand消息、控制socket时，任一调用失败都会将局部`l_bError`设为true、写日志并直接`return`。这些早退分支没有统一执行STOP、socket清理、错误状态上报、重试或任务重启。`start.pgx`设置周期后只调用`taskCreateSync`，没有检查任务创建结果或监控任务运行状态；supervision/diagnostics task配置仍为TODO。`ros2_server.pjx`只列出`start`/`stop`/`controlTask`等程序，没有看到独立supervisor程序。
+
+固定代码因此存在启动失败/任务退出后的可观测性和恢复机制缺口。任务退出后机器人端的最后运动状态、VAL3应用调度语义以及控制器内建看门狗行为不能由仓库源码确定，必须在目标CS9环境实测。
+
+#### 5. ROS hardware lifecycle不是统一的停止确认路径
+
+固定`staubli_hardware_interface.cpp`：
+- `on_cleanup()`仅调用`robot_driver_->disconnect()`，没有先发送STOP。
+- `on_shutdown()`仅在连接存在且`state_msg_.control_state != STOP`时尝试`send_stop_all_command()`，随后断开连接；STOP返回值未检查，回调仍返回SUCCESS。
+- `on_error()`在连接存在时尝试`send_stop_all_command()`，同样不检查返回值并返回SUCCESS；未连接则返回ERROR。
+- 析构函数只disconnect，不发送STOP。
+- `RobotDriver::send_stop_all_command()`在准备命令或发送失败时返回false，但上述两个回调没有消费这个结果。
+
+因此ROS lifecycle回调返回SUCCESS不等于STOP报文已发送，更不等于VAL3已接收或机器人已停止。`on_cleanup`、析构、SIGKILL、进程崩溃或主机掉电不能假设会执行`on_shutdown`/`on_error`。这也不证明现场没有独立安全PLC、控制器任务或外部看门狗；现场安全链必须单独审查。
+
+#### 6. SERVO-753 / I1–I16验证矩阵
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| I1 | `stop.pgx`调用后controlTask任务是否仍处于运行状态、是否继续执行周期 | 未执行 |
+| I2 | `l_bStopControlTask`所有赋值点、外部引用及实际退出条件 | 未执行 |
+| I3 | stop程序调用与controlTask并发时的执行顺序、竞态和socket访问 | 未执行 |
+| I4 | stop.pgx清空socket后，缓存的上一条RobotCommand是否仍有效及是否再次下发 | 未执行 |
+| I5 | 无新命令时staleness TODO的实际表现、阈值、失效命令清理和停止时延 | 未执行 |
+| I6 | RobotState消息初始化失败时controlTask直接return后的任务状态、运动状态及报警 | 未执行 |
+| I7 | RobotCommand消息初始化失败时controlTask直接return后的任务状态、运动状态及报警 | 未执行 |
+| I8 | resetControlSocket失败时controlTask直接return、socket恢复和任务重启行为 | 未执行 |
+| I9 | taskCreateSync创建失败、任务异常终止、runtime error及VAL3应用重启的检测机制 | 未执行 |
+| I10 | start.pgx重复执行时是否重复创建controlTask、旧任务/socket残留及状态复位 | 未执行 |
+| I11 | stop.pgx、controlTask内部STOP、VAL3应用停止/卸载三种路径的差异 | 未执行 |
+| I12 | ROS on_cleanup、on_shutdown、on_error、析构函数各自调用条件与停止/断连顺序 | 未执行 |
+| I13 | on_shutdown/on_error忽略send_stop_all_command返回值时的错误传播与生命周期状态 | 未执行 |
+| I14 | ROS进程崩溃、SIGKILL、主机掉电、网络断开时是否存在机器人侧独立失联停止机制 | 未执行 |
+| I15 | VAL3任务退出/卡死与UDP丢包/命令缓存组合故障下的停止响应时间和安全链 | 未执行 |
+| I16 | 目标现场VAL3应用、CS9固件、启动/停止调用方、ROS lifecycle配置及安全PLC链核实 | 未确认，现场证据缺失 |
+
+I1–I15全部未执行，I16现场证据缺失。未运行VAL3编译/仿真、任务停止/重启/初始化故障注入、ROS lifecycle测试、CS9/HIL、FAT/SAT或实机验证。未修改ICube/MoveIt/ros2_control上游或应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 7. 固定源码Blob
+
+- `stop.pgx`（Blob SHA `8d88991f087ea2be2e65daacff742da5d58ac73c`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx
+- `start.pgx`（Blob SHA `2d72315f0da1e18c959a24d3d75622652ee1287b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `ros2_server.pjx`（Blob SHA `b58dbbf1daf778da64e4ff9551d890ee9ec8514b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.pjx
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- `resetControlSocket.pgx`（Blob SHA `25d414065b4567c5634ef8890cc8cafd6f7e9b3e`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
