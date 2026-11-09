@@ -2236,3 +2236,32 @@ U1-U8全部未执行；U9现场模拟输出执行路径未确认；U10现场证�
 - 新增§9.3.181：ROS—VAL3命令报文float32收窄、NaN/Inf与溢出过滤、VAL3 payload长度检查时序、解码有效标记和STOP/ERROR传播。
 - 新增SERVO-764/U1-U10；U1-U8未执行，U9现场模拟输出执行路径未确认，U10现场证据缺失。
 - 根计划v9.56；专项下一节点§9.3.182。工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+#### SERVO-765｜VAL3 UDP接收批处理、命令缓存与错误恢复验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| V1 | 在单周期注入0、1、2、3、10个完整UDP报文，记录sioGet调用次数、最终解码序号及被覆盖报文 | 未执行 |
+| V2 | 在第一/第二次读取分别注入完整报文、无数据、短报文，验证readData输出标志及controlTask后续模式 | 未执行 |
+| V3 | 对目标VAL3版本的sioGet返回0、负值、短读、完整读和底层socket异常取得正式语义并实测 | 未执行 |
+| V4 | 在运动与静止状态逐周期丢包，测量旧命令保持有效周期、序号差增长、STOP触发点和实际停止距离 | 未执行 |
+| V5 | 注入乱序、重复、跳号、延迟到达、16位回绕和控制端重启序号复位，验证误判/漏判边界 | 未执行 |
+| V6 | 在错误清理前后注入旧数据报与新数据报，验证clearBuffer覆盖范围、接收队列残留和旧命令重放可能性 | 未执行 |
+| V7 | 验证错误清理后新命令是否需要显式STOP/授权状态转换，检查是否存在会话nonce/重新授权门禁 | 未执行 |
+| V8 | 对短报文、解码错误、socket读取错误连续发生及resetControlSocket失败注入，验证错误锁存、恢复循环和状态遥测 | 未执行 |
+| V9 | 在目标VAL3/SIO版本中验证timeout=-1的实际非阻塞语义、sioGet最大数据报长度和clearBuffer行为 | 未执行 |
+| V10 | 获取目标现场机器人、CS9/VAL3版本、UDP抓包、控制端重启/网络抖动记录及FAT/SAT通信恢复证据 | 未确认，现场证据缺失 |
+
+固定公开源码静态审查确认：readData每周期最多调用两次readDataOnce；两次均收到完整报文时后一次覆盖前一次，仅处理最后一份。无新报文时旧命令bIsValid不会由readData路径清除，陈旧检查仍为TODO，主要依赖序号差阈值。sioGet返回0或负值时没有显式错误分支，负值含义需按目标VAL3/SIO版本核实。短报文/读取错误会进入STOP/ERROR清理路径；resetControlSocket实际只设置SIO参数并clearBuffer，不是socket关闭重建或应用层重新授权握手。
+
+V1-V9全部未执行，V10现场证据缺失。未执行VAL3编译/仿真、UDP故障注入、ROS集成、HIL、CS9实机或FAT/SAT。未修改ICube/MoveIt/ros2_control上游，未应用PR。静态发现不证明现场存在命令重放或危险运动；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.182。
+
+#### 固定源码位置
+
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `readData.pgx`（Blob SHA `bf2e0f3d26e66724b9f656261e29fe573bd5f3b0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readData.pgx
+- `readDataOnce.pgx`（Blob SHA `652aa04548c814febab3c8c3fc807093261efd97`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/readDataOnce.pgx
+- `resetControlSocket.pgx`（Blob SHA `25d414065b4567c5634ef8890cc8cafd6f7e9b3e`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+- `computeSequenceDelay.pgx`（Blob SHA `e96e5b378bc263255ee4f28720306ee911b8a5c1`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx
+- `getNextSequenceNumber.pgx`（Blob SHA `8bdda02a8887968b1b86e42be733f553b1e36b19`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
