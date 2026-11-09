@@ -3603,3 +3603,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DR10 | 完整模式切换生命周期、read/write并发边界、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.231 / SERVO-814。
+
+
+
+### 2026-11-09｜v10.06 本轮推进记录（§9.3.231 / SERVO-814）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：ROS硬件接口当前模式、写入命令模式字段、VAL3控制任务模式变量及反馈状态之间的一致性。本轮依据固定提交GitHub搜索片段核对`staubli_hardware_interface.cpp`、`types.hpp`、`messages.cpp`和VAL3 `controlTask.pgx`；未重新取得这些文件全文，结论限于片段级静态证据。
+
+#### 静态审查发现
+
+1. **ROS侧模式状态由current_control_mode_保存。** 头文件声明该字段为当前控制模式；初始化路径将其置为`CommandType::STOP`。模式切换成功路径日志记录旧/新模式后执行`current_control_mode_ = new_mode`并返回OK。JOINT_POSITION切换时若检测到机器人error_state或制动器engaged，片段显示将本地模式回退为STOP并返回ERROR。
+2. **write将本地模式直接写入命令消息。** `StaubliHardwareInterface::write()`构造`cmd_msg`时执行`cmd_msg.command_type = current_control_mode_`，同时写入当前状态序号及控制周期。由此可见ROS本地模式是发往控制器命令模式字段的来源；如果本地状态与控制器实际状态分裂，后续write可能继续按本地模式生成命令，需由控制器侧状态/转换逻辑纠正或拒绝。
+3. **命令模式枚举有显式数值编码。** `types.hpp`片段显示`CommandType::INVALID=0x00`、`STOP=0x01`、`JOINT_POSITION=0x02`。其他枚举值未在本轮可靠片段中完整呈现，不在此补猜。VAL3 `controlTask.pgx`片段显示收到的`nMotionCmdType`范围检查为0..4，非法值置命令无效并置错误标志。
+4. **VAL3控制任务从命令字段更新本地模式。** 片段显示无错误时执行`l_nCmdMode = robot_command_msg.robotCommand.nMotionCmdType`；错误时将`l_nCmdMode=0`。这建立了命令字段到VAL3本地模式变量的可见映射，但不能证明机器人机械/驱动器当前实际运动模式已与软件变量一致。
+5. **VAL3存在转换限制和STOP回退。** 前序SERVO-805已核对：非STOP模式之间切换要求先STOP；从STOP切换到其他模式时若`bInMotion=true`则拒绝并回退STOP。SERVO-806/807另记录错误/序号异常会进入STOP/错误路径。它们构成控制器侧独立的状态转换门禁，但与ROS `current_control_mode_`的同步时机和反馈确认仍需端到端验证。
+6. **控制器反馈状态可反序列化为CommandType。** `messages.cpp`片段显示从状态数据包读取`control_state_u8`并转换为`CommandType`。硬件write错误检查在非STOP本地模式下检查`state_msg_.error_state`或`state_msg_.control_state == INVALID`；未发现该片段将反馈control_state与current_control_mode_逐值比较并强制同步的证据。
+7. **模式分裂风险：本地提交早于控制器确认。** perform模式切换成功路径在本地设置`current_control_mode_=new_mode`并返回OK；本轮未发现必须等待VAL3状态反馈确认其control_state已切换到同一模式的证据。若控制器拒绝切换、网络延迟或反馈陈旧，ROS本地模式可能先于控制器反馈更新。此为静态架构风险，尚非已复现故障。
+8. **失败路径并非全部对称。** JOINT_POSITION切换在error_state或brakes engaged时可将本地模式设置STOP；其他prepare/perform失败路径的current_control_mode_是否保持旧值、pending_mode_是否清理，需完整函数审查。通信断开/控制器重启后本地模式是否自动回退STOP，也未由本轮片段证明。
+9. **模式反馈并非安全使能确认。** `control_state`只作为协议状态字段反序列化，不能等同于安全PLC状态、驱动器使能、制动器状态、急停复位或操作员授权。必须分别建模并验证。
+10. **证据范围限制。** 本轮未完整读取write最终发送调用、状态消息control_state生成点、VAL3状态发布全路径、控制器重启时current_control_mode_生命周期及ros2_control controller activation回调；因此不宣称三侧状态已实现闭环一致性，也不宣称必然发生模式分裂。
+
+#### 风险与建议
+
+- 建立三方模式状态机：ROS期望模式、命令发送模式、VAL3已接受模式/反馈模式。只有收到当前会话的新鲜反馈且模式一致，才将切换标记为已确认。
+- 将模式切换改为显式请求—确认过程：请求携带事务序号/会话epoch；VAL3执行合法性检查后发布确认模式和事务号；ROS超时、拒绝或反馈陈旧时进入STOP/ERROR并清除待切换状态。
+- write发送运动命令前检查反馈模式与本地期望模式一致、反馈新鲜、状态序号进展、会话epoch一致、错误/制动器状态允许；STOP命令可采用独立且明确的故障策略。
+- 对通信断开、控制器重启、状态反馈倒退、模式拒绝、ROS控制器deactivate/activate及prepare/perform中断，统一规定本地模式回退、缓存清理、重新握手和人工重新使能条件。
+- 对STOP与INVALID严格区分：INVALID是无效/错误状态，不可当作STOP确认；收到INVALID时不得假设机械臂已停止。
+- 增加集成测试：ROS切换请求与VAL3确认一致；控制器拒绝切换；切换确认丢失/延迟；反馈模式不一致；断连后重连；VAL3重启；旧epoch反馈；错误/制动器engaged；ROS控制器切换和命令缓存清理。断言模式未确认前不会发出新模式运动目标。
+- 完整核对CommandType所有编码、VAL3状态发布字段与ros2_control生命周期回调后，再制定具体补丁；不直接修改上游。
+
+#### SERVO-814｜ROS/VAL3控制模式一致性验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DS1 | 核对ROS current_control_mode_初始化与成功切换赋值 | 静态片段核对完成 |
+| DS2 | 核对write将current_control_mode_写入cmd_msg.command_type | 静态片段核对完成 |
+| DS3 | 核对CommandType INVALID/STOP/JOINT_POSITION编码 | 静态片段核对完成；其余编码未完整确认 |
+| DS4 | 核对VAL3命令nMotionCmdType范围检查与l_nCmdMode赋值 | 静态片段核对完成 |
+| DS5 | 核对VAL3 STOP/模式转换门禁 | 静态关联核对完成（沿用SERVO-805） |
+| DS6 | 核对状态包control_state反序列化 | 静态片段核对完成 |
+| DS7 | 核对ROS本地模式与VAL3反馈模式逐值确认 | 未确认：未见明确比较/事务确认片段 |
+| DS8 | 核对切换失败、断连、控制器重启及ROS生命周期下本地模式回退 | 未确认 |
+| DS9 | 模式拒绝、反馈延迟/丢失、不一致、重启、旧epoch及缓存清理集成测试 | 未执行 |
+| DS10 | 完成ROS/VAL3闭环模式确认、read/write联锁、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、ros2_control集成测试、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.232 / SERVO-815。
