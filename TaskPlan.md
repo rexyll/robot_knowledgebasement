@@ -1558,8 +1558,8 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 ### §9.3.164 requestPlanningSceneState调用方与初始化门禁
 
 - 已审查MoveIt Servo、RViz PlanningScene Display、OMPL状态数据库工具、print_planning_scene_info及Python绑定调用点；固定源码与Blob SHA见专项追加件。
-- Servo secondary配置分支忽略请求bool并继续启动场景发布；RViz使用后台任务并检查bool，但底层apply failure可能被误报true；OMPL工具检查bool但main路径未显示executor spin；print工具虽创建并add_node executor但未spin且忽略bool；Python绑定暴露bool但未解释返回值/executor契约。Servo默认primary=true，secondary风险不得泛化到默认配置。
-- rclcpp Client API明确async_send_request返回future应由executor处理；PSM内部仅future.wait_for，不主动spin。调用端必须确保另有executor在处理node。
+- Servo secondary配置分支忽略请求bool并继续启动场景发布；RViz使用后台任务并检查bool，但底层apply failure可能被误报true；OMPL工具检查bool并在false时退出；print工具忽略bool；PSM通过独立private SingleThreadedExecutor线程处理内部client响应，外部node executor未spin不是这些普通调用点的失败依据，但同private executor回调内同步重入可能阻塞；Python绑定未说明返回值和同线程重入契约。Servo默认primary=true，secondary风险不得泛化到默认配置。
+- rclcpp Client API明确async_send_request返回future应由executor处理；PSM已为内部pnode_配置private executor及专用spin线程，调用方需避免在该private executor回调内同步重入请求。
 - 新增SERVO-747/C1-C12，覆盖primary/secondary配置、executor时序、失败门禁、RViz状态、OMPL/打印工具、Python绑定、调用点清点、超时资源生命周期和Stäubli现场拓扑；全部未执行。
 - 本轮仅完成静态审查和验证设计；未运行ROS构建、集成/并发/故障注入、CS9/HIL、FAT/SAT或实机验证。未修改MoveIt/ICube上游、未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。
 - 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.165。
