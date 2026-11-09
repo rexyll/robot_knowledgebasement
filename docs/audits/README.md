@@ -310,3 +310,5 @@
 
 
 - [2026-11-09 Stäubli UDP数值合法性、枚举范围与状态缓存污染审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.205，核对float/NaN/Inf反序列化、状态/命令/诊断枚举范围、未知状态位、subscriber缓存提交及硬件状态更新。发现浮点解码无finite检查、枚举直接static_cast、监督状态直接导出、硬件层无机型物理范围校验；update_state可能先写位置后因速度字段缺失返回false而留下部分更新。新增SERVO-788/AS1–AS10，AS1–AS8静态核对完成，AS9需机型限值依据，AS10缺隔离验证。
+
+- [2026-11-09 Stäubli状态新鲜度、控制许可与读写周期一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.206。发现状态过期时read返回ERROR但硬件state_msg_保留旧值；is_connected不检查staleness，write无独立状态年龄/read成功门禁；活动模式write只检查error_state和control_state INVALID，mode switch无新鲜度门禁且HOLD仅警告。新增SERVO-789/AT1–AT10，AT1–AT8静态核对完成，AT9–AT10需隔离运行时及现场安全证据。
