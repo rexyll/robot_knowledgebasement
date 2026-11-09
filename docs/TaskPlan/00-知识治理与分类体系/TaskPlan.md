@@ -624,3 +624,7 @@
 ### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.205）
 
 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.205。核对serialization浮点解码、协议枚举、subscriber邮箱提交和硬件状态更新。发现float直接memcpy解码且double由float转换，未拒绝NaN/±Inf；RobotState/RobotCommand/DiagnosticData枚举直接static_cast，无允许值验证；operation_mode_status原样保留，未知状态/有效字段标志位未检查；subscriber只以deserialize成功作为缓存门槛；硬件update_state未见finite或具体型号物理范围检查，监督枚举直接转double导出；位置有效但速度无效时，update_state先写位置再返回false，可能留下新旧状态混合快照。新增SERVO-788/AS1–AS10：AS1–AS8静态核对完成，AS9需具体型号限值依据，AS10缺隔离SIL/HIL证据。未运行构建/单测、模糊测试、SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
+
+### 2026-11-09｜00-01持续审计记录（Stäubli §9.3.206）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.206。核对subscriber时间戳、RobotDriver状态过期处理、hardware read/write及mode switch。发现RobotDriver状态超时后read_robot_state返回false，硬件read返回ERROR，但state_msg_保留上一次成功状态；is_connected只检查socket/interface ready、不检查staleness；write没有独立read成功/状态年龄门禁，活动模式只检查旧state_msg_的error_state及control_state INVALID；未直接检查motion_possible、brakes_released、estop_pressed、safety_status、power_on；mode switch无状态新鲜度门禁，仅检查error_state/motion_possible，HOLD只警告。现有测试仅覆盖RobotDriver层staleness，未覆盖硬件read ERROR后write及过期状态切换模式。新增SERVO-789/AT1–AT10：AT1–AT8静态核对完成，AT9–AT10需隔离运行时和现场安全证据。未运行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，未授权合并TODO-EXT-001。
