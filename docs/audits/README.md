@@ -215,3 +215,6 @@
 
 
 - [2026-11-09 Stäubli ICube VAL3同步控制任务overrun与序号延迟看门狗审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.169，审查4 ms `taskCreateSync`、`bIsOverrun`/`nOverruns`仅日志计数、状态序号递增与命令序号回显、sequence_delay非墙钟指标及状态遥测一轮滞后；新增SERVO-752/H1-H16，全部未执行，现场版本/CS9/HIL证据缺失。
+
+
+- [2026-11-09 Stäubli ICube VAL3 controlTask退出/停止入口与ROS硬件生命周期审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.170，审查stop.pgx未显式停止controlTask、退出标志未发现true赋值、初始化失败直接return、旧命令staleness仍为TODO，以及ROS cleanup/shutdown/error回调停止确认缺口；新增SERVO-753/I1-I16，全部未执行，现场版本/安全链证据缺失。
