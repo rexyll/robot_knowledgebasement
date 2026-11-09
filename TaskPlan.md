@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.30  
+> 版本：v9.31  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.155，厂商档案新增§128.106。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.156，厂商档案新增§128.107。新增SERVO-739/J1-J9，覆盖MeshFilter worker初始化与job异常传播、GLRenderer/GLEW失败回滚、OpenGL context线程归属和stop_ TSan；全部未执行，Stäubli现场图形后端/DepthImage updater配置未确认。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1463,3 +1463,22 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/issues/3902
 - https://github.com/moveit/moveit2/pull/3909
 - 专项审计§9.3.155；厂商档案§128.106。
+
+
+### §9.3.156 MeshFilter worker启动异常、FilterJob异常传播与OpenGL上下文回收
+
+- MoveIt main `MeshFilterBase`构造函数启动worker线程，`run()`首先执行`initialize()`，初始化和job执行均无异常捕获/回传。GLSL/OpenGL初始化异常越过线程入口会触发`std::terminate`；FilterJob执行函数异常也会逃逸worker。静态结论，未在目标环境复现。
+- `GLRenderer`构造先创建GL context再初始化framebuffer；framebuffer incomplete会抛异常，构造失败时对象析构不运行，部分GL资源缺少统一RAII回滚。`createGLContext()`在窗口创建/GLEW初始化前先登记thread id和引用计数；GLEW失败抛异常时没有回滚登记或销毁窗口。
+- `FilterJob::execute()`直接执行`exec_()`，仅正常返回后设置done并通知；异常没有exception_ptr状态，也没有保证等待者收到完成通知。GLMesh在vertex_normals为空时明确抛异常，MeshFilterBase::addMesh的worker job可能触发该路径。
+- 正常路径由worker线程执行`deInitialize()`并释放renderer，符合GLRenderer按thread id管理context的设计；部分初始化异常路径无法保证执行该清理。§9.3.155发现的stop_无同步读写仍成立。
+- 新增SERVO-739/J1-J9：GLUT/GLEW/framebuffer失败注入；shader编译失败；缺失vertex_normals的addMesh异常；FilterJob异常完成/等待唤醒；失败后重复构造销毁检查context/窗口/GL对象残留；GL context创建/销毁线程ID核对；stop_与Job队列TSan；DepthImage stop/in-flight callback/worker退出屏障；Stäubli现场图形后端与DepthImage updater配置核实。全部未执行。
+- 本轮仅完成MoveIt main静态源码审查与测试设计；未运行ROS构建/测试、TSan/ASan、图形故障注入、CS9/HIL或实机验证。未修改MoveIt/ICube上游、未应用PR #3909；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/src/mesh_filter_base.cpp（Blob SHA 333a7031925cb47fb201af34fe61431a9ccf2a6f）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/include/moveit/mesh_filter/mesh_filter_base.hpp（Blob SHA c14aa939580fe69e327629a3f236f1d11fa91d55）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/src/gl_renderer.cpp（Blob SHA f74bb8267e32cde20c7acd46ff4b4a985ab81c99）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/src/gl_mesh.cpp（Blob SHA 96737abbdd2a3cd93b29ac22cc4e09545aece928）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/include/moveit/mesh_filter/filter_job.hpp（Blob SHA 8cfe5bdeb8fad6bdf9c8b26cee7ca0a25685069d）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）
+- 专项追加件：`docs/audits/2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md`；厂商档案§128.107。
