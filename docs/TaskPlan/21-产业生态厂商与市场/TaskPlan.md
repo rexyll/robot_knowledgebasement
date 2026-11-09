@@ -2867,3 +2867,42 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | BA10 | 确认目标controller_manager调用时序、生命周期契约并完成隔离SIL/HIL | 未确认，目标证据缺失 |
 
 未执行构建/单测、并发注入、TSan、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.214。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.214 / SERVO-797）
+
+本轮继续固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，审查发送缓冲区、UDP发送错误处理、命令入口和现有测试。证据文件：
+
+- `staubli_robot_driver/include/staubli_robot_driver/real_time_socket_interface.hpp`（blob `e4d4650f59d2eb95133f5e948431ebe2073a6667`）
+- `staubli_robot_driver/src/real_time_socket_interface.cpp`（blob `eda0a830cfe0118e07bc3423ad0f455bd50d610c`）
+- `staubli_robot_driver/src/communication/udp_socket_impl.hpp`（blob `1309a8f2d59e8295869e178af82a66868bb911ff`）
+- `staubli_robot_driver/src/robot_driver.cpp`（blob `ede48a314856a455df9d8434f354aaf9fbc47bff`）
+- `staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp`（固定提交文件已核对）
+- `staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp`（固定提交文件已核对）
+
+#### 静态审查发现
+
+1. **序列化缓冲区为接口对象共享成员。** `RealTimeSocketInterface`构造时预分配单个成员向量`data_out_`；`send_message`先把消息序列化写入该向量，再将同一向量传给底层socket发送。未见发送互斥或每次调用独立buffer。若多个线程同时调用同一接口实例的send_message，serialize写入与另一线程的serialize/send读取可能交错，存在数据竞争和报文内容不一致风险。该风险是否由上层单线程write调用约束消除，尚无目标集成证据。
+2. **would_block时“丢弃但返回成功”。** `UDPSocketImpl::send`使用`MSG_DONTWAIT`同步发送。若内核发送缓冲区满而返回`would_block`，代码记录明确的Packet dropped警告，但没有在该分支返回false，最后仍返回true。上层`send_message`与RobotDriver会把它解释为成功。注释还将丢包计数及阈值故障处理列为TODO。其他非零错误才返回false。
+3. **发送返回值不等于控制器执行确认。** 当前是同步UDP send_to路径，没有应用层ACK等待、控制器命令接收确认或执行回执；即使函数返回true，也不能据此证明远端收到、解析或执行命令。
+4. **STOP与普通命令没有可见的发送仲裁。** `send_stop_all_command`和`send_robot_command`最终调用同一接口的`send_message`；未见统一发送队列、STOP优先级、调用互斥或命令排序机制。并发调用时，调用先后与控制器观察到的命令顺序不能仅由当前代码保证。具体线程调用方式需结合上层ROS控制器执行模型验证。
+5. **现有测试覆盖不足。** `test_rt_socket_interface.cpp`主要验证单线程双向通信；socket测试覆盖正常发送和断连发送，但未覆盖同一接口并发send_message、send buffer饱和/would_block、并发STOP与运动命令、报文内容完整性或发送返回值与控制器回显一致性。
+
+建议：发送路径采用单一实时发送线程/有界队列或接口级互斥；明确STOP是否需要优先级和抢占规则；为每个命令关联序号并记录本地发送结果、远端接收/执行回执；would_block必须向上层报告未发送，并设置丢包计数、阈值告警及安全降级策略。所有策略应在目标控制器协议和安全分析确认后实施，本轮未修改上游。
+
+#### SERVO-797｜发送缓冲区、并发命令与UDP结果语义验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| BB1 | 核对data_out_缓冲区归属与复用 | 静态核对完成：单个接口成员向量 |
+| BB2 | 核对send_message是否有并发保护 | 静态核对完成：未见锁/队列 |
+| BB3 | 核对serialize与socket send之间缓冲区访问 | 静态核对完成：共享同一成员buffer |
+| BB4 | 核对would_block分支的返回值 | 静态核对完成：记录丢弃但最终返回true |
+| BB5 | 核对发送丢包计数、阈值与故障升级 | 静态核对完成：未见实现，源码注释为TODO |
+| BB6 | 核对STOP和普通命令是否共用发送接口 | 静态核对完成：共用control_interface_ |
+| BB7 | 核对命令队列、STOP优先级和并发顺序保证 | 静态核对完成：未见统一仲裁 |
+| BB8 | 核对现有发送单测覆盖范围 | 静态核对完成：未覆盖并发/拥塞/回执 |
+| BB9 | 并发send_message、强制would_block、发送缓冲区饱和与故障注入 | 未执行 |
+| BB10 | 目标控制器接收确认/执行回显、实时负载与隔离SIL/HIL验收 | 未确认，目标证据缺失 |
+
+未执行构建/单测、并发压力、TSan、网络拥塞注入、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.215。
