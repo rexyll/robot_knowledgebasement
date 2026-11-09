@@ -301,3 +301,57 @@ M1–M12全部未执行。没有ROS构建、TSan/ASan、慢盘性能测试、序
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/occupancy_map_monitor/src/occupancy_map_server.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
 - https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/perception/lazy_free_space_updater/src/lazy_free_space_updater.cpp
+
+
+## §9.3.160｜PlanningSceneMonitor OctoMap回调、场景事件通知与锁顺序审查
+
+### 审查基线
+MoveIt 2固定提交：`6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09`。检查`planning_scene_monitor.cpp/.hpp`及`planning_scene.cpp`。
+- `planning_scene_monitor.cpp` Blob SHA：`83f67e15cb167957ddf15bde8fc239d053ed727c`
+- `planning_scene_monitor.hpp` Blob SHA：`8ed8bd8fb8a3b25cfcb3357f2cc5de499a6fbd51`
+- `planning_scene.cpp` Blob SHA：`71d4eac188cd7446b2013b61cf25b8b319e073c3`
+
+### 静态核查结论
+
+1. **主要scene/tree锁顺序一致。** `octomapUpdateCallback()`先取得`scene_update_mutex_`写锁，再取得OccMapTree读锁，调用`processOctomapPtr()`，释放树锁和scene锁后才触发`UPDATE_GEOMETRY`。PSM的`lockSceneRead()/lockSceneWrite()`及`clearOctomap()`也遵循scene→tree顺序。在本轮检查路径中未发现ABBA逆序；这不是全仓库无死锁证明。
+2. **事件回调不持有scene/tree锁，但持有update_lock_。** `triggerSceneUpdateEvent()`使用`std::recursive_mutex`保护回调vector，并在锁内同步调用外部回调。scene锁释放避免了一类直接scene锁重入死锁，但外部回调仍可能阻塞注册/清理路径。
+3. **回调重入可能破坏正在进行的vector遍历。** 同线程回调可重入`addUpdateCallback()`、`clearUpdateCallbacks()`和`triggerSceneUpdateEvent()`。当前实现未复制回调快照；遍历期间push导致vector扩容或clear可能使range-for迭代器失效，属于条件性未定义行为风险；递归触发还可能造成无界递归。若回调等待另一个需要取得update_lock_的线程，也可能形成跨线程等待死锁。
+4. **回调异常可能造成场景事件通知遗漏。** 实现先执行所有外部回调，之后才累计`new_scene_update_`并`notify_all()`。任一回调抛异常会中断后续回调和通知；scene数据已经更新，但发布线程/等待者可能未收到该次通知。异常也会向OctoMap updater调用栈传播。
+5. **双订阅stop存在明确清理缺口。** `stopWorldGeometryMonitor()`对`collision_object_subscriber_`和`planning_scene_world_subscriber_`使用`if/else if`。两者同时存在时只reset前者，后者保留，可能影响重启、重配置和析构期间的输入静默。
+6. **OctoMap monitor stop不等于回调注销或排空。** stop路径调用`octomap_monitor_->stopMonitor()`，但不reset monitor、不清除PSM注册的`[this]`回调，也没有显式等待in-flight callback。PSM析构会停止world monitor并join其private SingleThreadedExecutor线程，但这不能自动证明OccupancyMapMonitor updater线程的回调已排空。结合§9.3.159的updater stop边界，析构竞态仍是待验证风险，未复现UAF。
+7. **共享树同步语义。** `PlanningScene::processOctomapPtr()`在world对象已持有相同树指针且位姿未变时复用OcTree共享指针；指针变化时移除并重建shape。PSM的主要读写路径按scene→tree锁顺序访问。绕过PSM锁协议直接访问world/tree的外部代码不在本轮安全保证内。
+8. **事件不是逐次更新队列。** scene/tree更新完成后释放锁，再发事件；并发读者可能在通知前看到新scene，这是锁保护下的可见性窗口。发布线程将更新类型按位合并，因此语义更接近“有相应类型更新待发布”，不保证每次树更新对应一个独立事件。
+9. **executor边界不能外推。** PSM自身创建的`pnode_`使用SingleThreadedExecutor；这不证明OccupancyMapMonitor updater也运行在同一executor或同一callback group，更不能代表Stäubli现场配置。
+
+### SERVO-743验证矩阵（全部未执行）
+
+- **N1** callback遍历期间调用`addUpdateCallback()`触发vector扩容，ASan/UBSan验证。
+- **N2** callback遍历期间调用`clearUpdateCallbacks()`，验证迭代器失效及快照修复。
+- **N3** callback递归触发scene update，验证递归限制和事件顺序。
+- **N4** callback等待另一线程执行add/clear，验证update_lock_跨线程等待死锁。
+- **N5** 第一个callback抛异常，检查后续callback、`new_scene_update_`、条件变量唤醒和planning-scene发布。
+- **N6** 同时启用两类world订阅，stop/restart并统计topic接收，验证旧订阅不残留。
+- **N7** updater callback入口设置barrier，并发stopWorldGeometryMonitor和析构PSM，ASan/TSan检查this、scene、monitor生命周期。
+- **N8** 并发OctoMap更新、clearOctomap、LockedPlanningSceneRO/RW和scene publishing，验证锁顺序。
+- **N9** 并发OctoMap更新与PlanningSceneWorld替换/清空，核对OcTree指针、版本及事件类型。
+- **N10** 多次stop/start，核对callback注册次数、monitor复用、订阅句柄和重复事件。
+- **N11** 慢callback叠加高频OctoMap更新，测量updater阻塞、事件合并和发布延迟。
+- **N12** Stäubli/ICube目标部署核实topic、updater线程、PSM executor、外部callback和shutdown顺序。
+
+N1–N12全部未执行；没有动态证据证明迭代器失效、死锁、通知丢失、析构UAF或Stäubli现场受影响。
+
+### 修复与验收建议
+
+- 在`update_lock_`内复制callback快照，释放锁后调用；逐个隔离callback异常，并确保更新类型累计及条件变量通知不会被用户回调异常跳过。
+- 明确递归触发策略；stop时分别reset两个world订阅。
+- 为OccupancyMapMonitor定义stop的in-flight callback静默契约；析构前拒绝新事件、注销回调、停止updater并join/排空执行上下文，再销毁scene和PSM对象。
+- 保持scene mutex→OctoMap tree lock顺序。修复后须在目标ROS/MoveIt/ICube组合执行单测、ASan/TSan和executor barrier测试。
+
+### 证据边界
+以上是固定MoveIt源码的静态结论。没有证据证明Stäubli现场启用相同topic/updater/callback组合或发生死锁、UAF、场景不同步。未运行ROS构建、ASan/UBSan/TSan、故障注入、CS9/HIL、FAT/SAT或实机测试；未修改MoveIt/ICube上游，未应用PR。
+
+### 来源
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp
+- https://github.com/moveit/moveit2/blob/6ed6372a72ba9b121ed12ef574ea4ff4d3d92f09/moveit_core/planning_scene/src/planning_scene.cpp
+- https://moveit.picknik.ai/main/api/html/moveit__ros_2planning_2planning__scene__monitor_2src_2planning__scene__monitor_8cpp_source.html
