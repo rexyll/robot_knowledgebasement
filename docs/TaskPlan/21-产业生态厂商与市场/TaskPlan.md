@@ -3911,3 +3911,50 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 目标系统验收必须验证接收线程调度优先级、CPU亲和性、最坏时延、网络隔离与恢复时间；单线程异步结构本身不构成实时性证明。
 
 本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.237 / SERVO-820。
+
+
+### 2026-11-09｜v10.12 本轮推进记录（§9.3.237 / SERVO-820）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查`protocol.cpp`、`messages.cpp/.hpp`、`real_time_socket_subscriber.cpp`、`udp_socket_impl.hpp`、`real_time_socket_interface.cpp/.hpp`、`robot_driver.cpp`及`staubli_hardware_interface.cpp`，重点检查UDP帧长度、头部字段、命令发送结果及序号关联。
+
+#### 静态审查发现
+
+1. **UDP接收缓冲区有最大容量，但回调数据长度未与协议固定长度严格相等校验。** socket接收缓冲区按`MAX_SOCKET_PACKET_SIZE`分配，subscriber把实际`bytes_transferred`传给deserialize。各消息反序列化首先检查`buffer_size >= expected_size`，不是要求精确相等；因此多余尾随字节可能被忽略。应拒绝短帧、长帧和非预期长度。
+2. **FrameHeader只校验magic number。** `FrameHeader::deserialize()`读取magic、protocol_version、message_type、sequence_number和payload_size，但函数内只拒绝magic不匹配；协议版本范围/精确值、消息类型与payload长度由具体消息类承担或遗漏。
+3. **RobotStateMessage头部验证缺失。** 该反序列化函数在“Validate header fields”注释后没有实际检查；未校验message_type是否ROBOT_STATE、payload_size是否与固定结构匹配、protocol_version是否匹配。它只继承FrameHeader的magic检查及最小长度检查，随后解析固定字段。意味着只要magic正确且数据足够长，类型/载荷长度/协议版本错误的帧可能被按RobotState结构解释。
+4. **RobotCommandMessage检查部分头部字段，但仍不完整。** command deserialize检查payload_size和message_type，未见protocol_version精确匹配检查；buffer_size仍允许大于固定序列化长度，尾随字节未被拒绝。命令类型字节直接static_cast为CommandType，未见枚举范围验证。
+5. **状态消息有效性判断依赖上层，而非完整帧契约。** RobotDriver的is_state_msg_valid检查状态对象的message_type，但由于RobotState deserialize本身没有拒绝错误message_type，消息能否到达上层取决于后续检查；protocol_version在connect阶段检查current_robot_state_，不是每帧deserialize时验证。
+6. **接收发送方校验仍缺失。** SERVO-819已确认UDP来源地址过滤是注释TODO；本轮复核仍未发现生效的源IP/端口白名单。UDP数据完整性和身份认证也未见应用层机制。应结合网络隔离、源端点过滤及协议认证设计，不把源地址校验等同密码学认证。
+7. **命令发送序号来自最后有效状态帧。** hardware interface将`get_current_message_sequence()`写入每条RobotCommand的header.sequence_number；RobotDriver在成功读取状态帧后更新last_valid_sequence_id_。STOP命令也使用当前最后有效状态序号。该设计形成状态—命令序号关联，但没有独立命令递增序号、命令ACK/执行确认或超时事务证据。
+8. **STOP发送路径不能证明安全停止已送达或执行。** send_stop_all_command构造STOP并通过同一UDP接口发送；返回true最多表示本地发送函数没有报告失败，不是控制器确认。UDP没有传输层送达保证，实际停止仍需控制器安全功能/独立安全回路保障。
+9. **发现UDP非阻塞发送返回值误报风险。** `UDPSocketImpl::send()`在`would_block`时记录“Packet dropped”，但没有return false，函数最终返回true。因此`RealTimeSocketInterface::send_message()`和`RobotDriver::send_robot_command()`可能把被本机内核发送缓冲区丢弃的命令报告为成功。注释TODO也提出未来应计数并超过阈值触发错误。此项为明确的静态逻辑缺陷，需优先修复并测试。
+10. **其他发送错误会返回false，但没有重试/确认机制。** 非would_block系统错误返回false；未见命令重试、命令ACK、命令序号去重或控制器执行确认。不能简单重试运动命令，必须先定义幂等性、过期命令丢弃和控制器确认协议。
+11. **命令数值/边界校验不完整。** RobotDriver::send_robot_command对STOP非零参考只WARN；位置/速度限幅有TODO。hardware interface检查NaN，但本轮未确认对Inf、越界值、模拟量越界和控制周期异常的全面拒绝。必须在发送前按机器人型号/工具/负载/控制器配置做边界校验。
+12. **测试证据缺口。** 已见消息序列化正常往返测试，但未见针对错误message_type、错误protocol_version、payload_size不匹配、尾随字节、截断帧、非法CommandType、UDP would_block命令丢弃却返回成功、STOP丢包和ACK超时的充分测试。本轮只读取测试源码，没有运行。
+
+#### SERVO-820｜帧协议与命令发送验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DJ1 | UDP接收缓冲区容量与实际bytes_transferred传递 | 完整源码静态核对完成 |
+| DJ2 | FrameHeader字段解析及magic检查 | 完整源码静态核对完成；其余头字段由消息类处理/部分遗漏 |
+| DJ3 | RobotState消息类型、payload长度、协议版本验证 | 完整源码确认缺失 |
+| DJ4 | RobotCommand头字段、长度及枚举验证 | 完整源码确认部分检查；protocol version/尾随长度/枚举范围未完整校验 |
+| DJ5 | UDP发送方身份过滤 | 完整源码确认未实现，仍为TODO |
+| DJ6 | 状态序号与命令序号关联 | 完整源码静态核对完成；无命令ACK/执行确认 |
+| DJ7 | would_block丢包返回值语义 | 完整源码确认缺陷：日志报告丢包但返回true |
+| DJ8 | STOP命令送达、重试及控制器确认 | 未实现/未确认；不得视为安全停止证明 |
+| DJ9 | 命令边界校验及异常帧/发送失败测试 | 静态发现校验缺口；未执行故障注入 |
+| DJ10 | 网络故障、控制器协议兼容、SIL/HIL、CS9、FAT/SAT及实机验收 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 所有消息反序列化统一执行：精确帧长度、magic、协议版本、message_type、payload_size、字段枚举和保留位校验；失败时整帧拒绝，不能仅依赖上层二次检查。
+- UDP接收仅接收配置源端点；对多网卡/冗余控制器采用显式白名单。另评估网络隔离、消息认证/完整性保护与重放防护。
+- 修复would_block分支：必须返回失败或将丢包状态明确传播至上层；增加丢包计数、连续失败阈值和运动降级/停机策略。不得把“内核缓冲区拒收”报告为发送成功。
+- 定义命令ACK与执行状态协议：明确命令序号、控制器回执、超时、去重、过期命令拒绝及安全停止确认；未有回执前不能宣称命令已执行。
+- STOP命令使用独立安全链或控制器安全功能保障；普通UDP STOP仅作为功能性停止请求，不得替代急停/安全停止。
+- 对所有关节目标、模拟/数字输出、controller_period进行有限性、范围、单位、变化率和设备能力检查；Inf/NaN/越界/异常周期全部fail-closed。
+- 补齐畸形帧、错误版本、错误类型、尾随字节、源地址伪造、序号重放、would_block、网络丢包、STOP丢包与ACK丢失测试。
+
+本轮未执行构建、单测运行、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.238 / SERVO-821。
