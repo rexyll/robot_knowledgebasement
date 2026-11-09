@@ -1879,3 +1879,31 @@ SERVO-738全部动态测试未执行；未运行TSan/ASan、ROS executor压力�
 | E15 | ICube/ros2_control版本、控制器配置、接口映射、QoS及FAT/SAT证据 | 未确认，现场证据缺失 |
 
 静态审查确认：Servo的HALT_FOR_COLLISION分支不发布显式停止命令，仅发布ServoStatus；pause分支跳过状态/命令发布。Trajectory最后一条命令可能仍由下游执行；对照JTC版本在无新消息时继续采样活动轨迹。Float64MultiArray停止行为依赖接收端。输入命令超时smoothHalt与碰撞HALT路径不同。对照JTC提交不是Stäubli现场版本证据。E1-E15全部未执行；详见专项审计§9.3.166。
+
+
+#### SERVO-750｜Servo—JTC—controller_manager—ICube驱动—VAL3命令生命周期验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| F1 | JTC topic停止前、活动轨迹、末点和goal结束后的active trajectory/desired state/command interface | 未执行 |
+| F2 | Servo HALT后JTC是否继续update、hold/decelerate行为及接口值 | 未执行 |
+| F3 | controller_manager read→update→write顺序、停用时序和最后一次hardware write | 未执行 |
+| F4 | JTC接口值与ICube write输出、UDP频率、序号及参考值逐周期关联 | 未执行 |
+| F5 | Servo publisher静默、JTC停用、controller_manager停止、硬件停用四种故障比较 | 未执行 |
+| F6 | RobotState超过100 ms stale后的read ERROR、控制器停用、on_error及STOP调用顺序 | 未执行 |
+| F7 | UDP发送失败/socket断连/not-ready时write ERROR、STOP尝试及VAL3 watchdog接管 | 未执行 |
+| F8 | connected但state stale、接口not-ready、socket断连时on_error/send_stop_all_command行为 | 未执行 |
+| F9 | on_cleanup/on_shutdown/deactivate/进程崩溃时STOP与disconnect先后顺序 | 未执行 |
+| F10 | CS9/VAL3运动中>5、静止>25 sequence-delay阈值的真实周期与overrun影响 | 未执行 |
+| F11 | UDP丢包、重复、乱序、延迟、序号回绕和背压注入 | 未执行 |
+| F12 | movejSyncEnd/stopMove/resetMotion停止距离、减速度、延迟及制动器状态 | 未执行 |
+| F13 | position/velocity/effort/acceleration接口与控制模式切换矩阵 | 未执行 |
+| F14 | 现场驱动commit、ROS/ros2_control版本、VAL3应用、CS9固件及控制器配置 | 未确认，现场证据缺失 |
+| F15 | CS9安全PLC、E-stop、保护停止、门禁/扫描器、制动器和驱动使能撤销链 | 未确认，现场证据缺失 |
+| F16 | Servo HALT→JTC→controller_manager→硬件write→UDP→VAL3全链路故障注入/HIL/FAT/SAT | 未执行 |
+
+静态审查新增关键跨层结论：Servo停止发布新轨迹时，JTC仍可能继续采样活动轨迹或保持末点；controller_manager仍会执行硬件write；ICube公开参考驱动的write()会按当前position command interface持续组装并发送UDP命令。因此，只停止Servo publisher不必然造成CS9/VAL3命令报文静默，也不必然触发机器人端sequence-delay watchdog。公开VAL3 controlTask在运动中sequence delay大于5周期时切入STOP路径，静止时阈值大于25周期；STOP路径调用movejSyncEnd、stopMove和resetMotion。该普通运动停止路径不是安全额定急停。
+
+ICube公开仓库README明确将驱动标为开发中的prototype，称基于Jazzy/CS9且仅支持位置控制，开发曾在2025年11月初始POC后暂停。其公开提交不能证明现场部署。驱动read对100 ms stale state返回ERROR；write在断连、机器人错误、NaN或发送失败时返回ERROR；on_error在仍connected时尝试发送STOP；on_cleanup只断开连接，未显式先发送STOP。控制器停用、硬件错误回调触发时序和UDP/VAL3真实停止效果均待目标版本验证。
+
+F1-F13、F16全部未执行；F14-F15未确认。以上仅为固定源码静态审查和验证设计，不证明现场部署、实际危险运动或停止性能。详见专项审计§9.3.167。
