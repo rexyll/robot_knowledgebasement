@@ -1654,3 +1654,18 @@ PR #3909的测试除局部`updater`变量外，还把该shared_ptr交给GMock的
 | 现场适用性 | Stäubli/ICube是否启用DepthImage updater及具体sensor配置 | 未确认，现场证据缺失 |
 
 固定MoveIt main源码显示，DepthImage updater的start创建三个CameraPublisher成员和一个CameraSubscriber；stop及析构函数只shutdown CameraSubscriber，未显式shutdown/reset三个publisher。OccupancyMapMonitor::stopMonitor只委托stop，updater仍保留在map_updaters_中。因此静态上只能确认publisher句柄仍由updater持有，不能将stop描述为完整撤销所有端点；ROS graph实际可见性、重复启停端点数量与transport行为待目标Jazzy环境动态验证。不得据此推断持续发布、重复端点或安全故障。详见专项追加件§9.3.145。
+
+
+#### SERVO-729｜PlanningSceneMonitor双World Geometry订阅单次停止与重配置验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| W1 | 双topic启用后单次stop，两topic消息均不再触发world/scene更新 | 未执行 |
+| W2 | 重复stop幂等性及ROS graph订阅端点 | 未执行 |
+| W3 | 双topic切换为单topic/空topic时旧订阅清理 | 未执行 |
+| W4 | 显式stop后restart及topic切换矩阵 | 未执行 |
+| W5 | Octomap monitor与两个world subscriber独立停止 | 未执行 |
+| W6 | 目标MoveIt版本、Jazzy与目标RMW复验 | 未执行 |
+| 现场适用性 | ICube实际MoveIt版本、topic配置及Octomap启用情况 | 未确认，现场证据缺失 |
+
+MoveIt main的`stopWorldGeometryMonitor()`以if/else if分别reset两个subscriber，双topic同时启用时单次stop最多释放一个。Issue #3897报告Jazzy/MoveIt 2.12.4单次stop后PlanningSceneWorld仍能更新world；PR #3907提出分别reset两个subscriber并新增getMonitoredTopics断言，但PR仍Open、未合并。其测试不等价于消息回调静默或完整重配置验证。详见专项追加件§9.3.146。
