@@ -1923,3 +1923,11 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 诊断subscriber仅检查socket/接收线程ready，connect等待循环将diag_interface_ready硬编码为true，未调用read_diagnostic_data；固件版本日志读取未在本流程更新的诊断缓存，控制器类型校验注释、VAL3版本检查仍为TODO。connect成功不能作为诊断/固件兼容性已验证的证据。
 - 新增SERVO-782/AM1–AM10：AM1–AM7固定提交静态核对完成；AM8动态注入未执行；AM9缺目标部署配置；AM10缺现场/HIL证据。该发现不等同于现场发生状态过期下运动或STOP执行失败。
 - 更新专项审计追加件§9.3.199、Stäubli厂商档案§128.137、第21章TaskPlan及审计README。00-01与21-02继续进行中；未执行ROS构建/单测、动态并发注入、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改上游，未授权合并TODO-EXT-001。下一节点§9.3.200。
+
+
+### 2026-11-09｜v9.75 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.200，核对RobotDriver状态/诊断staleness timeout setter的默认值、零/负值边界、过大阈值影响及运行期并发更新同步。
+- 固定源码确认两个setter默认100ms但直接赋值、不校验范围；read路径以接收年龄大于等于阈值判定过期，因此零值/负值会使所有消息判为stale。过大阈值可能放宽旧缓存接受窗口；duration字段无mutex/atomic，外部运行期并发修改属于条件性数据竞争风险。setter注释@return与void签名不一致。
+- 新增SERVO-783/AN1–AN10：AN1–AN6固定源码/调用点静态核对完成；AN7–AN9未执行；AN10缺目标部署/现场证据。该发现不表示当前部署使用了异常阈值，也不表示已发生数据竞争。
+- 更新专项审计追加件§9.3.200、厂商档案§128.138、第21章TaskPlan、第00章日志及审计README。00-01与21-02继续进行中；未执行ROS构建/单测、TSan、Mock/SIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并；下一节点§9.3.201。
