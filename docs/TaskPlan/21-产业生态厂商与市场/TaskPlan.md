@@ -3377,3 +3377,47 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DM10 | 完成订阅器边界测试、调用方状态新鲜度审查、VAL3仿真、SIL/HIL、CS9、FAT/SAT | 未确认 |
 
 本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.226 / SERVO-809。
+
+
+
+### 2026-11-09｜v10.01 本轮推进记录（§9.3.226 / SERVO-809）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。主题：RobotDriver调用实时状态订阅器时，对`new_message`、陈旧时间和丢包状态的处理。本轮依据固定提交的GitHub搜索片段核对`robot_driver.cpp`、`real_time_socket_subscriber.hpp`及`test_robot_driver.cpp`；未重新取得源文件全文，结论限定为片段级静态审查。
+
+#### 静态审查发现
+
+1. **RobotDriver确实检查状态消息陈旧时间。** `RobotDriver::read_robot_state()`片段显示，在control interface ready且`read_message(current_robot_state_, status)`成功后，检查`status.time_since_received >= state_staleness_timeout_`；达到阈值时警告并return false。这是有效的缓存年龄门禁，但具体阈值配置及不同控制模式下是否充分仍需验证。
+2. **调用方没有显示检查`status.new_message`。** 搜索到的函数片段依次显示read_message成功判断、陈旧性判断、丢包数判断和状态输出；未发现`status.new_message`条件。结合订阅器头文件说明：read_message在没有新帧时仍可能返回true并返回上次缓存，同时new_message=false。由此可确认RobotDriver的可见路径允许在缓存仍未达到staleness timeout时继续返回旧状态；这不等于每次调用都获得新状态帧。
+3. **状态输出与序号更新仅在函数判定有效后发生。** 片段显示`state = current_robot_state_`及`last_valid_sequence_id_ = state.header.sequence_number`位于“ONLY if valid”注释之后。状态读取成功并通过陈旧门禁时，缓存消息序号会成为后续命令使用的last-valid基线；但若缓存重复，基线仍可能是同一序号。
+4. **丢包只作非阻断处理。** `status.lost_packages > 0`分支中的RCLCPP_WARN被注释掉，当前片段只显示该分支，不显示因此拒绝状态或触发控制失效。故丢包统计不是此路径上的明确控制许可门禁。
+5. **无消息与接口未就绪会拒绝读取。** 片段显示control interface不存在或未ready时return false；`read_message()`返回false时以“no message received”警告并return false。注意read_message返回true不保证new_message=true。
+6. **陈旧时间与重复序号是两条独立维度。** 订阅器根据序号相等将`new_message=false`，而RobotDriver使用`time_since_received`作年龄门禁。若同序号重复数据报的接收时间戳会被刷新，或者缓存时间戳/时钟语义与预期不同，仅靠staleness timeout未必能证明状态发生了新进展；这一具体条件需动态验证，本轮不将其认定为已发生故障。
+7. **现有测试片段覆盖了陈旧拒绝及恢复路径。** `test_robot_driver.cpp`片段显示先断言stale state读取失败，再发送新状态消息以恢复陈旧状态。该片段未证明重复序号、new_message=false但仍未超时、丢包时继续输出、控制器重启或乱序包的调用方行为已有测试覆盖。
+8. **与VAL3运动状态门禁的耦合风险仍存在。** 前序SERVO-805确认VAL3命令模式切换依赖`robot_state_msg.robotState.bInMotion`。若上层状态读取接口在staleness timeout内允许返回缓存，应用层可能在多个控制周期重复消费同一状态；是否会把陈旧的bInMotion用于运动许可，取决于硬件接口/状态发布调用周期与超时参数，需要沿调用链进一步核对。
+9. **证据范围限制。** 本轮没有完整读取`read_robot_state()`上下文、`state_staleness_timeout_`参数声明与配置来源、状态更新调用周期以及所有调用方，因此不能断言所有控制相关模块都忽略new_message，也不能断言存在实际运动安全故障。
+
+#### 风险与建议
+
+- 在RobotDriver状态读取契约中明确区分“缓存可读”与“新帧到达”。对需要状态进展的控制环节，应显式检查`status.new_message`或维护独立的状态序号进展监测；非实时诊断展示可按明确策略读取缓存。
+- 若设计允许控制环在没有新帧时短暂保持上一状态，应将其定义为有限的hold-last-state策略，明确最大保持周期、控制模式限制、超时后的失效动作，且不得将其等同于新鲜反馈。
+- 对丢包策略作明确决策：监控告警、降级、禁止新运动或触发STOP分别定义适用条件；不要让丢包计数只存在于被注释的日志分支而无可观测诊断。
+- 验证`state_staleness_timeout_`与VAL3状态更新周期、ROS控制周期、网络抖动和最大允许状态保持时间之间的关系；按速度/位置/力矩等控制模式分别做时序预算。
+- 增加单测：read_message=true且new_message=false但未超时；同序号重复帧伴随新接收时间戳；序号不变且年龄越过timeout；丢包>0；乱序帧回退序号；控制器重启后状态序号归零；状态消息恢复后重新允许读取。断言输出状态、last_valid_sequence_id_、错误状态及上层控制许可。
+- 沿硬件接口read/update/write调用链确认是否每个控制周期都读取缓存、状态年龄如何传播、状态失败时是否阻止写命令；与VAL3 bInMotion门禁联合验证。
+
+#### SERVO-809｜RobotDriver状态新鲜度调用方验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DN1 | 核对RobotDriver对control interface未就绪/无消息的拒绝路径 | 静态片段核对完成：两种情况均return false |
+| DN2 | 核对state_staleness_timeout_门禁 | 静态片段核对完成：time_since_received达到阈值即拒绝 |
+| DN3 | 核对调用方是否检查status.new_message | 静态片段核对完成：可见read_robot_state路径未见该条件；缓存可能在超时前返回 |
+| DN4 | 核对last_valid_sequence_id_更新时机 | 静态片段核对完成：有效读取后取缓存状态序号 |
+| DN5 | 核对lost_packages对读取/控制许可的影响 | 静态片段核对完成：仅见统计分支，日志语句被注释，未见拒绝门禁 |
+| DN6 | 核对状态陈旧测试及恢复路径 | 测试源码片段核对完成：包含stale拒绝及新状态恢复断言；未执行测试 |
+| DN7 | 核对状态缓存被重复消费时对硬件接口和VAL3 bInMotion门禁的影响 | 未完成：需完整调用链和控制周期分析 |
+| DN8 | 核对state_staleness_timeout_配置、单位、控制模式差异与时序预算 | 未确认 |
+| DN9 | 重复帧/刷新时间戳、未超时缓存、丢包、乱序、重启归零及恢复单测 | 未执行 |
+| DN10 | 完成read/update/write调用链、状态新鲜度策略、VAL3仿真、SIL/HIL、CS9、FAT/SAT验收 | 未确认 |
+
+本轮仅完成固定提交搜索片段级静态审查；未执行构建、单测、VAL3编译/仿真、网络故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.227 / SERVO-810。
