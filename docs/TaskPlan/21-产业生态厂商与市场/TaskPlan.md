@@ -2538,3 +2538,31 @@ AD1-AD2、AD4、AD6-AD8、AD10未执行；AD3、AD5、AD9现场版本/配置证�
 | AE10 | 在隔离仿真/HIL中完成重复启停、并发时序、任务退出确认及独立安全状态回归验收 | 未执行，需受控环境 |
 
 AE1、AE3-AE5、AE7-AE8、AE10未执行；AE2、AE6目标版本API证据缺失；AE9现场证据缺失。详见专项审计追加件§9.3.191。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.192）
+
+- 新增§9.3.192：检查VAL3 start入口与controlTask主体初始化时序、全局overrun计数器复位/递增时点，以及诊断字段是否进入ROS状态协议。
+- 静态确认start.pgx在taskCreateSync前将bIsOverrun置false，但没有清零nOverruns/nErrorCode/nInError；controlTask主体进入后才将nOverruns置0，并在检测bIsOverrun=true时清标志并递增计数。
+- 静态确认ros2_server.dtx声明public nErrorCode/nInError，但固定程序未找到读写点；nOverruns未被encodeRobotStateMsg写入RobotState协议。public声明不等于ROS侧诊断遥测，现场示教器/外部诊断工具能否读取仍待确认。
+- ros2_server.pjx声明参数版本字符串s8.20.2Cs9_BS4270，该值仅为仓库项目元数据，不能替代现场版本证据。
+- 新增SERVO-775/AF1-AF10；AF1固定仓库静态检索完成但现场部署包核对未执行；AF3-AF4、AF6-AF8、AF10未执行；AF2目标版本API证据缺失；AF5诊断工具/权限证据缺失；AF9现场证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+- 更新专项审计追加件、审计README、Stäubli厂商档案和第21章TaskPlan。未修改ICube/MoveIt/ros2_control上游，未应用PR；现场控制器型号、CS9/VAL3版本、部署包SHA、任务创建API语义、诊断读取权限和独立安全链未确认。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+- 根任务00-01与并行任务21-02继续进行中；下一审查节点为§9.3.193。
+
+#### SERVO-775｜VAL3启动初始化与诊断可观测性验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AF1 | 对固定版本完整检索bIsOverrun、nOverruns、nErrorCode、nInError的全部读写点，并与实际VAL3项目打包内容核对 | 静态审查完成；现场包核对未执行 |
+| AF2 | 在目标CS9/VAL3版本中分别验证taskCreateSync成功、拒绝、异常返回时，start调用方可观察结果及全局标志变化 | 未确认，目标版本API证据缺失 |
+| AF3 | 任务主体进入前后读取nOverruns，验证清零发生点、重复start/任务重建后的保留与复位行为 | 未执行 |
+| AF4 | 注入单次、连续和相邻周期overrun，验证bIsOverrun清除时序、nOverruns增量准确性及计数器溢出/饱和行为 | 未执行 |
+| AF5 | 验证nOverruns能否通过示教器、VAL3诊断接口或外部工具读取，并记录读取权限、刷新周期和时间戳 | 未确认，现场工具/权限证据缺失 |
+| AF6 | 验证nErrorCode/nInError在冷启动、正常启动、初始化失败和运行故障后的实际初值及更新路径 | 未执行 |
+| AF7 | 对照RobotState协议定义、编码器和ROS反序列化端，验证overrun/error诊断字段是否被明确排除或另有独立遥测通道 | 未执行 |
+| AF8 | 验证消息初始化失败或controlTask未进入主体时，start入口、任务状态、nOverruns及日志之间的可观测关联 | 未执行 |
+| AF9 | 获取现场控制器型号、CS9/VAL3实际版本、项目部署包SHA、任务日志及诊断变量快照 | 未确认，现场证据缺失 |
+| AF10 | 在隔离仿真/HIL中完成任务创建失败、周期超限、计数器恢复及诊断遥测回归验证 | 未执行，需受控环境 |
+
+AF1固定仓库静态检索已完成；AF1现场部署包核对、AF3-AF4、AF6-AF8、AF10未执行；AF2目标版本API证据缺失；AF5诊断工具/权限证据缺失；AF9现场证据缺失。详见专项审计追加件§9.3.192。
