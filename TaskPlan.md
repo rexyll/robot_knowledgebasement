@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.16  
+> 版本：v10.17  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.241 / SERVO-824；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.242 / SERVO-825；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3246,3 +3246,52 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - MoveIt Servo碰撞检测/奇异点阈值仅为规划/伺服层保护，不得代替控制器安全功能、围栏、急停和风险评估。
 
 本轮未执行构建、Xacro展开、check_urdf、MoveIt规划/Servo运行、控制器工具负载核验、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.242 / SERVO-825。
+
+
+### 2026-11-09｜v10.17 本轮推进记录（§9.3.242 / SERVO-825）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查`robot_driver.cpp`、`staubli_hardware_interface.cpp/.hpp`、`test_robot_driver.cpp`及`test_staubli_hardware_interface.cpp`。
+
+#### 静态审查发现
+
+1. **ROS硬件生命周期连接发生在on_configure。** `on_configure()`解析IP和端口并调用`RobotDriver::connect(...,5000)`；`on_activate()`只将当前控制模式设为STOP，没有进一步向控制器执行独立的安全使能/制动器释放握手。
+2. **连接成功不是运动使能成功。** RobotDriver connect只建立控制/诊断UDP接口、等待状态消息并检查协议版本；CS9控制器限制已注释，诊断首帧被绕过，VAL3兼容仍为TODO。不得把connect成功解释为控制器已处于安全可运动状态。
+3. **启动位置控制存在状态门禁，但覆盖不完整。** `perform_command_mode_switch()`进入JOINT_POSITION前拒绝error_state和motion_possible=false；若operation_mode_status非0则仅WARN并继续切换。未见同一门禁显式检查`estop_pressed`、`safety_status`、`brakes_released`各字段；brakes_released仅有日志文案描述，实际判断使用motion_possible。需用控制器字段语义和实机测试确认motion_possible是否可靠覆盖全部制动/安全状态。
+4. **安全状态接口被导出，但导出不等于联锁。** operation_mode、operation_mode_status、safety_status、brakes_released、motion_possible、in_motion、in_error、estop_pressed、wait_for_ack等GPIO状态被导出供ROS读取；仅发现其中部分字段在模式切换/写命令中用于门禁。其余字段没有发现统一的安全许可仲裁状态机。
+5. **write()只检查部分故障状态。** 非STOP模式下检查`state_msg_.error_state`和`control_state==INVALID`，异常时尝试发送STOP并返回ERROR；未见在每周期对estop_pressed、safety_status、brakes_released、operation_mode、motion_possible进行完整一致的联锁检查。mode switch中的motion_possible检查不能替代周期级安全状态监控。
+6. **急停语义与安全功能边界未证实。** estop_pressed被作为supervision state interface导出，但未发现ROS驱动自行实现安全急停回路或安全等级逻辑。UDP STOP属于普通命令通道，不得称作安全急停，也不能替代硬接线急停/安全PLC/控制器安全功能。
+7. **on_error尝试STOP但忽略发送结果。** 硬件接口on_error在driver连接时调用send_stop_all_command()，不检查返回值，随后返回SUCCESS；若STOP发送失败，生命周期错误回调仍可能报告成功。write()发现错误状态时也忽略STOP发送结果后返回ERROR。
+8. **on_cleanup只断开连接，不主动发STOP。** `on_cleanup()`直接调用disconnect；`on_shutdown()`仅当连接且state_msg_.control_state != STOP时尝试发送STOP，然后断开。on_shutdown同样忽略STOP发送结果。未发现on_deactivate()自定义实现（类声明也未覆盖该回调），deactivate阶段是否有额外停止动作需确认框架默认行为和运行时测试。
+9. **STOP不是已确认的物理停止。** send_stop_all_command只通过control_interface发送UDP命令并根据本地send返回值给出结果，没有控制器ACK/停止状态确认；且普通send的would_block缺陷已在SERVO-820确认可能丢包仍返回true。因此STOP返回true不能证明机器人停止。
+10. **断连/清理路径存在失败处理不足。** RobotDriver::disconnect停止接收线程失败时只WARN，仍继续断开socket并reset_data；硬件on_cleanup不检查disconnect返回结果并固定返回SUCCESS。可能掩盖未完全清理状态。
+11. **异常恢复未形成显式状态机。** reset_data将状态/诊断message type标记INVALID并清零序号，但未见统一的DISCONNECTED/CONNECTED/READY/ENABLED/FAULT/STOPPING/SAFE状态机、故障锁存、人工复位授权和重连后的重新验收流程。
+12. **测试使用mock直接构造安全状态。** RobotDriver mock固定发送AUTOMATIC、power_on=true、brakes_released=true、motion_possible=true、error_state=false；硬件接口测试调用on_configure/on_activate/read及模式切换，但未见急停、保护停止、制动器状态冲突、safety_status异常、STOP丢包、on_error发送失败、cleanup竞态、断连重连状态门禁的完整负向测试。本轮只读测试源码，未执行。
+13. **安全功能必须由控制器/安全回路承担。** 当前ROS驱动暴露若干supervision信号并发普通UDP STOP，但仓库静态代码不能证明安全PLC、硬接线急停、STO、制动器安全控制、保护停止类别或性能等级已满足任何标准；必须由具体控制器手册、风险评估、接线图、VAL3和现场验证提供证据。
+
+#### SERVO-825｜启动、使能、安全状态、急停及异常恢复验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | on_configure/connect/on_activate生命周期 | 静态源码核对完成 |
+| DL2 | 连接成功与运动许可区分 | 静态核对；未证明安全使能 |
+| DL3 | JOINT_POSITION启动门禁 | 仅error_state/motion_possible拒绝；operation_mode_status仅WARN |
+| DL4 | safety GPIO导出及联锁覆盖 | 已导出；未发现完整统一联锁 |
+| DL5 | write周期级安全状态监控 | 仅部分error/control_state检查 |
+| DL6 | E-stop/STOP安全功能边界 | 普通UDP STOP非安全急停；安全回路未验证 |
+| DL7 | on_error/on_shutdown STOP失败处理 | 忽略发送结果 |
+| DL8 | cleanup/deactivate/disconnect清理 | cleanup仅断连且忽略结果；未见自定义deactivate |
+| DL9 | 急停/保护停/丢包/重连故障注入测试 | 源码覆盖不足；未执行 |
+| DL10 | 安全PLC/STO/制动器/控制器风险评估、SIL/PL、SIL/HIL、CS9、FAT/SAT及实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 建立显式、可审计的驱动安全许可状态机：DISCONNECTED、CONNECTED、STATE_VALID、DIAGNOSTICS_VALID、CONFIG_VERIFIED、SAFE_READY、MOTION_ENABLED、STOPPING、FAULT_LATCHED；任何状态缺失/超时/不一致均fail-closed。
+- 位置控制切换和每个write周期均验证控制器安全状态、急停状态、制动器状态、运动许可、操作模式、错误状态和数据新鲜度；字段语义须由厂商协议定义确认，不能臆测motion_possible的覆盖范围。
+- 对on_error、on_shutdown、write异常分支检查STOP发送结果并记录独立故障；但不能将UDP STOP视为安全停止保证。STOP必须增加控制器确认/停止状态反馈和超时策略。
+- cleanup/deactivate/error/shutdown路径应幂等、可观测；清理失败不得静默返回SUCCESS。验证接收线程停止失败、半连接、单通道断连、重复configure/cleanup和异常重连。
+- 实现故障锁存与受控复位流程；恢复通信后必须重新获取新鲜状态/诊断帧、重新核验型号和安全许可，不能沿用断连前状态。
+- 安全急停、保护停止、STO和制动器安全控制由经过风险评估的控制器安全功能、安全PLC及硬接线回路实现；ROS/UDP只作非安全监控/请求通道。需要对应安全手册、接线图、PL/SIL计算和验证记录。
+- 扩充mock/集成测试：E-stop、safety_status、brakes_released与motion_possible冲突、操作模式切换、状态过期、STOP发送失败/丢包、on_error失败、cleanup失败、断线重连及旧状态重放。
+- 只有经控制器安全链路、VAL3、SIL/HIL、CS9目标配置、FAT/SAT和现场风险评估验证后，才能判定具体机器人单元具备安全运行条件。
+
+本轮未执行构建、单测运行、故障注入、控制器安全功能验证、STO/安全PLC验证、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.243 / SERVO-826。
