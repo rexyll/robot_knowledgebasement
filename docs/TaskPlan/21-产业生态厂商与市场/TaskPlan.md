@@ -2623,3 +2623,31 @@ AG1、AG4、AG9缺少目标版本/现场证据；AG2-AG3、AG5-AG8、AG10均未�
 | AH10 | 在隔离仿真/HIL中完成不同分支、通信扰动、运动停止/恢复和周期预算回归，独立验证安全停止链 | 未执行，需受控环境 |
 
 AH1仅完成固定提交静态审查；AH2缺少目标版本API契约；AH3-AH8及AH10未执行；AH9缺少现场证据。详见专项审计追加件§9.3.194。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.195）
+
+- 新增§9.3.195：审查CS9同步VAL3任务调度规则、controlTask的delay(0)让出语义、SIO读写对同步任务调度的影响，以及control socket初始化/运行期timeout差异。
+- Stäubli《CS9 Real Time Val3/Fieldbus configuration》TSS.000.014.04-A（2021）说明CS9 CPU周期依次包含系统同步任务、用户IO刷新任务及VAL3同步/异步任务；同步VAL3任务按创建周期执行，每次序列最多执行3000条指令，delay(0)可强制切换到下一任务；同步任务执行超过周期会取消下一周期并置位bOverrun。由此，4ms是调度周期配置，不代表用户任务可独占全部4ms，CPU周期、系统任务、IO刷新及jitter配置均是周期预算的一部分。
+- VAL3 Reference Manual D.280.935.01-F（2020）说明delay(0)在非正延时时立即调度下一VAL3任务；controlTask中的delay(0)应理解为任务让出点，而不是等待下一个4ms周期的定时器。该手册还说明sioGet在socket timeout=-1时只读取现有缓冲区，无数据时返回0；在timeout=0时则可能无限等待。
+- 固定源码静态确认start.pgx设置0.004s并创建controlTask；controlTask初始化阶段调用resetControlSocket，将socket timeout设置为-1；随后每轮调用sioSet发送状态、sioGet接收命令，并在循环末尾delay(0)。因此，初始化完成后的sioGet采用非阻塞读取配置；不能将sio.cfx初始timeOut=-0.001误写为运行期最终值。sioSet在目标运行时的-1超时/最大耗时契约未由当前证据闭环。
+- 2021 CS9实时文档标注测试环境SRC s8.10.4、Safety 1.003/SafePMT 3.0.0.28；仓库项目元数据s8.20.2Cs9_BS4270不能证明现场版本与文档测试环境一致。IO refresh cyclicRatio、jitter mode、CPU周期、其他同步任务占用和现场负载均未取证。
+- 新增SERVO-778/AI1-AI10：AI1固定提交源码静态核对完成；AI2目标CS9/VAL3版本、API契约及文档适用性未确认；AI3-AI8和AI10未执行；AI9现场型号/版本/配置证据缺失。未执行VAL3编译/仿真、周期测量、SIO故障注入、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并；下一节点§9.3.196。
+
+#### SERVO-778｜CS9同步任务调度、让出语义与SIO非阻塞边界验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AI1 | 静态核对start.pgx 4ms taskCreateSync、controlTask delay(0)、resetControlSocket timeout=-1及sio.cfx初始timeout配置 | 固定提交静态审查完成 |
+| AI2 | 获取目标现场CS9/VAL3版本、受控手册/errata，确认taskCreateSync、delay(0)、sioGet/sioSet在该版本的调度与超时契约 | 未确认，目标版本/文档适用性证据缺失 |
+| AI3 | 记录现场CPU周期、系统同步任务、IO refresh cyclicRatio、jitter mode及并行同步任务配置，建立可用周期预算 | 未执行，需现场配置取证 |
+| AI4 | 在隔离仿真中测量controlTask每次启动、delay(0)前后及相邻周期的时间戳/抖动 | 未执行 |
+| AI5 | 对timeout=-1的sioGet分别注入空缓冲区、单包、双包、短包和通信错误，测量返回路径与调度切换 | 未执行 |
+| AI6 | 对sioSet注入对端不可达、发送错误及部分发送条件，测量最大执行时间、返回字节数和overrun关联 | 未执行 |
+| AI7 | 在隔离环境制造同步任务负载/超周期，核对周期取消、bOverrun置位、controlTask消费及nOverruns计数之间的时序 | 未执行 |
+| AI8 | 核对VAL3同步任务3000条指令序列上限、同周期任务创建顺序及系统任务/IO刷新对周期预算的影响 | 未执行，需目标版本确认与测量 |
+| AI9 | 获取现场控制器型号、CS9/VAL3版本、部署包SHA、IO刷新/jitter配置、socket参数及运行日志 | 未确认，现场证据缺失 |
+| AI10 | 在隔离仿真/HIL中完成SIO超时/故障、周期负载、超周期恢复与独立安全停止链回归 | 未执行，需受控环境 |
+
+AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证据；AI4-AI7及AI10未执行；AI9现场证据缺失。参考资料：Stäubli《CS9 Real Time Val3/Fieldbus configuration》TSS.000.014.04-A（2021）及《VAL3 Reference Manual》D.280.935.01-F（2020）。文档版本差异不得替代现场版本核对。
