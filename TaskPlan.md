@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.15  
+> 版本：v10.16  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.240 / SERVO-823；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.241 / SERVO-824；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3199,3 +3199,50 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 在控制器、VAL3和实机验证完成前，任何ROS/MoveIt限位都不得替代控制器安全功能或被描述为安全认证。
 
 本轮未执行构建、单测运行、xacro展开、controller chain集成验证、MoveIt轨迹测试、VAL3编译/仿真、故障注入、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.241 / SERVO-824。
+
+
+### 2026-11-09｜v10.16 本轮推进记录（§9.3.241 / SERVO-824）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核查TX2-60L robot_model/dynamics配置、URDF helper与宏、default_names、MoveIt SRDF xacro/launch/Servo配置、MoveIt joint_limits配置及默认URDF测试源码。
+
+#### 静态审查发现
+
+1. **tool0/TCP有配置入口和固定变换生成路径。** TX2-60L的robot_model.yaml配置end_effector parent_link=link_6、xyz=[0,0,0.07]、rpy=[0,0,0]；URDF宏创建tool0 link和fixed joint。该值只是仓库模型配置，不能直接证明现场法兰/TCP实测值。
+2. **F/T传感器坐标系有可选描述路径。** has_ft_sensor为true时，helper读取ft_sensor.parent_link/xyz/rpy，URDF宏添加ft_sensor link和fixed joint；tool0允许挂接最后一个机器人link或ft_sensor frame。TX2-60L示例关闭has_ft_sensor，传感器参数仍为注释模板。
+3. **配置检查只覆盖部分拓扑关系。** check_robot_model_config检查joint/link列表非空、link数量=joint数量+1、end_effector parent必须是最后link或启用F/T时的sensor frame；没有发现对xyz/rpy维数之外的数值范围、有限值、旋转正交性、传感器parent_link存在性和标定数据来源的完整验证。
+4. **发现明确的配置校验缺口：F/T parent link未被强制校验。** 现有校验检查tool parent，但没有看到对`ft_sensor_parent_link_name`是否属于link_names的独立检查。若配置错误，URDF展开/检查可能失败，也可能生成悬空引用，具体行为需运行xacro/check_urdf确认。
+5. **Dynamics配置包含link质量、质心和惯量并写入URDF。** helper逐link读取mass、com xyz/rpy、六个惯量分量，生成URDF inertial标签。TX2-60L示例中base_link mass=5.0，各link mass均为1.0，COM均为零，惯量分量多处重复使用0.1/0.0。仓库没有给出这些数值的测量/厂商来源证据；必须标记为待核实模型参数，不能作为经认证动力学数据。
+6. **未发现末端工具/工件负载配置。** robot_model.yaml有end_effector frame和可选F/T frame，但没有tool mass、payload mass、payload COM、payload inertia或夹具/工件负载配置项。link dynamics描述的是机器人连杆，不可替代工具负载数据。
+7. **MoveIt SRDF从同一robot_model配置加载base/tip frame。** staubli.srdf.xacro使用link_names[0]作为arm base，使用end_effector_frame_name作为tip；MoveIt Servo配置planning_frame=base_link、ee_frame=tool0、robot_link_command_frame=tool0。默认模型下名称相互吻合，但prefix配置/实际生成模型一致性尚需展开验证。
+8. **MoveIt Servo有独立碰撞和奇异点参数。** Servo配置check_collisions=true、collision_check_rate=5Hz、self/scene proximity阈值、singularity thresholds及joint_limit_margins。配置存在不等于实时碰撞监控已正确连接或能满足安全停止距离；未发现现场安全认证依据。
+9. **MoveIt规划限位与TX2-60L URDF限位是不同配置层。** MoveIt joint_limits.yaml对六轴设置速度/加速度值（前五轴1.5 rad/s、5 rad/s²，第六轴2.0 rad/s、10 rad/s²），而机器人描述使用TX2-60L joint_limits.yaml角度配置。MoveIt值看起来是规划侧下调值；尚未执行单位换算/展开后对比，也未证明控制器端限位与两者一致。
+10. **没有发现ROS侧tool0配置与VAL3/控制器当前工具坐标的自动核对。** 驱动硬件接口没有在本轮核查到对现场TCP、payload或F/T安装标定参数的握手校验；需由控制器配置导出、VAL3程序版本及现场标定记录建立证据闭环。
+11. **默认URDF测试只验证Xacro展开和check_urdf结构解析。** test_default_urdf.py覆盖tx2_60l/tx2_60l_med、空/staubli_ prefix及mock/non-mock组合；未见TCP变换数值、F/T父链、质量惯量合理性、工具负载、MoveIt规划场景或与控制器配置一致性断言。本轮仅审查测试源码，未执行。
+12. **SRDF/Servo模型一致性未完成集成验收。** MoveIt launch通过robot_model参数加载SRDF，并从MoveItConfigsBuilder生成配置；仍需确认robot_state_publisher、move_group、Servo、ros2_control使用相同型号、prefix、URDF和SRDF参数集。
+
+#### SERVO-824｜坐标系、TCP、F/T传感器与负载模型验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DL1 | tool0 parent/xyz/rpy与fixed joint生成 | 静态核对完成；实测标定未确认 |
+| DL2 | F/T frame可选配置与URDF生成 | 静态核对完成；现场未启用/未验证 |
+| DL3 | F/T parent link合法性校验 | 未见独立检查 |
+| DL4 | end-effector parent拓扑约束 | 源码静态核对完成 |
+| DL5 | link mass/COM/inertia写入URDF | 静态核对完成；参数来源/准确性未确认 |
+| DL6 | 工具/工件payload mass/COM/inertia | 未发现独立配置闭环 |
+| DL7 | MoveIt base/tip与Servo frame一致性 | 配置静态核对完成；展开/运行未验证 |
+| DL8 | MoveIt/URDF/控制器/VAL3坐标和限位一致性 | 未完成交叉验证 |
+| DL9 | TCP/F/T/dynamics/MoveIt集成测试 | 测试源码覆盖不足；未执行 |
+| DL10 | 控制器工具数据、负载标定、SIL/HIL、CS9、FAT/SAT及实机 | 未执行/未确认 |
+
+#### 风险与整改建议
+
+- 为每个具体机器人型号建立经厂商资料和现场测量双重确认的base、法兰、tool0/TCP、F/T sensor及workobject坐标配置；明确父子坐标系、右手系、单位、欧拉角顺序和标定版本。
+- 在配置检查中验证F/T parent link存在于link_names或允许的已定义frame集合，验证坐标数组长度、数值有限性、变换可解析性和拓扑无环；配置错误时禁止生成可运动配置。
+- 区分机器人连杆动力学与末端工具/工件负载。增加工具ID、质量、质心、惯量张量、夹具和工件负载组合配置，并与控制器/VAL3当前负载参数做连接前一致性核验。
+- 对TX2-60L dynamics.yaml重复的1.0质量、0.1惯量等参数追溯厂商来源或标注为示例/占位值；未核实前禁止用于动力学精度、安全或负载能力结论。
+- 建立单一型号配置清单，让URDF、SRDF、MoveIt Servo、ros2_control、控制器及VAL3使用同一robot_model、prefix、frame和joint-limit版本；CI自动比较生成结果。
+- 补充TCP变换数值、prefix、F/T parent缺失/错链、无效xyz/rpy、惯量正定性、payload切换、SRDF base/tip及规划碰撞场景测试。
+- MoveIt Servo碰撞检测/奇异点阈值仅为规划/伺服层保护，不得代替控制器安全功能、围栏、急停和风险评估。
+
+本轮未执行构建、Xacro展开、check_urdf、MoveIt规划/Servo运行、控制器工具负载核验、VAL3编译/仿真、SIL/HIL、CS9、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.242 / SERVO-825。
