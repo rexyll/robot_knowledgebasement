@@ -1935,3 +1935,45 @@ F1-F13、F16全部未执行；F14-F15未确认。以上仅为固定源码静态�
 UDP发送侧，UDPSocketImpl::send在would_block时明确记录packet dropped，却仍返回true；源码TODO指出缺少丢包计数器/阈值错误。该路径可能让RobotDriver与hardware write误认为命令发送成功，且不触发通常的send false错误路径。UDP接收回调还留有发送方地址验证TODO；FrameHeader反序列化只验证magic，协议版本主要在连接建立时检查。
 
 G1–G16全部未执行。仅为固定公开原型源码静态审查及验证设计，不证明现场部署、报文异常已发生或停止性能。详见专项审计§9.3.168。
+
+
+#### SERVO-752｜VAL3同步控制任务overrun、序号回显与延迟看门狗验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| H1 | CS9目标版本中controlTask实际同步周期、task priority/创建顺序及4 ms周期配置 | 未执行 |
+| H2 | 单次执行超过4 ms时当前周期、下一周期取消行为与bIsOverrun置位时序 | 未执行 |
+| H3 | 连续overrun、任务长时间阻塞及bIsOverrun布尔标志是否合并多个事件 | 未执行 |
+| H4 | nOverruns初始化、递增、复位、溢出及是否存在其他读取/阈值消费者 | 未执行 |
+| H5 | nOverruns是否经RobotState、DiagnosticData、日志或现场监控接口对外可见 | 未执行 |
+| H6 | overrun单独发生时是否仍继续发送状态、接收命令和执行运动更新 | 未执行 |
+| H7 | overrun期间VAL3状态序号实际推进次数与墙钟周期/时间戳的关系 | 未执行 |
+| H8 | ROS命令序号复制最近机器人状态序号的时序、重复值与主机控制周期错位 | 未执行 |
+| H9 | computeSequenceDelay在单次/连续overrun、UDP丢包、延迟和恢复时的数值轨迹 | 未执行 |
+| H10 | 运动中>5、静止时>25周期阈值与实际墙钟延迟、停止响应的对应关系 | 未执行 |
+| H11 | 状态报文先发送、后接收命令/计算延迟造成的nSequenceDelay一轮滞后 | 未执行 |
+| H12 | overrun与UDP would_block、命令重复、状态stale timeout组合故障及STOP路径 | 未执行 |
+| H13 | updateState、编码/发送、UDP读取、movejSync更新和stopMove/resetMotion各阶段执行时间分布 | 未执行 |
+| H14 | controlTask异常退出、runtime error、任务停止/重启后socket、序号和控制模式恢复 | 未执行 |
+| H15 | 通过CS9/VAL3仿真或HIL验证overrun告警、外部可观测性、降级策略与停止上界 | 未执行 |
+| H16 | Stäubli现场VAL3应用版本、CS9固件、任务周期、ROS控制周期、诊断映射及安全PLC链核实 | 未确认，现场证据缺失 |
+
+静态审查确认：固定公开原型的`start.pgx`以0.004 s创建同步`controlTask`，并将`bIsOverrun`传给`taskCreateSync`。`controlTask`检测到该标志时只写日志、清除标志并递增`nOverruns`；未发现基于累计次数的阈值、STOP/降级动作或对外遥测。`nOverruns`在VAL3数据表中声明为public，但固定工程中仅见初始化和递增，RobotState/DiagnosticData序列化未见该字段；`start.pgx`中的supervision/diagnostics task仍为TODO。此结论仅表示固定源码未实现可见消费链，不代表现场系统没有额外监控。
+
+`computeSequenceDelay`以VAL3本地`l_nSequenceNumber`减去最近收到的命令序号；`getNextSequenceNumber`只在controlTask实际执行时递增。ROS侧`set_sequence_number()`将最近收到的RobotState序号复制到RobotCommand，不是独立墙钟计数器。因此sequence_delay表达协议序号回显滞后，不能单独代表真实经过时间、任务overrun次数或控制周期抖动。实际overrun时序和该指标的偏差方向/幅度必须通过目标ROS周期与CS9同步任务联合测量，不可仅凭静态源码给出停止时间上界。
+
+另确认controlTask每轮先更新并发送RobotState（写入上一轮`l_nSequenceDelay`），之后才读取新RobotCommand并调用`computeSequenceDelay`；因此状态报文中的`nSequenceDelay`至少滞后一轮控制任务。运动中`l_nSequenceDelay > 5`、静止时`>25`仍会进入STOP/ERROR路径，但overrun标志本身只记数，不直接触发该分支。该路径的真实周期、STOP调用耗时和制动响应未验证。
+
+H1-H15全部未执行，H16现场证据缺失。未运行VAL3编译/仿真、CS9调度/overrun注入、ROS构建、UDP故障注入、HIL、FAT/SAT或实机验证；未修改ICube/MoveIt/ros2_control上游或应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+#### 固定源码Blob与调度语义参考
+
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- `start.pgx`（Blob SHA `2d72315f0da1e18c959a24d3d75622652ee1287b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- `computeSequenceDelay.pgx`（Blob SHA `e96e5b378bc263255ee4f28720306ee911b8a5c1`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/computeSequenceDelay.pgx
+- `getNextSequenceNumber.pgx`（Blob SHA `8bdda02a8887968b1b86e42be733f553b1e36b19`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/getNextSequenceNumber.pgx
+- `robot_driver_helpers.hpp`（Blob SHA `88a0cac08d3a299b7330eaa72b1afaaeab2fe41b`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp
+- `robot_driver.cpp`（Blob SHA `ede48a314856a455df9d8434f354aaf9fbc47bff`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- `updateState.pgx`（Blob SHA `94b2bda039c05bed15c5bbc8a5afd03e9ec3dccf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/updateState.pgx
+- `ros2_server.dtx`（Blob SHA `558dc2db671da45f5b859a3526148ce816eb6dd4`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx
+- Stäubli CS9 synchronous task scheduling reference (secondary-hosted copy of Stäubli document TSS.000.014.04-A): https://bvdp.inetdoc.net/files/iut/staubliiut/doc/Real%20Time%20Val3-Fieldbus%20Synchronization%20TSS00001404A.pdf
