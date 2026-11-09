@@ -258,3 +258,6 @@
 
 
 - [2026-11-09 Stäubli ROS UDP接收错误、状态Header校验与latest-message缓存新鲜度审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.184，确认UDP receive error仍进入上层回调、来源地址过滤未实现、反序列化失败保留旧缓存且不刷新时间戳；RobotState解码仅作最小长度与magic校验，未逐帧校验protocol_version/message_type/payload_size及浮点有限性，部分异常帧可刷新缓存后才被上层拒绝。新增SERVO-767/X1-X10，X1-X9全部未执行，X10现场证据缺失。
+
+
+- [2026-11-09 Stäubli RobotState数值质量、ros2_control状态接口与位置命令初始化审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.185，追踪RobotState非有限关节测量进入硬件状态缓存/导出接口、位置模式切换时状态复制为命令初值、digital/analog valid flag缺失时旧值保留、状态更新非事务性及监督GPIO初始值边界；新增SERVO-768/Y1-Y10，Y1-Y9未执行，Y10现场证据缺失。
