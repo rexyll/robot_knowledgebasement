@@ -314,3 +314,5 @@
 - [2026-11-09 Stäubli状态新鲜度、控制许可与读写周期一致性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.206。发现状态过期时read返回ERROR但硬件state_msg_保留旧值；is_connected不检查staleness，write无独立状态年龄/read成功门禁；活动模式write只检查error_state和control_state INVALID，mode switch无新鲜度门禁且HOLD仅警告。新增SERVO-789/AT1–AT10，AT1–AT8静态核对完成，AT9–AT10需隔离运行时及现场安全证据。
 
 - [2026-11-09 Stäubli控制命令生成、限幅、接口映射与异常发送审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.207。发现驱动发送路径无显式关节限值校验；write仅检查NaN不覆盖Inf；轴数未限制为协议6轴且超6时NaN检查存在固定数组越界路径；混合接口按第一个匹配项决定模式；模拟IO和controller_period缺少驱动侧范围/有限性门禁；STOP非零参考仅warning后仍发送。新增SERVO-790/AU1–AU10，AU1–AU9静态核对完成，AU10需隔离边界验证。
+
+- [2026-11-09 Stäubli命令UDP发送可靠性审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.208。发现UDP would_block时数据报被丢弃但UDPSocketImpl::send仍返回true，导致send_message/send_robot_command及硬件write可能误报成功；无背压计数/阈值；RealTimeSocketInterface复用data_out_且无发送互斥（并发调用尚未证实）；blocking文档与MSG_DONTWAIT实现不一致；命令序号沿用最近有效状态序号，协议意图待CS9确认。新增SERVO-791/AV1–AV10，AV1–AV9静态核对完成，AV10需错误注入及CS9/HIL验证。
