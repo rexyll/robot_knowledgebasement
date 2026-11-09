@@ -1669,3 +1669,18 @@ PR #3909的测试除局部`updater`变量外，还把该shared_ptr交给GMock的
 | 现场适用性 | ICube实际MoveIt版本、topic配置及Octomap启用情况 | 未确认，现场证据缺失 |
 
 MoveIt main的`stopWorldGeometryMonitor()`以if/else if分别reset两个subscriber，双topic同时启用时单次stop最多释放一个。Issue #3897报告Jazzy/MoveIt 2.12.4单次stop后PlanningSceneWorld仍能更新world；PR #3907提出分别reset两个subscriber并新增getMonitoredTopics断言，但PR仍Open、未合并。其测试不等价于消息回调静默或完整重配置验证。详见专项追加件§9.3.146。
+
+
+#### SERVO-730｜PlanningSceneMonitor停止修复的消息级回归与测试覆盖验收
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| T1 | 在目标Jazzy工作区构建并运行PR #3907新增单测 | 未执行 |
+| T2 | stop前后分别发布两个topic消息，验证scene/world更新与静默 | 未执行 |
+| T3 | executor在途回调退出、重复stop及并发边界 | 未执行 |
+| T4 | ROS graph订阅端点状态，不只依赖getMonitoredTopics | 未执行 |
+| T5 | 启用Octomap验证stopWorldGeometryMonitor对updater的停止 | 未执行 |
+| T6 | restart、双topic到单topic/空topic配置矩阵 | 未执行 |
+| 现场适用性 | ICube实际MoveIt版本、topic及Octomap配置 | 未确认，现场证据缺失 |
+
+PR #3907新增测试只检查`getMonitoredTopics()`在stop后不再列出两个topic。该函数实现是检查PSM成员subscriber指针，并非ROS graph查询；测试未发布消息、未spin executor、未观察scene更新/回调静默，且禁用了Octomap。因此它验证句柄成员清空，不单独构成消息级、DDS endpoint或回调生命周期验收。详见专项追加件§9.3.147。
