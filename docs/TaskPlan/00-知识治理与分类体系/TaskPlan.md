@@ -568,3 +568,6 @@
 
 
 | 2026-11-09 | 00-01 | 推进Stäubli MoveIt审查至§9.3.162：检查PlanningSceneMonitor发布线程、首份全量快照、pending event bitmask、condition_variable等待/通知、diff累积与订阅端恢复。识别首帧序列化未持有scene_update_mutex_；发布线程清零pending mask可能覆盖并发新事件；触发方未使用wait predicate同一mutex，存在丢唤醒窗口；event mask只门控发布时机，不逐类过滤累积diff；无内建订阅端缺口恢复握手。新增SERVO-745/N1-N12，全部未执行。更新专项§9.3.162、厂商档案§128.113、根TaskPlan v9.37及审计索引。00-01及21-02继续进行中；未运行ROS构建、单测、TSan/ASan、barrier并发、QoS late-join、消息丢弃/重排注入、CS9/HIL/FAT/SAT或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 PlanningSceneMonitor固定提交源码；专项追加件§9.3.162；厂商档案§128.113 |
+
+
+| 2026-11-09 | 00-01 | 推进Stäubli MoveIt审查至§9.3.163：审查GetPlanningScene服务端组件序列化、requestPlanningSceneState客户端、full/diff应用及service/topic并发。识别客户端忽略场景应用bool结果、full scene替换无事务回滚、service快照与topic更新无版本仲裁、部分组件响应误作full scene、同步等待的executor条件性阻塞风险。新增SERVO-746/O1-O12，全部未执行。更新专项§9.3.163、厂商档案§128.114、根TaskPlan v9.38及审计索引。00-01及21-02继续进行中；未运行ROS构建、单测、故障注入、并发/服务超时/QoS测试、CS9/HIL/FAT/SAT或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2 PlanningSceneMonitor/PlanningScene固定提交源码；专项追加件§9.3.163；厂商档案§128.114 |
