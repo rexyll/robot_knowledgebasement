@@ -2202,3 +2202,37 @@ T1-T9全部未执行，T10现场证据缺失。未执行构建/单测、ASan、X
 - 新增专项审查§9.3.180：关节位置限位配置一致性、ROS NaN/Inf过滤、固定六轴命令数组边界、VAL3 isInRange调用与目标距离检查TODO。
 - 新增SERVO-763/T1-T10；T1-T9全部未执行，T10现场证据缺失。仅完成固定公开源码静态审查与验证设计，不代表现场部署或工程验收。
 - 根计划v9.55；专项下一节点§9.3.181。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+#### SERVO-764｜ROS—VAL3命令浮点精度、解码长度与错误传播验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| U1 | 对关节命令注入NaN、±Inf、FLT_MAX附近值及超过FLT_MAX的有限double，记录write门禁、float32编码字节和VAL3解码结果 | 未执行 |
+| U2 | 对controller_period及四路analog_outputs注入NaN、±Inf、float32溢出值，验证编码/解码及控制任务处置 | 未执行 |
+| U3 | 测量float64→float32→VAL3 num的绝对/相对误差、次正规数和边界舍入，建立型号/工况相关误差预算 | 未执行 |
+| U4 | 构造payload长度0、1、46、47、48及header长度异常报文，验证VAL3 fromBinary边界行为、错误标志和任务恢复 | 未执行 |
+| U5 | 构造magic、protocol、message type、sequence、payload_size不一致报文，验证解码器错误传播和socket重置 | 未执行 |
+| U6 | 为C++序列化新增NaN/Inf/float32溢出/精度边界单测，并增加跨语言黄金报文测试 | 未执行 |
+| U7 | 对包含NaN/Inf但字段长度合法的float32报文验证bIsValid、isInRange及位置控制错误路径 | 未执行 |
+| U8 | 在VAL3仿真及受控HIL环境中验证解码错误后的停止顺序、错误锁存、socket重连和重新授权 | 未执行 |
+| U9 | 确认四路模拟输出在目标现场的执行路径是否启用；若启用，验证范围/有限值门禁与失效安全状态 | 未确认，现场路径证据缺失 |
+| U10 | 获取目标机器人型号、CS9/VAL3版本、协议部署版本、现场报文抓包及FAT/SAT数值异常测试记录 | 未确认，现场证据缺失 |
+
+固定公开源码静态审查确认：C++ double字段序列化为float32，VAL3按float32解码；ROS NaN门禁不能覆盖Inf及double收窄溢出，controller_period与analog_outputs也缺少统一有限值检查。VAL3解码器检查报文总长度关系、magic/protocol/message type及末尾offset，但未在固定字段读取前单独校验payload=47/header=8；解码成功后没有逐字段NaN/Inf检查。明确解码错误会进入controlTask STOP/ERROR与socket reset路径，但不代表物理停止完成。现有序列化单测仅覆盖正常有限数值往返。
+
+U1-U8全部未执行；U9现场模拟输出执行路径未确认；U10现场证据缺失。未执行构建/单测、VAL3编译/仿真、协议模糊测试、HIL、CS9实机或FAT/SAT。未修改ICube/MoveIt/ros2_control上游，未应用PR。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。详见专项审计追加件§9.3.181。
+
+#### 固定源码位置
+
+- `serialization.hpp`（Blob SHA `c226d4053693a5466b8bf1aef09049d34a3321d1`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/serialization.hpp
+- `messages.cpp`（Blob SHA `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- `decodeRobotCommandMsg.pgx`（Blob SHA `612f5ce9fff12c0bd6c4e90e5685ea1d4b59bcdd`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeRobotCommandMsg.pgx
+- `decodeHeader.pgx`（Blob SHA `41017a697f0ada9a19bc8bc2296fdab439856356`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Serialization/decodeHeader.pgx
+- `controlTask.pgx`（Blob SHA `00a69c4d13879116fce744ceb1611ecd05d65edf`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.181）
+
+- 新增§9.3.181：ROS—VAL3命令报文float32收窄、NaN/Inf与溢出过滤、VAL3 payload长度检查时序、解码有效标记和STOP/ERROR传播。
+- 新增SERVO-764/U1-U10；U1-U8未执行，U9现场模拟输出执行路径未确认，U10现场证据缺失。
+- 根计划v9.56；专项下一节点§9.3.182。工程级验收未通过，TODO-EXT-001未授权合并。
