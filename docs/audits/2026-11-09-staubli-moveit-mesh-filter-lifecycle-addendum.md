@@ -613,7 +613,7 @@ O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并
 
 5. **RViz正确采用后台任务并处理bool，但受底层bool语义缺陷污染。** `changedPlanningSceneTopic()`启动scene topic订阅后，将service请求放入background job；bool为true时安排主线程`onNewPlanningSceneState()`，false时设置“Requesting initial scene failed”警告。后台执行避免直接阻塞UI主循环，且显式处理false；但由于§9.3.163发现底层在场景应用返回false时仍可能返回true，RViz仍可能显示成功刷新并触发更新回调，而本地场景实际上部分应用。需将底层应用结果正确向上传递。
 
-6. **Python绑定暴露bool但文档未解释成功语义。** pybind直接绑定C++方法并要求显式传入`service_name`，没有说明返回值含义、超时和executor spin前提。Python调用者虽可检查bool，但同样继承底层“应用失败返回true”的问题；需要在绑定文档和示例中区分transport/response/apply结果。
+6. **Python绑定暴露bool但文档未解释成功语义。** pybind直接绑定C++方法并要求显式传入`service_name`，没有说明返回值含义、超时和PSM private executor同线程重入限制。Python调用者虽可检查bool，但同样继承底层“应用失败返回true”的问题；需要在绑定文档和示例中区分transport/response/apply结果。
 
 7. **调用点的返回值处理不一致。** Servo common与print工具忽略返回值；RViz处理bool；OMPL工具检查bool并在false时退出；Python暴露bool给调用方。PSM private executor负责内部service client的响应处理，但同一private executor回调中同步调用会形成条件性阻塞。故不能将“调用方检查了bool”视为完整保护，必须同时修复API结果语义并明确禁止同executor线程同步重入。
 
@@ -625,13 +625,13 @@ O1–O12全部未执行。未运行ROS构建、单元测试、故障注入、并
 
 - C1：服务端返回可解析但含无效world对象的消息，确认PSM bool、RViz UI状态、Servo secondary状态一致反映apply failure。
 - C2：Servo primary配置true时确认不请求远端service，仅提供本地service；验证默认参数和示例配置。
-- C3：Servo secondary配置false，service正常、executor已在独立线程spin时验证初始场景同步与world/OctoMap完整性。
+- C3：Servo secondary配置false，service正常时验证PSM内部private executor完成初始场景同步与world/OctoMap完整性，并确认外部node executor状态不影响该内部client。
 - C4：Servo secondary配置false，在外部node executor尚未spin时调用请求，确认PSM private executor仍可处理client response；验证private executor启动/关闭时序。
 - C5：service不存在/超时/响应apply失败时，确认Servo secondary不以“场景同步成功”状态启动碰撞依赖路径；评估显式fail-closed门禁。
 - C6：RViz后台请求分别注入transport失败、apply失败、完整成功，确认Warn/成功UI反馈无误。
 - C7：运行`print_planning_scene_info`，对比PSM private executor正常运行、停止/关闭及请求从private executor回调重入三种模式的服务响应与输出。
 - C8：运行OMPL `generate_state_database`，在`use_current_scene=true`下验证PSM private executor正常运行时的返回值、失败门禁、场景完整性和退出码。
-- C9：Python binding验证返回值、异常、service_name解析、executor要求与超时文档；补充可运行示例。
+- C9：Python binding验证返回值、异常、service_name解析、PSM private executor同线程重入限制与超时文档；补充可运行示例。
 - C10：全仓库枚举`requestPlanningSceneState`调用点，要求每处显式记录返回值策略、调用线程是否可能属于PSM private executor、超时行为和scene readiness gate。
 - C11：验证请求future超时/取消后client pending request资源生命周期及重复调用的资源增长；区分client局部析构与长期复用client。
 - C12：在Stäubli/ICube真实启动拓扑中核对Servo primary/secondary参数、service provider、node executor/callback group、scene topic、碰撞检测开关及初始化门禁。
@@ -640,7 +640,7 @@ C1–C12全部未执行。未运行ROS构建、集成测试、executor调度测�
 
 ### 结论与证据边界
 
-§9.3.164发现调用点存在不同程度的失败处理缺口：Servo secondary路径忽略请求失败并继续启动发布；RViz虽使用后台任务并检查bool，但底层bool可能错误报告apply failure为成功；OMPL状态数据库工具检查bool但本文件未显示executor spin；场景打印工具创建executor却未spin且忽略bool；Python绑定暴露bool但没有说明执行契约。rclcpp Client API说明async request future应交由executor处理；PSM通过专用private executor处理内部client，调用端仍需避免在该executor线程的回调中同步重入请求。Servo参数默认primary=true，secondary风险不可泛化到默认配置。
+§9.3.164发现调用点存在不同程度的失败处理缺口：Servo secondary路径忽略请求失败并继续启动发布；RViz虽使用后台任务并检查bool，但底层bool可能错误报告apply failure为成功；OMPL工具检查bool并在false时退出；场景打印工具忽略bool；Python绑定暴露bool但没有说明执行契约。PSM创建独立pnode_、SingleThreadedExecutor和专用线程处理内部client，因此这些普通调用点不需要额外spin外部node executor；但从PSM private executor回调内同步重入请求仍有条件性阻塞风险。Servo参数默认primary=true，secondary风险不得泛化到默认配置。
 
 本节为固定MoveIt 2源码静态审查及rclcpp API契约对照，不证明Stäubli/ICube现场使用上述具体工具、Servo secondary配置或同样executor拓扑，也不证明现场已发生碰撞漏检、危险运动或停机事件。所有C1–C12均未执行；未运行ROS构建、集成/并发/故障注入、CS9/HIL、FAT/SAT或实机验证。未修改MoveIt/ICube上游、未应用PR；工程级验收未通过，TODO-EXT-001未授权合并。
 
