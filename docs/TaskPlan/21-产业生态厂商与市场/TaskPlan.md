@@ -4478,3 +4478,48 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 增加畸形帧、版本漂移、重放/乱序/回绕和双端抓包互操作测试，并将诊断订阅真正接入运行链路。
 
 本轮未执行构建、单测、模糊测试、VAL3编译、CS9仿真/下载、抓包互操作、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。根00-01与第21章21-02继续进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.249 / SERVO-832。
+
+
+### 2026-11-10｜SERVO-832：ros2_control生命周期与停止/清理语义审查
+
+固定上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。审查`StaubliHardwareInterface`生命周期回调、RobotDriver连接/断开/STOP路径及硬件接口单元测试。
+
+#### 主要发现
+
+1. `on_activate()`只设置STOP控制模式并返回SUCCESS，没有确认新鲜状态、诊断状态或控制器已准备好接受命令。
+2. 未发现硬件接口显式实现`on_deactivate()`；停用时是否发送STOP/如何处理通信资源依赖基类默认行为，不能据此认为机器人已停止。
+3. `on_cleanup()`调用disconnect但忽略返回值，且不先发送STOP或确认机器人静止。
+4. `on_shutdown()`根据缓存的`state_msg_.control_state`决定是否发送STOP；忽略STOP发送结果，随后断开连接，没有新鲜状态回执或静止确认。driver未连接时仍返回SUCCESS。
+5. `on_error()`在已连接时发送STOP但忽略返回值，仍返回SUCCESS；未建立故障锁存、诊断保留和人工/受控复位机制。
+6. configure参数解析失败直接返回ERROR；connect失败回滚依赖RobotDriver内部不同失败分支，未见统一资源回滚后置条件。
+7. RobotDriver::disconnect在接收线程停止失败时只记录警告并继续断连；硬件接口cleanup又忽略disconnect结果。
+8. 端口参数通过stoi后直接转uint16_t，未见1–65535范围校验，负值/超范围值可能被截断。
+9. read/write遇到部分错误路径会尝试STOP，但发送结果处理不一致；控制器管理器状态转换和周期读写竞态未验证。
+10. `LifecycleTransitions`只覆盖init/configure/activate/read/write成功路径；没有deactivate/cleanup/shutdown/error、STOP失败、重复转换、部分连接回滚和信号退出测试。注释称测试disabled，但测试名没有DISABLED前缀，不能认为GoogleTest自动跳过。
+11. 本轮未发现由SIGINT/SIGTERM直接执行STOP并等待确认的独立进程退出保证；controller_manager退出和插件销毁顺序未验证。
+
+#### LC1–LC10验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| LC1 | init/configure参数解析和端口范围 | 静态核对；端口范围校验缺口 |
+| LC2 | configure失败和部分资源回滚 | 部分路径内部disconnect；统一回滚条件未建立 |
+| LC3 | activate状态/诊断/控制器就绪门禁 | 仅设置STOP模式；激活许可不完整 |
+| LC4 | deactivate停止与资源策略 | 无显式覆盖；依赖基类 |
+| LC5 | cleanup断连结果传播 | disconnect结果被忽略 |
+| LC6 | shutdown STOP发送与执行确认 | 缓存状态判断；忽略发送结果；无回执 |
+| LC7 | error故障锁存和恢复 | STOP失败仍可能SUCCESS；无锁存/复位协议 |
+| LC8 | read/write错误与生命周期协同 | 静态部分核对；竞态和停止确认未验证 |
+| LC9 | 重复转换/连接失败/线程退出负向测试 | 现有覆盖不足；本轮未执行 |
+| LC10 | controller_manager、信号退出、CS9及安全验收 | 未执行/未确认 |
+
+#### 整改方向
+
+- 显式实现deactivate与统一受控STOP流程，检查投递结果、等待新鲜状态确认并验证静止判据。
+- cleanup/shutdown/error不得因忽略STOP或disconnect失败而返回SUCCESS；失败时报告未确认状态。
+- 建立生命周期状态机、故障锁存和受控复位条件，避免错误状态下自动重新接受运动命令。
+- 统一connect失败回滚和disconnect资源关闭结果，校验端口范围。
+- 增加生命周期全路径、重复调用、部分连接失败、STOP发送失败、状态过期、线程join失败和进程退出测试。
+- 在目标ROS 2/ros2_control/controller_manager和CS9/VAL3环境中进行集成与安全验收；ROS STOP不替代独立安全回路。
+
+本轮未执行构建/单测、controller_manager集成、SIGINT/SIGTERM退出、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。根00-01与第21章21-02继续进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.250 / SERVO-833。
