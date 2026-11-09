@@ -3861,3 +3861,59 @@ AT1–AT8完成固定提交静态源码/测试覆盖核对；AT9–AT10未执行
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_robot_driver.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
+
+
+## §9.3.207｜控制命令生成、限幅、接口映射与异常命令发送审查（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开仓库 `staubli_driver_ros2`提交`bd658e2d266e315d2ee35f985fb352ea88306b79`。审查范围包括`StaubliHardwareInterface::on_init/write/resolve_mode/prepare_command_mode_switch/perform_command_mode_switch`、`RobotDriver::send_robot_command`、`RobotCommandMessage::serialize`及硬件接口单元测试。结论仅针对该固定提交静态源码，不代表所有外部controller/joint-limiter配置均未做限制。
+
+### 静态发现
+
+1. **驱动发送路径没有关节位置/速度限值校验。** `RobotDriver::send_robot_command()`在连接就绪后仅对STOP参考值非零发出warning，源码明确留有“add checks for position/velocity limits here?” TODO，随后直接调用`send_message()`。硬件write将位置/速度命令从弧度转换为度，但没有在该路径按URDF关节上下限、机型软限位或速度上限执行显式拒绝/限幅。ROS 2控制器或外部joint limiter可能另有约束，需核对部署配置；不能将驱动路径无校验等同于系统一定无任何限幅。
+2. **NaN检查不覆盖正负无穷。** write只用`std::isnan()`检查`cmd_msg.command_reference`，没有使用`std::isfinite()`。因此`+Inf/-Inf`不会触发该分支，后续可进入RobotCommand序列化路径。位置命令的rad2deg转换不会将无穷变成有限值。实际机器人控制器对非有限值的处理未知，必须在隔离环境验证。
+3. **关节数没有限制为协议固定的六轴，存在边界越界风险。** `on_init()`只拒绝0关节，没有拒绝大于6关节的配置；协议`command_reference`固定为6个double。write填充参考值时使用`i < num_joints_ && i < 6`，但后续NaN检查只遍历`i < num_joints_`并访问`command_reference[i]`，没有`i < 6`保护。若硬件描述配置超过6个关节，静态路径会访问固定数组边界之外，属于潜在未定义行为；实际配置是否可能超过6轴需由机器人描述验证。
+4. **模式解析对混合接口采用“第一个匹配项”策略。** `resolve_mode()`遍历start_interfaces，遇到第一个包含position/velocity/effort/acceleration的字符串即返回对应模式；`prepare_command_mode_switch()`明确TODO尚未验证混合position和velocity接口，且stop_interfaces未参与转换一致性检查。混合接口的最终结果取决于vector顺序：position先出现会被接受并忽略后续velocity；velocity先出现则拒绝。接口集合未被整体验证为单一一致模式。
+5. **IO命令缺少驱动侧数值/范围校验。** 数字输出按`> 0.5`转bool；模拟输出直接复制到固定协议数组，没有在write中显式检查NaN/Inf或机型/电气量程。上层GPIO控制器或硬件配置可能另有限制，当前固定源码未建立统一发送前验证。
+6. **控制周期字段没有发送前范围校验。** write直接将`period.seconds() * 1000`写入`controller_period`，未显式拒绝零、负值或非有限周期。是否能从实际controller_manager周期传入这些值需运行时验证；此处仅记录缺少驱动层门禁。
+7. **协议序列化只负责编码，不承担命令语义校验。** `RobotCommandMessage::serialize()`验证缓冲区大小、消息头长度和类型，再直接序列化controller_period、command_type、六轴参考及IO值；未检查命令枚举允许范围、浮点有限性、关节限位或周期范围。因而不能把成功序列化解释为命令安全有效。
+8. **STOP参考非零只是警告，不是拒绝。** `send_robot_command()`检测到STOP参考非零只记录warning，仍会继续send_message。硬件write当前STOP分支会将六轴参考填零，但其他调用方直接调用RobotDriver API时，STOP参考非零并不会在该层被强制归零或拒绝。
+9. **现有硬件接口测试只有正常路径。** `test_staubli_hardware_interface.cpp`覆盖初始化、接口导出、mock机器人生命周期、正常read及position命令write；未见Inf/NaN、越界关节数、混合接口排列、超限位置/速度、异常controller period、模拟IO越界或STOP非零拒绝的定向测试。
+10. **速度/力矩/加速度接口暴露与可用控制模式不完全一致。** 硬件导出position、velocity和acceleration command interfaces；prepare明确拒绝velocity和effort/torque控制，acceleration仅作为limiter输入并且不支持独立切换。write仍保留JOINT_VELOCITY编码分支，但常规mode-switch路径拒绝该模式。需确保机器人描述、controller配置和导出接口契约一致，避免用户误以为“已导出”代表“驱动支持”。
+
+### 建议与验收要求
+
+- 在`on_init()`明确校验机器人轴数与协议模型一致（当前协议固定6轴）；write所有固定数组访问均同时受`num_joints_`和数组容量约束，最好以编译期常量/协议维度统一约束。
+- 所有运动参考、模拟IO及controller_period在单位转换后统一执行`std::isfinite()`检查；非法输入应拒绝发送并触发明确故障路径。对NaN/Inf不得仅依赖比较或`std::isnan()`。
+- 以具体机型/URDF/厂家规格为来源，校验位置软硬限位、速度、加速度/jerk（若适用）、模拟IO电气范围；说明上层limiter与驱动末端校验的责任边界，驱动层保留最终协议边界防护。
+- `resolve_mode()`应解析完整接口集合，拒绝position/velocity/effort混合启动、重复/未知接口和不一致stop/start组合；不要依赖vector顺序决定模式。
+- 在`send_robot_command()`或更靠近序列化的统一入口校验命令类型、STOP零参考、周期、六轴数值和IO范围；STOP异常参考应强制归零或拒绝，不能仅warning。
+- 增加边界测试：6轴与0/7轴配置；NaN、正负Inf、极大有限值；六轴逐一上下限边界及越界；mixed interface两种排列；模拟输出上下限及非有限值；period=0/负值/极端值；直接API发送STOP非零参考；确保拒绝时没有UDP数据报发出。
+- 在隔离Mock/SIL/HIL环境验证非法输入被拒绝且机器人控制器无动作；具体阈值和停止策略必须以目标机型、厂家规格和项目安全要求为准。
+
+### SERVO-790 / AU1–AU10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AU1 | 核对send_robot_command是否执行关节位置/速度限值校验 | 固定提交静态源码核对完成：无显式限值校验，保留TODO |
+| AU2 | 核对write的NaN检查是否覆盖正负Inf | 固定提交静态源码核对完成：仅std::isnan，不覆盖Inf |
+| AU3 | 核对on_init轴数校验与固定六轴协议数组边界 | 固定提交静态源码核对完成：仅拒绝0轴；num_joints_大于6时NaN检查存在越界访问路径 |
+| AU4 | 核对混合command interface解析是否与vector顺序无关 | 固定提交静态源码核对完成：第一个匹配接口决定模式，混合接口未整体拒绝 |
+| AU5 | 核对模拟IO输出是否检查有限性及机型范围 | 固定提交静态源码核对完成：模拟输出直接复制，未见write侧范围/有限性门禁 |
+| AU6 | 核对controller_period是否校验正值和有限性 | 固定提交静态源码核对完成：直接由period.seconds()换算，未见显式校验 |
+| AU7 | 核对协议serialize是否校验命令类型/数值/周期语义 | 固定提交静态源码核对完成：只检查缓冲区和消息头字段后直接编码 |
+| AU8 | 核对STOP非零参考是否强制拒绝/归零 | 固定提交静态源码核对完成：RobotDriver API仅warning后仍发送 |
+| AU9 | 核对现有测试对异常数值、轴数、混合接口、限值和IO边界的覆盖 | 固定提交静态测试覆盖核对完成：硬件接口测试仅见正常路径 |
+| AU10 | 执行非法命令拒绝及无数据报发送的Mock/SIL/HIL边界测试 | 未执行，需隔离测试环境、机型规格和目标控制器证据 |
+
+AU1–AU9完成固定提交静态源码/测试覆盖核对；AU10未执行。未运行构建/单测、模糊测试、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/robot_driver.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/messages.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
