@@ -1684,3 +1684,16 @@ MoveIt main的`stopWorldGeometryMonitor()`以if/else if分别reset两个subscrib
 | 现场适用性 | ICube实际MoveIt版本、topic及Octomap配置 | 未确认，现场证据缺失 |
 
 PR #3907新增测试只检查`getMonitoredTopics()`在stop后不再列出两个topic。该函数实现是检查PSM成员subscriber指针，并非ROS graph查询；测试未发布消息、未spin executor、未观察scene更新/回调静默，且禁用了Octomap。因此它验证句柄成员清空，不单独构成消息级、DDS endpoint或回调生命周期验收。详见专项追加件§9.3.147。
+
+
+#### SERVO-731｜OccupancyMapMonitor停止/重启与Octomap保留、清空语义
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| O1 | 非空Octomap停止采集后scene对象/tree是否保留 | 未执行 |
+| O2 | restart后旧树初始状态及新传感器更新 | 未执行 |
+| O3 | clearOctomap对scene OCTOMAP_NS与monitor tree的清理 | 未执行 |
+| O4 | stop/restart/clear与update callback并发边界 | 未执行 |
+| O5 | Stäubli应用停止采集时保留最后地图还是清空的需求 | 未确认，现场证据缺失 |
+
+MoveIt main中stopMonitor仅设置active=false并调用各updater->stop，不清空tree或重置tree指针；PlanningSceneMonitor stopWorldGeometryMonitor调用该stop但保留monitor对象。start时复用已有对象并重新start。clearOctomap是独立显式清理路径，会移除scene中的OCTOMAP_NS并清空tree。因此“停止采集”与“清除地图”必须分开定义和验收。详见专项追加件§9.3.148。
