@@ -3080,3 +3080,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | DF10 | 确认目标ROS发行版clock_type、控制器采样时间协议、网络时延预算并完成隔离SIL/HIL/FAT/SAT | 未确认 |
 
 未执行构建/单测、时钟跳变注入、ROS仿真时间测试、网络延迟/低频读取压力、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.219。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.219 / SERVO-802）
+
+固定审查ICube提交 bd658e2d266e315d2ee35f985fb352ea88306b79，检查 ros2_control SystemInterface read/write 周期关系、状态代次一致性、read失败后的缓存、周期参数传递、STOP路径与命令发送时序。
+
+证据文件：
+- staubli_robot_driver/src/staubli_hardware_interface.cpp（blob 4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0）
+- staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp（blob a84d0c63b15db168ea453a15571ab1494b8f9e99）
+- staubli_robot_driver/src/robot_driver.cpp（blob ede48a314856a455df9d8434f354aaf9fbc47bff）
+- staubli_robot_driver/include/staubli_robot_driver/robot_driver.hpp（blob 62c87a6741aa082db4599bb2c048aec0fcd7a464）
+- staubli_robot_driver/src/real_time_socket_subscriber.cpp（blob e2cd8fc50b2b13d9e31b2c024e90f9da76107622）
+- staubli_robot_driver/src/real_time_socket_interface.cpp（blob eda0a830cfe0118e07bc3423ad0f455bd50d610c）
+- staubli_robot_driver/include/staubli_robot_driver/real_time_socket_interface.hpp（blob e4d4650f59d2eb95133f5e948431ebe2073a6667）
+- staubli_robot_driver/include/staubli_robot_driver/robot_driver_helpers.hpp（blob 88a0cac08d3a299b7330eaa72b1afaaeab2fe41b）
+- staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp（blob 12326353052408a7a040926328dbe7da22625553）
+
+#### 静态审查发现
+
+1. **read与write是两个独立回调，代码没有建立显式的“本周期成功read”门禁。** `StaubliHardwareInterface::read()`在连接检查、`read_robot_state()`及`update_state()`成功后返回OK；任一失败返回ERROR。`write()`不接收或核对read结果，也没有`read_valid_this_cycle`、状态代次或成功read时间戳，只检查连接后继续使用成员`state_msg_`及命令接口。`state_msg_`只在read成功时更新，因此read失败后会保留上一次成功状态。若目标controller_manager在某类硬件ERROR处理/调度路径仍调用write，write可能基于旧状态作出判断并继续尝试发送；实际是否同周期调用取决于目标ros2_control版本及错误策略，本轮未做动态确认。
+2. **状态和命令可能跨周期配对。** write从外部命令接口读取当前命令，period取当前write回调周期；但状态安全判断读取的是最近一次成功read留下的`state_msg_`，不是携带周期ID的快照。驱动协议没有控制周期ID/状态采样时间，命令header.sequence_number取`get_current_message_sequence()`（最近一次有效状态序号）。代码没有显式验证“此命令由哪一帧状态派生”或“状态在本周期是否更新”。若接收线程在read与write之间继续覆盖邮箱，write所依据的状态序号与write时最新到达帧也可能不同；需要明确目标控制器协议对命令sequence字段的定义。
+3. **read失败不会清空硬件接口的上次状态缓存。** `RobotDriver::read_robot_state`只在消息有效且未stale时赋值输出参数；失败时调用方`state_msg_`保持旧值。`StaubliHardwareInterface::read`在失败时直接返回ERROR，没有清零/标记导出的`hw_joint_*`与supervision GPIO状态。控制器或监控端若仍读取这些state interfaces，可能看到旧数值而没有接口层新鲜度标记；上层是否将硬件状态标为不可用需目标controller_manager验证。
+4. **状态错误触发STOP路径依赖缓存。** write检测`state_msg_.error_state`或`control_state==INVALID`后调用`send_stop_all_command()`。RobotDriver该方法使用`current_robot_state_`构造STOP，并从该缓存复制序号；prepare helper把运动参考清零、数字输出清零、模拟输出清零。若最近一次read失败或内部缓存已过期，该STOP仍可能基于旧状态序号准备。STOP本身的控制器接收、执行确认及故障安全效果不由本地send返回值证明。
+5. **STOP与普通命令没有本地优先级/串行队列。** `write()`在错误/NaN分支可调用STOP，正常路径调用`send_robot_command()`；两个路径最终使用同一`RealTimeSocketInterface::send_message()`，其成员`data_out_`是共享可变缓冲区，未见发送互斥、优先级队列或STOP抢占机制（与SERVO-797相互关联）。若来自多个调用线程，可能存在缓冲区并发访问；若同一控制线程顺序调用，顺序取决于调用顺序，代码没有单独的STOP优先保证。
+6. **controller period只被打包发送，没有本地时序监控。** `write()`把传入的`period.seconds()`换算为毫秒写入`cmd_msg.controller_period`；没有对周期为零、负值、异常大值、抖动或连续超期做拒绝/限幅/告警策略，也没有测量write执行耗时或send阻塞耗时。`send_message()`注释明确是blocking call；UDP send使用同步send_to。因此写路径延迟与实时deadline是否满足需在目标平台测量，不能仅凭周期字段被发送就认为控制器按该周期执行。
+7. **read/write回调参数time均未用于状态关联。** `read(const rclcpp::Time&, const rclcpp::Duration&)`忽略time和period；`write(const rclcpp::Time&, const rclcpp::Duration&)`忽略time，只使用period。未见将ROS控制器周期时间戳与接收消息时间戳进行一致性检查。
+8. **测试覆盖不足以验证上述周期与错误路径。** `test_staubli_hardware_interface.cpp`含LifecycleTransitions的mock robot read/write基本顺序测试，但未见read失败后write是否被调用、连续stale、状态代次不一致、read/write周期抖动、零/异常period、STOP与运动命令并发、STOP优先级、发送阻塞deadline或导出状态陈旧标记等测试。部分注释提及需要真实机器人连接，不应据此宣称现场验收。
+
+建议：定义并落实read成功代次/时间戳，write只允许使用当前有效状态快照；read失败时将状态接口明确标为无效并按安全策略进入受控停止，而不是默默保留旧值；将STOP发送路径与普通命令路径串行化并提供明确优先级/确认语义；核对目标controller_manager在hardware read返回ERROR时的write调度行为；对period范围、抖动、write耗时和UDP发送耗时建立可测量预算。所有安全动作须结合Stäubli控制器协议、控制器配置与风险评估验证。
+
+#### SERVO-802｜read/write周期与状态代次验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DG1 | 核对read/write回调与成员状态更新关系 | 静态核对完成：独立回调，state_msg_仅read成功更新 |
+| DG2 | 核对read失败后的状态缓存及状态接口 | 静态核对完成：保留上次成功值，无显式失效标志 |
+| DG3 | 核对write是否要求本周期read成功 | 静态核对完成：未见本周期成功read门禁；调度后果待目标controller_manager验证 |
+| DG4 | 核对命令与状态代次/序号关联 | 静态核对完成：命令序号取最近有效状态序号，无周期快照关联 |
+| DG5 | 核对错误状态触发STOP及其状态来源 | 静态核对完成：STOP helper从current_robot_state_复制序号并清零参考/IO |
+| DG6 | 核对STOP与普通命令发送优先级/串行化 | 静态核对完成：共享send_message和data_out_，无显式优先队列/锁 |
+| DG7 | 核对controller period与发送阻塞/实时预算 | 静态核对完成：period转毫秒入命令；无本地范围/抖动/deadline监控，send为同步阻塞路径 |
+| DG8 | 核对硬件接口read/write测试覆盖 | 静态核对完成：基本mock顺序路径；缺少错误、周期、并发和优先级场景 |
+| DG9 | read失败后write调度、旧状态注入、period边界/抖动、STOP竞态和deadline压力测试 | 未执行 |
+| DG10 | 确认目标ros2_control错误调度策略、Stäubli命令序号/周期协议并完成隔离SIL/HIL/FAT/SAT | 未确认 |
+
+未执行构建/单测、controller_manager故障调度测试、周期抖动/阻塞测量、STOP并发注入、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.220。
