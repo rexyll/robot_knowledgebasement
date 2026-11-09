@@ -2743,3 +2743,7 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli专项审查推进记录（§9.3.207 / SERVO-790）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.207，并更新Stäubli厂商档案§128.145。新增SERVO-790/AU1–AU10：AU1–AU9固定提交静态源码/测试覆盖核对完成；AU10需隔离边界测试及机型规格证据。发现驱动发送路径没有显式关节位置/速度限值校验；write仅检查NaN不检查Inf；协议轴数固定6但on_init未限制最大轴数，超过6轴时NaN检查有越界访问风险；混合command interfaces按首个匹配项决定模式；模拟IO和controller_period缺少驱动侧范围/有限性门禁；STOP非零参考仅warning仍发送。上层joint limiter可能另有限制，不能据此断言全系统无任何限幅。未执行构建/单测、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.208 / SERVO-791）
+
+继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.208，并更新Stäubli厂商档案§128.146。新增SERVO-791/AV1–AV10：AV1–AV9固定提交静态源码/测试覆盖核对完成；AV10需错误注入、目标网卡/内核和CS9/HIL证据。发现UDP would_block时数据报被丢弃但底层send仍返回true，可能导致上层write/STOP误报成功；没有背压计数/阈值；RealTimeSocketInterface复用data_out_且无发送互斥（实际并发未证实）；blocking文档与MSG_DONTWAIT实现不一致；命令序号沿用最近有效状态序号，协议意图待CS9规范确认。现有测试仅覆盖成功双向收发。未执行构建/单测、UDP压力、并发/TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
