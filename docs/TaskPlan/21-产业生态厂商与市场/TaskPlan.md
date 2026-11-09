@@ -1808,3 +1808,27 @@ MoveIt main当前monitor调用顺序为setMonitor→middleware initialize→setP
 静态审查发现：多updater forgetShape()调用各插件清理后未删除mesh_handles_[i]中的global→local映射，长期反复exclude/forget会使monitor映射表持续增长。若单updater阶段已经exclude shape，之后动态增加第二个updater，旧handle没有global映射；forgetShape切换到多updater映射路径后无法正确清理旧updater，新增updater也不会补登记旧shape。excludeShape()逐个调用插件，前一插件成功、后一插件抛异常时没有回滚；forgetShape()中某插件抛异常会中断后续清理。DepthImage updater的底层MeshFilterBase::removeMesh对未知handle会抛runtime_error，而monitor未清除映射，因此重复forget可能再次触发异常。详见专项审计§9.3.154。
 
 历史MoveIt ROS Issue #320曾报告多传感器时每个updater都递增global mesh handle造成错位；当前main已通过每次excludeShape仅首次成功时分配global handle修复该历史问题。本节点不将该旧问题错误登记为当前缺陷。
+
+
+#### SERVO-738｜ShapeMask handle回收、MeshFilter worker关闭与插件回调退出验证
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| G1 | ShapeMask重复remove后再次add，检查handle回收/复用 | 未执行 |
+| G2 | ShapeMask未知handle删除只记录日志且不抛异常 | 未执行 |
+| G3 | maskContainment阻塞期间并发removeShape，验证锁等待与对象安全 | 未执行 |
+| G4 | ShapeMask多线程add/remove/mask的TSan测试 | 未执行 |
+| G5 | MeshFilterBase重复remove及未知handle异常 | 未执行 |
+| G6 | MeshFilterBase删除后重新add，检查handle复用与旧handle别名风险 | 未执行 |
+| G7 | worker运行期间析构的stop_读写TSan测试 | 未执行 |
+| G8 | worker执行慢job时析构，测量join等待与最终退出 | 未执行 |
+| G9 | 队列存在待执行job时析构，验证cancel后wait调用方唤醒 | 未执行 |
+| G10 | DepthImage stop与in-flight image callback并发，确认shutdown是否等待回调退出 | 未执行 |
+| G11 | PointCloud stop与in-flight cloud callback并发，确认filter/subscriber析构后无回调访问this | 未执行 |
+| G12 | ICube运行时停止/销毁updater时executor、callback group、GL context及owner顺序现场核验 | 未确认，现场证据缺失 |
+
+静态审查确认PointCloud ShapeMask的add/remove/mask均使用shapes_lock_保护内部数据；未知/重复handle删除只记录ERROR，不抛异常，删除后会回收handle供后续add复用。DepthImage MeshFilterBase的removeMesh在worker job完成后检查结果，未知/重复handle会抛runtime_error；其handle也会复用。两种插件不能采用同一幂等性假设。
+
+MeshFilterBase析构函数持jobs_mutex_写stop_=true并清空/取消队列，worker run()却在加锁前读取while (!stop_)；读写没有共同同步关系，构成stop_数据竞争。析构join会等待正在执行的worker job完成；若底层OpenGL/driver操作迟迟不返回，析构可能长时间等待，但尚无证据证明必然死锁。DepthImage stop()只shutdown图像订阅，mesh_filter_在对象成员析构阶段才停止worker；源码未显示显式in-flight callback退出屏障。PointCloud stop()删除message filter/subscriber，但回调捕获裸this，仍需验证已排队/正在执行回调的退出语义。详见专项审计§9.3.155。
+
+SERVO-738全部动态测试未执行；未运行TSan/ASan、ROS executor压力测试、HIL或实机验证。不得把静态数据竞争结论扩展为已复现崩溃或死锁。
