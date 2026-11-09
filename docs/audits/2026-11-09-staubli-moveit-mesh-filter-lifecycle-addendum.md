@@ -2631,3 +2631,83 @@ AB1-AB8全部未执行，AB9-AB10现场证据缺失。未执行VAL3编译/仿真
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_interface.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+
+## §9.3.189｜VAL3通信复位错误传播、控制任务存活与恢复状态一致性
+
+### 审查范围与固定基线
+
+固定审查 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本节承接§9.3.187–188，但不重复讨论序号延迟阈值和协议握手缺失；聚焦resetControlSocket的错误输出契约、controlTask调用方分支、初始化失败退出与运行期错误复位的控制流。
+
+| 文件 | Blob SHA |
+|---|---|
+| Comm/resetControlSocket.pgx | 25d414065b4567c5634ef8890cc8cafd6f7e9b3e |
+| controlTask.pgx | 00a69c4d266e315d2ee35f985fb352ea88306b79 |
+| start.pgx | 2d72315f0da1e18c959a24d3d75622652ee1287b |
+| ros2_server.dtx | 558dc2db671da45f5b859a3526148ce816eb6dd4 |
+| configs/sio.cfx | 76ad0c9f4b1902f26f21ea08eed0ef5f16e63d9e |
+| stop.pgx | 8d88991f087ea2be2e65daacff742da5d58ac73c |
+
+### 1. resetControlSocket的错误输出在正常返回路径上被无条件清零
+
+`resetControlSocket.pgx`的顺序是：对传入SIO句柄执行`sioCtrl(timeout,-1)`、`sioCtrl(endOfString,10)`、`clearBuffer()`，然后无条件执行`x_bError=false`并返回。该程序没有检查上述操作的返回值，也没有局部错误捕获/错误码映射路径。
+
+调用方`controlTask.pgx`在初始化阶段调用该程序后检查`l_bErrorTmp`，运行期错误复位后也检查同一个输出标志；但只要resetControlSocket正常走到末尾，输出就必然为false。因此，这两个调用方分支不能从该函数获得“sioCtrl或clearBuffer失败”的普通错误返回证据。这里确认的是VAL3程序层面的输出契约缺口；不能据此断言内建SIO操作在所有目标固件上的失败行为，也不能排除运行时异常会中止/终止任务。
+
+### 2. 初始化失败与运行期复位失败的处理路径不对称
+
+controlTask启动时先初始化状态消息和命令消息；若对应初始化程序通过输出标志报告失败，controlTask设置`l_bError=true`、记录错误并直接`return`。socket初始化也有相同形式的检查，但由于resetControlSocket无条件清零输出标志，普通返回路径下该检查无法识别其内部SIO设置/清缓冲失败。
+
+运行期错误处理则先执行停止/复位动作，将命令模式置为ERROR，随后清除`l_bError`、重置序号和延迟、清除控制活动和命令有效标志，再调用resetControlSocket。只有当该函数返回true错误标志时才重新置`l_bError=true`。按当前函数实现，该分支同样无法捕获其内部操作失败的普通返回状态。之后controlTask没有显式重建socket、重新创建自身任务或进入独立的FAULT_LATCHED状态；而是继续完成本周期并进入下一轮循环。
+
+### 3. 错误恢复没有独立的任务级监督/重启机制
+
+`start.pgx`设置4 ms周期，调用`taskCreateSync "controlTask"...`启动控制任务；同一文件中的“supervision/diagnostics task”仍标记TODO。仓库可见的启动路径没有展示独立看门狗对controlTask退出、卡死或持续复位失败进行检测并重启的实现。不能从单一调用点推断VAL3任务调度器的全部生命周期语义；本节仅记录应用层可见代码未提供监督任务/重启状态机。
+
+`ros2_server.dtx`将`siSocketControl`链接到`UdpSocket\control`；`sio.cfx`配置control UDP socket的远端地址、端口、timeout和quietTime。当前审查未获得目标CS9的SIO运行时错误语义或现场部署配置，故不能把配置文件中的静态参数当作实际运行时socket健康证明。
+
+### 4. 停止入口与运行期错误复位的差异
+
+`stop.pgx`执行`stopMove()`、`resetMotion()`和`clearBuffer(siSocketControl)`后结束；它不调用resetControlSocket，不更新controlTask内部错误标志/命令有效标志/序号，也不展示等待controlTask退出或确认任务停止的逻辑。因此stop入口的缓冲清理与controlTask内部错误复位不是同一套状态转换。是否存在外层调用顺序保证、任务停止同步或并发访问保护，需要结合完整VAL3应用入口及目标控制器任务语义继续核验。
+
+### 5. 静态结论与风险边界
+
+1. resetControlSocket在正常返回路径上无条件将错误输出置false，调用方无法通过该输出区分内部SIO参数设置/clearBuffer是否失败。
+2. controlTask初始化阶段对状态/命令消息初始化失败会直接return；socket复位错误检查在当前helper实现下不具备有效的普通失败传播。
+3. 运行期错误复位先清除本地错误锁存和命令/活动状态，再尝试resetControlSocket；若helper正常返回，任务继续进入下一周期，而源码没有独立FAULT_LATCHED、socket重建或任务重启流程。
+4. start.pgx的supervision/diagnostics task仍为TODO；应用层可见代码没有展示controlTask watchdog或自动重启监督器。VAL3调度器自身行为不在本节可证明范围。
+5. stop.pgx仅停止运动并clearBuffer，与controlTask错误复位的内部状态清理不同；其与控制任务的并发/生命周期关系需受控验证。
+6. 上述是固定公开原型静态控制流结论，不证明现场SIO调用失败、controlTask已经退出/卡死、机器人仍在运动或安全链失效。
+
+### 6. 新增验收任务
+
+新增SERVO-772：
+
+| 子项 | 验收对象 | 状态 |
+|---|---|---|
+| AC1 | 对sioCtrl(timeout)、sioCtrl(endOfString)、clearBuffer分别注入成功/失败/运行时异常，确认VAL3输出错误标志和任务行为 | 未执行 |
+| AC2 | 验证resetControlSocket是否应先将x_bError置true，并仅在所有复位步骤成功后清false；对每一步失败检查错误传播 | 未执行 |
+| AC3 | 验证controlTask启动时状态消息、命令消息和socket初始化失败的return、任务状态及start调用方可观测性 | 未执行 |
+| AC4 | 运行期注入复位失败，验证l_bError、l_bControlActive、bIsValid、序号、命令模式及下一周期状态报文 | 未执行 |
+| AC5 | 连续复位失败/间歇成功时验证是否出现无限重试、日志风暴、任务周期超限或错误状态闪断 | 未执行 |
+| AC6 | 验证controlTask退出、异常终止或不再按期运行时是否存在独立监督器检测、报警和受控重启 | 未执行 |
+| AC7 | 验证stop.pgx与controlTask并发执行时的stopMove/resetMotion/clearBuffer顺序、任务退出同步和socket访问竞争 | 未执行 |
+| AC8 | 核对目标CS9/VAL3版本中sioCtrl、clearBuffer错误语义、任务异常处理与taskCreateSync生命周期定义 | 未确认，现场证据缺失 |
+| AC9 | 获取现场任务状态、VAL3日志、SIO错误记录、控制器版本及复位故障恢复证据 | 未确认，现场证据缺失 |
+| AC10 | 在隔离仿真/HIL中完成复位故障注入、恢复/退出路径和安全状态回归验收 | 未执行，需受控环境 |
+
+AC1-AC7、AC10未执行；AC8-AC9现场证据缺失。未执行VAL3编译/仿真、ROS集成、CS9/HIL、FAT/SAT或实机测试。
+
+### 7. 结论与边界
+
+本节新增问题是“复位函数错误输出契约与调用方失败处理不闭合”，以及“应用层未见独立控制任务监督/重启状态机”。建议先在目标VAL3版本确认内建SIO操作的失败语义，再设计可观测、可锁存的复位失败状态和外部监督策略；不得在未经风险分析与受控验证的情况下直接修改现场运动控制程序。未提出或应用上游补丁。
+
+未修改ICube/MoveIt/ros2_control上游，未应用PR；未执行动态、HIL、FAT/SAT或实机验证。目标现场版本、SIO失败语义、任务调度语义、网络拓扑及独立安全链仍未确认。Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/Comm/resetControlSocket.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/controlTask.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/start.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/stop.pgx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/userapp/ros2_server/ros2_server.dtx
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/val3/configs/sio.cfx
