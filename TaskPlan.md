@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v9.29  
+> 版本：v9.30  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.154，厂商档案新增§128.105。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.155，厂商档案新增§128.106。MoveIt PR #3907截至2026-11-09仍Open/未合并；PR #3909最新可读补丁head为3fc0594；作者已修复初始化顺序回归并保留initialize后setParams，但PR合并状态及CI失败详情仍需刷新确认。PR #3909失败测试的局部shared_ptr和GMock Return(updater)动作均可能保活对象，现有测试不能证明析构/资源回收；已提出Invoke临时创建、weak_ptr/析构计数的U13/U14单测设计，以及对象/RAII/ROS graph/回调静默/ASan-TSan分层验收。U13/U14测试设计完成但未执行，真实ROS资源/回调验证未执行；U11完整fixture迁移构建与U12 ABI未执行，U15未执行。该问题是测试覆盖缺口，不是已证实泄漏。当前main仍未包含PR #3909；OccupancyMapUpdater头文件契约仍称setParams先于initialize，而内置插件setParams依赖initialize先设置的node_，接口文档与可运行实现顺序冲突。SERVO-731 Octomap停止/重启/保留清空语义动态验证未执行；SERVO-730 PR #3907消息级回归测试动态验证未执行；SERVO-729 PlanningSceneMonitor双订阅停止/重配置动态验证未执行；SERVO-728 DepthImage发布端点生命周期动态验证未执行；SERVO-721/723/725/726动态验证未执行，SERVO-722现场ICube源码及Octomap配置缺失/阻塞，SERVO-724持续跟踪。未修改MoveIt/ICube上游，未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -1438,3 +1438,28 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - https://github.com/moveit/moveit2/issues/320（历史问题，当前代码已包含单次global handle分配修复）
 - https://github.com/moveit/moveit2/pull/3909
 - 上一节点§9.3.153；厂商档案§128.105。
+
+### §9.3.155 PointCloud ShapeMask handle语义、MeshFilter worker关闭竞态与DepthImage teardown屏障
+
+- PointCloud路径已追到ShapeMask实现（shape_mask.cpp Blob SHA 7686f0e6b0778daa8991b843100e13a9bb1bd3be；shape_mask.hpp Blob SHA d77d8dfe6322d8d46d3f65c1e154f9e07708bd8b）。addShape/removeShape/maskContainment均以shapes_lock_保护内部bodies_、used_handles_和handle分配状态；removeShape遇到未知/重复handle不会抛异常，而是记录ERROR并返回。删除后将min_handle_回退到被删除handle，后续addShape会复用空闲handle，因此ShapeHandle不是永久不复用ID。maskContainment同样持锁执行mask计算，removeShape会等待当前mask操作释放锁；这只保护ShapeMask内部对象，不等于保护updater生命周期或transform_cache_。
+- DepthImage与之不同：DepthImageOctomapUpdater::forgetShape直接调用mesh_filter_->removeMesh；MeshFilterBase::removeMesh（mesh_filter_base.cpp Blob SHA 333a7031925cb47fb201af34fe61431a9ccf2a6f）在worker job执行后检查结果，handle不存在时抛std::runtime_error。MeshFilterBase也会回收并复用handle。因此重复删除语义不一致：PointCloud只记日志，DepthImage抛异常。
+- MeshFilterBase worker关闭路径存在源码可确定的同步缺口：析构函数在jobs_mutex_下写stop_=true、取消并清空队列，随后notify并join filter_thread_；但worker run()循环条件while (!stop_)在获取jobs_mutex_之前读取stop_，析构线程则在持有jobs_mutex_时写stop_。该读写没有共同同步关系，构成stop_上的C++数据竞争。当前不能仅凭此推断必然卡死或崩溃。
+- removeMesh/addMesh通过meshes_mutex_串行化调用方，提交worker job并同步wait；worker helper不再获取meshes_mutex_。析构时队列中未执行job会cancel，正在执行的job则由join等待其完成；若OpenGL/driver调用不能返回，析构join可能长时间等待，但尚无证据证明正常路径必然死锁。析构期间与外部API并发调用属于对象生命周期竞争，需由上层先停止并等待回调退出。
+- DepthImageOctomapUpdater::stop()只调用sub_depth_image_.shutdown()；析构函数再次shutdown。mesh_filter_在成员析构阶段才停止worker并join。源码没有显示专用in-flight image callback计数/退出屏障；shutdown是否等待已进入回调退出，必须按实际image_transport/rclcpp版本与executor验证，不能直接认定回调已静默。
+- PointCloud updater::stop()删除tf2 MessageFilter与message_filters Subscriber并置空，但cloudMsgCallback捕获裸this；ShapeMask内部锁不提供updater析构屏障。需验证删除filter/subscriber后已排队或正在执行的回调是否退出，以及访问monitor_、tree_、shape_mask_、transform_cache_时owner是否仍有效。
+- 本节点确认：MeshFilterBase::stop_循环读写数据竞争；两类插件重复/未知handle语义不一致；DepthImage stop与worker析构分属两个阶段，源码未显示回调静默屏障。待验证风险：worker join长时间等待、ROS回调与插件析构重叠、队列取消时同步wait调用方的唤醒语义、OpenGL context teardown顺序。未把待验证风险写成已复现死锁/UAF。
+- 新增SERVO-738/G1-G12：G1 ShapeMask重复remove后再次add，检查handle回收/复用；G2 未知handle删除只记录日志；G3 maskContainment阻塞期间并发removeShape；G4 多线程add/remove/mask的TSan；G5 MeshFilterBase重复remove及未知handle异常；G6 MeshFilterBase删除后重新add，检查handle复用和旧handle别名风险；G7 worker运行期间析构的stop_读写TSan；G8 worker执行慢job时析构，测量join等待；G9 队列有待执行job时析构，验证cancel后wait调用方唤醒；G10 DepthImage stop与in-flight image callback并发；G11 PointCloud stop与in-flight cloud callback并发；G12 ICube运行时停止/销毁updater时executor、callback group、GL context和owner顺序现场核验。G1-G9、G10-G11未执行；G12未确认，现场证据缺失。
+- 上游Issue #3901与#3902本轮读取均为Open；分别涉及updater参数/initialize顺序冲突，以及initialize返回false后仍被保留并start，与本节点ShapeMask/MeshFilter内部删除语义不同。PR #3909改动文件清单集中于occupancy_map_monitor接口/实现/测试，本轮无证据表明其覆盖ShapeMask、MeshFilter worker stop_竞态或插件回调退出屏障；不应用PR。
+- 本轮仅完成MoveIt main静态源码审查与测试设计；未运行本项目ROS动态测试、TSan/ASan、压力测试、HIL或实机验证。未修改MoveIt/ICube上游、未应用PR；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+来源：
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/point_containment_filter/src/shape_mask.cpp（Blob SHA 7686f0e6b0778daa8991b843100e13a9bb1bd3be）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/point_containment_filter/include/moveit/point_containment_filter/shape_mask.hpp（Blob SHA d77d8dfe6322d8d46d3f65c1e154f9e07708bd8b）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/src/mesh_filter_base.cpp（Blob SHA 333a7031925cb47fb201af34fe61431a9ccf2a6f）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/mesh_filter/include/moveit/mesh_filter/mesh_filter_base.hpp（Blob SHA c14aa939580fe69e327629a3f236f1d11fa91d55）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/depth_image_octomap_updater/src/depth_image_octomap_updater.cpp（Blob SHA 3dbb114ab6bfd0654823724b6848c881caa2d8ee）
+- https://github.com/moveit/moveit2/blob/main/moveit_ros/perception/pointcloud_octomap_updater/src/pointcloud_octomap_updater.cpp（Blob SHA e11a9f41d6dad68de31c83268e6bd686728eee9e）
+- https://github.com/moveit/moveit2/issues/3901
+- https://github.com/moveit/moveit2/issues/3902
+- https://github.com/moveit/moveit2/pull/3909
+- 专项审计§9.3.154；厂商档案§128.105。
