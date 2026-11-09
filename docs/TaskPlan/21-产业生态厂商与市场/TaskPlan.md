@@ -2667,3 +2667,11 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 确认`RobotDriver::connect(robot_ip, timeout_ms)`只设置robot_ip并继承NetworkConfig默认端口；标准Xacro路径显式传入11000/11001并由HardwareInterface注入配置，因此仅能判定直接API默认调用路径存在错配风险，不能认定标准bringup必然故障。
 - 新增SERVO-780/AK1-AK10：AK1-AK7固定源码/文档静态核对完成；AK8未执行；AK9目标部署证据缺失；AK10现场证据缺失。未执行构建、mock集成、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
 - 未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。根任务00-01与并行任务21-02继续进行中；下一节点§9.3.198。
+
+
+### 2026-11-09｜Stäubli专项审查进度（§9.3.198）
+
+- 新增§9.3.198：区分UDP socket连接、接收线程ready、首个RobotState到达、协议类型有效、状态新鲜与机器人控制许可。固定源码中subscriber is_ready只检查socket连接和接收线程；RobotDriver额外执行状态有效性与100ms新鲜度检查。
+- 连接等待循环每500ms采样，成功后没有break，持续到timeout结束，最终结果只看末次采样；HardwareInterface on_configure传入5000ms。固定mock测试没有连接耗时断言。
+- 新增SERVO-781/AL1–AL10：AL1–AL8固定提交静态源码/测试审查完成；AL9 mock时序注入未执行；AL10目标部署/现场证据缺失。未执行构建、mock动态测试、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
+- 下一节点：§9.3.199。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
