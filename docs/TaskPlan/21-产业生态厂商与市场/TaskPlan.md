@@ -2659,3 +2659,11 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 核对IPv4数据报长度约160 B/83 B，低于常见1500 B MTU；明确该比较不代表现场MTU/路径配置或抓包结论。低带宽不等于低延迟、低抖动或无丢包。
 - 新增SERVO-779/AJ1-AJ10：AJ1固定协议长度和算术基线完成；AJ2、AJ4-AJ5、AJ9需目标配置/现场证据；AJ3、AJ6-AJ8、AJ10未执行。未进行抓包、压力/背压注入、CS9/HIL、FAT/SAT或实机验证。
 - 未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。根任务00-01与并行任务21-02继续进行中；下一节点§9.3.197。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.197）
+
+- 新增§9.3.197：核对固定ICube提交的C++ API默认端口8080/8081与VAL3 SIO配置、Xacro及文档使用的11000/11001之间的差异。
+- 确认`RobotDriver::connect(robot_ip, timeout_ms)`只设置robot_ip并继承NetworkConfig默认端口；标准Xacro路径显式传入11000/11001并由HardwareInterface注入配置，因此仅能判定直接API默认调用路径存在错配风险，不能认定标准bringup必然故障。
+- 新增SERVO-780/AK1-AK10：AK1-AK7固定源码/文档静态核对完成；AK8未执行；AK9目标部署证据缺失；AK10现场证据缺失。未执行构建、mock集成、VAL3仿真、CS9/HIL、FAT/SAT或实机验证。
+- 未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。根任务00-01与并行任务21-02继续进行中；下一节点§9.3.198。
