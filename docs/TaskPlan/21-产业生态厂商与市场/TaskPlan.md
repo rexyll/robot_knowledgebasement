@@ -2725,3 +2725,8 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli厂商档案专项审查推进记录（§9.3.203 / SERVO-786）
 
 继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.203，并更新Stäubli厂商档案§128.141。新增SERVO-786/AQ1–AQ10：AQ1–AQ7静态源码/测试覆盖核对完成，AQ8–AQ9未执行，AQ10缺目标部署/现场证据。00-01与21-02继续进行中；未运行ROS构建/单测、TSan/ASan、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.204 / SERVO-787）
+
+继续固定ICube基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查至§9.3.204，并更新Stäubli厂商档案§128.142。新增SERVO-787/AR1–AR10：AR1–AR9固定提交静态源码/测试覆盖核对完成，AR10缺目标部署网络ACL、端点配置及隔离CS9/HIL证据。审查发现UDP接收端未验证来源IP/端口；三类消息未统一精确长度校验；RobotState头字段漏检、RobotCommand未校验协议版本、DiagnosticData头校验顺序错误、FrameHeader未验证protocol_version。未执行构建/单测、模糊测试、网络注入、Mock/SIL、VAL3仿真、CS9/HIL/FAT/SAT或实机验证；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
