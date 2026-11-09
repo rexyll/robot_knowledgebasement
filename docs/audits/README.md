@@ -300,3 +300,5 @@
 
 
 - [2026-11-09 Stäubli RobotDriver 16位序号回绕、乱序帧与重连重同步审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.201，发现16位序号回绕丢包公式多计1；较小序号未区分回绕和乱序，旧帧可能覆盖新缓存并回退RobotDriver状态序号；disconnect/reconnect会重置本地跟踪，但协议缺少session/boot epoch。新增SERVO-784/AO1–AO10，AO1–AO7静态核对完成，AO8–AO9未执行，AO10缺目标部署/现场证据。
+
+- [2026-11-09 Stäubli RobotDriver消息状态输出初始化与订阅器线程安全契约审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.202，确认MessageStatus无首帧失败路径未初始化lost_packages且可能保留旧time_since_received；read_message虽声明thread-safe，但first_read_/last_read_sequence_number_未同步，多读者并发属于条件性API风险。新增SERVO-785/AP1–AP10，AP1–AP6静态核对完成，AP7–AP8未执行，AP9–AP10缺部署/现场证据。
