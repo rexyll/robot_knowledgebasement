@@ -255,3 +255,6 @@
 
 
 - [2026-11-09 Stäubli ROS/VAL3重启、状态缓存与16位序号会话边界审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.183，审查ROS命令序号回显、disconnect数据重置、latest-message单槽缓存、重复序号处理、16位回绕与控制器重启边界；新增SERVO-766/W1-W10，W1-W9未执行，W10现场证据缺失。
+
+
+- [2026-11-09 Stäubli ROS UDP接收错误、状态Header校验与latest-message缓存新鲜度审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.184，确认UDP receive error仍进入上层回调、来源地址过滤未实现、反序列化失败保留旧缓存且不刷新时间戳；RobotState解码仅作最小长度与magic校验，未逐帧校验protocol_version/message_type/payload_size及浮点有限性，部分异常帧可刷新缓存后才被上层拒绝。新增SERVO-767/X1-X10，X1-X9全部未执行，X10现场证据缺失。
