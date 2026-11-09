@@ -2148,3 +2148,10 @@ L1-L15全部未执行，L16现场证据缺失。未执行VAL3/CS9仿真、停止
 - 新增专项审查§9.3.176：固定ICube公开原型的VAL3 start/stop入口、controlTask任务创建/退出、ROS硬件生命周期与UDP连接解耦。
 - 新增SERVO-759/P1-P10；P1-P9未执行，P10现场证据缺失。仅完成静态审查与验证设计，不代表现场部署或工程验收。
 - 根计划v9.51；专项下一节点§9.3.177。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.177）
+
+- 新增专项审查§9.3.177：固定ICube公开原型的VAL3工作模式编码、ROS OperationMode枚举映射、operation_mode_status语义、motion_possible授权门禁、movejSync状态2及WAIT_FOR_WMS派生遥测。
+- 新增SERVO-760/Q1-Q10；Q1-Q9未执行，Q10现场证据缺失。仅完成静态审查与验证设计，不代表现场部署或工程验收。
+- 根计划v9.52；专项下一节点§9.3.178。Stäubli工程级验收未通过，TODO-EXT-001未授权合并。
