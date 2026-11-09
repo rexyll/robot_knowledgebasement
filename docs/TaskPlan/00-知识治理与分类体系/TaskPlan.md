@@ -553,3 +553,6 @@
 
 
 | 2026-11-09 | 00-01 | 继续Stäubli MoveIt感知链路至§9.3.157：沿DepthImage回调→MeshFilter默认异步filter→FilterJob裸指针→OpenGL worker读取路径追踪输入缓冲区生命周期。识别NaN CameraInfo分支在异步job入队后、后续getFilteredLabels同步队列屏障前提前return，形成依赖调度时序的条件性悬空指针/潜在UAF路径；同时记录正常内参路径存在隐式队列屏障，避免过度泛化。新增SERVO-740/K1-K7，覆盖worker barrier/ASan、有效与无效标定、owner引用计数、慢渲染压力、修复性能和现场配置核实，全部未执行。更新专项§9.3.157、厂商档案§128.108及审计README。00-01及21-02继续进行中；未运行ASan/ROS动态测试/GPU压力、CS9/HIL或实机验证；未修改MoveIt/ICube上游或应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt main DepthImageUpdater/MeshFilter/FilterJob源码；专项追加件§9.3.157；厂商档案§128.108 |
+
+
+| 2026-11-09 | 00-01 | 推进Stäubli MoveIt感知链路至§9.3.158：审查PointCloudOctomapUpdater、ShapeMask、OccupancyMapUpdater/Monitor。确认ConstSharedPtr同步持有点云、MutuallyExclusive callback group和ShapeMask互斥锁等边界；静态识别point_subsample=0循环不前进、PointCloud2结构/字段/row_step校验不足、NaN/Inf过滤缺口、transform缺失时可能沿用旧shape pose及OctoMap写异常后部分更新仍触发通知。stop/析构与in-flight callback静默屏障仍待目标executor验证。新增SERVO-741/L1-L12，全部未执行。更新专项§9.3.158、厂商档案§128.109、根TaskPlan v9.33及审计README。00-01及21-02保持进行中；未运行ROS构建、ASan/UBSan/TSan、点云压力测试、OctoMap故障注入、CS9/HIL或实机验证；未修改MoveIt/ICube上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。 | MoveIt 2主线PointCloudOctomapUpdater/ShapeMask/OccupancyMapMonitor源码；ROS 2 PointCloud2 iterator文档；专项追加件§9.3.158；厂商档案§128.109 |
