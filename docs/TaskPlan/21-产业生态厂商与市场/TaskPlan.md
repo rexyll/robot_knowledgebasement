@@ -2774,3 +2774,27 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 ### 2026-11-09｜Stäubli专项审查推进记录（§9.3.209 / SERVO-792）
 
 继续固定ICube基线 bd658e2d266e315d2ee35f985fb352ea88306b79 审查至§9.3.209，并更新Stäubli厂商档案§128.147。新增SERVO-792/AW1–AW10：AW1–AW9固定提交静态源码/测试覆盖核对完成；AW10需正式CS9/VAL3协议规范、控制器端证据和隔离HIL。发现命令序号复用最近一次有效状态序号；协议未定义独立ACK/command-result类型，send_robot_command不等待控制器接收/接受/执行确认；subscriber仅跟踪状态帧序号，不将状态回显与命令事务关联；未发现ACK超时、重发、去重和重连清理机制。不能据此断言协议设计错误，须先确认厂商序号和确认语义。未执行构建/单测、协议仿真、抓包、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。
+
+
+### 2026-11-09｜Stäubli专项审查推进记录（§9.3.211 / SERVO-794）
+
+继续固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`审查底层UDP异步接收和线程生命周期。核对 `staubli_robot_driver/src/communication/udp_socket_impl.hpp` 与 `test/unit_tests/communication/test_sockets.cpp`。静态确认 `handle_data_received(error, bytes_transferred)` 在error非零时记录错误后仍调用reception_callback_，随后只要receiving_为true就再次调用start_receive；没有按错误类型停止/退避、连续错误计数或故障熔断。持续错误可能造成无效回调和日志放大，实际CPU/日志影响需故障注入测量。
+
+另发现接收线程入口直接调用io_service_.run()，未见异常捕获或线程退出状态回写；如果回调/处理链异常逸出，run线程可能结束而receiving_原子标志仍为true，使is_receiving/is_ready反映的是标志而非线程真实存活状态。该异常路径是否可由现有回调触发、是否造成持续故障待定向验证。stop_receive_thread使用io_service_.stop()后join；停止/重启、挂起异步操作和disconnect/reconnect交错行为尚未动态验证。
+
+#### SERVO-794｜UDP接收错误、异常退出与线程恢复验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AY1 | 固定提交核对异步接收错误分支 | 静态核对完成 |
+| AY2 | 核对错误时是否仍调用用户回调 | 静态核对完成：仍调用 |
+| AY3 | 核对回调后是否按receiving_重投接收 | 静态核对完成：仅受receiving_标志约束 |
+| AY4 | 核对错误分类、退避、连续错误计数与熔断 | 静态核对完成：未见实现 |
+| AY5 | 核对io_service_.run线程异常捕获 | 静态核对完成：未见捕获 |
+| AY6 | 核对线程异常退出时receiving_状态同步 | 静态核对完成：未见退出回写 |
+| AY7 | 核对stop/join与socket关闭的顺序 | 静态核对完成 |
+| AY8 | 核对现有socket单测是否覆盖错误/异常/快速重启 | 静态核对完成：未覆盖定向异常路径 |
+| AY9 | 注入网络错误、回调异常、快速stop/start、disconnect/reconnect并测量恢复与资源占用 | 未执行 |
+| AY10 | 获取目标网卡/内核/网络故障分布并完成隔离SIL/HIL验证 | 未确认，目标证据缺失 |
+
+未执行构建/单测、网络错误注入、异常注入、压力测试、TSan、Mock/SIL/HIL、VAL3仿真、CS9/FAT/SAT或实机测试；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.212。
