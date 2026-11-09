@@ -2948,3 +2948,48 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | CC10 | 获取目标协议规范/限值表并完成隔离SIL/HIL/FAT/SAT验证 | 未确认，目标证据缺失 |
 
 未执行构建/单测、畸形帧注入、数值边界测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.216。
+
+
+### 2026-11-09｜v9.91 本轮推进记录
+
+- 继续Stäubli专项审查至§9.3.216 / SERVO-799，固定ICube提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`，审查UDP接收缓冲区、短/长报文、Asio接收错误、反序列化失败和RobotDriver状态提交路径。
+- 证据文件：
+  - `staubli_robot_driver/include/staubli_robot_driver/communication/socket.hpp`（blob `230af198337e5d047b29b2bbf6354a698fb3a390`）
+  - `staubli_robot_driver/src/communication/udp_socket_impl.hpp`（blob `1309a8f2d59e8295869e178af82a66868bb911ff`）
+  - `staubli_robot_driver/src/communication/protocol.cpp`（blob `d31077aefc1d5515919033aa967c431a01d49a4a`）
+  - `staubli_robot_driver/src/communication/messages.cpp`（blob `86c4d7b6eac0e2455214fc78ebd6864ae5b0b0c6`）
+  - `staubli_robot_driver/src/real_time_socket_subscriber.cpp`（blob `e2cd8fc50b2b13d9e31b2c024e90f9da76107622`）
+  - `staubli_robot_driver/include/staubli_robot_driver/real_time_socket_subscriber.hpp`（blob `330839cb25e53fe961541f29f634722bec4a47c4`）
+  - `staubli_robot_driver/src/robot_driver.cpp`（blob `ede48a314856a455df9d8434f354aaf9fbc47bff`）
+  - `staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp`（blob `4fd06a9da38157a543766669c1cdda4bdb698029`）
+  - `staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp`（blob `9d54374f3b1327f73b5ae276719f27b6a7b62858`）
+
+#### 静态审查发现
+
+1. **接收缓冲区远小于最大UDP数据报。** `MAX_SOCKET_PACKET_SIZE`定义为1024字节，`UDPSocketImpl`按此大小分配`recv_buffer_`并传给`async_receive_from`。这不是UDP协议允许的最大数据报容量。若收到大于缓冲区的UDP数据报，Boost.Asio可能以message_size等错误完成接收；本轮未运行目标Boost版本验证其具体bytes_transferred/error组合。
+2. **接收错误没有阻断解析。** `handle_data_received(error, bytes_transferred)`在error非零时记录错误后仍调用`reception_callback_`，并在`receiving_==true`时重新投递接收。因而截断/接收错误路径没有在socket层保证丢弃；实际回调是否能解析为有效前缀取决于Asio返回长度及具体帧内容，须通过注入确认。
+3. **短报文处理与长报文处理不对称。** Subscriber把`bytes_transferred`传入`deserialize`。RobotState/RobotCommand/DiagnosticData均先检查输入长度不得小于各自固定长度（132/55/74字节）；短于固定长度会返回false。RobotState只检查解析内部offset等于固定消息长度，不要求输入buffer_size也等于固定长度，因此大于132字节的报文可被按132字节前缀解析，尾随字节未被拒绝。RobotCommand也只要求至少固定长度；其类型/长度header校验不能替代数据报精确长度校验。DiagnosticData在读取新header之前使用对象旧header做类型/长度检查，随后解析新header和固定payload，也未要求输入长度精确等于74字节。
+4. **解析失败时邮箱保留上一条有效消息，但不会发布部分对象。** `update_message`每次创建局部MessageType对象，只有deserialize返回true才更新时间戳并调用`message_buffer_.set(msg)`；失败时不写邮箱。因此短报文或magic校验失败不会把局部半解析对象直接写入邮箱，先前有效邮箱值仍可能保留。该保留策略也意味着错误帧不会刷新有效帧时间戳；但错误计数、节流、连续错误告警和安全降级没有在此路径体现。
+5. **“反序列化成功”并不等于状态语义有效。** RobotState反序列化只检查最小长度和帧头magic，随后写入对象字段，没有在消息类内校验message_type、payload_size、protocol_version、枚举白名单或finite数值。Subscriber只以deserialize布尔值作为发布条件，故magic正确且长度足够但类型/版本/字段异常的帧可能进入最新帧邮箱。
+6. **RobotDriver在更高层拒绝类型错误前，已覆盖内部当前状态缓存。** `read_robot_state`先调用Subscriber的`read_message(current_robot_state_, status)`，这一步会把邮箱内容复制进`current_robot_state_`；之后才调用`is_state_msg_valid()`和staleness检查。类型无效时函数返回false且不更新输出state/last_valid_sequence_id_，但内部`current_robot_state_`已被替换。下次有效帧到达可恢复；在恢复前，其他读取内部状态的路径（例如STOP命令准备）需进一步检查是否可能消费该缓存。此处是缓存污染/错误状态被后续路径读取的条件性风险，不是已复现的控制器故障。
+7. **状态提交具有两层不同语义。** Subscriber的`RealtimeThreadSafeBox<MessageType>`以整条消息为单位发布/读取，避免在邮箱层逐字段拼接；但RobotDriver在调用read_message时直接将邮箱消息赋给成员current_robot_state_，随后才做语义校验，因此不是“验证全部通过后才提交到RobotDriver缓存”。对外输出参数state和last_valid_sequence_id_则只在valid/staleness检查通过后更新。
+8. **现有测试覆盖局限。** `test_sockets.cpp`使用128字节一般数据测试正常收发、连续收包、重连、receive_once及线程启停；`test_rt_socket_interface.cpp`测试正常RobotState消息、序号与staleness。未见短于协议帧、标准帧加尾随字节、超过1024字节数据报、Asio message_size截断、非法类型/版本/枚举、连续错误后恢复、邮箱保留/覆盖及RobotDriver缓存污染场景。本轮只做静态源码与现有测试审阅，没有执行测试。
+
+建议：在UDP socket层明确接收错误语义，任何非零error（尤其message_size/operation_aborted）默认不得交给协议回调，按错误类别决定是否重投；接收缓冲区大小应由实际协议最大帧和UDP策略明确定义，并检测数据报是否超长/截断；协议解析要求精确数据报长度、header.payload_size与消息类型/版本一致；先解析到局部临时对象，完成全部结构、枚举、数值及会话校验后再发布邮箱；RobotDriver应先验证候选消息再更新内部当前状态；为连续异常设置有界计数、节流告警和经安全分析批准的降级策略。不得仅凭本轮静态发现决定具体安全动作或协议长度，需以CS9/VAL3正式协议资料和目标配置为准。
+
+#### SERVO-799｜UDP报文边界、状态污染与异常恢复验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| DD1 | 核对UDP接收缓冲区大小及协议帧长度关系 | 静态核对完成：1024字节缓冲区；协议消息132/55/74字节 |
+| DD2 | 核对异步接收error是否阻断回调 | 静态核对完成：非零error只记录，仍调用回调 |
+| DD3 | 核对短报文拒绝与超长/尾随字节策略 | 静态核对完成：短帧按最小长度拒绝；多余尾随字节未统一拒绝 |
+| DD4 | 核对截断报文是否可能进入解析路径 | 静态核对完成：错误仍传回调；Asio实际返回长度与截断行为待动态确认 |
+| DD5 | 核对deserialize失败是否发布部分对象 | 静态核对完成：局部对象失败不写邮箱，保留上一条已发布消息 |
+| DD6 | 核对结构成功但语义无效的帧是否进入邮箱 | 静态核对完成：Subscriber只看deserialize结果，RobotState语义校验不完整 |
+| DD7 | 核对RobotDriver状态缓存的验证后提交顺序 | 静态核对完成：先覆盖current_robot_state_，后做类型/陈旧性校验 |
+| DD8 | 核对现有短/长/截断/连续错误/恢复测试覆盖 | 静态核对完成：未见定向覆盖 |
+| DD9 | 注入短帧、尾随字节、>1024字节报文、message_size、非法header/enum、连续错误与恢复，并验证邮箱/缓存原子性 | 未执行 |
+| DD10 | 获取CS9/VAL3正式协议、目标Boost/内核/网卡配置并完成隔离SIL/HIL/FAT/SAT | 未确认，目标证据缺失 |
+
+未执行构建/单测、短/长/截断报文注入、畸形帧/连续错误恢复测试、Mock/SIL/HIL、VAL3仿真、CS9/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.217。
