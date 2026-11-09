@@ -3698,3 +3698,59 @@ AQ1–AQ7完成固定提交静态源码/测试覆盖核对；AQ8–AQ9未执行�
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
 - https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/udp_socket.hpp
+
+
+## §9.3.204｜UDP数据报来源验证、报文长度与协议边界安全审查（2026-11-09）
+
+### 审查基线与范围
+
+固定ICube公开提交 `bd658e2d266e315d2ee35f985fb352ea88306b79`。审查UDP接收端点、发送方识别、接收字节数到消息反序列化的边界传递、三类消息头字段校验及现有单测覆盖。固定源码链接均指向该提交。本节为静态源码与测试代码审查，不代表已动态构造恶意报文、完成网络渗透测试或观察到现场状态注入。
+
+### 静态发现
+
+1. **UDP接收端未验证数据报来源。** `UDPSocketImpl::start_receive()`使用`async_receive_from(..., sender_endpoint_, ...)`接收任意来源的数据报；`handle_data_received()`没有比较`sender_endpoint_`与配置的`remote_endpoint_`，也没有检查来源端口。源码中还保留了明确的TODO，说明应丢弃unexpected sender以避免状态数据注入及序号跟踪干扰。当前`remote_endpoint_`用于`send_to()`，不能据此认为接收端已绑定或过滤远端。该路径允许非预期来源的数据进入业务回调；网络可达性、路由隔离和现场攻击可达性未验证。
+2. **仅做IP/端口白名单仍不等同于发送方身份认证。** 即使补充endpoint比较，也只能形成网络层来源筛选；在存在地址欺骗、同网段主机失陷或路由配置错误时，不能替代认证/完整性保护。应结合隔离网络、ACL/VLAN及经威胁建模选定的消息认证机制，且不得破坏控制周期预算。
+3. **UDP回调没有统一执行精确数据报长度门禁。** 接收回调将`bytes_transferred`原样传给消息反序列化；未见在进入消息类型解析前验证数据报长度必须与该类型完整帧长一致。三类消息固定长度分别为RobotState 132 B、RobotCommand 55 B、DiagnosticData 74 B。当前反序列化入口普遍只拒绝`buffer_size < expected_size`，长度大于期望值时仍可能继续解析并忽略尾随字节；因此“至少足长”不等于“帧长精确匹配”。
+4. **RobotState反序列化未验证消息头的类型、协议版本和payload_size。** `RobotStateMessage::deserialize()`调用`header.deserialize()`后直接解析状态字段，没有像RobotCommand那样检查`header.message_type`及`header.payload_size`；`FrameHeader::deserialize()`自身只检查magic number，不检查protocol_version。只要magic正确且数据报达到最小长度，其他类型/版本/声明长度不匹配的帧仍可能被解释为RobotState并进入状态缓存。该结论是静态可达性，不代表已发生现场注入。
+5. **RobotCommand校验比RobotState完整，但仍不完整。** `RobotCommandMessage::deserialize()`在解析头后检查message_type与payload_size，但没有检查protocol_version；其入口同样只拒绝短于期望长度的缓冲区，未拒绝超长数据报。因此协议版本不匹配和尾随字节仍可能被接受。
+6. **DiagnosticData的头字段校验顺序存在缺陷。** `DiagnosticDataMessage::deserialize()`在调用`header.deserialize(buffer, buffer_size)`之前，就读取对象当前`header.payload_size`和`header.message_type`进行校验。对正常新建对象，这些字段来自构造函数的默认值，而非待解析网络帧；随后解析网络头后没有再次验证payload_size/message_type。故该前置校验不能证明收到的诊断帧类型及payload长度正确。其入口也未验证协议版本和精确数据报长度。
+7. **失败反序列化与缓存更新之间存在一道保护，但不能弥补头字段漏检。** `RealTimeSocketSubscriber::update_message()`仅在`msg.deserialize(...)`返回true时设置`message_buffer_`；返回false时只记录错误，不更新邮箱。因此显式返回false的短帧/部分解析失败不会直接提交该局部对象。但RobotState漏检的头字段、DiagnosticData无效的前置校验等情况可能令畸形帧返回true，仍可覆盖有效缓存。解析函数在失败前对局部对象字段的部分写入不会自动污染邮箱，但调用者若复用对象则需另行验证；当前subscriber每次回调创建局部MessageType。
+8. **FrameHeader的协议版本字段目前只是被反序列化，没有统一兼容性判定。** `FrameHeader::deserialize()`检查magic number后即返回成功；未对`protocol_version`进行支持版本校验。各消息类型应共享一致的header校验器，避免每种消息各自遗漏。
+9. **现有测试主要验证合法loopback报文，不足以证明边界拒绝行为。** `test_rt_socket_interface.cpp`覆盖正常RobotState接收、序号丢包统计和双向消息；`test_sockets.cpp`覆盖普通UDP接收、批量报文、重连及线程行为。未见针对非预期源IP/端口、错误magic、错误protocol_version、错误message_type、payload_size不匹配、短帧、超长帧、尾随字节、截断/超大UDP数据报或三类消息交叉类型的拒绝测试。
+10. **来源白名单与协议校验尚无部署配置证据。** 固定仓库未证明目标部署是否在外部网络设备上实施ACL、独立控制网或其他来源约束，也未取得现场端口映射、对端IP/端口、Boost.Asio版本、CS9/VAL3版本及抓包证据。不能将源码TODO直接等同于现场可被任意互联网主机访问。
+
+### 建议与验收要求
+
+- 在UDP接收边界记录并校验`sender_endpoint_`的地址与端口；允许多控制器/冗余链路时使用显式配置的来源集合，不要将任意来源自动加入白名单。将IP/端口筛选视为纵深防御，而非密码学身份认证。
+- 在消息解析前根据通道/预期消息类型执行精确长度检查；对短帧、超长帧、截断帧和带尾随字节帧统一拒绝，并记录计数/错误原因。注意UDP最大数据报、接收缓冲区大小与Asio错误码的处理应一并测试。
+- 统一校验magic number、protocol_version、message_type、payload_size及实际数据报长度；先解析头，再对解析后的头字段做校验。RobotState和DiagnosticData必须补齐与RobotCommand一致且正确排序的校验逻辑。
+- 对拒绝路径保证不更新状态/诊断邮箱，不推进序号跟踪，不刷新接收时间戳；在连续有效帧后注入畸形帧，验证上层仍只读到最后一条有效状态，并按策略标记数据新鲜度。
+- 增加来源端口/IP矩阵、消息类型交叉注入、所有头字段边界、精确长度±1/尾随字节、随机畸形帧和UDP截断场景测试；使用loopback/隔离网段，不在生产控制网做未授权注入。
+- 在目标环境核实控制网络ACL/VLAN、实际远端地址/端口、协议版本协商、部署二进制SHA和日志；如引入认证，评估密钥生命周期、重放保护、序号/会话epoch和实时开销。
+
+### SERVO-787 / AR1–AR10
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| AR1 | 核对async_receive_from写入sender_endpoint_后是否执行来源地址过滤 | 固定提交静态源码核对完成：未见过滤，源码含TODO |
+| AR2 | 核对接收来源端口是否与配置远端端口匹配 | 固定提交静态源码核对完成：未见端口校验 |
+| AR3 | 核对UDP接收回调到消息解析入口是否执行精确数据报长度检查 | 固定提交静态源码核对完成：未见统一精确长度门禁 |
+| AR4 | 核对RobotState头部message_type、protocol_version、payload_size校验 | 固定提交静态源码核对完成：未见完整头字段校验 |
+| AR5 | 核对RobotCommand头部字段与超长报文处理 | 固定提交静态源码核对完成：检查类型/声明长度，未检查版本及精确长度 |
+| AR6 | 核对DiagnosticData头字段校验是否发生在网络头反序列化之后 | 固定提交静态源码核对完成：当前校验顺序在头解析之前 |
+| AR7 | 核对FrameHeader协议版本校验及三类消息的一致性 | 固定提交静态源码核对完成：FrameHeader只校验magic |
+| AR8 | 核对deserialize失败是否更新subscriber邮箱/时间戳 | 固定提交静态源码核对完成：false不更新邮箱；漏检后返回true仍可能更新 |
+| AR9 | 核对现有单测对来源、短/超长帧、畸形头及交叉消息类型的覆盖 | 固定提交静态测试覆盖核对完成：未见上述定向用例 |
+| AR10 | 核对目标部署网络ACL、对端端点、协议/软件版本，并在隔离CS9/HIL验证 | 未确认，缺目标部署/现场及受控测试证据 |
+
+AR1–AR9完成固定提交静态源码/测试覆盖核对；AR10缺目标部署、现场网络配置及隔离验证证据。未运行构建/单测、模糊测试、网络注入、Mock/SIL、VAL3仿真、CS9/HIL、FAT/SAT或实机测试。未修改ICube/MoveIt/ros2_control上游，未应用PR；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。
+
+### 固定源码链接
+
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/udp_socket_impl.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/real_time_socket_subscriber.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/messages.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/communication/protocol.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/communication/protocol.hpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_rt_socket_interface.cpp
+- https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/communication/test_sockets.cpp
