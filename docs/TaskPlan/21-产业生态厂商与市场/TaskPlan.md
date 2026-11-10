@@ -4743,3 +4743,16 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - MoveIt arm规划组使用KDL；控制器映射声明joint_trajectory_controller及六个关节。未验证运行时控制器、TF、PlanningScene或实际规划执行。
 
 新增SERVO-838/ST1–ST12矩阵。ST1、ST2、ST6、ST8、ST10完成静态配置核对；其余需网格、运行时或动态证据。未执行mesh解析、xacro/URDF/SRDF展开、PlanningScene碰撞采样、TCP标定、MoveIt启动、仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。工程级验收仍未通过，`TODO-EXT-001`未授权合并。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.256 / SERVO-839）
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。静态核对MoveIt启动链、SRDF规划组、MoveIt控制器映射、MoveIt joint_limits、ros2_control controllers.yaml、MoveIt Servo配置及上游操作文档。
+
+核心结论：MoveIt Simple Controller Manager将`joint_trajectory_controller`映射到`follow_joint_trajectory`，并列出joint_1至joint_6；bringup JTC也声明相同六轴、position command interface、position/velocity state interfaces，控制器管理周期250Hz。文档明确要求显式启动JTC，并检查其active状态。MoveIt joint_limits.yaml设置默认velocity/acceleration scaling均0.1；六轴速度上限joint_1至joint_5为1.5rad/s、joint_6为2.0rad/s，加速度分别5.0rad/s²和10.0rad/s²。JTC配置允许非零轨迹末端速度、禁止partial joints goal、从desired state插值，stopped_velocity_tolerance=0.01、goal_time=0.0；未配置逐关节path/goal容差。仓库未显式声明轨迹时间参数化插件/算法及版本，不能据此推断运行时采用何种算法。
+
+识别到两项Servo专用配置断链：SRDF/kinematics组名为`arm`，但staubli_servo.yaml的`move_group_name`为`staubli_arm`；Servo输出`/forward_position_controller/commands`，但bringup controllers.yaml仅声明joint_state_broadcaster和joint_trajectory_controller，未声明forward_position_controller。Servo默认关闭（launch_servo=false），故这两项不等于默认MoveIt轨迹执行路径必然失败，但启用Servo时必须验证/修正。另有MoveIt controller映射`default: false`，需确认控制器选择与执行请求路由。
+
+新增SERVO-839/SU1–SU12矩阵：SU1–SU5静态配置核对完成；SU6–SU12涉及时间参数化运行时版本、JTC action成功/拒绝/取消/抢占、停止响应、VAL3故障/状态反馈、Servo启动及真实控制器连通，尚未执行。上游文档给出机器人AUTO/MANUAL运动使能、急停释放、刹车释放等前置条件，并建议低速/低加速度缩放及RViz预览；文档还描述控制序列延迟达到5个4ms周期（约20ms）时VAL3进入STOP。以上为文档声明，不是本轮实测结果。
+
+本轮仅静态源码与文档核对；未执行MoveIt/JTC运行、action取消/停止注入、轨迹时间参数化实测、Servo启动、ROS图检查、mock hardware、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.257 / SERVO-840。
