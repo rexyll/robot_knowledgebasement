@@ -419,4 +419,4 @@
 
 ### §9.3.289｜SERVO-872：RobotDriver connect/disconnect 回滚路径故障注入矩阵
 
-- [2026-11-10 Stäubli RobotDriver connect/disconnect 回滚路径故障注入矩阵] (2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)：固定上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对双 Socket connect 阶段、control connect false 直接返回、Subscriber 构造异常无 rollback、diagnostics 失败路径、disconnect stop/disconnect 顺序、空析构及旧会话清理。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 精确故障注入规格。仅静态审查与设计，全部运行时测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.290 / SERVO-873。
+- [2026-11-10 Stäubli RobotDriver connect/disconnect 回滚路径故障注入矩阵](2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)：固定上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对双 Socket connect 阶段、control connect false 直接返回、Subscriber 构造异常无 rollback、diagnostics 失败路径、disconnect stop/disconnect 顺序、空析构及旧会话清理。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 精确故障注入规格。仅静态审查与设计，全部运行时测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.290 / SERVO-873。
