@@ -5478,3 +5478,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅静态事务设计；journal、backend、reconciliation、平台close adapter及资源DAG均未实现；未执行C++17编译、CMake、gtest、fake backend、fault injection、fd leak/double-close检查、ASan/UBSan/TSan、ROS component/plugin、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
 - **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点。
 - **下一节点：** §9.3.300 / SERVO-883：SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy。
+
+
+### §9.3.300｜SERVO-883：SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy](../../audits/2026-11-10-staubli-socket-v2-cleanup-dag-platform-close-semantics-residual-reconciliation.md)。
+- **范围：** cleanup DAG节点/边、owner/barrier规则、环检测/可达性/版本绑定、Linux/POSIX/macOS/Windows close语义证据、residual资源状态与reconciliation流程。
+- **静态结论：**
+  1. 资源依赖图必须覆盖admission、callback ingress/lease、async I/O、worker/poller、protocol/session、native handle、buffer、ROS entity、plugin lease/code image和Core owner；每条边须记录引用来源、barrier、超时行为与验证证据。
+  2. DAG必须通过节点完整性、owner唯一性、环检测、可达性、终态覆盖和deadline闭包检查；超时不能自动解除仍活跃的引用边。
+  3. Linux `close(2)`失败后不能盲目重试同一fd整数；fd可能已提前释放并被其他线程复用。POSIX.1-2008与POSIX.1-2024语义及具体OS实现需分别记录。
+  4. Windows Winsock `closesocket`句柄可能立即复用；必须先阻断并发I/O并处理pending overlapped completion；linger配置会改变关闭阻塞和graceful/abortive行为。
+  5. Apple历史man page虽列出EINTR，但未充分说明错误后fd状态；当前macOS版本证据仍待补，不作未经证实的Linux语义类推。
+  6. residual状态区分RESIDUAL_RETAINED、CLOSE_OUTCOME_UNKNOWN、ORPHANED_OWNER、REMOTE_SESSION_UNKNOWN、CALLBACK_RESIDUAL、THREAD_RESIDUAL；通过identity freeze、access fence、reference check、平台probe、owner决策和升级流程处理。
+- **验收状态：** DAG-01至04、LINUX-01至04、POSIX-01至02、MAC-01、WIN-01至04、RES-01至06全部NOT_RUN。
+- **状态与限制：** 仅静态设计与公开文档证据整理；尚未从固定上游逐点提取真实资源DAG；平台adapter与reconciliation均未实现；未执行C++17编译、CMake、gtest、native close错误注入、fd/socket reuse、double-close/leak、TSan/ASan/UBSan、macOS/Windows原生测试、ROS component/plugin、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
+- **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点。
+- **下一节点：** §9.3.301 / SERVO-884：SocketV2 source-level resource ownership inventory、close-site traceability matrix 与 real implementation dependency DAG extraction。
