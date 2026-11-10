@@ -1,0 +1,778 @@
+{
+  "schema_version": "1.0.0",
+  "project": "staubli_socket_v2_lifecycle",
+  "upstream_baseline": {
+    "repository": "ICube-Robotics/staubli_driver_ros2",
+    "commit": "bd658e2d266e315d2ee35f985fb352ea88306b79"
+  },
+  "audit_source": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+  "reference_catalog": [
+    "RACE-01",
+    "RACE-02",
+    "RACE-03",
+    "RACE-04",
+    "RACE-05",
+    "RACE-06",
+    "RACE-07",
+    "RACE-08",
+    "RACE-09",
+    "RACE-10",
+    "RACE-11",
+    "RACE-12",
+    "RACE-13",
+    "RACE-14",
+    "RACE-15",
+    "RACE-16",
+    "EXEC-01",
+    "EXEC-02",
+    "EXEC-03",
+    "EXEC-04"
+  ],
+  "records": [
+    {
+      "id": "F01",
+      "event": "open失败",
+      "resource": "native socket",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "OPEN_OUTCOME_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "F02",
+      "event": "option/bind/resolve失败",
+      "resource": "socket初始化阶段资源",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "CLOSE_OUTCOME_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "F03",
+      "event": "async启动后立即stop",
+      "resource": "pending handler与callback",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "PENDING_UNKNOWN",
+        "CALLBACK_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-02",
+        "RACE-05",
+        "RACE-14"
+      ]
+    },
+    {
+      "id": "F04",
+      "event": "callback中销毁Subscriber",
+      "resource": "Subscriber callback lease",
+      "resource_owner": "SubscriberPluginLifetimeOwner",
+      "reconcile_coordinator": "PluginUnloadCoordinator",
+      "failure_states": [
+        "CALLBACK_RESIDUAL",
+        "PLUGIN_UNLOAD_BLOCKED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-13",
+        "EXEC-03"
+      ]
+    },
+    {
+      "id": "F05",
+      "event": "callback抛异常",
+      "resource": "callback lease与worker",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CallbackTrampoline/CleanupCoordinator",
+      "failure_states": [
+        "CALLBACK_EXCEPTION",
+        "THREAD_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-11",
+        "EXEC-04"
+      ]
+    },
+    {
+      "id": "F06",
+      "event": "worker self-stop",
+      "resource": "worker thread",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "外部LifecycleThread/CleanupCoordinator",
+      "failure_states": [
+        "SELF_JOIN_REJECTED",
+        "THREAD_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-11",
+        "EXEC-04"
+      ]
+    },
+    {
+      "id": "F07",
+      "event": "join超时或卡死",
+      "resource": "worker与Core",
+      "resource_owner": "TransportLifecycleOwner",
+      "reconcile_coordinator": "Core CleanupCoordinator",
+      "failure_states": [
+        "THREAD_RESIDUAL",
+        "JOIN_FAILED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-09",
+        "RACE-14",
+        "EXEC-01"
+      ]
+    },
+    {
+      "id": "F08",
+      "event": "native close异常",
+      "resource": "native socket handle",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "CLOSE_OUTCOME_UNKNOWN",
+        "NATIVE_CLOSE_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "F09",
+      "event": "stop失败但close成功",
+      "resource": "worker与native handle",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "THREAD_RESIDUAL",
+        "NATIVE_CLOSED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-09",
+        "EXEC-04"
+      ]
+    },
+    {
+      "id": "F10",
+      "event": "control成功/diagnostics失败",
+      "resource": "双通道独立Core generation",
+      "resource_owner": "PerChannelCoreControlBlock",
+      "reconcile_coordinator": "PerChannelCleanupCoordinator",
+      "failure_states": [
+        "CHANNEL_PARTIAL_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-02",
+        "RACE-07",
+        "RACE-16"
+      ]
+    },
+    {
+      "id": "F11",
+      "event": "重复disconnect",
+      "resource": "同generation socket资源",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "PRIOR_FAILURE_PRESERVED",
+        "CLOSE_OUTCOME_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "F12",
+      "event": "ROS lifecycle cleanup/shutdown/error",
+      "resource": "ROS lifecycle与transport资源",
+      "resource_owner": "TransportLifecycleOwner",
+      "reconcile_coordinator": "PerCoreCleanupCoordinator",
+      "failure_states": [
+        "LIFECYCLE_RESULT_MISMATCH",
+        "RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-06",
+        "EXEC-03"
+      ]
+    },
+    {
+      "id": "F13",
+      "event": "plugin unload时callback活跃",
+      "resource": "plugin DSO与callback lease",
+      "resource_owner": "PluginUnloadCoordinator",
+      "reconcile_coordinator": "PluginUnloadCoordinator",
+      "failure_states": [
+        "PLUGIN_UNLOAD_BLOCKED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-13",
+        "EXEC-03"
+      ]
+    },
+    {
+      "id": "F14",
+      "event": "mock server第二通道初始化失败",
+      "resource": "MockServer双socket",
+      "resource_owner": "MockServerInstanceOwner",
+      "reconcile_coordinator": "PerSocketCleanupCoordinator",
+      "failure_states": [
+        "PARTIAL_INITIALIZATION_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-03",
+        "RACE-16"
+      ]
+    },
+    {
+      "id": "F15",
+      "event": "native handle复用/重复close",
+      "resource": "平台native handle与generation",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "PlatformNativeSocketAdapter",
+      "failure_states": [
+        "HANDLE_IDENTITY_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "F16",
+      "event": "远端session未确认",
+      "resource": "远端协议session",
+      "resource_owner": "RobotDriverSessionStateOwner",
+      "reconcile_coordinator": "ProtocolSessionReconciler",
+      "failure_states": [
+        "REMOTE_SESSION_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-09"
+      ]
+    },
+    {
+      "id": "PLUG-L01",
+      "event": "正常plugin cleanup",
+      "resource": "plugin与transport终态",
+      "resource_owner": "PluginUnloadCoordinator",
+      "reconcile_coordinator": "PluginUnloadCoordinator",
+      "failure_states": [
+        "UNLOAD_BLOCKED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-13",
+        "EXEC-03"
+      ]
+    },
+    {
+      "id": "PLUG-L02",
+      "event": "connected=false但native未知",
+      "resource": "native socket",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "CLOSE_OUTCOME_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "PLUG-L03",
+      "event": "on_error STOP失败",
+      "resource": "远端session与本地transport",
+      "resource_owner": "RobotDriverSessionStateOwner",
+      "reconcile_coordinator": "ProtocolSessionReconciler",
+      "failure_states": [
+        "REMOTE_SESSION_UNKNOWN",
+        "NATIVE_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-09",
+        "EXEC-03"
+      ]
+    },
+    {
+      "id": "PLUG-L04",
+      "event": "callback执行中unload",
+      "resource": "plugin callback lease",
+      "resource_owner": "PluginUnloadCoordinator",
+      "reconcile_coordinator": "PluginUnloadCoordinator",
+      "failure_states": [
+        "PLUGIN_UNLOAD_BLOCKED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-13"
+      ]
+    },
+    {
+      "id": "PLUG-L05",
+      "event": "cancel期间pending handler完成",
+      "resource": "pending handler与callback gate",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "CALLBACK_RESIDUAL",
+        "PLUGIN_UNLOAD_BLOCKED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-02",
+        "RACE-13"
+      ]
+    },
+    {
+      "id": "PLUG-L06",
+      "event": "callback触发stop",
+      "resource": "worker与callback lease",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "外部LifecycleThread/CleanupCoordinator",
+      "failure_states": [
+        "SELF_JOIN_REJECTED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-11",
+        "EXEC-04"
+      ]
+    },
+    {
+      "id": "PLUG-L07",
+      "event": "join失败/超时",
+      "resource": "worker与Core",
+      "resource_owner": "TransportLifecycleOwner",
+      "reconcile_coordinator": "Core CleanupCoordinator",
+      "failure_states": [
+        "THREAD_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-09",
+        "EXEC-01"
+      ]
+    },
+    {
+      "id": "PLUG-L08",
+      "event": "native close异常",
+      "resource": "native socket",
+      "resource_owner": "CoreControlBlock",
+      "reconcile_coordinator": "CleanupCoordinator",
+      "failure_states": [
+        "CLOSE_OUTCOME_UNKNOWN"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-07",
+        "RACE-15"
+      ]
+    },
+    {
+      "id": "PLUG-L09",
+      "event": "plugin deleter/vtable仍被引用",
+      "resource": "plugin DSO code lease",
+      "resource_owner": "PluginUnloadCoordinator",
+      "reconcile_coordinator": "PluginUnloadCoordinator",
+      "failure_states": [
+        "PLUGIN_CODE_LEASE_NONZERO"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-13",
+        "EXEC-03"
+      ]
+    },
+    {
+      "id": "PLUG-L10",
+      "event": "反复load/unload",
+      "resource": "plugin DSO与每轮Core",
+      "resource_owner": "PluginUnloadCoordinator",
+      "reconcile_coordinator": "PluginUnloadCoordinator",
+      "failure_states": [
+        "ROUND_RESIDUAL",
+        "UNLOAD_BLOCKED"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-13",
+        "RACE-14",
+        "EXEC-04"
+      ]
+    },
+    {
+      "id": "PLUG-L11",
+      "event": "双通道部分清理",
+      "resource": "control/diagnostics Core",
+      "resource_owner": "PerChannelCoreControlBlock",
+      "reconcile_coordinator": "PerChannelCleanupCoordinator",
+      "failure_states": [
+        "CHANNEL_PARTIAL_RESIDUAL"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-02",
+        "RACE-07",
+        "RACE-16"
+      ]
+    },
+    {
+      "id": "PLUG-L12",
+      "event": "lifecycle重复/乱序",
+      "resource": "lifecycle generation与cleanup transaction",
+      "resource_owner": "TransportLifecycleOwner",
+      "reconcile_coordinator": "PerCoreCleanupCoordinator",
+      "failure_states": [
+        "STALE_GENERATION",
+        "DUPLICATE_TRANSACTION"
+      ],
+      "required_evidence": [
+        "design_spec"
+      ],
+      "evidence": [
+        {
+          "kind": "design_spec",
+          "state": "PRESENT",
+          "uri": "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md",
+          "note": "静态设计追踪；不代表运行验收。"
+        }
+      ],
+      "status": "SPECIFIED",
+      "test_refs": [
+        "RACE-03",
+        "RACE-07",
+        "EXEC-03"
+      ]
+    }
+  ]
+}
