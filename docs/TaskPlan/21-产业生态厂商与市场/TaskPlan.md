@@ -4755,4 +4755,21 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 
 新增SERVO-839/SU1–SU12矩阵：SU1–SU5静态配置核对完成；SU6–SU12涉及时间参数化运行时版本、JTC action成功/拒绝/取消/抢占、停止响应、VAL3故障/状态反馈、Servo启动及真实控制器连通，尚未执行。上游文档给出机器人AUTO/MANUAL运动使能、急停释放、刹车释放等前置条件，并建议低速/低加速度缩放及RViz预览；文档还描述控制序列延迟达到5个4ms周期（约20ms）时VAL3进入STOP。以上为文档声明，不是本轮实测结果。
 
+#### SU1–SU12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SU1 | MoveIt controller映射与JTC关节集合 | 六轴名称静态一致 |
+| SU2 | FollowJointTrajectory action路径 | action_ns配置为follow_joint_trajectory；运行时服务可用性未测 |
+| SU3 | JTC command/state接口与控制周期 | position命令、position/velocity状态，250Hz配置静态确认 |
+| SU4 | MoveIt规划速度/加速度限制 | 默认缩放0.1及六轴数值静态确认；运行时生效未测 |
+| SU5 | JTC末端速度、部分目标、停止与goal_time参数 | 配置值静态确认；策略适用性需安全评审 |
+| SU6 | 轨迹时间参数化算法及版本 | 仓库未显式声明；运行时依赖版本未锁定核实 |
+| SU7 | Action成功/拒绝/取消/抢占/超时 | 未执行动态测试 |
+| SU8 | JTC停止、保持及VAL3 STOP响应 | 未执行；文档描述序列延迟5周期约20ms触发STOP |
+| SU9 | 实际关节状态、轨迹反馈及误差收敛 | 未执行运行时状态/反馈一致性测试 |
+| SU10 | Servo规划组名 | 配置不一致：SRDF/kinematics为arm，Servo为staubli_arm |
+| SU11 | Servo输出topic与控制器 | topic指向forward_position_controller，但bringup未声明该控制器；Servo默认关闭 |
+| SU12 | MoveIt→JTC→硬件→VAL3端到端验收 | 未执行mock hardware、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收 |
+
 本轮仅静态源码与文档核对；未执行MoveIt/JTC运行、action取消/停止注入、轨迹时间参数化实测、Servo启动、ROS图检查、mock hardware、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.257 / SERVO-840。
