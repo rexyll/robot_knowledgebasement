@@ -5382,3 +5382,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
   6. 设计HDR-01至HDR-07、TYPE-01至TYPE-04、RES-01至RES-04、ABI-17至ABI-18 standalone/install-space验收项。
 - **状态：** 仅静态接口契约设计；未新增上游头文件/类型/fixture，未执行C++17编译、CMake、gtest、install-space consumer、nm/readelf、Windows DLL、TSan、loopback或ROS集成；VAL3/CS9、SIL/HIL、FAT/SAT、实机均未执行；未修改上游或应用PR；`TODO-EXT-001`未授权。
 - **下一节点：** §9.3.295 / SERVO-878。
+
+
+> **进度同步说明（2026-11-10）：** 根 TaskPlan 与审计索引已推进至§9.3.294 / SERVO-877；本章节详细正文仍存在§9.3.281–§9.3.294历史同步缺口。本轮继续追加当前节点，不伪造缺失节点的逐项记录；后续需依据根计划及审计报告回填。
+
+### §9.3.295｜SERVO-878：SocketV2 Result 错误分类、异常安全与资源残留 / Quarantine Owner 生命周期契约审查
+
+- **固定审查基线：** ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 Result 错误分类、异常安全与资源残留 / Quarantine Owner 生命周期契约审查](../../audits/2026-11-10-staubli-socket-v2-result-error-exception-safety-residual-owner-lifecycle-audit.md)。
+- **范围：** primary failure / cleanup failure / native error / C++ exception / residual state分离；create/connect/stop/disconnect异常安全；CleanupReport；ResidualResourceHandle；quarantine owner；retry_cleanup；noexcept边界；Subscriber receive lease与RobotDriver双通道回滚。
+- **静态结论：**
+  1. primary failure不可被后续cleanup失败覆盖；每个cleanup步骤独立捕获并继续，错误按步骤保序追加。
+  2. FAILED_RESIDUAL必须保留可重试的Core owner；不能只返回snapshot后释放最后一个owner。
+  3. retry_cleanup按Core/generation串行化、幂等执行；仅稳定终态证明handler/callback/worker归零且native handle关闭后才释放owner。
+  4. 析构noexcept且仅best-effort；普通create/connect/stop/retry不因返回Result就自动标noexcept；callback异常不得逃逸线程入口。
+  5. RobotDriver必须保留原始connect异常并分别清理control/diagnostics；Subscriber只停止其拥有的receive lease。
+  6. 定义ERR-01至ERR-24故障注入与生命周期验收矩阵，全部NOT_RUN。
+- **状态：** 仅静态设计审查；未实现FailureRecord、CleanupReport、ResidualResourceHandle、quarantine manager、retry_cleanup、receive lease或RobotDriver适配；未运行C++编译、CMake、gtest、UDP loopback、native error injection、TSan/ASan、ROS 2 Control；未执行VAL3/CS9、SIL/HIL、FAT/SAT或实机；未修改上游、未创建/应用/合并PR；TODO-EXT-001未授权。
+- **下一节点：** §9.3.296 / SERVO-879。
