@@ -4258,3 +4258,19 @@ ACK1–ACK6完成固定提交静态源码、VAL3协议流程与测试源码核�
 7. 现有测试覆盖同一缓存重复读取、跳号计数、基本双向收发和staleness；不覆盖真实重复UDP帧、乱序倒退、回绕历史帧、来源注入、突发队列与would_block。
 
 RX1–RX7完成固定提交静态源码与测试源码核对；RX-01至RX-14验收设计已形成，全部未执行。未运行C++构建/单测、网络注入/抓包、would_block注入、VAL3 Studio编译下载、CS9 sioGet队列实验、SIL/HIL/FAT/SAT或实机STOP验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.278 / SERVO-861。
+
+
+### 2026-11-10｜v10.53 本轮推进记录（§9.3.278 / SERVO-861）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮审查UDP接收来源端点、C++ FrameHeader及RobotState/RobotCommand/DiagnosticData反序列化、VAL3 decodeHeader/readDataOnce/decodeRobotCommandMsg、RobotDriver状态有效性门禁和现有测试，详见 [2026-11-10-staubli-udp-protocol-trust-boundary-integrity-audit.md](docs/audits/2026-11-10-staubli-udp-protocol-trust-boundary-integrity-audit.md)。
+
+主要结论：
+1. UDP接收端虽取得sender_endpoint_，但来源过滤仍为注释TODO；当前没有强制校验预期机器人来源IP/端口。
+2. handle_data_received在error非空时只记录错误，仍调用接收回调；错误回调缓冲区是否会造成旧数据消费需注入验证。
+3. C++ FrameHeader::deserialize只检查magic number；RobotState没有wire type/version/payload_size统一校验，RobotCommand虽检查type/length但未检查version，DiagnosticData在解析wire header前检查对象默认字段且解析后未验证wire payload_size。
+4. 多类消息只要求buffer长度至少达到固定大小，未统一拒绝超长帧/尾随字节。
+5. VAL3 decodeHeader校验magic/version但未校验payload_size；跨语言命令入口的wire长度声明门禁仍不对称。
+6. 协议没有MAC/签名、controller boot ID/session nonce/epoch；uint16序号无法提供发送者认证或跨会话抗重放。
+7. RobotDriver与ROS状态接口未暴露可信来源、认证状态、session epoch、协议拒绝原因及异常计数；本地接收时间不能替代来源认证。
+
+UT1–UT7完成固定提交源码/测试源码静态核对；UT-01至UT-15验收矩阵已建立，全部未执行。未运行C++构建/单测、UDP源地址/端口注入、畸形帧/尾随字节注入、接收错误注入、MAC/会话原型、VAL3 Studio编译下载、CS9仿真、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.279 / SERVO-862。
