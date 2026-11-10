@@ -5547,3 +5547,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅完成测试架构/接口合同静态设计；未实现backend seam、FakeTransport、LifecycleSnapshot、FaultScript或deterministic executor；未执行C++17编译、CMake/gtest、install-space consumer、ABI符号比较、barrier竞态、fake clock、fault injection、TSan/ASan/UBSan、真实UDP/native close、ROS lifecycle/plugin、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。
 - **历史同步说明：** §9.3.281–§9.3.294历史逐节点同步缺口继续透明保留，不伪造回填。
 - **下一节点：** §9.3.304 / SERVO-887：Private transport seam implementation strategy selection、legacy ABI guard 与 test-only dependency wiring review（继续设计审查，不擅自修改上游）。
+
+
+### §9.3.304｜SERVO-887：Private Transport Seam 实现策略、Legacy ABI Guard 与 Test-only CMake Wiring Review
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [Stäubli SocketV2 Private Transport Seam 实现策略、Legacy ABI Guard 与 Test-only CMake Wiring Review](../../audits/2026-11-10-staubli-socket-v2-private-transport-seam-implementation-strategy-legacy-abi-guard-test-only-cmake-wiring.md)。
+- **策略比较：** 深入比较private abstract interface、template policy、function table + opaque context三种方案。建议Slice A1采用private abstract interface + PIMPL + 单一SocketCore：Fake/Asio共用状态机和cleanup coordinator，private interface不进入public/install header；模板策略仅在性能剖析证明必要时评估；function table仅在未来需要跨DSO/C ABI边界时另行评估。
+- **ABI防护：** 定义legacy header/API、vtable、exported symbol、ABI structural diff、layout probe、install header/include closure、plugin metadata和独立legacy consumer七层检查；基线必须来自固定commit同环境可复现构建，无法复现则BLOCKED，不得伪造兼容结论。
+- **CMake隔离：** 定义production core/plugin与test-only support target分层；FakeTransport/FaultScript/DeterministicDriver仅由测试目标引用；禁止进入production dependency graph、install manifest、ament export、plugin dynamic dependencies及生产导出符号。
+- **生命周期与ODR：** 要求唯一权威private interface定义、无宏导致的跨TU布局差异、Fake completion与Asio相同合同、单一cleanup owner、plugin unload前解除callback/backend completion依赖。
+- **实施顺序：** A1.1冻结private interface/PIMPL边界；A1.2 Asio adapter；A1.3 test-only builder/Fake；A1.4共用Core；A1.5 ABI/header/install guard；A1.6 CMake依赖图guard；A1.7 Slice A1验收。不得跳过策略和真实基线核验直接修改上游。
+- **验收状态：** STRAT-01至02为SPECIFIED；ABI-LEG-01至10、CMAKE-ISO-01至09、ODR-01、LIFE-01至02全部NOT_RUN。
+- **状态与限制：** 仅完成实现策略与构建/ABI防护静态审查；未修改固定上游，未创建/应用/合并PR；未执行编译、ABI工具、符号比较、install-space consumer、CMake target graph、ament export、plugin load/unload、Fake测试、sanitizer、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；`TODO-EXT-001`仍未授权。
+- **历史同步说明：** §9.3.281–§9.3.294历史逐节点同步缺口继续透明保留，不伪造回填。
+- **下一节点：** §9.3.305 / SERVO-888：Fixed-commit CMake/source inventory、private seam placement proof 与 reproducible ABI baseline feasibility audit（先核验真实源码与可复现构建条件，再决定是否进入A1实现）。
