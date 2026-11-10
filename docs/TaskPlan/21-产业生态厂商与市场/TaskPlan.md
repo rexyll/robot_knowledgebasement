@@ -5126,3 +5126,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 建立型号/控制柜/IO选件版本化物理IO清单；实现VAL3 IO适配层与错误传播；补齐ROS通道到VAL3变量/模块/槽位/端子的映射；定义STOP/ERROR/断线/任务异常/重启输出策略；完善GPIO文档；在隔离环境及CS9现场执行输入输出、量程、模块掉线和端子逐点测试。普通GPIO不得承担安全功能。
 - **状态：** 固定提交静态审查完成；GPIO物理IO端到端验收未通过；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.267 / SERVO-850。
+
+
+### §9.3.267｜SERVO-850：控制器通信异常、VAL3任务调度与GPIO安全状态的故障传播和恢复闭环
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-control-communication-fault-recovery-audit.md](../../audits/2026-11-10-staubli-control-communication-fault-recovery-audit.md)。
+- **范围：** VAL3 controlTask/readData/readDataOnce/sendData/resetControlSocket/start/stop；C++ RobotDriver、RealTimeSocketSubscriber、RealTimeSocketInterface、UDP socket及StaubliHardwareInterface生命周期/读写路径。
+- **静态结论：**
+  1. VAL3接收完整帧才置新数据，正数长度错误报错；0或负返回值作为无新数据处理（负值语义待目标API确认）。每周期最多尝试两次读取；旧命令staleness检查仍为TODO。
+  2. 4ms控制任务序号延迟门禁仅在控制活动且命令有效时运行：大于3周期告警，运动中大于5、静止时大于25或负延迟触发错误。未发现独立heartbeat/watchdog或任务周期健康监控闭环。
+  3. sendData检查sioSet返回长度；resetControlSocket不检查sioCtrl/clearBuffer结果却无条件清除错误标志，故调用方无法可靠确认复位成功。错误处理清除命令有效性、序号和控制活动状态，但没有明确静默期/握手。
+  4. ROS is_connected只检查socket和接收线程就绪，不检查RobotState新鲜度；read_robot_state另行执行默认100ms staleness检查，硬件read失败返回ERROR。connect阶段检查首个有效状态/协议版本，但没有自动重连、会话epoch及重新取得控制权的完整状态机。
+  5. on_error/on_shutdown尝试发送软件STOP，但无控制器停止回执/机器人静止确认；VAL3物理GPIO输出仍为TODO，不能推断端子安全状态。UDP接收错误回调和来源校验问题为既有审计风险，本轮仅记录其对恢复链的影响。
+  6. start.pgx创建4ms控制任务，监督/诊断任务为TODO；stop.pgx停止运动并清buffer，但未显式等待controlTask退出。重复启动/退出语义需目标CS9/VAL3验证。
+- **RC1–RC15状态：** RC1–RC8、RC10–RC13固定提交静态审查完成或确认实现缺口；RC9连接阶段门禁已静态核对但未验证重连；RC14网络故障注入未执行；RC15缺少CS9/SIL/HIL/FAT/SAT/实机证据。
+- **整改要求：** 建立显式通信/控制恢复状态机；加入独立heartbeat和旧命令失效机制；复位API逐项检查并传播错误；加入静默期、握手和session/boot epoch；ROS区分transport-ready与fresh-state-ready并在重连后重新验证控制权；增加任务退出/防重入和停止回执；GPIO安全默认态必须基于真实硬件并独立验证。
+- **状态：** 固定提交静态审查完成；故障恢复闭环与工程级验收未通过；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.268 / SERVO-851。
