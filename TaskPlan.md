@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.28  
+> 版本：v10.29  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.253 / SERVO-836；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.254 / SERVO-837；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3860,3 +3860,48 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 供应方提供CS9/VAL3兼容矩阵及签核；在目标控制器上执行VAL3编译、仿真、SIL/HIL、FAT/SAT与实机验收。
 
 本轮仅静态审查固定上游提交；未执行构建/单测、xacro展开、URDF解析、VAL3编译、CS9配置读取/下载、TCP标定、运动测试、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
+
+
+### 2026-11-10｜v10.29 本轮推进记录（§9.3.254 / SERVO-837）
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮审查机器人描述层的Xacro配置加载、配置校验、关节初始状态、加速度接口参数和网格资源引用链。
+
+静态审查确认：`staubli_helpers.xacro`的`check_robot_model_config`只检查默认joint/link名称非空、link数量等于joint数量加一，以及末端执行器父link是否合法；没有对kinematics、dynamics、joint_limits、initial_positions和meshes配置执行统一schema、字段类型、数组长度、有限性、正值/物理合理性及跨文件键集合校验。后续宏在生成URDF时直接索引这些字段，配置缺失或形状错误可能在展开阶段才以索引/键错误暴露，缺少集中、可读的预检报告。
+
+`add_joint`直接读取axis/xyz/rpy三元素、min/max position、max_velocity、has_effort_limits及条件性的max_effort；未见对轴向量归一化、位置上下界顺序、速度正值、effort有效性或NaN/Inf进行显式检查。`add_link`直接读取mass、COM xyz/rpy和惯量张量六个分量；未见质量正值、惯量矩阵对称/正定及有限性检查。这里只确认校验逻辑未在所审查Xacro路径中出现，不代表Xacro/URDF工具链不会对部分错误另行报错。
+
+`get_mesh`按link和visual/collision类型直接查表并拼接package/path，没有在该宏内验证每个资源文件存在、格式可解析、visual与collision覆盖完整或模型包版本一致。TX2-60L meshes.yaml列出base_link与link_1至link_6的visual/collision资源映射；本轮未下载/解析所有mesh文件，不能确认资源几何质量或文件实际完整性。
+
+`initial_positions.yaml`为六轴提供0.1至0.6的初始值；R2C关节宏将其直接写入position state interface的initial_value，没有在该路径中检查关节键完整性、值有限性、是否处于对应型号joint_limits范围，或其是否适合作为真实硬件启动时的状态初值。该值属于接口初始状态声明，不应误认为机器人已被移动到该姿态或控制器已读到真实位置。
+
+R2C宏在真实硬件路径启用acceleration command interface，并从joint_limits读取max_acceleration后写入正负max参数；本轮未见该参数在此处进行有限性/正值检查。该发现与SERVO-834的加速度限制消费链路缺口相关，但本轮不重复判定JointLimiter运行时行为。
+
+另确认：robot_model、kinematics、dynamics、joint_limits、initial_positions、meshes由不同loader分别装载；当前显式模型校验函数只接收robot_model配置，未对其余五类配置建立统一交叉验证。robot_model参数由launch/xacro路径选择配置目录，尚未见型号白名单、必需文件预检和完整模型配置manifest/校验和绑定。
+
+#### SC1–SC12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SC1 | robot_model必需字段、类型和能力标志schema | 未见完整schema校验 |
+| SC2 | joint/link名称、顺序、数量及跨文件键一致性 | 仅部分名称/数量校验 |
+| SC3 | kinematics轴向量、xyz/rpy长度与有限性 | 直接索引；显式校验未见 |
+| SC4 | dynamics质量、COM和惯量物理有效性 | 直接读取；物理有效性校验未见 |
+| SC5 | joint_limits上下界、速度/加速度/effort有效性 | 直接读取；显式范围校验未见 |
+| SC6 | initial_positions键完整性、有限性及限位内检查 | 直接作为state initial_value；校验未见 |
+| SC7 | initial_positions与真实启动状态语义 | 配置初值不等于真实位置回读 |
+| SC8 | meshes visual/collision映射完整性 | YAML映射存在；资源逐项解析/完整性未验证 |
+| SC9 | mesh package/path资源存在性预检 | 宏内未见文件存在性检查 |
+| SC10 | acceleration interface max参数有效性 | 直接从max_acceleration生成；显式校验未见 |
+| SC11 | 六类配置的版本/哈希/型号一致性 | 未见统一manifest或交叉校验 |
+| SC12 | 畸形配置、越界初值、损坏mesh和多型号展开测试 | 未执行 |
+
+#### 整改建议
+
+- 为六类模型配置建立带版本的schema与统一预检工具；对必需字段、类型、数组长度、关节键集合、单位和有限性执行fail-fast校验。
+- 校验kinematics轴向量范数、坐标变换维度；校验dynamics质量与惯量矩阵物理有效性；校验joint limits上下界、速度/加速度/effort为合法有限值。
+- 对initial_positions执行六轴键完整性、有限性及型号限位范围检查；明确mock初值与真实硬件状态回读的区别，禁止将静态初值当作现场姿态证明。
+- 对每个link的visual/collision mesh检查package、路径、文件存在性、可解析性及覆盖完整性；生成可复核资源清单。
+- 将型号、机械臂修订、配置文件版本/哈希、ROS/URDF生成版本及CS9/VAL3配置建立受控manifest，防止跨型号混搭。
+- 增加故意缺字段、错误数组长度、NaN/Inf、负质量、非正定惯量、上下限反转、越界初值、缺失mesh和错误型号参数的负向测试。
+
+本轮仅静态审查固定上游提交中的Xacro/YAML配置读取与接口生成路径；未运行xacro展开、URDF解析、mesh加载/碰撞检查、ROS构建/单测、JointState初始化、硬件启动、CS9/VAL3、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.255 / SERVO-838。
