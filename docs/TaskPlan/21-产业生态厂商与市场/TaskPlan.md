@@ -5615,3 +5615,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收状态：** HARNESS-01、DEPS-01、CONSUMER-01为SPECIFIED；DOCKER-01为STATIC_REVIEWED；BUILD-01、TEST-01、CONSUMER-RUN-01、ABI-01、PLUGIN-01均NOT_RUN；GATE-01 BLOCKED。
 - **限制：** 本节点只提供外部执行模板和fixture，不表示已执行验证；未运行Docker/apt/rosdep/CMake/colcon/gtest/consumer/ABI/plugin/sanitizer或硬件测试；未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.309 / SERVO-892：静态核验安装导出与plugin packaging（exported CMake targets/config、ament index、plugin XML安装路径、public header闭包与动态库依赖），并定义CI artifact acceptance schema；不把本轮SPECIFIED误记为运行PASS。
+
+
+### §9.3.309｜SERVO-892：安装导出、Plugin Packaging 与 CI Artifact Acceptance 审查
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，Tree `257face41970c91f95890ddf47db40b168eca331`。
+- **审计报告：** [安装导出、Plugin Packaging 与 CI Artifact Acceptance 审查](../../audits/2026-11-10-staubli-socket-v2-install-export-plugin-packaging-artifact-acceptance.md)。
+- **Target/install静态事实：** 主库与hardware interface均为SHARED target，后者链接主库；两个库加入`export_staubli_robot_driver`并安装至lib；include目录整体安装；调用`ament_export_targets(... HAS_LIBRARY_TARGET)`。
+- **依赖闭包风险：** `real_time_socket_subscriber.hpp`作为安装public header直接include realtime_tools，但`ament_export_dependencies`遗漏realtime_tools；CMake REQUIRED查找Boost/backward_ros但package.xml未显式声明，export dependencies也未列出；主库PUBLIC include目录含未经BUILD/INSTALL interface隔离的`${asio_SOURCE_DIR}/asio/include`，其导出属性与路径有效性待安装后核验。静态不对称不直接等于构建失败。
+- **Plugin静态对应：** XML library basename与hardware SHARED target名称一致；class type/base_class_type与源代码PLUGINLIB_EXPORT_CLASS对应；通过pluginlib_export_plugin_description_file宏注册。ament index、XML安装位置、pluginlib发现和dlopen均NOT_RUN。
+- **CI工件契约：** SPECIFIED evidence manifest、OCI/apt/toolchain pin、源码与构建日志、install/ament index/export config、consumer A/B、plugin discovery/load/unload、so/debug symbols/readelf/nm、ABI dump、SHA256 checksums及PASS/FAIL/NOT_RUN/BLOCKED验收规则。
+- **验收状态：** TARGET-01、EXPORT-01、HEADER-01、PACKAGE-DEP-01、PLUGIN-STATIC-01为STATIC_REVIEWED；ARTIFACT-SCHEMA-01为SPECIFIED；ASIO-EXPORT-01、ABI-01为BLOCKED；AMENT-INDEX、CONSUMER A/B、PLUGIN运行、DT_NEEDED/SYMBOLS均NOT_RUN；GATE-01 BLOCKED，A1.1不得启动。
+- **限制：** 仅固定commit静态审查；未运行CMake/colcon/rosdep/gtest/consumer/pluginlib/readelf/nm/ABI/sanitizer或硬件测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.310 / SERVO-893：汇总SocketV2 production/test target隔离、plugin unload与异步callback生命周期屏障、legacy ABI守护矩阵，形成架构决策与验收追踪矩阵；不进入上游实现。
