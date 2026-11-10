@@ -5496,3 +5496,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅静态设计与公开文档证据整理；尚未从固定上游逐点提取真实资源DAG；平台adapter与reconciliation均未实现；未执行C++17编译、CMake、gtest、native close错误注入、fd/socket reuse、double-close/leak、TSan/ASan/UBSan、macOS/Windows原生测试、ROS component/plugin、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
 - **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点。
 - **下一节点：** §9.3.301 / SERVO-884：SocketV2 source-level resource ownership inventory、close-site traceability matrix 与 real implementation dependency DAG extraction。
+
+
+### §9.3.301｜SERVO-884：SocketV2 source-level resource ownership inventory、close-site traceability matrix 与 real implementation dependency DAG extraction
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [SocketV2源码级资源所有权、close-site追踪与真实依赖DAG](../../audits/2026-11-10-staubli-socket-v2-source-resource-ownership-close-site-traceability-real-dag.md)。
+- **源码范围：** 固定commit recursive tree；Socket/UDPSocket/TCP headers；UDP façade与`udp_socket_impl.hpp`；SocketFactory；RealTimeSocketSubscriber/Interface；RobotDriver头文件与实现；StaubliHardwareInterface头文件与实现；plugin XML及CMake构建清单。
+- **静态结论：**
+  1. RobotDriver持有control/diagnostics两个`shared_ptr<Socket>`；control interface与diagnostics subscriber分别共享持有对应Socket。UDPSocket以`unique_ptr<UDPSocketImpl>`独占实现；Impl直接持有Asio io_service/socket/endpoints、receive buffer、callback与worker thread。
+  2. Asio async_receive handler捕获Impl裸`this`；Subscriber注册lambda捕获Subscriber裸`this`。当前生命周期屏障依赖stop_receive_thread + join及Subscriber析构顺序，没有显式callback admission gate、active callback lease/count或drain report。
+  3. `disconnect()`在close抛异常时仍将`is_connected_`置false；Impl析构只在该标志为true时再次disconnect，RobotDriver也仅在socket报告connected时调用disconnect，故状态位失真可能跳过显式close重试。Subscriber析构忽略stop返回值；join无timeout/joinable/self-join检查。
+  4. connect异常回滚中的close若再次抛异常，没有嵌套保护；disconnect在stop失败后仍继续close；callback调用未见异常隔离。
+  5. 固定树未发现`tcp_socket_impl.hpp`，且CMake未编译`tcp_socket.cpp`；SocketFactory明确拒绝TCP。未发现SocketV2、QuarantineManager、ResidualResourceHandle、显式PluginLease或remote session close/ACK实现。
+  6. native handle由Boost.Asio封装，本轮没有读取依赖内部close实现；平台细节标记UNKNOWN，不能把POSIX系统调用语义直接等同于Asio API语义。
+- **验收状态：** SRC-OWN-01至05、CLOSE-TRACE-01至03、DAG-REAL-01至02为STATIC_REVIEWED；DAG-REAL-03与RUN-01至RUN-09全部NOT_RUN。
+- **状态与限制：** 仅固定提交源码静态审计；未运行编译、CMake、gtest、UDP loopback、close故障注入、fd/socket复用、leak/double-close、ASan/UBSan/TSan、ROS 2 Control/plugin lifecycle、VAL3/CS9、SIL/HIL、FAT/SAT或实机；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
+- **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮继续透明保留，不伪造缺失节点。
+- **下一节点：** §9.3.302 / SERVO-885：SocketV2 source-to-test coverage gap analysis、lifecycle teardown failure-path matrix与最小可验证实现切片排序。
