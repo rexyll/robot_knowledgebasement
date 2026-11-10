@@ -358,3 +358,20 @@
 
 
 - [2026-11-10 Stäubli ROS 2—状态有效性与通信安全诊断接口端到端审计](2026-11-10-staubli-ros2-state-validity-diagnostic-propagation-audit.md)：新增§9.3.279 / SERVO-862，确认RobotDriver读失败/过期时不统一失效内部状态对象；HardwareInterface::read返回ERROR但不清除已导出的joint/supervision缓存；update_state可能部分写入形成混合周期快照；模式切换与write未独立检查状态新鲜度；supervision接口缺少validity/source/auth/error诊断字段；诊断ready仍硬编码true。新增SV-01至SV-16验收矩阵，全部未执行。
+
+
+### §9.3.280｜SERVO-863：ros2_control硬件错误传播、Controller Manager与生命周期状态转换契约审计
+
+- **固定审查基线：** Stäubli `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`；ros2_control Jazzy `c6ef5a24e0cd21463edb99bded552a96f914b716`。
+- **审计报告：** [2026-11-10-staubli-ros2-control-manager-error-lifecycle-contract-audit.md](2026-11-10-staubli-ros2-control-manager-error-lifecycle-contract-audit.md)。
+- **范围：** Stäubli HardwareInterface生命周期回调、read/write错误返回、RobotDriver连接/STOP路径；ros2_control HardwareComponent、ResourceManager、ControllerManager及现有测试。
+- **静态结论：**
+  1. read/write ERROR触发HardwareComponent error/on_error，并由ResourceManager撤销故障硬件接口。
+  2. Stäubli on_error在driver connected时忽略STOP发送返回值并返回SUCCESS，硬件进入UNCONFIGURED；driver断线时返回ERROR，硬件进入FINALIZED。
+  3. on_error未disconnect或执行cleanup；UNCONFIGURED后socket/接收线程可能保持连接，下一次configure时connect才先断开旧连接。
+  4. ResourceManager撤销接口后，ControllerManager仍尝试故障组件mode switch；接口不可用及组件生命周期状态不满足，导致prepare/perform拒绝。该顺序与ros2_control上游Issue #3620记录一致，属于框架交互边界。
+  5. Stäubli现有测试没有覆盖真实ResourceManager/ControllerManager错误传播、接口撤销、控制器停用、FINALIZED和恢复重载。
+- **LC-01至LC-15状态：** 验收矩阵已建立，全部未执行。
+- **整改要求：** 明确可恢复/不可恢复错误分级；让STOP尝试结果和生命周期结果可观测但不把UDP STOP当作安全功能；定义on_error后的socket/线程/缓存/session清理；验证目标Jazzy二进制版本和ControllerManager故障路径。
+- **状态：** 固定提交静态审计完成；断线FINALIZED恢复策略、STOP发送结果与生命周期SUCCESS脱钩、on_error资源清理和故障mode-switch交互存在P0/P1缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.281 / SERVO-864。
