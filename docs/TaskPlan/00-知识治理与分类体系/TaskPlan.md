@@ -671,3 +671,12 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 本轮静态映射 RobotDriver、StaubliHardwareInterface、UDP socket、RealTimeSocketInterface/Subscriber和现有单元测试。发现 P0：UDP send 遇到 would_block 时报告 packet dropped，却仍返回 true，可能造成运动命令/STOP未发送但上层误判成功。其他 P1包括重复/回退序号没有拒绝、UDP sender endpoint校验仍是TODO、on_error不disconnect、STOP构造依赖缓存状态、硬件状态快照无统一失效门禁、connect诊断首帧未实际读取，以及生命周期/read/write并发契约不足。提出 SendResult、FaultLatch、ConnectionGeneration、StateSnapshot、SessionValidation、StopAttemptRecord、CleanupResult和 RecoveryAuthorization 等最小契约，并建立单测/集成测试映射。
 
 本轮仅静态分析与设计；未修改Stäubli上游，未执行构建、测试、TSan、网络注入、SIL/HIL、CS9或实机验证。工程级验收未通过，TODO-EXT-001未授权合并。下一节点 §9.3.283 / SERVO-866。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.283 / SERVO-866）
+
+固定 Stäubli 上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。新增 [UDP 发送结果契约与状态帧接纳门禁专项设计](../../audits/2026-11-10-staubli-udp-send-result-and-state-frame-admission-contract.md)。
+
+静态核对 `UDPSocketImpl::send()`：`would_block` 分支日志报告 packet dropped，但未返回失败，最终仍返回 true；该结果经 RealTimeSocketInterface/RobotDriver bool 链可能使运动命令或 STOP 未发送却被视为成功。接收侧 `handle_data_received()` 在 error 非空时仍调用回调，sender endpoint 检查仍为 TODO；subscriber 重复序号虽设置 `new_message=false`，但仍返回 true，序号回退被当作回绕；RobotState反序列化未统一校验精确长度、protocol version、message type和payload size。
+
+本轮定义 NOT_SENT / LOCAL_ACCEPTED / UNKNOWN 发送契约；定义 endpoint、精确datagram长度、header/field、16-bit模数半空间序号、单调时钟freshness、generation和原子快照接纳门禁。新增 SERVO866-TX-01至TX-09、RX-01至RX-15、IT-01至IT-06测试规格及 AC-866-01至AC-866-10。所有测试未执行；未运行构建、单测、网络注入/抓包、TSan/ASan、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证。未修改上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点 §9.3.284 / SERVO-867。
