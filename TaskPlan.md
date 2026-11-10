@@ -3708,3 +3708,55 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 统一effort state interface是否按传感器能力导出；以各型号真实传感器和URDF配置为准，不得用默认0值伪造力矩测量。
 
 本轮只读固定上游提交源码、R2C xacro、bringup文档和测试；未执行构建/单测、controller_manager集成、不同机器人型号URDF解析、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.251 / SERVO-834。
+
+
+### 2026-11-10｜v10.26 本轮推进记录（§9.3.251 / SERVO-834）
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。审查硬件接口`write()`、关节限制YAML、URDF/xacro软限位、R2C加速度接口、bringup控制器配置、MoveIt关节限制配置及硬件接口测试源码。
+
+#### 静态审查发现
+
+1. **硬件接口write路径未执行位置/速度关节限幅。** `StaubliHardwareInterface::write()`将`hw_joint_position_commands_`或`hw_joint_velocity_commands_`直接经`rad2deg()`转换并写入`cmd_msg.command_reference`，随后发送；本函数未读取关节min/max/velocity配置，也未执行clamp、限幅器调用或越界拒绝。URDF存在`<limit>`并不能证明该最终下发路径执行了限制。
+2. **TX2-60L模型YAML确实定义了关节物理限制，但没有接入驱动write限幅。** `staubli_robot_description/config/tx2_60l/joint_limits.yaml`为六轴设置position/velocity/acceleration limits；关节1–5位置范围分别为±180°、±127°、±150°、±270°、±120°，关节6为±270°；关节1–5最大速度300°/s、最大加速度1000°/s²，关节6最大速度500°/s、最大加速度3000°/s²。配置被URDF宏用于生成关节`<limit>`，但硬件接口没有对应的运行时限幅逻辑。
+3. **R2C加速度接口只暴露限制参数，不进入最终运动命令。** `staubli_r2c_joints.xacro`在真实硬件路径启用`include_acceleration_command`，从每关节配置取`max_acceleration`并给acceleration command interface设置max/min；硬件接口头文件也说明该buffer意图传递给Joint Limiter。但`write()`只处理STOP、JOINT_POSITION和JOINT_VELOCITY，未读取`hw_joint_acceleration_commands_`，仓库搜索未发现JointLimiter实例化/调用或其他消费该接口的代码。因而静态证据只能证明接口及其参数被声明，不能证明加速度约束已实际作用于发送轨迹。
+4. **速度接口没有从模型YAML映射出R2C命令接口的max/min参数。** R2C xacro对position/velocity command interface没有设置由`max_velocity`生成的接口限制参数；只为可选acceleration接口设置max/min。URDF关节velocity limit被生成，但write没有引用它。
+5. **URDF软限位配置不能作为硬件下发限幅已生效的证据。** `staubli_macro.xacro`默认`use_soft_limits=true`，`add_joint`生成`safety_controller`的soft_lower/soft_upper及k_position/k_velocity；但本仓库硬件插件未发现读取这些参数并执行软件软限位的路径。ROS/MoveIt上游组件可能在特定命令路径应用限制，仍需目标发行版运行时确认。
+6. **safety_velocity_margin参数没有被用于生成软限位。** 顶层xacro提供`safety_velocity_margin`并传入关节宏，但`add_joint`中仅使用position margin生成soft_lower/soft_upper，未见velocity margin参与计算或生成对应属性。该参数当前对生成结果没有可见影响。
+7. **MoveIt关节限制与机器人模型限制是两套配置，不能互相替代。** `staubli_moveit_config/config/joint_limits.yaml`为MoveIt规划设置关节1–5最大速度1.5rad/s、最大加速度5rad/s²，关节6为2.0rad/s和10rad/s²，并设置默认速度/加速度缩放0.1；MoveIt launch将这些配置传给move_group/相关节点。bringup的controller_manager则加载`controllers.yaml`，该文件只配置250Hz更新率、JointStateBroadcaster和position接口的JointTrajectoryController，没有把MoveIt的joint_limits.yaml传入硬件插件。
+8. **JointTrajectoryController配置未提供可替代硬件限幅的完整限制声明。** 当前`controllers.yaml`只配置`stopped_velocity_tolerance`、`goal_time`等轨迹约束，未定义各关节最大位置/速度/加速度边界。JTC从轨迹输入到硬件接口的限制行为仍取决于目标ros2_control发行版及其实际加载的joint-limit机制，静态配置不足以证明安全限幅。
+9. **NaN检查未覆盖Infinity。** write仅用`std::isnan(cmd_msg.command_reference[i])`拒绝NaN；正负Infinity不属于NaN，会通过该检查。有限但超出关节位置/速度范围的数值同样不会在write中被拒绝或裁剪。应使用有限性检查并按当前模式应用每关节边界。
+10. **命令检查范围不完整。** write的NaN扫描仅检查运动`command_reference`；未检查`controller_period`是否为有限正数，也未对analog output command做有限性和设备量程验证。数字输出以0.5为阈值转换为bool，但这不构成模拟输出的量程保护。
+11. **周期参数被直接转换为毫秒。** `controller_period=1e3*period.seconds()`，本函数没有检查period为正、有限或处于VAL3允许范围；异常周期可能进入命令帧。正常controller_manager周期通常为正值，但需负向测试和目标系统调度证据。
+12. **弧度到角度转换路径存在，但缺少转换后边界复核。** 位置和速度都通过`rad2deg()`转换，单位变换本身与VAL3角度制接口意图一致；但转换后没有针对设备侧角度/角速度边界的二次验证，也没有零偏、方向符号或各型号映射的互操作测试证据。
+13. **R2C实际调用将effort控制开关固定为false。** 通用`r2c_joints_control_description`宏保留`has_joint_torque_control`为true时声明effort command interface的条件，但当前`staubli.r2c.xacro`调用明确传入false。因此本审查固定提交的实际R2C展开路径不会启用该effort command声明；SERVO-833中CM1应限定为“宏参数若启用时存在潜在声明/导出不一致”，不应描述为当前默认R2C配置已实际声明effort command interface。插件未导出effort command interface的静态结论不变。
+14. **现有硬件接口测试没有覆盖限幅和非有限值。** `test_staubli_hardware_interface.cpp`的InterfaceExport仅核对接口数量/名称；LifecycleTransitions只给position接口写入1.0并确认write返回OK。未见位置越界、速度越界、NaN、正负Infinity、acceleration command消费、模拟输出量程、period异常或命令帧实际数值断言。本轮只读测试源码，未执行测试。
+15. **当前命令路径的实际限制责任边界不清。** MoveIt路径可能受MoveIt limits约束，JointTrajectoryController可能受目标ros2_control版本的限幅机制约束，而硬件插件write自身没有最终防线；对于绕过MoveIt的直接硬件接口命令或其他控制器，不能假定MoveIt配置会生效。需建立“规划层限制—控制器层限制—硬件驱动最终拒绝/保护—CS9控制器限制”的分层责任和一致性矩阵。
+
+#### MM1–MM12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| MM1 | write位置命令min/max限幅 | 未见运行时限幅/越界拒绝 |
+| MM2 | write速度命令max_velocity限幅 | 未见运行时限幅/越界拒绝 |
+| MM3 | 加速度接口到Joint Limiter/最终命令链路 | 接口与参数存在；仓库内消费链路未证实 |
+| MM4 | URDF hard limits与硬件接口执行一致性 | URDF生成限制；write未引用 |
+| MM5 | safety_controller软限位及运行时执行 | xacro生成；插件执行路径未发现 |
+| MM6 | safety_velocity_margin使用情况 | 参数传入但未参与可见生成逻辑 |
+| MM7 | MoveIt限制与controller_manager限制分层 | 两套配置；bringup未加载MoveIt限制到硬件插件 |
+| MM8 | NaN/Infinity/越界/周期与模拟输出检查 | 仅NaN运动数组检查；其他边界缺失 |
+| MM9 | 弧度/角度、速度单位和各型号参数映射 | 转换代码存在；转换后边界/互操作未验证 |
+| MM10 | R2C effort条件开关与实际展开 | 当前调用固定false；修正SERVO-833 CM1适用范围 |
+| MM11 | 限幅、边界值、非有限值和加速度链路专项测试 | 未发现；本轮未执行 |
+| MM12 | ROS 2/ros2_control版本、CS9/VAL3限幅与安全验收 | 未执行/未确认 |
+
+#### 整改建议
+
+- 在硬件接口最终下发前建立逐关节、按控制模式的命令校验：位置min/max、速度±max_velocity、加速度/变化率限制、有限性检查；超限时明确拒绝或按安全策略限幅，不得静默依赖上游规划层。
+- 使用`std::isfinite`检查运动命令、模拟输出和周期参数；明确period允许范围、模拟通道工程量程与故障响应。
+- 明确JointLimiter的真实实现、加载位置、接口依赖和版本要求；若加速度接口只供限制器消费，应提供实际controller配置和运行证据，证明它在position轨迹路径中生效。
+- 统一机器人型号YAML、URDF hard limits、safety_controller软限位、MoveIt limits、JTC/controller_manager限制和CS9/VAL3侧限制，生成自动差异检查。
+- 修正或删除未生效的safety_velocity_margin参数；明确软限位算法、单位、边界和目标ROS 2版本支持。
+- 增加每关节边界内/边界值/越界、NaN/±Inf、超大有限值、周期异常、加速度变化率、模拟输出超量程、不同机器人型号和单位转换测试。
+- 在目标ROS 2/ros2_control发行版验证JTC和JointLimiter真实运行路径；通过VAL3/CS9限幅、SIL/HIL、FAT/SAT和实机测试验证独立控制器边界。ROS/MoveIt软件限幅不得替代CS9安全功能和独立安全回路。
+
+本轮只读固定上游提交源码、配置、xacro、launch和测试；未执行构建/单测、xacro展开、URDF解析、controller_manager/JTC/JointLimiter运行测试、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.252 / SERVO-835。
