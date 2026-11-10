@@ -471,3 +471,8 @@
 ### §9.3.300｜SERVO-883：SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy
 
 - [2026-11-10 Stäubli SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy](2026-11-10-staubli-socket-v2-cleanup-dag-platform-close-semantics-residual-reconciliation.md)：定义资源依赖DAG节点/边、owner/barrier完整性、环检测/可达性/版本绑定；整理Linux close、POSIX标准版本、Apple历史文档和Windows Winsock closesocket语义差异；定义residual状态分类、平台probe与owner保留/升级reconciliation策略。DAG-01至04、LINUX-01至04、POSIX-01至02、MAC-01、WIN-01至04、RES-01至06全部NOT_RUN；真实driver DAG尚未从源码提取，平台adapter未实现。下一节点 §9.3.301 / SERVO-884。
+
+
+### §9.3.301｜SERVO-884：SocketV2源码级资源所有权、close-site追踪与真实依赖DAG
+
+- [2026-11-10 Stäubli SocketV2源码级资源所有权、close-site追踪与真实依赖DAG](2026-11-10-staubli-socket-v2-source-resource-ownership-close-site-traceability-real-dag.md)：固定上游commit逐文件提取RobotDriver双Socket shared ownership、UDPSocket unique_ptr PIMPL、Asio socket/io_service/buffer/thread/callback、两层裸this回调及HardwareInterface/plugin teardown关系；定位open/close/disconnect/destructor/stop/join sites。发现close异常后connected标志仍清零、析构/RobotDriver可能跳过显式close重试、Subscriber析构忽略stop结果、join无timeout/self-join检查；TCP实现文件未出现在固定tree且CMake不编译TCP wrapper。SRC-OWN/CLOSE-TRACE/DAG-REAL静态项已核对，运行时项目全部NOT_RUN；Boost.Asio内部native close细节UNKNOWN。未修改上游或应用PR。
