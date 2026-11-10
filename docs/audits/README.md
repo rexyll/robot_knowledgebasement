@@ -332,3 +332,5 @@
 - [2026-11-10 Stäubli ROS 2—断线恢复、会话重同步与命令/状态序号新鲜度审计](2026-11-10-staubli-reconnect-session-sequence-freshness-audit.md)：新增§9.3.268 / SERVO-851，确认Subscriber对每份成功解码数据报刷新接收时间，相同序号的new_message=false未被RobotDriver作为状态拒绝门禁；较小序号一律按uint16回绕处理，缺少乱序/重放窗口和会话epoch；断开重连重置本地subscriber序号基线但无会话连续性握手；现有恢复测试未执行driver disconnect/reconnect。重复帧刷新新鲜度为静态推断，未动态复现。
 
 - [2026-11-10 Stäubli ROS 2—诊断数据通道、控制器状态反馈与安全状态语义审计](2026-11-10-staubli-diagnostic-state-feedback-audit.md)：新增§9.3.269 / SERVO-852，确认connect阶段诊断ready被硬编码为true、未调用read_diagnostic_data且固件版本打印读取默认值；固定VAL3工程未发现诊断帧发送端；DiagnosticData header校验顺序错误；SafetyStatus被压缩为estop_pressed、制动释放由drive power推导，GPIO invalid时保留旧缓存。仅静态审查，未执行畸形帧/CS9/现场验证。
+
+- [2026-11-10 Stäubli ROS 2—协议字段映射、枚举语义、单位与边界值一致性审计](2026-11-10-staubli-protocol-field-mapping-enum-units-audit.md)：新增§9.3.270 / SERVO-853，确认VAL3 encodeHeader将序号重复写入payload_size、OperationMode跨语言数值错位、float64转float32及NaN/Inf边界缺口、F/T与GPIO字段未完整编码。HardwareInterface的rad↔deg转换静态一致；CS9互操作与边界测试未执行。
