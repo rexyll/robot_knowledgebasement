@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.44  
+> 版本：v10.45  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.269 / SERVO-852；诊断UDP socket readiness仅表示本地socket/接收线程就绪，connect将diag_interface_ready硬编码为true且未调用read_diagnostic_data；固件版本日志读取未填充的默认0.0.0，型号检查注释、VAL3版本兼容性仍TODO；固定VAL3工程未发现DiagnosticData生产发送路径；DiagnosticData反序列化在解析wire header前检查默认对象字段，FrameHeader只验证magic，未统一校验版本/类型/长度；VAL3将所有非零SafetyStatus折叠为bEStopped并映射为estop_pressed，brakes_released由drivePowered推导；GPIO invalid时HardwareInterface保留旧缓存且不提供validity接口；新增重连会话与序号新鲜度审查：Subscriber对每个成功反序列化数据报刷新reception_timestamp；相同序号仅置new_message=false，但RobotDriver未将其作为拒绝条件；低序号被一律按uint16回绕处理，缺少乱序/重放窗口与session epoch；disconnect/reset_data会清理部分状态且重建subscriber基线，但UDP本地socket connected不代表远端存活；现有恢复测试只重启mock发送线程未执行driver断开重连，mock序号为static计数器不归零；新增通信故障闭环审查：VAL3旧命令staleness仍为TODO，序号延迟门禁仅在控制活动时运行；resetControlSocket不检查底层复位结果却无条件清除错误；ROS connected只表示socket/接收线程就绪，状态新鲜度另行检查；生命周期没有自动重连/会话握手闭环；普通STOP与GPIO不构成安全状态证明；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.270 / SERVO-853；VAL3 encodeHeader将sequence number重复写入payload_size字段，覆盖初始化的124字节；C++ RobotState反序列化不验证type/size/version，可能掩盖该错误；VAL3 workingMode的2=TEST/3=AUTO-LOCAL/4=AUTO-REMOTE与C++ OperationMode的2=AUTOMATIC/3=REMOTE/无4枚举错位；C++ HardwareInterface有明确rad↔deg转换；float64 API值在线路压缩为float32，未全面拒绝Inf/NaN/溢出；VAL3 F/T后三轴、数字IO mask和模拟输入仍未完整编码；仅表示本地socket/接收线程就绪，connect将diag_interface_ready硬编码为true且未调用read_diagnostic_data；固件版本日志读取未填充的默认0.0.0，型号检查注释、VAL3版本兼容性仍TODO；固定VAL3工程未发现DiagnosticData生产发送路径；DiagnosticData反序列化在解析wire header前检查默认对象字段，FrameHeader只验证magic，未统一校验版本/类型/长度；VAL3将所有非零SafetyStatus折叠为bEStopped并映射为estop_pressed，brakes_released由drivePowered推导；GPIO invalid时HardwareInterface保留旧缓存且不提供validity接口；新增重连会话与序号新鲜度审查：Subscriber对每个成功反序列化数据报刷新reception_timestamp；相同序号仅置new_message=false，但RobotDriver未将其作为拒绝条件；低序号被一律按uint16回绕处理，缺少乱序/重放窗口与session epoch；disconnect/reset_data会清理部分状态且重建subscriber基线，但UDP本地socket connected不代表远端存活；现有恢复测试只重启mock发送线程未执行driver断开重连，mock序号为static计数器不归零；新增通信故障闭环审查：VAL3旧命令staleness仍为TODO，序号延迟门禁仅在控制活动时运行；resetControlSocket不检查底层复位结果却无条件清除错误；ROS connected只表示socket/接收线程就绪，状态新鲜度另行检查；生命周期没有自动重连/会话握手闭环；普通STOP与GPIO不构成安全状态证明；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -378,7 +378,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.269：已覆盖UDP/VAL3协议、连接/生命周期、运动/轨迹/恢复、多控制源、MoveIt场景同步/碰撞监测、Servo至控制器命令链、VAL3安全状态采样及停止路径语义；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.270：已覆盖UDP/VAL3协议、连接/生命周期、运动/轨迹/恢复、多控制源、MoveIt场景同步/碰撞监测、Servo至控制器命令链、VAL3安全状态采样及停止路径语义；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -4108,7 +4108,7 @@ RC1–RC8、RC10–RC13固定提交静态审查完成或确认实现缺口；RC9
 
 整改要求：加入序号滑动窗口和重复/回退帧拒绝；重复帧不得刷新控制状态新鲜度；增加controller boot ID/session epoch与client nonce握手、命令ID/ack及有效期；重连后默认STOP/UNARMED、清除旧命令/GPIO缓存并显式重新授权；补齐来源校验、heartbeat和远端失联检测；扩展duplicate/reorder/replay/reboot/重连测试。
 
-本轮未运行ROS构建/单测、UDP故障注入、VAL3编译下载、CS9仿真、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.269 / SERVO-852。
+本轮未运行ROS构建/单测、UDP故障注入、VAL3编译下载、CS9仿真、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.271 / SERVO-854。
 
 
 ### 2026-11-10｜v10.44 本轮推进记录（§9.3.269 / SERVO-852）
@@ -4127,3 +4127,22 @@ RC1–RC8、RC10–RC13固定提交静态审查完成或确认实现缺口；RC9
 整改要求：connect等待并验证真实诊断帧；统一校验wire header；实现VAL3诊断发送与ROS diagnostics发布；拆分急停按钮、安全停止类型、等待复位和运动许可语义；只在有真实反馈时声明制动释放；建立持久故障事件记录；GPIO无效时显式暴露validity/sample age，不得静默沿用旧值。
 
 本轮未运行ROS构建/单测、畸形帧注入、UDP抓包、VAL3编译/下载、CS9仿真、状态现场对照、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.270 / SERVO-853。
+
+
+### 2026-11-10｜v10.45 本轮推进记录（§9.3.270 / SERVO-853）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮逐字段对照C++协议、VAL3数据库/编码解码、HardwareInterface、机型配置和现有序列化测试，详见 [2026-11-10-staubli-protocol-field-mapping-enum-units-audit.md](docs/audits/2026-11-10-staubli-protocol-field-mapping-enum-units-audit.md)。
+
+主要结论：
+1. VAL3 initRobotStateMsg将payload_size设为124，但encodeHeader在header最后2字节重复写入nMsgSequenceNumber而不是nPayloadSize；C++ RobotState反序列化的header validation区段为空，不检查wire type/payload size/version，固定132字节路径可能掩盖帧头错误。
+2. VAL3 workingMode数值2=TEST、3=AUTOMATIC-LOCAL、4=AUTOMATIC-REMOTE，C++ OperationMode却定义2=AUTOMATIC、3=REMOTE且没有4；VAL3原始值直接编码并被C++ static_cast，可能将测试模式误报为自动、自动本地误报为远程、自动远程成为未定义枚举值。
+3. ControlMode、SafetyStatus及状态/valid-field flags数值位置静态对照一致，但C++对control_state/safety_status/operation_mode没有统一合法枚举值检查；operation_mode_status为依模式解释的原始byte。
+4. HardwareInterface明确将ROS rad/rad·s⁻¹转换为Staubli degree/degree·s⁻¹发送，读取时反向转换；VAL3位置控制直接将值赋jointRx并用isInRange检查。角度单位路径静态一致，现场方向/限位/速度验证未执行。
+5. C++ double序列化helper实际转为float32，与VAL3 4.0l布局一致；但未全面定义量化误差、float溢出和NaN/Inf拒绝策略。HardwareInterface关节命令仅isnan检查，模拟输出缺少finite/量程验证。
+6. VAL3 RobotState F/T六轴仅前三轴实际写入，后三轴只推进offset；valid flag当前为false。数字输入mask编码TODO，模拟输入四通道编码TODO。RobotCommand数字输出mask转换到VAL3数组被注释，模拟输出四通道有解析但物理输出路径仍未实现。
+7. TX2-60L与MED配置声明2 AI/2 AO，协议/硬件接口最大容量为4通道；没有型号/IO选件/端子/模拟制式和量程的完整映射。位置限位在VAL3存在，速度安全限值和setVelCmd执行仍TODO，扭矩命令路径未证实。
+8. FM1–FM12固定源码/配置/现有测试静态核对完成或确认缺口；FM13 CS9点位/限位/单位实测、FM14畸形header/非法枚举/NaN/Inf/float边界注入、FM15 SIL/HIL/FAT/SAT/实机验证均未执行。
+
+整改要求：修复VAL3帧头payload_size写入；统一OperationMode协议枚举；C++统一验证header与所有枚举；定义float32精度/范围及finite策略；补齐F/T/IO字段写入和机型通道映射；在控制器端实现并验证速度/扭矩/加速度限值闭环。
+
+本轮未执行C++构建/单测、VAL3 Studio导入/编译/下载、UDP抓包、畸形帧/float边界注入、CS9限位实测、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.271 / SERVO-854。
