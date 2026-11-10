@@ -5642,3 +5642,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收状态：** SRC-LIFE-01至03为STATIC_REVIEWED；ADR-01为DESIGN_DECIDED；ADR-02至04为SPECIFIED；ABI、plugin unload和test-only target运行验收均NOT_RUN或BLOCKED；A1.1-GATE仍BLOCKED。
 - **限制：** 未运行CMake/colcon/gtest/Fake故障注入/callback并发/plugin load-unload/readelf/nm/ABI/sanitizer或硬件测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.311 / SERVO-894：构建生命周期事件—资源状态—owner转移—失败残留—测试用例五维追踪表，映射F01–F16与PLUG-L01–L12并核对唯一reconcile owner；不修改上游。
+
+
+### §9.3.311｜SERVO-894：生命周期五维追踪与唯一资源 Owner 核验
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，Tree `257face41970c91f95890ddf47db40b168eca331`。
+- **审计报告：** [生命周期五维追踪：事件—资源状态—Owner转移—失败残留—测试用例](../../audits/2026-11-10-staubli-socket-v2-lifecycle-five-axis-owner-failure-test-traceability.md)。
+- **完成映射：** 将SERVO-885的F01–F16逐项映射到事件、资源状态、唯一逻辑Owner、唯一Reconcile coordinator、失败残留/Owner转移和确定性测试；将SERVO-893的PLUG-L01–L12按相同维度追踪，并关联SERVO-881的RACE/EXEC竞态用例。
+- **关键架构结论：** 区分Resource owner与Reconcile coordinator；每个Core generation唯一强Owner，单一CleanupCoordinator串行执行cancel/drain/join/close；QuarantineManager仅负责接管、登记和有界排程，不得形成第二套close执行路径。control/diagnostics分别拥有Core generation；RobotDriver只聚合报告。
+- **新增风险：** Residual Core仍依赖plugin callback/deleter/vtable时，转交进程级Quarantine并不使DSO可卸载；必须先解除plugin code dependency或保持DSO加载。F15 native handle reuse需平台adapter与generation身份；F16 remote session必须独立于native socket状态。
+- **状态：** F01–F16、PLUG-L01–L12映射SPECIFIED；owner/reconcile唯一性DESIGN_REVIEWED；SERVO-881竞态关联STATIC_MAPPED；所有运行测试NOT_RUN；A1.1 BLOCKED。
+- **限制：** 未执行CMake/colcon/gtest、故障注入、线程竞态、plugin load/unload、平台handle reuse、协议仿真、sanitizer或硬件测试；未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续保留。
+- **下一节点：** §9.3.312 / SERVO-895：定义机器可检查的YAML/JSON traceability schema与CI policy contract，包含schema version、stable IDs、owner cardinality、required evidence、status vocabulary和cross-reference integrity；先做schema与静态一致性规格。
