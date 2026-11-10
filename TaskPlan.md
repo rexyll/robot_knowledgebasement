@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.24  
+> 版本：v10.25  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.249 / SERVO-832；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.250 / SERVO-833；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3655,3 +3655,56 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 在目标ROS 2发行版、ros2_control/controller_manager版本和Stäubli CS9/VAL3版本上执行真实生命周期集成测试，并通过控制器侧状态反馈、SIL/HIL和FAT/SAT验证停止行为。
 
 本轮只读固定上游提交源码与测试；未执行构建/单测、controller_manager集成、SIGINT/SIGTERM进程退出、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.250 / SERVO-833。
+
+
+### 2026-11-10｜v10.25 本轮推进记录（§9.3.250 / SERVO-833）
+
+固定审查上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。审查`StaubliHardwareInterface::export_command_interfaces/export_state_interfaces/resolve_mode/prepare_command_mode_switch/perform_command_mode_switch/read/write`，R2C joint xacro及bringup文档、硬件接口单测。
+
+#### 静态审查发现
+
+1. **effort命令接口声明与插件导出不一致。** R2C xacro在`has_joint_torque_control`为真时为每个关节声明`effort` command_interface；但`StaubliHardwareInterface::export_command_interfaces()`实际只导出position、velocity和acceleration，没有导出effort。启用扭矩控制配置时，描述层会请求插件未提供的接口，接口配置/控制器加载可能失败或无法按预期工作。
+2. **velocity接口被导出但明确不支持。** 插件始终导出velocity command interface；`prepare_command_mode_switch()`遇到JOINT_VELOCITY明确返回ERROR，bringup文档也警告velocity控制尚未完成。该设计可作为“接口可见但模式拒绝”的显式约束，但会使控制器/用户误以为接口可用；建议通过配置能力声明或不导出未支持接口消除歧义。
+3. **resolve_mode只按start_interfaces遍历顺序选择第一个匹配。** 每项字符串只要包含position/velocity/effort/acceleration子串，就立即返回对应模式；不收集全部模式集合，不验证同一关节或多关节请求是否混用。相同的混合接口请求若顺序不同，可能解析成不同模式。
+4. **stop_interfaces完全未参与模式转换决策。** prepare函数接收stop_interfaces但未使用；outgoing mode解析代码被注释。没有验证当前活动接口是否与待停止集合一致，也没有验证从旧模式到新模式的合法转换。
+5. **源码显式承认混合接口校验TODO。** prepare_command_mode_switch注释要求考虑验证所有接口是否一起停止/启动，示例包括禁止position与velocity混用；当前代码没有实现该约束。
+6. **prepare与perform之间依赖单一可变缓存。** prepare将解析结果写入pending_mode_并置switch_prepared_；perform忽略传入的start/stop列表，仅消费缓存值。若回调交错、重复prepare、perform未配对或发生并发调用，可能消费与本次请求不匹配的pending mode。ros2_control通常由controller manager串行协调，但此序列化假设没有在插件自身形成防御或测试证据。
+7. **perform没有prepare时默认切换到STOP并返回OK。** 代码明确把未prepared情况视为no-op STOP switch；这可能掩盖调用序列错误或丢失prepare阶段的状态，而不是报告协议不一致。
+8. **切换到position只检查缓存状态的部分字段。** perform检查state_msg_.error_state和motion_possible；没有验证状态帧是否新鲜、序号是否推进、诊断是否有效、机器人是否处于合适的操作模式/远程控制状态。operation_mode_status非0只警告HOLD，仍提交JOINT_POSITION模式。
+9. **状态字段与STOP/运动许可并不完全等价。** motion_possible来自上游RobotState；SERVO-830/829已发现VAL3侧相关字段是由驱动上电/安全状态推导且安全监督检测留有TODO。因此此处使用motion_possible不能单独构成经过安全论证的运动许可。
+10. **拒绝切换时把current_control_mode_设为STOP，但没有确认STOP命令发往机器人。** error_state或motion_possible失败路径仅更改本地模式并返回ERROR；本函数没有通过RobotDriver发送STOP，也没有控制器状态回执。需与上层read/write错误处理共同验证，不可将本地枚举STOP当作机器人已停止。
+11. **安全初始化命令使用当前关节位置缓存。** perform成功切换后将position command复制为hw_joint_positions_，并将velocity/acceleration command清零；这避免命令缓冲区重分配，但依赖缓存关节位置有效且新鲜。若缓存尚未完成首次read或已过期，position hold初值可能不可信。
+12. **加速度接口被导出但不是控制模式。** 插件注释和bringup文档说明acceleration接口仅供Joint Limiter传递加速度限制，单独启动该接口时resolve_mode返回INVALID并映射为STOP；这一行为需在配置/控制器说明中明确，防止把它误解为可直接下发加速度命令。
+13. **状态接口导出策略与描述配置也存在条件差异。** 插件export_state_interfaces始终导出effort state interface，而R2C xacro仅在has_joint_torque_sensor时声明effort state_interface。需核对目标ros2_control发行版对硬件额外导出接口的处理，并统一接口清单，避免不同机器人配置出现隐式差异。
+14. **现有硬件接口测试未覆盖命令模式切换。** 在`test_staubli_hardware_interface.cpp`中未发现prepare/perform/resolve_mode专项用例；未覆盖position与velocity混合、effort声明冲突、acceleration-only、stop_interfaces匹配、无prepare直接perform、重复prepare/perform、陈旧状态切换和并发回调。本轮仅静态搜索测试源码，未执行测试。
+15. **文档与代码的接口能力表述不完全一致。** bringup文档明确警告velocity command接口虽存在但拒绝激活；R2C xacro又允许按配置声明effort命令接口，而插件始终拒绝effort模式且未导出effort命令接口。需要将支持矩阵作为单一来源，并让xacro、插件导出、controller配置和用户文档自动一致。
+
+#### SERVO-833｜命令接口与模式切换验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| CM1 | R2C xacro effort声明与插件effort导出一致性 | xacro条件声明effort；插件未导出，确定不一致 |
+| CM2 | velocity接口声明、导出与运行支持一致性 | 导出但prepare明确拒绝；文档有警告 |
+| CM3 | resolve_mode对全部start接口进行集合校验 | 只按首个匹配项返回；混合模式校验缺失 |
+| CM4 | stop_interfaces与当前模式/目标模式转换验证 | 参数未使用；outgoing解析注释掉 |
+| CM5 | prepare/perform配对与缓存模式一致性 | 单一pending缓存；未配对perform默认STOP/OK |
+| CM6 | position模式激活时状态新鲜度/诊断/运行许可 | 仅检查缓存error_state和motion_possible；新鲜度门禁缺失 |
+| CM7 | 模式拒绝时机器人STOP执行和回执 | 仅本地current_control_mode_=STOP；无发送/回执 |
+| CM8 | position hold初值和acceleration接口语义 | 使用缓存位置；acceleration-only映射STOP |
+| CM9 | 混合接口、顺序变更、重复/未配对切换专项测试 | 未发现专项测试；本轮未执行 |
+| CM10 | 各机器人型号xacro、插件导出、controller配置和文档一致性 | 存在effort/velocity差异；未做全型号动态验证 |
+
+#### 整改建议
+
+- 建立机器人型号/固件能力矩阵作为唯一接口能力来源；由其生成或校验xacro、插件接口导出、controller YAML及文档。
+- 在effort控制尚未实现时，不应在xacro中声明可用effort command interface；若保留预留声明，必须由插件同步导出并明确拒绝激活，避免描述与运行时接口不一致。
+- 对未支持的velocity接口，优先通过配置禁用/不导出，或明确提供仅供未来兼容的状态，不应让用户误以为可控制。
+- 将resolve_mode改为解析完整接口集合；验证同一控制组只能选择一种有效模式，并拒绝混合position/velocity/effort及不完整的多关节切换。
+- 使用start与stop接口共同验证合法状态迁移；维护当前活动接口集合，确保停止集合与实际活动模式一致。
+- 为prepare/perform建立明确配对标识或事务状态；无prepare的perform、重复prepare、重复perform和请求变化应返回错误，不应静默默认STOP。
+- position激活前要求新鲜有效的状态帧、序号推进、诊断/控制器就绪门禁及经验证的操作模式；HOLD只告警是否合理需由安全策略明确。
+- 对模式切换失败定义机器人侧策略：本地模式回退、STOP投递、执行确认、故障锁存和复位条件应分别建模，不能把本地枚举STOP当作实际停机。
+- 增加模式切换单测和controller_manager集成测试：混合/乱序接口、effort配置、acceleration-only、stop/start组合、缓存状态过期、机器人error、未配对/重复回调和并发边界。
+- 统一effort state interface是否按传感器能力导出；以各型号真实传感器和URDF配置为准，不得用默认0值伪造力矩测量。
+
+本轮只读固定上游提交源码、R2C xacro、bringup文档和测试；未执行构建/单测、controller_manager集成、不同机器人型号URDF解析、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.251 / SERVO-834。
