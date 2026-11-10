@@ -702,3 +702,10 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 新增 [FakeSocket 状态机伪代码与 AAA 测试矩阵](../../audits/2026-11-10-staubli-fakesocket-pseudocode-and-aaa-test-matrix.md)。本轮细化连接/接收状态、合法状态转换、connect/send/receive/start/stop/disconnect 实现级伪代码、mutex/condition_variable/RAII callback guard、stop 与 deliver 的线性化点、事件日志序号与快照语义，并将 FS-01至FS-22逐项写成 Arrange/Act/Assert 及失败证据。特别冻结：stop 线性化后不接受新 callback，等待已登记 callback 归零；stop 失败脚本仍执行完整清理；callback 异常在 RAII 清理后传播；callback 内 self-stop/self-disconnect 拒绝；两个 Fake 不推断跨 socket 全序。Fake 自身测试与 RobotDriver/Subscriber、真实 UDP adapter、ROS 2 Control/SIL/CS9/HIL系统验收分层。
 
 本轮仅静态规格设计，FS-01至FS-22全部 NOT_RUN；FakeSocket、RAII guard、事件日志、ManualClock和RobotDriver注入构造均未实现。未运行构建、gtest、TSan/ASan、loopback、ROS 2 Control集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；未修改上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.288 / SERVO-871。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.288 / SERVO-871）
+
+新增 [RobotDriver / Subscriber fixture 生命周期与集成测试映射](../../audits/2026-11-10-staubli-robotdriver-subscriber-fixture-lifecycle-integration-map.md)。按固定上游提交核对 RobotDriver 双 Socket 构造与所有权、connect 顺序和失败回滚、Subscriber 构造立即启动接收、callback 捕获裸 this、Subscriber 析构 stop、RobotDriver disconnect reset/stop/disconnect 顺序及当前空析构。将 FS-01至FS-22映射到真实生产调用点，设计 Fake-only、SubscriberHarness、双 Fake RobotDriver、真实 UDP loopback、ROS 2 Control integration 五层 fixture，并新增 SD-01至SD-10 调用方测试规格。识别 connect 500ms sleep、直接使用 rclcpp::Clock、diagnostics 首帧门禁硬编码、固定端口、mock thread join 与 std::async timeout 风险。
+
+本轮仅静态审查和设计；注入构造、FakeSocket、ManualClock、wait strategy、fixture 均未实现；FS-01至FS-22及SD-01至SD-10全部 NOT_RUN。未运行 build、gtest、loopback、TSan/ASan、ROS 2 Control集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机测试；未修改上游、未创建/应用PR，TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.289 / SERVO-872。
