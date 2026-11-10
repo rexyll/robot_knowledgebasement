@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.55  
+> 版本：v10.56  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.281 / SERVO-864；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行；本轮新增恢复状态机及SERVO864-FI-01至FI-24故障注入设计、AC-01至AC-10验收准则，全部运行时项目未执行。停止请求、本地发送、控制器ACK、运动停止观测和独立安全链确认严格区分；当前协议无独立STOP ACK/command ID，ROS/UDP STOP不是安全功能。UNCONFIGURED与FINALIZED分别定义受控重连和插件卸载/重载路径，故障后禁止自动恢复运动。未执行ResourceManager/ControllerManager运行时联调、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.282 / SERVO-865；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行；本轮新增恢复状态机及SERVO864-FI-01至FI-24故障注入设计、AC-01至AC-10验收准则，全部运行时项目未执行。停止请求、本地发送、控制器ACK、运动停止观测和独立安全链确认严格区分；当前协议无独立STOP ACK/command ID，ROS/UDP STOP不是安全功能。UNCONFIGURED与FINALIZED分别定义受控重连和插件卸载/重载路径，故障后禁止自动恢复运动。未执行ResourceManager/ControllerManager运行时联调、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
@@ -4315,3 +4315,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 新增 SERVO864-FI-01 至 SERVO864-FI-24 故障注入矩阵，覆盖 read/write ERROR、STOP 发送失败/would_block/远端丢包、网络断开、重复/乱序/旧会话帧、畸形帧、线程清理、configure 重试、FINALIZED 插件重载、ResourceManager 接口撤销、ControllerManager mode-switch、并发生命周期调用、操作员授权及独立安全链边界；另建立 AC-01 至 AC-10 设计验收准则。所有故障注入与运行时验收均未执行。
 
 未运行 C++/ROS 2 构建、单测、ResourceManager/ControllerManager 联调、网络注入/抓包、TSan、插件卸载重载、VAL3/CS9、SIL/HIL/FAT/SAT 或实机停止测试。未修改 Stäubli 上游、未应用 PR；工程级验收未通过，`TODO-EXT-001`未授权合并。根00-01与第21章21-02仍进行中。下一节点 §9.3.282 / SERVO-865。
+
+
+### 2026-11-10｜v10.56 本轮推进记录（§9.3.282 / SERVO-865）
+
+固定 Stäubli 上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。新增审计报告：[2026-11-10-staubli-ros2-hardware-error-recovery-implementation-mapping.md](docs/audits/2026-11-10-staubli-ros2-hardware-error-recovery-implementation-mapping.md)。
+
+本轮静态映射 RobotDriver、StaubliHardwareInterface、UDP socket、RealTimeSocketInterface/Subscriber及现有单元测试。发现 P0：UDP send遇到 would_block时记录packet dropped但仍返回true，可能导致运动命令/STOP未发送却被上层视为成功。另发现序号重复/回退未作为状态拒绝条件、UDP sender endpoint校验仍为TODO、on_error未disconnect、STOP依赖缓存状态、HardwareInterface状态快照缺乏整体失效门禁、连接时诊断首帧实际未读取、生命周期与read/write并发契约不足。报告提出 SendResult、FaultLatch、ConnectionGeneration、StateSnapshot、SessionValidation、CleanupResult等最小契约，及单测/集成测试映射。
+
+本轮仅为固定提交静态分析和设计，没有修复代码、没有执行构建/单测/集成测试/TSan/网络故障注入/SIL/HIL/CS9或实机验证。未修改Stäubli上游、未应用或合并PR；`TODO-EXT-001`未授权。工程级验收未通过。下一节点 §9.3.283 / SERVO-866。
