@@ -5288,3 +5288,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** lifecycle success必须与socket/thread/cache资源状态一致；所有STOP结果必须区分sent/accepted/stopped；状态过期必须阻止运动模式准入；read失败显式失效缓存；cleanup/shutdown执行有确认条件的停止后断开流程；修订LifecycleTransitions以实际执行位置模式与mock命令回读。
 - **状态：** 静态审计及验收设计完成；STOP确认、生命周期资源一致性、状态有效性传播和测试覆盖仍存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.276 / SERVO-859。
+
+
+### §9.3.276｜SERVO-859：STOP命令接收确认与状态反馈关联协议审计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-stop-command-ack-sequence-correlation-audit.md](../../audits/2026-11-10-staubli-stop-command-ack-sequence-correlation-audit.md)。
+- **范围：** C++ RobotDriver/RealTimeSocketInterface/Subscriber、FrameHeader/RobotState/RobotCommand协议、VAL3 controlTask/computeSequenceDelay/getNextSequenceNumber/decode/encode、通信与RobotDriver单元测试。
+- **静态结论：**
+  1. send_message仅验证本地socket连接、序列化与send调用成功，不等待远端响应；send_stop_all_command返回true不是CS9接收/接受/停止证明。
+  2. RobotCommand sequence_number被设为最近有效RobotState序号；VAL3用当前RobotState序号与该回显值计算sequence delay。它不是独立command ID。
+  3. 协议没有独立CommandAck/CommandResult消息，也没有RobotState中的last_received/accepted/completed command ID或STOP ACK字段，无法关联单条STOP请求和后续状态。
+  4. VAL3未见命令序号去重、乱序拒绝、last accepted command或session epoch；sequence delay超限仅是延迟保护。
+  5. subscriber每个成功反序列化数据报均刷新reception_timestamp；相同序号只标记new_message=false，read仍返回true；RobotDriver不强制new_message=true，故重复数据报可能续新鲜度。序号倒退按回绕计算，无法区分旧乱序帧与真实回绕。
+  6. uint16状态序号无session nonce/epoch，无法协议级区分重启、重连、回绕与旧帧。
+  7. 现有测试验证基本收发、缓存读取、丢包计数与staleness，不覆盖重复UDP帧、乱序/回放、STOP ACK、事务关联或session隔离。
+- **ACK1–ACK6状态：** 固定提交源码、协议、VAL3和测试源码核对完成；ACKT-01至ACKT-13验收设计已形成，所有测试未执行。
+- **整改要求：** 引入独立command_id与session epoch；增加CommandAck/Result并区分received/accepted/executing/completed/failed；STOP接受与物理静止确认分离；仅新鲜且序号前进的状态帧刷新有效性；重复/乱序/跨会话数据报拒绝并计数。
+- **状态：** 静态审计完成；协议ACK、命令事务关联、重复/乱序过滤与会话隔离仍存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.277 / SERVO-860。
