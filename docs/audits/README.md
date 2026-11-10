@@ -410,3 +410,8 @@
 ### §9.3.287｜SERVO-870：FakeSocket 状态机伪代码与 AAA 测试矩阵
 
 - [2026-11-10 Stäubli FakeSocket 状态机伪代码与 AAA 测试矩阵](2026-11-10-staubli-fakesocket-pseudocode-and-aaa-test-matrix.md)：将 FakeSocket 状态变量、合法转换、connect/send/receive/start/stop/disconnect 伪代码、锁与 RAII callback guard、stop/deliver 线性化点、事件日志快照和 FS-01至FS-22 Arrange/Act/Assert 逐项细化。明确 stop 失败仍须清理、callback 异常清理后传播、self-stop 拒绝及测试层级边界。全部测试 NOT_RUN，Fake 未实现，未修改上游或应用 PR。下一节点 §9.3.288 / SERVO-871。
+
+
+### §9.3.288｜SERVO-871：RobotDriver / Subscriber fixture 生命周期与集成测试映射
+
+- [2026-11-10 Stäubli RobotDriver / Subscriber fixture 生命周期与集成测试映射](2026-11-10-staubli-robotdriver-subscriber-fixture-lifecycle-integration-map.md)：基于固定 Stäubli commit 核对 RobotDriver 双 Socket 所有权、connect/disconnect 顺序、Subscriber 构造启动接收、裸 this callback、析构 stop 屏障及现有测试 fixture。将 FS-01至FS-22映射到生产路径，设计 F0至F4 fixture 分层并新增 SD-01至SD-10调用方测试规格。仅静态审查与设计，全部测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.289 / SERVO-872。
