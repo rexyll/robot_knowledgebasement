@@ -17,7 +17,7 @@
 2. Stäubli on_error()在RobotDriver仍被判定为connected时尝试发送STOP，但忽略send_stop_all_command()的布尔返回值，仍返回CallbackReturn::SUCCESS。Jazzy HardwareComponent因此把组件置为UNCONFIGURED，而不是FINALIZED。
 3. 如果RobotDriver已经不connected，Stäubli on_error()返回CallbackReturn::ERROR；Jazzy HardwareComponent把组件置为FINALIZED。此状态不能通过普通configure/activate生命周期服务恢复，通常需要卸载并重新加载插件。
 4. on_error()没有调用disconnect()，也没有调用on_cleanup()；成功进入UNCONFIGURED后，RobotDriver的socket和接收线程仍可能保持连接。下一次on_configure()调用connect()时，RobotDriver会检测既有socket并先断开再重连。
-5. ResourceManager在组件error后移除接口；ControllerManager随后仍尝试对故障组件执行command mode switch。由于接口已不可用、组件已不在ACTIVE/INACTIVE状态，该切换路径会被拒绝。ros2_control上游Issue #3620记录了这一Jazzy故障处理顺序问题；本轮固定Jazzy源码快照也确认存在相同调用顺序。
+5. ResourceManager在组件error后移除接口；ControllerManager随后仍尝试对故障组件执行command mode switch。由于接口已不可用，prepare_command_mode_switch会先被拒绝；ControllerManager使用逻辑AND短路，通常不会继续调用perform_command_mode_switch。即使单独到达perform阶段，其ACTIVE/INACTIVE生命周期门禁也会拒绝UNCONFIGURED/FINALIZED组件。ros2_control上游Issue #3620记录了这一Jazzy故障处理顺序问题；本轮固定Jazzy源码快照也确认存在相同调用顺序。
 
 因此，不能把ControllerManager的后续mode-switch调用视为故障后的第二次STOP保障。停止请求必须在插件自己的故障处理路径中被妥善处理，但UDP本地发送成功仍不等于CS9接受、执行或物理静止确认。
 
@@ -142,7 +142,7 @@ Stäubli on_error()没有调用RobotDriver::disconnect()，也没有清除硬件
 3. ControllerManager::read()/write()取得failed_hardware_names，查找使用这些硬件的控制器；
 4. ControllerManager调用perform_hardware_command_mode_change()，尝试prepare_command_mode_switch()/perform_command_mode_switch()；
 5. ResourceManager的prepare路径检查接口available状态；perform路径还要求组件处于INACTIVE或ACTIVE；
-6. 但此时故障组件已经UNCONFIGURED或FINALIZED，且接口已被移除，故障组件的mode switch无法按普通路径完成。
+6. 但此时故障组件已经UNCONFIGURED或FINALIZED，且接口已被移除：prepare阶段首先因接口不可用而失败；ControllerManager的逻辑AND短路使perform通常不会执行。即使单独调用perform，其生命周期状态检查也会拒绝UNCONFIGURED/FINALIZED组件。
 
 ros2_control上游Issue #3620记录了这一Jazzy错误处理顺序，并说明read/write错误路径可能产生“Not available”及mode-switch失败日志。固定Jazzy源码快照也能看到相同的ResourceManager移除接口与ControllerManager后续调用顺序。
 
