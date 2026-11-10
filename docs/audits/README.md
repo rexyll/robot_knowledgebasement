@@ -415,3 +415,8 @@
 ### §9.3.288｜SERVO-871：RobotDriver / Subscriber fixture 生命周期与集成测试映射
 
 - [2026-11-10 Stäubli RobotDriver / Subscriber fixture 生命周期与集成测试映射](2026-11-10-staubli-robotdriver-subscriber-fixture-lifecycle-integration-map.md)：基于固定 Stäubli commit 核对 RobotDriver 双 Socket 所有权、connect/disconnect 顺序、Subscriber 构造启动接收、裸 this callback、析构 stop 屏障及现有测试 fixture。将 FS-01至FS-22映射到生产路径，设计 F0至F4 fixture 分层并新增 SD-01至SD-10调用方测试规格。仅静态审查与设计，全部测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.289 / SERVO-872。
+
+
+### §9.3.289｜SERVO-872：RobotDriver connect/disconnect 回滚路径故障注入矩阵
+
+- [2026-11-10 Stäubli RobotDriver connect/disconnect 回滚路径故障注入矩阵] (2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)：固定上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对双 Socket connect 阶段、control connect false 直接返回、Subscriber 构造异常无 rollback、diagnostics 失败路径、disconnect stop/disconnect 顺序、空析构及旧会话清理。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 精确故障注入规格。仅静态审查与设计，全部运行时测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.290 / SERVO-873。
