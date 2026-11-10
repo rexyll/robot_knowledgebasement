@@ -680,3 +680,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 静态核对 `UDPSocketImpl::send()`：`would_block` 分支日志报告 packet dropped，但未返回失败，最终仍返回 true；该结果经 RealTimeSocketInterface/RobotDriver bool 链可能使运动命令或 STOP 未发送却被视为成功。接收侧 `handle_data_received()` 在 error 非空时仍调用回调，sender endpoint 检查仍为 TODO；subscriber 重复序号虽设置 `new_message=false`，但仍返回 true，序号回退被当作回绕；RobotState反序列化未统一校验精确长度、protocol version、message type和payload size。
 
 本轮定义 NOT_SENT / LOCAL_ACCEPTED / UNKNOWN 发送契约；定义 endpoint、精确datagram长度、header/field、16-bit模数半空间序号、单调时钟freshness、generation和原子快照接纳门禁。新增 SERVO866-TX-01至TX-09、RX-01至RX-15、IT-01至IT-06测试规格及 AC-866-01至AC-866-10。所有测试未执行；未运行构建、单测、网络注入/抓包、TSan/ASan、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证。未修改上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点 §9.3.284 / SERVO-867。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.284 / SERVO-867）
+
+新增 [UDP 故障注入测试夹具与 Mock Socket seam 架构设计](../../audits/2026-11-10-staubli-udp-fault-injection-test-harness-and-mock-seam-design.md)。本轮定义 `IUdpTransport` 发送/接收窄接口、`SendOutcome` 三态结果、Mock/loopback fixture、`IMonotonicClock`/ManualTestClock、确定性 FaultScenario、RawDatagram/ProtocolFrame/RobotState builder、generation 与并发屏障测试、ROS 2 Control 真实集成层及 test-evidence manifest/run-id 归档规范。明确 UT、socket adapter、RobotDriver、ResourceManager/ControllerManager、SIL/CS9/HIL/FAT/SAT 分层，测试未执行统一为 NOT_RUN。未实现 seam/fixture，未运行构建、单测、集成、TSan/ASan、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；未修改 Stäubli/ros2_control 上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`未授权。下一节点 §9.3.285 / SERVO-868。
