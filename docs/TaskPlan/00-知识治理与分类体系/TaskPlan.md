@@ -724,3 +724,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.291 / SERVO-874）
 
 新增 [Socket / Subscriber 初始化与清理契约 API 设计](../../audits/2026-11-10-staubli-socket-subscriber-init-cleanup-contract-api.md)。固定上游逐文件复核 Socket 抽象、UDP adapter、Subscriber、Interface 与 RobotDriver。确认当前 UDP disconnect 在 connected 标志为 false 时不检查/关闭真实句柄；stop 在 receiving=false 时返回 true，不能证明线程对象已 join、异步 handler 已取消或 callback 已排空；Subscriber 构造时启动接收线程并捕获裸 this，析构无条件 stop。定义 OperationResult 与 SocketSnapshot 分离、TransportState/ReceiveState、connect/disconnect detailed contract、stop 幂等和 callback drain barrier、Subscriber 两阶段 start/stop、析构 noexcept best-effort、CleanupReport 与兼容 bool API 迁移策略。新增 API-01至API-18，全部 NOT_RUN；所有新接口未实现。未修改上游、未应用 PR，未运行 build/gtest/loopback/TSan/ASan/ROS 2 Control/SIL/HIL/VAL3/CS9/FAT/SAT/实机测试；工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.292 / SERVO-875。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.292 / SERVO-875）
+
+新增 [Socket v2 兼容迁移与 UDP 状态观测实现切片设计](../../audits/2026-11-10-staubli-socket-v2-compatibility-and-udp-observability-slice-design.md)。固定上游复核 Socket 纯虚接口、UDP PIMPL、TCP wrapper、factory、CMake 和 socket tests。确认给旧 Socket 增加 virtual 会改变 vtable；建议旧 Socket/SocketFactory 保持不变，新增 SocketV2/SocketFactoryV2 与独立 UDPSocketV2 façade，底层唯一 UDP Core。CMake 当前只编译 udp_socket.cpp，factory 对 TCP 明确 unsupported，socket tests 只实例化 UDP。定义基于 Asio is_open/local_endpoint、remote resolve、thread.joinable 与应用侧 handler/callback 计数的 snapshot，connect 分阶段记录，cancel/drain/join 与 timeout 后 Core owner 保留；分 V2-0至V2-5推进。V2-API-01至V2-CMAKE-02全部NOT_RUN，未新增接口或修改上游。未运行构建、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.293 / SERVO-876。
