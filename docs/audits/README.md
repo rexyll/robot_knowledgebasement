@@ -420,3 +420,8 @@
 ### §9.3.289｜SERVO-872：RobotDriver connect/disconnect 回滚路径故障注入矩阵
 
 - [2026-11-10 Stäubli RobotDriver connect/disconnect 回滚路径故障注入矩阵](2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)：固定上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对双 Socket connect 阶段、control connect false 直接返回、Subscriber 构造异常无 rollback、diagnostics 失败路径、disconnect stop/disconnect 顺序、空析构及旧会话清理。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 精确故障注入规格。仅静态审查与设计，全部运行时测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.290 / SERVO-873。
+
+
+### §9.3.290｜SERVO-873：RobotDriver 事务式 connect rollback guard 最小补丁设计
+
+- [2026-11-10 Stäubli RobotDriver 事务式 connect rollback guard 最小补丁设计](2026-11-10-staubli-robotdriver-transactional-connect-rollback-guard-design.md)：固定上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对 RobotDriver/Subscriber/Interface/Socket，定义 ConnectAttempt 状态、attempt-before-side-effect、commit/fail/exception、统一 cleanup 顺序、CleanupReport、异常优先级和 residual 检查。提出 Socket false/partial-state 与幂等契约、Subscriber 两阶段 factory、旧 session/并发/generation/destructor 策略；GUARD-01至GUARD-10、P0至P7 全部 NOT_RUN/NOT_IMPLEMENTED。仅设计，未修改上游或应用 PR。下一节点 §9.3.291 / SERVO-874。
