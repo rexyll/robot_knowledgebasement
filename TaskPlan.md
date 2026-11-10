@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.54  
+> 版本：v10.55  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.280 / SERVO-863；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行。未执行ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.281 / SERVO-864；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行。未执行ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
@@ -4304,3 +4304,14 @@ SV-01至SV-16验收矩阵已建立，全部未执行。未运行ROS controller_m
 5. 现有Stäubli LifecycleTransitions测试只覆盖直接回调和正常read/write，没有覆盖ResourceManager/ControllerManager真实错误传播、接口撤销、控制器停用、FINALIZED及恢复重载。
 
 LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单测、ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件卸载重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.281 / SERVO-864。
+
+
+### 2026-11-10｜v10.55 本轮推进记录（§9.3.281 / SERVO-864）
+
+固定 Stäubli 上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79` 与 ros2_control Jazzy 参考提交 `c6ef5a24e0cd21463edb99bded552a96f914b716`。新增审计设计：[2026-11-10-staubli-ros2-hardware-error-recovery-state-machine-fault-injection-design.md](docs/audits/2026-11-10-staubli-ros2-hardware-error-recovery-state-machine-fault-injection-design.md)。
+
+本轮形成硬件错误恢复状态机，明确 RUNNING、ERROR_DETECTED、STOP_REQUESTED、STOP_SEND_ACCEPTED_LOCAL、STOP_UNCONFIRMED、INTERFACES_REVOKED、UNCONFIGURED、FINALIZED、RECONNECTING、SESSION_VALIDATING、INACTIVE、ACTIVE 等状态及门禁；严格区分本地 STOP 发送结果、控制器 ACK、运动停止观测和独立安全链 SAFE_STATE_CONFIRMED。当前协议没有独立 STOP ACK/command ID，因此不得声称控制器已确认停止；ROS/UDP STOP 不得替代 E-stop、保护停止或其他独立安全功能。
+
+新增 SERVO864-FI-01 至 SERVO864-FI-24 故障注入矩阵，覆盖 read/write ERROR、STOP 发送失败/would_block/远端丢包、网络断开、重复/乱序/旧会话帧、畸形帧、线程清理、configure 重试、FINALIZED 插件重载、ResourceManager 接口撤销、ControllerManager mode-switch、并发生命周期调用、操作员授权及独立安全链边界；另建立 AC-01 至 AC-10 设计验收准则。所有故障注入与运行时验收均未执行。
+
+未运行 C++/ROS 2 构建、单测、ResourceManager/ControllerManager 联调、网络注入/抓包、TSan、插件卸载重载、VAL3/CS9、SIL/HIL/FAT/SAT 或实机停止测试。未修改 Stäubli 上游、未应用 PR；工程级验收未通过，`TODO-EXT-001`未授权合并。根00-01与第21章21-02仍进行中。下一节点 §9.3.282 / SERVO-865。
