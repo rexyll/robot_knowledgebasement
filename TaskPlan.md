@@ -5,7 +5,7 @@
 > 版本：v10.54  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.280 / SERVO-863；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch可能因接口不可用/组件生命周期状态被拒绝（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行。未执行ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.280 / SERVO-863；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行。未执行ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
@@ -4300,7 +4300,7 @@ SV-01至SV-16验收矩阵已建立，全部未执行。未运行ROS controller_m
 1. Stäubli read/write返回ERROR后，Jazzy HardwareComponent触发error()/on_error()，ResourceManager撤销故障硬件接口；ControllerManager停用相关控制器。
 2. Stäubli on_error在driver仍connected时尝试STOP但忽略发送函数返回值，仍返回SUCCESS并进入UNCONFIGURED；driver断线时返回ERROR并进入FINALIZED，普通生命周期服务不能恢复。
 3. on_error未调用disconnect/on_cleanup；成功进入UNCONFIGURED后socket/接收线程可能仍保持连接，重新configure时RobotDriver::connect才检测旧连接并先disconnect。
-4. ResourceManager撤销接口后，ControllerManager仍尝试mode switch；故障组件已UNCONFIGURED/FINALIZED且接口不可用，prepare/perform路径会被拒绝。ros2_control上游Issue #3620记录了该Jazzy调用顺序问题；本轮固定源码静态核对一致。
+4. ResourceManager撤销接口后，ControllerManager仍尝试mode switch；故障组件已UNCONFIGURED/FINALIZED且接口不可用，prepare阶段因接口不可用被拒绝；perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件。ros2_control上游Issue #3620记录了该Jazzy调用顺序问题；本轮固定源码静态核对一致。
 5. 现有Stäubli LifecycleTransitions测试只覆盖直接回调和正常read/write，没有覆盖ResourceManager/ControllerManager真实错误传播、接口撤销、控制器停用、FINALIZED及恢复重载。
 
 LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单测、ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件卸载重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.281 / SERVO-864。
