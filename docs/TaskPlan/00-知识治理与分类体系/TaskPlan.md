@@ -653,3 +653,12 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 本轮将Stäubli read/write ERROR路径追踪到Jazzy HardwareComponent、ResourceManager和ControllerManager。确认on_error在driver connected时忽略STOP发送返回值并返回SUCCESS，硬件进入UNCONFIGURED；driver断线时返回ERROR，硬件进入FINALIZED；on_error没有disconnect，成功进入UNCONFIGURED后socket/接收线程可能继续运行，重新configure时connect才会断开旧连接。ResourceManager撤销故障接口后，ControllerManager仍尝试mode switch，prepare阶段因接口不可用而被拒绝；perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件；该框架调用顺序与ros2_control上游Issue #3620一致。现有Stäubli测试未覆盖ResourceManager/ControllerManager错误传播和恢复。
 
 新增SERVO-863/LC-01至LC-15：固定Stäubli与ros2_control提交静态源码、官方Jazzy文档和测试源码核对完成；LC-01至LC-15全部未执行。未运行ROS 2构建/单测、ResourceManager/ControllerManager运行时、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证。未修改Stäubli上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.281 / SERVO-864。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.281 / SERVO-864）
+
+固定 Stäubli 上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79` 与 ros2_control Jazzy 参考提交 `c6ef5a24e0cd21463edb99bded552a96f914b716`。新增审计设计见 [Stäubli 硬件错误恢复状态机与故障注入验收设计](../../audits/2026-11-10-staubli-ros2-hardware-error-recovery-state-machine-fault-injection-design.md)。
+
+本轮定义 RUNNING、ERROR_DETECTED、STOP_REQUESTED、STOP_SEND_ACCEPTED_LOCAL、STOP_UNCONFIRMED、INTERFACES_REVOKED、UNCONFIGURED、FINALIZED、RECONNECTING、SESSION_VALIDATING、INACTIVE、ACTIVE 等状态和关键转移。明确本地发送结果不等于控制器 ACK，运动停止观测不等于独立安全链确认；当前协议无独立 STOP ACK/command ID，不能声称已获控制器停止确认。恢复必须清理旧 socket/异步操作/线程/缓存并验证新会话，UNCONFIGURED 与 FINALIZED 使用不同恢复路径，故障后禁止自动重新使能运动。
+
+新增 SERVO864-FI-01 至 SERVO864-FI-24 故障注入矩阵及 AC-01 至 AC-10 设计验收准则，涵盖读写错误、STOP失败/丢包、断线、重复乱序/旧会话帧、畸形帧、线程清理、生命周期并发、ResourceManager/ControllerManager、插件重载和独立安全链。所有运行时测试均未执行。未修改上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。下一节点 §9.3.282 / SERVO-865。
