@@ -43,9 +43,9 @@
 
 ## 证据与边界
 
-- [hardware_interface.cpp](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp`)：约100–133行。
-- [staubli_helpers.xacro](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro`)：约49–52、156–157、226–252行。
-- [staubli_r2c_gpios.xacro](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_gpios.xacro`)：约8–30行。
-- [hardware interface tests](`https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp`)：初始化fixture与InterfaceExport测试。
+- [hardware_interface.cpp](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp)：约100–133行。
+- [staubli_helpers.xacro](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/urdf/include/staubli_helpers.xacro)：约49–52、156–157、226–252行。
+- [staubli_r2c_gpios.xacro](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_description/r2c/include/staubli_r2c_gpios.xacro)：约8–30行。
+- [hardware interface tests](https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp)：初始化fixture与InterfaceExport测试。
 
 本轮仅完成固定上游提交的静态YAML/Xacro/C++/测试代码审查；未执行Xacro展开、参数注入、ROS 2构建/单测、协议黄金帧、VAL3编译/下载、CS9配置读取、端子逐点测试、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。工程级验收仍未通过，`TODO-EXT-001`未授权合并。
