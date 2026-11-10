@@ -5,7 +5,7 @@
 > 版本：v10.55  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.281 / SERVO-864；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行。未执行ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.281 / SERVO-864；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行；本轮新增恢复状态机及SERVO864-FI-01至FI-24故障注入设计、AC-01至AC-10验收准则，全部运行时项目未执行。停止请求、本地发送、控制器ACK、运动停止观测和独立安全链确认严格区分；当前协议无独立STOP ACK/command ID，ROS/UDP STOP不是安全功能。UNCONFIGURED与FINALIZED分别定义受控重连和插件卸载/重载路径，故障后禁止自动恢复运动。未执行ResourceManager/ControllerManager运行时联调、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
