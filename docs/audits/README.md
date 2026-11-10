@@ -322,3 +322,5 @@
 - [2026-11-10 Stäubli GPIO型号配置校验与Xacro递归边界审计追加件](2026-11-10-staubli-gpio-configuration-validation-addendum.md)：新增§9.3.263 / SERVO-846，确认Xacro模型配置校验未覆盖GPIO数量schema、GPIO递归宏以相等作为终止条件、C++ std::stoul未检查完整字符串消费；非法输入边界及Xacro展开未执行。
 
 - [2026-11-10 Stäubli GPIO接口导出、状态更新与生命周期缓存一致性审计追加件](2026-11-10-staubli-gpio-interface-lifecycle-audit.md)：新增§9.3.264 / SERVO-847，静态核对Xacro与C++接口命名/类别一致；发现GPIO输入字段缺失时保留旧值且read仍可能成功、生命周期激活未重置GPIO输出命令缓存而write在STOP模式仍发送输出；需mock与生命周期测试验证。
+
+- [2026-11-10 Stäubli GPIO协议端到端映射、有效性标志与VAL3执行链审计](2026-11-10-staubli-gpio-protocol-end-to-end-audit.md)：新增§9.3.265 / SERVO-848，确认VAL3每周期将数字/模拟输入valid flag设为false、状态GPIO payload序列化未实现；命令方向数字位图到VAL3数组转换被注释，controlTask数字/模拟物理输出仍为TODO。C++往返单测不覆盖跨语言协议；未执行golden frame、VAL3/CS9、SIL/HIL或实机验证。
