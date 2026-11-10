@@ -4523,3 +4523,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 在目标ROS 2/ros2_control/controller_manager和CS9/VAL3环境中进行集成与安全验收；ROS STOP不替代独立安全回路。
 
 本轮未执行构建/单测、controller_manager集成、SIGINT/SIGTERM退出、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。根00-01与第21章21-02继续进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.250 / SERVO-833。
+
+
+### 2026-11-10｜SERVO-833：命令接口导出与模式切换一致性审查
+
+固定上游提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。核查硬件插件导出接口、模式解析与prepare/perform切换、R2C xacro、bringup文档和硬件接口测试源码。
+
+#### 主要发现
+
+1. R2C xacro在`has_joint_torque_control`为真时声明effort command interface，但插件`export_command_interfaces()`只导出position、velocity、acceleration，没有effort，接口契约不一致。
+2. 插件始终导出velocity command interface，但`prepare_command_mode_switch()`明确拒绝JOINT_VELOCITY；bringup文档也警告该模式未支持。
+3. `resolve_mode()`按start_interfaces顺序遇到第一个position/velocity/effort/acceleration子串即返回，不校验全部接口集合；混合接口可能因顺序不同得到不同模式。
+4. `prepare_command_mode_switch()`没有使用stop_interfaces，outgoing mode解析被注释；源码明确留下混合接口校验TODO。
+5. prepare结果只存于pending_mode_/switch_prepared_单一缓存；perform不核对本次传入列表。未prepare时perform默认STOP并返回OK，重复或交错调用语义缺乏保护。
+6. position模式只检查缓存error_state和motion_possible；没有状态新鲜度、诊断有效性、控制器就绪或操作模式硬门禁，HOLD只警告。
+7. 模式拒绝时仅将本地current_control_mode_设为STOP，没有在该回调中发送机器人STOP或等待回执。
+8. 成功切换时position command从当前关节位置缓存初始化；缓存新鲜度未验证。acceleration接口仅供Joint Limiter传递限制，不是实际控制模式。
+9. 插件始终导出effort state interface，而xacro仅在has_joint_torque_sensor时声明，存在按型号配置差异。
+10. 未发现模式切换专项单测；混合/乱序接口、effort配置、stop/start组合、状态陈旧、未配对回调和并发边界未覆盖，本轮未执行测试。
+
+#### CM1–CM10验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| CM1 | xacro effort与插件导出一致 | 声明effort但插件未导出 |
+| CM2 | velocity声明与实际支持一致 | 导出但模式拒绝；文档警告 |
+| CM3 | 全量start接口集合校验 | 首个匹配项决策；混合模式校验缺失 |
+| CM4 | stop接口与转换验证 | 未使用stop_interfaces |
+| CM5 | prepare/perform配对 | 单缓存；未配对perform默认STOP/OK |
+| CM6 | position激活状态新鲜度/诊断/许可 | 仅检查缓存字段 |
+| CM7 | 拒绝切换后的机器人STOP执行/回执 | 只有本地STOP状态 |
+| CM8 | hold初值与acceleration语义 | 依赖缓存位置；acceleration仅限位用途 |
+| CM9 | 模式切换负向专项测试 | 未发现；本轮未执行 |
+| CM10 | xacro/插件/controller配置/文档一致性 | effort/velocity差异；全型号未验证 |
+
+#### 整改方向
+
+- 用单一机器人能力矩阵同步xacro、插件接口导出、controller配置和文档。
+- 未支持的effort/velocity模式不应声明为可用接口；或在完整实现之前明确禁用。
+- 对全部start/stop接口进行集合验证，拒绝混合模式和非法转换。
+- prepare/perform建立严格配对和事务状态；无prepare、重复调用或参数变化应拒绝。
+- position模式切换前验证新鲜状态、诊断、控制器就绪和运行许可。
+- 明确模式切换失败的机器人侧STOP投递、回执、故障锁存和复位策略。
+- 增加混合接口、effort配置、状态过期、未配对回调和controller_manager集成测试。
+- 按真实传感器能力统一effort state接口导出，避免用默认0值代表测量值。
+
+本轮未执行构建/单测、controller_manager集成、URDF全型号解析、VAL3/CS9、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。根00-01与第21章21-02继续进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.251 / SERVO-834。
