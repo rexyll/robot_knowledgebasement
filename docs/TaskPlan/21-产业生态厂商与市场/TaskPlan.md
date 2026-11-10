@@ -5345,3 +5345,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 在回调前校验来源端点并隔离错误接收；统一解析wire header后验证magic/version/type/payload_size/精确总长度；引入带密钥的消息认证与会话nonce/epoch/重放窗口；增加跨语言有效/畸形黄金向量；将valid/stale/unauthenticated/wrong-source/malformed/replay状态与计数向ROS层显式传播。
 - **状态：** 静态审计完成；来源认证、协议字段一致性、消息完整性和会话抗重放存在P0缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.279 / SERVO-862。
+
+
+### §9.3.279｜SERVO-862：ROS状态有效性与通信安全诊断接口端到端审计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-ros2-state-validity-diagnostic-propagation-audit.md](../../audits/2026-11-10-staubli-ros2-state-validity-diagnostic-propagation-audit.md)。
+- **范围：** RobotDriver read_robot_state/read_diagnostic_data/reset_data；HardwareInterface read/update_state/write；prepare/perform command mode switch；joint/supervision StateInterface；诊断ready逻辑及现有测试。
+- **静态结论：**
+  1. RobotDriver在无数据、无效或stale读取时返回false，但不统一清除current_robot_state_内部有效标志；is_state_msg_valid仅检查message_type。
+  2. HardwareInterface::read返回ERROR时不清除state_msg_及已导出的joint/supervision缓存，StateInterface仍引用旧缓存内存。
+  3. update_state先写joint positions再检查joint velocities；若后续必需字段缺失则返回false，已写入字段不回滚，可能形成混合周期快照。
+  4. perform_command_mode_switch只检查缓存error_state/motion_possible，不检查状态age、序号推进、read成功标志或session；write没有独立freshness门禁。
+  5. ROS supervision接口没有state_valid/state_age/source/auth/session/error reason/rejection counter等独立字段。
+  6. connect将diag_interface_ready硬编码true，read_diagnostic_data调用仍为TODO，诊断帧不参与真实连接ready判断。
+  7. RobotDriver测试覆盖staleness API返回false，但HardwareInterface测试未覆盖stale/read ERROR后的缓存失效、模式切换拒绝、write阻断与部分字段原子提交。
+- **SV1–SV8状态：** 固定提交源码与现有测试源码静态核对完成；SV-01至SV-16验收矩阵已建立，全部未执行。
+- **整改要求：** 建立含validity、age、sequence、session、source/auth与协议校验结果的统一状态快照；read失败即失效；update_state先全量验证再原子提交；位置/速度模式准入与每次非STOP write均检查快照新鲜度；扩展ROS状态/诊断接口；诊断ready必须基于真实诊断帧或明确optional策略。
+- **状态：** 静态审计完成；状态失效传播、原子提交、模式准入与write新鲜度门禁存在P0缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.280 / SERVO-863。
