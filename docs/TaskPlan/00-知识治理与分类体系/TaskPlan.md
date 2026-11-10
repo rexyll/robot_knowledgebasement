@@ -719,3 +719,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.290 / SERVO-873）
 
 新增 [RobotDriver 事务式 connect rollback guard 最小补丁设计](../../audits/2026-11-10-staubli-robotdriver-transactional-connect-rollback-guard-design.md)。基于固定 Stäubli commit 静态复核 RobotDriver、Subscriber、Interface 和 Socket 抽象，设计 connect attempt 状态、attempt-before-side-effect 标记、成功 commit、失败显式 rollback、异常保留 exception_ptr 后 rethrow 的控制流。定义 cleanup 顺序：先排空已构造 Subscriber callback，再处理构造失败的部分启动，按 connect_attempted 清理 diagnostics/control socket，reset data 并检查 residual；cleanup 各步骤失败/异常不短路，原始连接失败/异常优先。提出 CleanupReport、Socket false/partial-state 与幂等契约、Subscriber 两阶段 factory、旧 session 一致性、并发串行化、generation 和析构策略。GUARD-01至GUARD-10、P0至P7 全部 NOT_RUN/NOT_IMPLEMENTED。仅设计审查，未修改上游，未实现补丁，未运行构建、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.291 / SERVO-874。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.291 / SERVO-874）
+
+新增 [Socket / Subscriber 初始化与清理契约 API 设计](../../audits/2026-11-10-staubli-socket-subscriber-init-cleanup-contract-api.md)。固定上游逐文件复核 Socket 抽象、UDP adapter、Subscriber、Interface 与 RobotDriver。确认当前 UDP disconnect 在 connected 标志为 false 时不检查/关闭真实句柄；stop 在 receiving=false 时返回 true，不能证明线程对象已 join、异步 handler 已取消或 callback 已排空；Subscriber 构造时启动接收线程并捕获裸 this，析构无条件 stop。定义 OperationResult 与 SocketSnapshot 分离、TransportState/ReceiveState、connect/disconnect detailed contract、stop 幂等和 callback drain barrier、Subscriber 两阶段 start/stop、析构 noexcept best-effort、CleanupReport 与兼容 bool API 迁移策略。新增 API-01至API-18，全部 NOT_RUN；所有新接口未实现。未修改上游、未应用 PR，未运行 build/gtest/loopback/TSan/ASan/ROS 2 Control/SIL/HIL/VAL3/CS9/FAT/SAT/实机测试；工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.292 / SERVO-875。
