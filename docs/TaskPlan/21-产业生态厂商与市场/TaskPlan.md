@@ -5235,3 +5235,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 定义周期单位/范围/容差及控制器消费策略；采用命令允许列表；实现位置/速度数值和动态限值门禁；在实现并验证前明确禁用未实现速度/扭矩能力；补齐模拟输出finite/量程/失效策略；修正测试单位并建立C++/VAL3黄金向量。
 - **状态：** 固定提交静态审查完成；控制周期契约、命令支持矩阵及数值边界验证存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.273 / SERVO-856。
+
+
+### §9.3.273｜SERVO-856：控制错误传播、停止路径与恢复授权
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-control-error-recovery-authorization-audit.md](../../audits/2026-11-10-staubli-control-error-recovery-authorization-audit.md)。
+- **范围：** VAL3 controlTask、resetControlSocket、位置/速度停止程序；C++ RobotDriver、StaubliHardwareInterface read/write/on_error；官方日志与故障排查文档。
+- **静态结论：**
+  1. controlTask先发布RobotState（bInError=l_bError），后处理命令/通信/模式/运动错误；多数运行时错误在本轮发布后产生并在同轮错误处理末尾清除，存在ROS侧bInError无法观察到瞬态故障的风险。
+  2. 错误处理清除l_bError后立即重置命令、序号、通信状态并重置socket；恢复延迟仍为TODO，未发现独立故障锁存、人工确认/安全重启确认、session epoch或重新授权握手。
+  3. resetControlSocket调用sioCtrl与clearBuffer后无条件x_bError=false，不检查底层调用结果，调用方的错误检查无法可靠识别重置失败。
+  4. 速度模式更新错误时，错误专用分支只对模式2调用stopJointPositionControl，没有对模式3调用stopJointVelocityControl；后续stopMove/resetMotion不能替代速度模式停止状态和静止回读验证。
+  5. C++ StaubliHardwareInterface::on_error调用send_stop_all_command但忽略返回值，随后返回CallbackReturn::SUCCESS；生命周期回调成功不证明STOP发送成功或机器人静止。
+  6. ROS2 read/write ERROR、on_error生命周期处理与VAL3 controlTask内部错误清除/UDP重置是分层状态机；未发现跨层故障恢复与重新授权闭环。
+- **ER1–ER9状态：** 固定提交静态源码/控制流核对完成或确认缺口；ER10网络/STOP失败/恢复注入、ER11 CS9停止响应/静止回读/安全链验证、ER12 SIL/HIL/FAT/SAT/实机均未执行。
+- **整改要求：** 错误事件锁存并可观测；将通信恢复、运动停止、控制器复位、安全重启和ROS重新授权分层；实现可验证的socket重置后置条件；统一位置/速度停止路径与超时/静止判据；检查C++ STOP发送结果；建立跨层状态转换表和故障注入矩阵。
+- **状态：** 固定提交静态审查完成；错误可观测性、socket重置结果、模式停止对称性和恢复授权存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.274 / SERVO-857。
