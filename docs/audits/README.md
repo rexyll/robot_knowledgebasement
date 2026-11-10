@@ -446,3 +446,8 @@
 
 
 - [2026-11-10 Stäubli SocketV2 Result 错误分类、异常安全与资源残留 / Quarantine Owner 生命周期契约审查](2026-11-10-staubli-socket-v2-result-error-exception-safety-residual-owner-lifecycle-audit.md)：新增§9.3.295 / SERVO-878，定义primary failure与cleanup failure分离、native error/exception记录、FAILED_RESIDUAL owner保留、quarantine owner、按generation串行化的retry_cleanup、noexcept边界及RobotDriver/Subscriber集成约束。ERR-01至ERR-24全部NOT_RUN；仅静态设计，未实现或修改上游，未运行编译/测试/实机验证。
+
+
+### §9.3.296｜SERVO-879：SocketV2 CleanupReport / ResidualResourceHandle API surface 与 quarantine ownership 实施边界设计
+
+- [2026-11-10 Stäubli SocketV2 CleanupReport / ResidualResourceHandle API surface 与 quarantine ownership 实施边界设计](2026-11-10-staubli-socket-v2-cleanup-report-residual-handle-api-quarantine-boundary-design.md)：提出C++17 public/private类型边界、纯值FailureRecord/NativeError/Snapshot/CleanupReport DTO、move-only ResidualResourceHandle、显式TransportLifecycleOwner/QuarantineManager、generation retry状态机、Core清理串行化及RobotDriver/ROS lifecycle/plugin unload门禁。API-OWN-01至10、RETRY-01至06、ROS-01至05、ERR-ALLOC-01至02全部NOT_RUN；仅静态设计，未实现或修改上游，未执行编译/测试。下一节点 §9.3.297 / SERVO-880。
