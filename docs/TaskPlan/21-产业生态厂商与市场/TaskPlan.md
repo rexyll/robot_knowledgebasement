@@ -5181,3 +5181,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** connect等待并验证真实诊断帧；修正header解析与统一校验；实现VAL3诊断数据生产发送和ROS diagnostics发布；拆分急停按钮、安全停止类型、等待复位、运动许可；制动释放仅使用真实反馈；建立持久故障事件记录；GPIO无效时显式发布validity/sample age。
 - **状态：** 固定提交静态审查完成；诊断数据端到端、安全状态语义与工程级验收未通过；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.270 / SERVO-853。
+
+
+### §9.3.270｜SERVO-853：协议字段映射、枚举语义、单位与边界值一致性
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-protocol-field-mapping-enum-units-audit.md](../../audits/2026-11-10-staubli-protocol-field-mapping-enum-units-audit.md)。
+- **范围：** C++协议消息/序列化/枚举、VAL3 MessageHeader/RobotState/RobotCommand、encodeHeader/decodeHeader、状态/命令编码解码、HardwareInterface单位转换、关节限制配置、GPIO数量配置及现有序列化测试。
+- **静态结论：**
+  1. VAL3 initRobotStateMsg设置payload_size=124，但encodeHeader把nMsgSequenceNumber连续写入header的两个16-bit字段，覆盖payload_size；C++ RobotState反序列化没有验证type/size/version，可能掩盖帧头错误。
+  2. VAL3 workingMode 2=TEST、3=AUTO-LOCAL、4=AUTO-REMOTE，与C++ OperationMode 2=AUTOMATIC、3=REMOTE、无4枚举错位；VAL3原始值直接发送并被C++ static_cast，状态显示可能错误。
+  3. CommandType、SafetyStatus、状态flags与valid-field flags的数值位置静态一致；C++未统一拒绝非法枚举值，operation_mode_status仍为依模式解释的raw byte。
+  4. HardwareInterface有明确rad/rad·s⁻¹到degree/degree·s⁻¹的发送转换及接收反向转换；VAL3位置控制直接使用degree并执行isInRange，静态单位路径一致。
+  5. C++ double在线路压缩为float32，与VAL3 4.0l一致；但float量化误差、溢出、NaN/Inf边界策略不完整，HardwareInterface仅检查关节命令NaN，模拟输出缺少finite/量程检查。
+  6. VAL3 RobotState F/T后三轴只推进offset不写值；数字输入mask和模拟输入编码为TODO；RobotCommand数字输出mask转VAL3数组的循环被注释。固定协议含4路模拟IO，而TX2-60L/MED配置均声明2 AI/2 AO，物理制式/量程/端子映射缺失。
+  7. VAL3位置控制有isInRange，但目标跳变检查TODO；速度限值和setVelCmd执行TODO；扭矩命令路径未证实。
+- **FM1–FM12状态：** 固定源码/配置/现有测试静态核对完成或确认缺口；FM13 CS9点位/限位/单位实测、FM14畸形header/非法枚举/NaN/Inf/float边界注入、FM15 SIL/HIL/FAT/SAT/实机验证均未执行。
+- **整改要求：** 修复payload_size字段；统一跨语言OperationMode枚举；统一验证header和枚举；定义float32精度/范围及finite策略；补齐F/T/IO写入及机型通道映射；实现控制器侧速度/扭矩/加速度限值闭环。
+- **状态：** 固定提交静态审查完成；跨语言帧头/枚举和IO字段实现存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.271 / SERVO-854。
