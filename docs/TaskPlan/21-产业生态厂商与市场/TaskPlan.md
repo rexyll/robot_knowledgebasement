@@ -5217,3 +5217,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 先解析wire header，再严格验证payload_size=47与总长度55；所有decoder失败出口立即清除bIsValid、强制STOP并隔离旧命令缓存；建立C++/VAL3共用黄金报文与畸形帧测试；软件STOP与认证安全停止分离。
 - **状态：** 固定提交静态审查完成；VAL3命令入口wire payload长度校验存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.272 / SERVO-855。
+
+
+### §9.3.272｜SERVO-855：VAL3命令语义、控制周期与数值边界校验
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-command-semantic-period-numeric-validation-audit.md](../../audits/2026-11-10-staubli-command-semantic-period-numeric-validation-audit.md)。
+- **范围：** VAL3 decodeRobotCommandMsg/controlTask/updateJointPositionControl/updateJointVelocityControl/RobotCommand数据库；C++ CommandType、RobotCommandMessage、StaubliHardwareInterface::write及消息序列化测试。
+- **静态结论：**
+  1. C++ HardwareInterface将ROS周期乘1000后按毫秒发送；VAL3解码到nRemoteCtrlPeriod，但固定控制链未发现范围校验或消费路径，不能证明远端周期参与控制器调度/控制。
+  2. 现有C++序列化测试将controller_period设为0.008却注释“8 ms”；生产路径单位为毫秒，8 ms应对应8.0。当前测试只验证往返，不验证单位语义。
+  3. C++ CommandType定义INVALID=0、STOP=1、位置=2、速度=3、扭矩=4及内部类型0x0A/0x0B；VAL3仅检查0..4，0会进入STOP类分支，4进入未知模式错误路径；没有扭矩执行链。协议枚举存在不等于功能已实现。
+  4. 位置控制调用isInRange，但目标跳变/接近度检查仍TODO，未见显式finite边界门禁；速度安全限值仍TODO，setVelCmd注释且函数报告未实现。
+  5. 4路模拟输出解码进入VAL3数组，但入口未发现finite/量程检查；物理输出仍TODO。TX2型号实际通道数、量程和端子映射仍需型号/现场证据。
+  6. C++消息反序列化未统一拒绝非法CommandType；现有测试未覆盖控制周期单位、非法枚举、NaN/Inf、float32溢出、位置跳变或模拟输出越界。
+- **SM1–SM11状态：** 固定提交静态源码/现有测试核对完成或确认缺口；SM12异常命令/周期/浮点注入、SM13 CS9实际控制与IO验证、SM14 SIL/HIL/FAT/SAT/实机均未执行。
+- **整改要求：** 定义周期单位/范围/容差及控制器消费策略；采用命令允许列表；实现位置/速度数值和动态限值门禁；在实现并验证前明确禁用未实现速度/扭矩能力；补齐模拟输出finite/量程/失效策略；修正测试单位并建立C++/VAL3黄金向量。
+- **状态：** 固定提交静态审查完成；控制周期契约、命令支持矩阵及数值边界验证存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.273 / SERVO-856。
