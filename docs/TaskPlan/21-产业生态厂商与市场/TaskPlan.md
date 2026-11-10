@@ -4773,3 +4773,51 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 | SU12 | MoveIt→JTC→硬件→VAL3端到端验收 | 未执行mock hardware、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收 |
 
 本轮仅静态源码与文档核对；未执行MoveIt/JTC运行、action取消/停止注入、轨迹时间参数化实测、Servo启动、ROS图检查、mock hardware、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.257 / SERVO-840。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.257 / SERVO-840）
+
+固定上游基线：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮静态审查文件包括`staubli_robot_driver/src/staubli_hardware_interface.cpp`、`include/staubli_robot_driver/staubli_hardware_interface.hpp`、`src/robot_driver.cpp`、`include/staubli_robot_driver/robot_driver.hpp`、`include/staubli_robot_driver/communication/messages.hpp`、`src/communication/messages.cpp`、`include/staubli_robot_driver/robot_driver_helpers.hpp`、`val3/userapp/ros2_server/controlTask.pgx`、`test/unit_tests/test_robot_driver.cpp`、`test/unit_tests/test_staubli_hardware_interface.cpp`及`staubli_driver_ros2/sphinx/quickstart/overview.rst`。
+
+#### 主要发现
+
+1. ROS硬件接口导出joint position/velocity/effort状态，以及10项supervision状态：operation_mode、operation_mode_status、safety_status、control_sequence_delay、brakes_released、motion_possible、in_motion、in_error、estop_pressed、wait_for_ack。overview文档定义这些状态的语义；effort为由电流估算而非直接测量。
+2. `read()`依赖RobotDriver连接和`read_robot_state()`；状态读取失败或`update_state()`失败即返回硬件ERROR。RobotDriver默认state staleness timeout为100ms；状态过期时拒绝返回数据。现有RobotDriver单测覆盖状态停止发送后过期失败、恢复发送后重新读取成功，但本轮未运行测试。
+3. `update_state()`要求joint positions和velocities valid flags存在，否则返回false；torque无效时effort状态被填零。未见状态数组逐元素有限性/物理范围检查；缺少effort数据被置零可能使下游无法区分“真实零力矩”与“测量不可用”，应增加有效性语义或诊断标记。
+4. `write()`在非STOP模式检查`error_state`和`control_state==INVALID`，发现错误会调用STOP并返回ERROR；未在该分支检查STOP调用返回值。对`motion_possible`、`estop_pressed`、`safety_status`和operation mode的持续门禁主要未在write循环形成完整统一判定；切换到position模式时只检查error_state和motion_possible，并对operation_mode_status非零仅告警。
+5. `on_error()`调用`send_stop_all_command()`并忽略其bool返回值，随后无条件返回CallbackReturn::SUCCESS；`on_shutdown()`也忽略STOP发送结果后断开连接。不能据此证明机器人已停止或停止命令已被VAL3执行。
+6. `send_stop_all_command()`根据最近一次`current_robot_state_`构造STOP并复用其sequence number；它确认的是ROS侧send_message成功，不是机器人控制器已接收、执行停止或静止。源码没有独立STOP ack/停止完成状态机和静止超时回执。
+7. `RobotDriver::connect()`虽然创建diagnostics socket/subscriber并检查subscriber ready，但连接等待循环将`diag_interface_ready=true`硬编码，真实`read_diagnostic_data()`调用被TODO注释。诊断数据定义含CS9/CS8类型、固件版本、10条error log和control_task_status，但当前连接路径未读取/验证这些字段；controller type检查也被注释，VAL3版本兼容检查为TODO。
+8. `read_diagnostic_data()`函数本身有message type和staleness检查，但未发现生产调用点。diagnostic staleness timeout默认100ms；当前诊断消息序列丢失只记录warning的路径也未形成系统级故障门禁。
+9. VAL3 `controlTask.pgx`在每轮处理命令前先调用updateState并发布robot_state_msg，其中`bInError=l_bError`；之后才读取命令、计算sequence delay、检查模式切换和执行运动。错误处理分支执行stopMove/resetMotion、清除命令有效性并重置socket，随后在同一分支将`l_bError=false`（除socket reset再次失败外）。因此，在常见的循环内错误路径上，错误标志可能在下一轮状态发布前被清除；状态消息不保证保留故障事件。需要将故障锁存/事件记录与状态发布顺序分开验证。
+10. VAL3错误处理对位置模式执行stopJointPositionControl，随后stopMove/resetMotion并重置通信；但未见完整的操作员确认/故障复位状态机或固定重启等待时间（源码TODO）。停止失败时仅记录日志，未见可审计的独立停止确认和二次安全动作。
+11. VAL3 controlTask在状态发布后检测命令解码错误、序列延迟、非法模式和模式切换错误；GPIO输出仍TODO。控制序列延迟阈值、停止逻辑和故障状态回传需通过端到端时序测试确认，不能只依赖静态日志。
+12. 现有`test_robot_driver.cpp`覆盖连接/断开、状态读取、状态staleness及恢复；mock线程发送诊断数据，但测试未调用`read_diagnostic_data()`验证诊断消费。硬件接口测试覆盖接口导出、生命周期、mock read和position write正常路径；未见对急停、error_state、motion_possible变更、STOP发送失败、静止确认、诊断过期、故障锁存/恢复的针对性测试。本轮未运行构建或测试。
+
+#### SV1–SV12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SV1 | joint与supervision状态接口导出及语义 | 静态核对完成；effort为电流估算 |
+| SV2 | RobotState有效字段、状态更新和缺失数据处理 | 静态核对；缺失position/velocity导致read ERROR，缺失torque置零 |
+| SV3 | 状态消息staleness门禁与恢复 | 默认100ms静态确认；现有单测覆盖但本轮未运行 |
+| SV4 | 状态输入有限性、合理范围和时间戳完整性 | 未见完整校验；待补测试 |
+| SV5 | write循环对error/invalid/safety/estop/motion_possible门禁 | 存在部分门禁；未形成全量持续一致性校验 |
+| SV6 | STOP发送返回值、机器人接收确认及静止确认 | 未形成端到端确认闭环；on_error/on_shutdown忽略发送返回值 |
+| SV7 | 诊断通道实际读取、staleness及错误日志可见性 | connect将diag ready硬编码true，读取调用TODO；未接入 |
+| SV8 | VAL3故障标志发布、锁存和事件追溯 | 发布先于本周期故障处理；常见错误分支清除l_bError，可能漏报 |
+| SV9 | VAL3错误停止、resetMotion和恢复门禁 | 静态路径存在；失败确认、锁存/人工复位状态机未证实 |
+| SV10 | ROS状态、VAL3控制状态、MoveIt action反馈一致性 | 未执行端到端关联/时序测试 |
+| SV11 | mock/单元测试对故障与诊断路径覆盖 | 现有测试以正常路径、状态staleness为主；诊断/停止故障测试缺失 |
+| SV12 | CS9/VAL3故障注入、SIL/HIL、FAT/SAT和实机验收 | 未执行 |
+
+#### 整改建议
+
+- 将diagnostic subscriber消费纳入稳定运行链路；明确诊断数据的超时、序列、协议版本、控制器类型、固件/VAL3兼容策略；将error log与control_task_status映射到可观测诊断接口。
+- 对supervision关键状态建立统一motion-permission判定，定义急停、安全停止、等待重启、刹车、非AUTO模式、通信超时、故障状态下的禁止运动/STOP行为；区分安全PLC/CS9安全功能与ROS监控功能，ROS不得替代安全回路。
+- STOP动作增加发送结果检查、机器人侧确认、速度/静止判据、超时和失败升级策略；生命周期回调不得把“发送请求”标记为“已停止”。
+- VAL3故障事件先锁存并可靠发布/记录，再执行停止/通信复位；恢复必须有明确人工确认/安全条件、冷却等待和新会话握手，避免自动清除故障后继续接收旧命令。
+- 状态消息增加明确的有效性、采样时间、序号与故障事件关联；缺失torque不能仅以0代替“不可用”而不暴露状态。
+- 补充mock/单测：诊断未到/过期/坏帧、RobotState字段缺失/NaN/Inf、E-stop/SS1/SS2、brakes engaged、motion_possible=false、VAL3 error、STOP send failure、STOP未静止超时、故障锁存与人工复位、网络断连和恢复；之后再做隔离CS9仿真、SIL/HIL、FAT/SAT及受控实机验证。
+
+本轮仅固定提交静态源码与现有测试代码审查；未执行构建、单元测试、ROS运行、mock fault injection、VAL3编译/下载、CS9仿真、网络故障注入、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.258 / SERVO-841。
