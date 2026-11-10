@@ -5016,3 +5016,49 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 在目标ROS发行版固定版本下验证controller_manager实际限位执行路径；分别对位置越界、速度越界、加速度越界、软限位渐近/减速行为、控制器切换及绕过标准控制器直写hardware interface的场景进行隔离测试。软件限位不得替代CS9/安全PLC硬件安全功能。
 
 本轮仅固定上游提交静态Xacro、YAML、C++硬件接口与现有测试代码审查；未执行xacro展开、ROS 2 controller_manager限位器运行、MoveIt越界轨迹测试、VAL3编译/下载、CS9仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.262 / SERVO-845。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.262 / SERVO-845）
+
+固定上游基线：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮聚焦GPIO数量配置从robot_model.yaml、Xacro递归接口生成到StaubliHardwareInterface缓存/导出的端到端一致性及参数解析边界。此前SERVO-393–402、SERVO-253–262、SERVO-263–272、SERVO-273–282、SERVO-769、SERVO-764及SERVO-185已覆盖GPIO物理执行TODO、STOP缓存、协议映射、模拟输出数值和valid flag状态缓存；本轮不重复将这些既有问题计为新发现。
+
+审查文件：`staubli_robot_description/config/tx2_60l/robot_model.yaml`、`config/tx2_60l_med/robot_model.yaml`、`urdf/include/staubli_helpers.xacro`、`r2c/staubli.r2c.xacro`、`r2c/include/staubli_r2c_gpios.xacro`、`staubli_robot_driver/src/staubli_hardware_interface.cpp`、`include/staubli_robot_driver/communication/messages.hpp`、`src/communication/messages.cpp`、`test/unit_tests/test_staubli_hardware_interface.cpp`及`test/unit_tests/communication/test_message_serialization.cpp`。
+
+#### 主要发现
+
+1. 两套TX2型号的robot_model.yaml均声明16路数字输入、16路数字输出、2路模拟输入、2路模拟输出。urdf helper读取这四个字段并传入R2C GPIO宏；宏通过递归add_numbered_gpios按配置数量生成digital_input_i、digital_output_i、analog_input_i、analog_output_i接口。静态配置链可追溯，但本轮没有运行Xacro展开验证最终接口列表。
+2. StaubliHardwareInterface::on_init()从hardware_parameters读取四个数量字段并使用std::stoul转换，异常时返回ERROR；随后只检查数字IO数量不超过16、模拟IO数量不超过4。未发现对转换后是否消费完整输入字符串的检查（未使用std::stoul的pos参数），因此形如`16junk`或`2.5`的参数文本可能被按前缀数值接受，而不是严格拒绝。该风险针对运行时hardware parameter文本，不代表当前YAML含有此类值。
+3. 数量检查只有上限，没有统一的型号schema或配置一致性校验；0数量会被接受并生成/分配零个对应接口。零是否对某个实际控制器/选配IO模块有效，需要明确产品配置语义。当前TX2静态配置均非零，未证明现有型号发生错误。
+4. Xacro递归生成接口数量与C++ vector resize数量使用同一组hardware parameters；C++读写循环还以16路数字、4路模拟的协议固定数组上限作第二层min边界。对范围内整数配置，静态结构相互匹配；超出上限的数量会在on_init拒绝，但Xacro自身未见同等fail-fast校验，因此单独展开URDF时可能先生成超出协议容量的接口描述，直到硬件插件初始化才拒绝。
+5. 线级RobotCommand/RobotState协议固定为16位数字IO位图和4路模拟数值数组；C++序列化将数字输出映射为16位mask，模拟输出固定序列化4路数值。接口数量配置不会改变协议帧长度，因此配置值只能选择暴露的子集，不能扩展线级容量。
+6. 当前TX2两型号的16/16/2/2数量均处于插件硬上限内，与固定协议数组容量一致。该静态一致性不等于现场IO模块、端子排、CS9配置、VAL3变量与接线图逐点匹配；仓库未提供本轮所需的现场模块清单和逐点映射签核。
+7. 已有硬件接口测试fixture使用16/16/2/2正常参数；InterfaceExport主要核对关节与部分supervision接口，未发现针对GPIO数量0、上限、上限+1、缺失字段、空字符串、尾随垃圾字符、浮点文本、负数或不同输入/输出数量组合的参数解析专项测试。本轮未执行测试。
+8. 已有消息序列化测试验证固定消息字段的编码/解码，不足以证明Xacro接口数量、hardware parameter解析、C++ GPIO索引、VAL3数据库数组、CS9物理IO模块及现场端子之间的端到端一致性。既有VAL3输出执行TODO、数字mask到VAL3数组转换未完成及普通GPIO不是安全I/O等问题继续保持未验收状态。
+
+#### SIO1–SIO12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SIO1 | TX2-60L/TX2-60L MED GPIO数量配置 | 静态确认均为16/16/2/2 |
+| SIO2 | robot_model.yaml到Xacro helper字段传递 | 静态链路确认；未执行展开 |
+| SIO3 | Xacro递归生成接口数量 | 静态确认按配置数量递归；未断言生成物 |
+| SIO4 | C++ hardware parameter数量解析 | 使用std::stoul并捕获异常；未检查完整字符串消费 |
+| SIO5 | 数字/模拟IO数量上限 | 插件检查16/4上限；Xacro端同等校验未见 |
+| SIO6 | 零数量/缺失/非法文本语义 | 零值可通过上限检查；非法文本组合未测试 |
+| SIO7 | C++缓存向量与接口数量一致性 | 静态确认按相同参数resize |
+| SIO8 | C++循环与协议固定数组容量 | 静态确认数字16、模拟4上限 |
+| SIO9 | 数字位图/模拟数组线级容量 | 静态确认16-bit与4路固定数组；未做黄金帧测试 |
+| SIO10 | 两型号静态配置与插件/协议容量一致性 | 16/16/2/2均在16/4容量内 |
+| SIO11 | GPIO参数边界与异常配置专项测试 | 未发现对应测试；本轮未执行 |
+| SIO12 | Xacro→ROS接口→VAL3→CS9模块/端子端到端核对 | 现场模块清单、映射和验证证据缺失；未执行 |
+
+#### 整改建议
+
+- 将四个GPIO数量字段定义为严格整数schema：必填、非负/正值规则、型号/选件允许范围、协议最大容量及零值语义均显式化；配置加载阶段即给出字段路径和可读错误。
+- C++解析使用带pos的严格整数转换，要求消费完整字符串；拒绝尾随字符、浮点文本、溢出和缺失字段。对转换结果再次校验0..16或0..4范围。
+- 在Xacro生成阶段增加同样的容量校验，确保单独生成URDF时就拒绝超协议容量配置，而不是依赖硬件插件on_init后置拒绝。
+- 建立型号/控制器/CS9/IO选件/VAL3数据库/ROS接口/线级协议/现场端子映射manifest，明确哪些通道实际装配、可用、保留或禁用；静态YAML数量不能替代现场IO模块与接线核验。
+- 增加参数化单测与Xacro展开测试：0、1、最大值、最大值+1、缺失、空值、`16junk`、`2.5`、负数、超大整数，以及输入/输出数量不相等的组合；断言错误配置fail-fast且有效配置生成的接口名称和数量精确一致。
+- 增加协议黄金向量和端到端mock测试，逐一核对数字IO位0/15、模拟IO通道0/3及不同数量配置的索引；之后在隔离CS9环境核对VAL3数组和实际IO模块映射。普通GPIO不得被用作急停、SS1/SS2或其他安全功能回路。
+
+本轮仅固定上游提交静态YAML/Xacro/C++/协议/现有测试代码审查；未运行Xacro展开、ROS 2构建/单测、异常参数注入、协议黄金向量、VAL3编译/下载、CS9 IO配置读取、端子逐点测试、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.263 / SERVO-846。
