@@ -5307,3 +5307,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 引入独立command_id与session epoch；增加CommandAck/Result并区分received/accepted/executing/completed/failed；STOP接受与物理静止确认分离；仅新鲜且序号前进的状态帧刷新有效性；重复/乱序/跨会话数据报拒绝并计数。
 - **状态：** 静态审计完成；协议ACK、命令事务关联、重复/乱序过滤与会话隔离仍存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.277 / SERVO-860。
+
+
+### §9.3.277｜SERVO-860：UDP接收缓存、序号回绕与重复/乱序数据报新鲜度专项审计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-udp-cache-sequence-freshness-audit.md](../../audits/2026-11-10-staubli-udp-cache-sequence-freshness-audit.md)。
+- **范围：** UDPSocketImpl async_receive_from/handle_data_received/send；RealTimeSocketSubscriber update_message/read_message；RealtimeThreadSafeBox单值缓存调用；FrameHeader uint16序号；VAL3 readData/readDataOnce/getNextSequenceNumber/computeSequenceDelay/controlTask；通信与RobotDriver测试。
+- **静态结论：**
+  1. C++ Subscriber对每个成功反序列化数据报刷新本地reception_timestamp并调用message_buffer_.set(msg)，消费者只读取最新值槽而非逐帧队列，中间帧可能被覆盖。
+  2. read_message把所有小于last_read_sequence_number_的序号都按回绕计算，且无条件更新基线；缺少半区间模序判断，旧乱序帧可能污染序号状态。
+  3. 重复序号在缓存写入前不拒绝，重复帧仍刷新reception_timestamp；RobotDriver不强制new_message=true，重复/重放帧可能续新鲜度。
+  4. UDP接收端获得sender_endpoint_，但来源地址验证仅保留TODO注释。
+  5. VAL3 readData每周期最多两次sioGet，第二帧覆盖同一接收数组；staleness/命令接收窗口仍未实现。
+  6. UDPSocketImpl::send遇到would_block时记录Packet dropped，却最终返回true；上层send_message可能误报STOP/命令成功。
+  7. 现有测试未覆盖真实重复UDP数据报、乱序倒退、回绕历史帧、来源注入、突发接收和would_block。
+- **RX1–RX7状态：** 固定提交源码与现有测试源码核对完成；RX-01至RX-14验收设计已形成，全部未执行。
+- **整改要求：** 写入缓存前校验sender/session/sequence；使用半区间模序规则拒绝重复/旧帧；明确最新值/队列语义与溢出策略；重复帧不得刷新last_fresh_timestamp；VAL3明确每周期接收上限与队列积压策略；would_block必须返回DROPPED/false并计数。
+- **状态：** 静态审计完成；状态缓存保序、来源校验、回绕/乱序过滤和发送丢包传播存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.278 / SERVO-861。
