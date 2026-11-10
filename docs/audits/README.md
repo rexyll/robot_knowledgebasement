@@ -451,3 +451,8 @@
 ### §9.3.296｜SERVO-879：SocketV2 CleanupReport / ResidualResourceHandle API surface 与 quarantine ownership 实施边界设计
 
 - [2026-11-10 Stäubli SocketV2 CleanupReport / ResidualResourceHandle API surface 与 quarantine ownership 实施边界设计](2026-11-10-staubli-socket-v2-cleanup-report-residual-handle-api-quarantine-boundary-design.md)：提出C++17 public/private类型边界、纯值FailureRecord/NativeError/Snapshot/CleanupReport DTO、move-only ResidualResourceHandle、显式TransportLifecycleOwner/QuarantineManager、generation retry状态机、Core清理串行化及RobotDriver/ROS lifecycle/plugin unload门禁。API-OWN-01至10、RETRY-01至06、ROS-01至05、ERR-ALLOC-01至02全部NOT_RUN；仅静态设计，未实现或修改上游，未执行编译/测试。下一节点 §9.3.297 / SERVO-880。
+
+
+### §9.3.297｜SERVO-880：SocketV2 QuarantineManager shutdown contract、有界重试调度与 process/plugin teardown 资源释放策略设计
+
+- [2026-11-10 Stäubli SocketV2 QuarantineManager shutdown contract、有界重试调度与 process/plugin teardown 资源释放策略设计](2026-11-10-staubli-socket-v2-quarantine-manager-shutdown-bounded-retry-process-plugin-teardown-design.md)：定义manager关闭状态机、entry/manager双层有界重试预算、monotonic deadline、容量/并发/队列上限、ProcessLifecycleOwner进程关闭协议、residual/forced-exit分类及ROS component/plugin unload屏障。QM-SHUT、RETRY-BND、PROC-SHUT、PLUGIN、THREAD-EXIT验收矩阵全部NOT_RUN；仅静态设计，未实现或修改上游，未执行编译/测试。下一节点 §9.3.298 / SERVO-881。
