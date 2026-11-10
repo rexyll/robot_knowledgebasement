@@ -440,3 +440,6 @@
 ### §9.3.293｜SERVO-876：SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查
 
 - [2026-11-10 Stäubli SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查](2026-11-10-staubli-socket-v2-public-header-abi-and-udp-core-ownership-design.md)：逐符号审查 legacy Socket/UDPSocket public API、PIMPL、CMake install/export 与 package metadata。提出独立 v2 public headers、private Core、visibility/export macro 与 ABI policy；区分同工具链 C++ source API 和稳定 binary ABI；默认 legacy facade 保持独立，v2 façade 独占 Core，明确 callback/worker shutdown、timeout owner 保留和 factory Result 契约。ABI-0至ABI-5切片、ABI-01至ABI-16全部NOT_RUN；未实现、未修改上游或应用PR。下一节点 §9.3.294 / SERVO-877。
+
+
+- [2026-11-10 Stäubli SocketV2 header dependency closure、public type layout 与 factory Result API C++17 编译契约审查](2026-11-10-staubli-socket-v2-header-dependency-result-contract-audit.md)：新增§9.3.294 / SERVO-877，细化public headers自包含与include closure、C++17自定义FactoryResult（不使用std::expected）、固定uint32_t enum值、PIMPL incomplete-type析构位置及install-space standalone consumer fixture。HDR-01至HDR-07、TYPE-01至TYPE-04、RES-01至RES-04、ABI-17至ABI-18全部NOT_RUN；本轮未读取上游文件正文，沿用SERVO-876已记录的固定文件清单与blob事实；未执行编译/测试、未修改上游或应用PR。
