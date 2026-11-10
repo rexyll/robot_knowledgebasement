@@ -443,3 +443,6 @@
 
 
 - [2026-11-10 Stäubli SocketV2 header dependency closure、public type layout 与 factory Result API C++17 编译契约审查](2026-11-10-staubli-socket-v2-header-dependency-result-contract-audit.md)：新增§9.3.294 / SERVO-877，细化public headers自包含与include closure、C++17自定义FactoryResult（不使用std::expected）、固定uint32_t enum值、PIMPL incomplete-type析构位置及install-space standalone consumer fixture。HDR-01至HDR-07、TYPE-01至TYPE-04、RES-01至RES-04、ABI-17至ABI-18全部NOT_RUN；本轮未读取上游文件正文，沿用SERVO-876已记录的固定文件清单与blob事实；未执行编译/测试、未修改上游或应用PR。
+
+
+- [2026-11-10 Stäubli SocketV2 Result 错误分类、异常安全与资源残留 / Quarantine Owner 生命周期契约审查](2026-11-10-staubli-socket-v2-result-error-exception-safety-residual-owner-lifecycle-audit.md)：新增§9.3.295 / SERVO-878，定义primary failure与cleanup failure分离、native error/exception记录、FAILED_RESIDUAL owner保留、quarantine owner、按generation串行化的retry_cleanup、noexcept边界及RobotDriver/Subscriber集成约束。ERR-01至ERR-24全部NOT_RUN；仅静态设计，未实现或修改上游，未运行编译/测试/实机验证。
