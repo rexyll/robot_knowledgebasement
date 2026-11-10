@@ -709,3 +709,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 新增 [RobotDriver / Subscriber fixture 生命周期与集成测试映射](../../audits/2026-11-10-staubli-robotdriver-subscriber-fixture-lifecycle-integration-map.md)。按固定上游提交核对 RobotDriver 双 Socket 构造与所有权、connect 顺序和失败回滚、Subscriber 构造立即启动接收、callback 捕获裸 this、Subscriber 析构 stop、RobotDriver disconnect reset/stop/disconnect 顺序及当前空析构。将 FS-01至FS-22映射到真实生产调用点，设计 Fake-only、SubscriberHarness、双 Fake RobotDriver、真实 UDP loopback、ROS 2 Control integration 五层 fixture，并新增 SD-01至SD-10 调用方测试规格。识别 connect 500ms sleep、直接使用 rclcpp::Clock、diagnostics 首帧门禁硬编码、固定端口、mock thread join 与 std::async timeout 风险。
 
 本轮仅静态审查和设计；注入构造、FakeSocket、ManualClock、wait strategy、fixture 均未实现；FS-01至FS-22及SD-01至SD-10全部 NOT_RUN。未运行 build、gtest、loopback、TSan/ASan、ROS 2 Control集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机测试；未修改上游、未创建/应用PR，TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.289 / SERVO-872。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.289 / SERVO-872）
+
+新增 [RobotDriver connect/disconnect 回滚路径故障注入矩阵](../../audits/2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)。固定 Stäubli 上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对 RobotDriver 双 Socket connect 阶段、异常安全、部分初始化资源回滚、disconnect stop/disconnect 顺序、旧会话清理与析构差异。确认 control connect false 直接返回；Subscriber 启动接收失败在构造中抛异常且 connect 无 catch/rollback；diagnostics connect/readiness/timeout/protocol mismatch 分支调用 disconnect 但忽略清理结果；首帧早到后仍持续等待 timeout 窗口。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 测试规格。仅静态审查和设计，全部测试 NOT_RUN；未实现 rollback guard、注入构造、FakeSocket、ManualClock、wait strategy 或 fixture；未运行构建、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证。未修改上游、未应用 PR，TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.290 / SERVO-873。
