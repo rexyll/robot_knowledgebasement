@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.30  
+> 版本：v10.31  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.255 / SERVO-838；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.256 / SERVO-839；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3951,3 +3951,8 @@ R2C宏在真实硬件路径启用acceleration command interface，并从joint_li
 - 在MoveIt PlanningScene中执行全关节范围自碰撞采样、关键姿态/极限姿态测试、碰撞距离回归、工作空间/工具偏置验证；再在仿真、SIL/HIL及受控实机环境逐级验收。
 
 本轮仅静态审查固定上游提交；未修改上游、未应用PR。未执行网格解析、URDF/SRDF展开、碰撞采样、MoveIt运行、TCP标定、SIL/HIL、FAT/SAT或实机验收。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.256 / SERVO-839。
+
+
+### SERVO-839摘要｜MoveIt规划与轨迹执行链路
+
+固定审查提交：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。MoveIt controller映射与bringup JTC均覆盖joint_1至joint_6，action为`follow_joint_trajectory`；JTC position命令接口、position/velocity状态接口，controller_manager更新率250Hz。MoveIt规划限值默认速度/加速度缩放0.1，六轴速度上限1.5rad/s（joint_1–5）/2.0rad/s（joint_6），加速度5.0/10.0rad/s²。JTC允许非零末端速度，stopped_velocity_tolerance=0.01、goal_time=0.0，未显式配置逐关节path/goal容差；时间参数化算法/版本未在仓库内明确。Servo启用路径发现规划组名不匹配（SRDF `arm` vs Servo `staubli_arm`），且输出话题`/forward_position_controller/commands`无对应bringup控制器声明；Servo默认关闭。SU1–SU5静态核对完成，SU6–SU12运行时/停止/取消/Servo/VAL3验收未执行。仅静态审查，未修改上游、未应用PR；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.257 / SERVO-840。
