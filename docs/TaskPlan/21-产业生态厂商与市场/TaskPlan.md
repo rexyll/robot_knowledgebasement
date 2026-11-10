@@ -5514,3 +5514,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅固定提交源码静态审计；未运行编译、CMake、gtest、UDP loopback、close故障注入、fd/socket复用、leak/double-close、ASan/UBSan/TSan、ROS 2 Control/plugin lifecycle、VAL3/CS9、SIL/HIL、FAT/SAT或实机；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
 - **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮继续透明保留，不伪造缺失节点。
 - **下一节点：** §9.3.302 / SERVO-885：SocketV2 source-to-test coverage gap analysis、lifecycle teardown failure-path matrix与最小可验证实现切片排序。
+
+
+### §9.3.302｜SERVO-885：SocketV2 source-to-test coverage gap analysis、lifecycle teardown failure-path matrix 与最小可验证实现切片排序
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [SocketV2 source-to-test coverage gap、teardown failure-path matrix与最小验证切片](../../audits/2026-11-10-staubli-socket-v2-source-to-test-coverage-teardown-failure-matrix-minimal-slices.md)。
+- **测试源码范围：** `staubli_robot_driver/CMakeLists.txt`、`test_sockets.cpp`、`test_rt_socket_interface.cpp`、`test_robot_driver.cpp`、`test_staubli_hardware_interface.cpp/.hpp`、`test_mock_robot_server.cpp`及MockRobotServer实现。
+- **现有覆盖：** UDP loopback基本收发、connect/disconnect/reconnect、double connect/disconnect、double receive start/stop、RT subscriber消息/丢包/过期状态、RobotDriver连接/断开/状态读取、HardwareInterface构造/init/plugin加载/接口导出/正常configure-activate-read-write，以及MockRobotServer基础行为。
+- **关键缺口：** 没有FakeSocket/transport seam、native close/连接阶段故障注入；没有close失败后的native状态与connected状态断言；没有并发callback销毁/late callback、callback异常、self-join/join timeout、双通道partial teardown/reconcile、HardwareInterface cleanup/shutdown/error失败矩阵或plugin unload竞态测试。现有测试主要是happy-path与固定端口/sleep式loopback测试。
+- **交付：** 定义F01–F16 teardown failure-path matrix；将最小验证实现分为Slice A可注入transport与状态快照、B callback admission/drain、C worker stop/join、D close transaction/per-channel reconcile、E ROS lifecycle/plugin integration、F native/platform validation。
+- **验收状态：** TEST-MAP-01至05为STATIC_REVIEWED；FAIL-MATRIX-01、SLICE-ORDER-01为SPECIFIED；RUN-01至RUN-08全部NOT_RUN。
+- **限制：** 未运行CMake/编译/gtest/loopback/故障注入/sanitizer/ROS生命周期或实机验证；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。
+- **历史同步说明：** §9.3.281–§9.3.294历史逐节点同步缺口继续透明保留。
+- **下一节点：** §9.3.303 / SERVO-886：Fake transport seam、socket lifecycle state snapshot与failure-injection contract详细设计（不落上游实现）。
