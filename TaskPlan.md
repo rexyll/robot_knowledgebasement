@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.52  
+> 版本：v10.53  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.277 / SERVO-860；已完成UDP接收缓存、序号回绕与重复/乱序新鲜度静态审计；C++ Subscriber以RealtimeThreadSafeBox单值槽覆盖缓存，缓存写入前无序号门禁，重复序号帧仍刷新reception_timestamp；read_message对任何小于last_read_sequence_number_的序号均按uint16回绕处理并更新基线，旧乱序帧可污染比较状态；UDP async_receive_from未启用sender_endpoint来源校验；VAL3 readData每周期最多两次sioGet，第二帧可覆盖第一帧，命令staleness仍为TODO；新增发现UDPSocketImpl::send遇到would_block明确记录Packet dropped却仍返回true，上层send_message可能误报STOP/命令成功；现有测试未覆盖真实重复UDP包、倒退序号、回绕旧帧、来源注入、突发接收及would_block；已定义RX-01至RX-14验收设计，均未执行；remote control period虽按毫秒发送并在VAL3解码，但未进入周期校验/执行闭环；命令类型范围门禁0..4与真实执行支持分支不一致（扭矩无执行路径，INVALID=0未在入口拒绝）；位置目标跳变检查、速度限值与setVelCmd仍未实现；模拟输出缺少finite/量程入口检查；现有测试controller_period=0.008却注释为8ms，与生产毫秒单位不符；VAL3命令解码先按旧对象header字段检查长度，再解析wire header；decodeHeader未校验wire payload_size，导致55字节实际帧携带错误payload声明时可能仍被接受并标记有效；header/type错误早退未在decoder内立即清除旧bIsValid，主controlTask后续错误复位才清除；C++ RobotCommand反序列化验证47字节payload，VAL3接收端缺少等价校验；VAL3 encodeHeader将sequence number重复写入payload_size字段，覆盖初始化的124字节；C++ RobotState反序列化不验证type/size/version，可能掩盖该错误；VAL3 workingMode的2=TEST/3=AUTO-LOCAL/4=AUTO-REMOTE与C++ OperationMode的2=AUTOMATIC/3=REMOTE/无4枚举错位；C++ HardwareInterface有明确rad↔deg转换；float64 API值在线路压缩为float32，未全面拒绝Inf/NaN/溢出；VAL3 F/T后三轴、数字IO mask和模拟输入仍未完整编码；仅表示本地socket/接收线程就绪，connect将diag_interface_ready硬编码为true且未调用read_diagnostic_data；固件版本日志读取未填充的默认0.0.0，型号检查注释、VAL3版本兼容性仍TODO；固定VAL3工程未发现DiagnosticData生产发送路径；DiagnosticData反序列化在解析wire header前检查默认对象字段，FrameHeader只验证magic，未统一校验版本/类型/长度；VAL3将所有非零SafetyStatus折叠为bEStopped并映射为estop_pressed，brakes_released由drivePowered推导；GPIO invalid时HardwareInterface保留旧缓存且不提供validity接口；新增重连会话与序号新鲜度审查：Subscriber对每个成功反序列化数据报刷新reception_timestamp；相同序号仅置new_message=false，但RobotDriver未将其作为拒绝条件；低序号被一律按uint16回绕处理，缺少乱序/重放窗口与session epoch；disconnect/reset_data会清理部分状态且重建subscriber基线，但UDP本地socket connected不代表远端存活；现有恢复测试只重启mock发送线程未执行driver断开重连，mock序号为static计数器不归零；新增通信故障闭环审查：VAL3旧命令staleness仍为TODO，序号延迟门禁仅在控制活动时运行；resetControlSocket不检查底层复位结果却无条件清除错误；ROS connected只表示socket/接收线程就绪，状态新鲜度另行检查；生命周期没有自动重连/会话握手闭环；普通STOP与GPIO不构成安全状态证明；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.279 / SERVO-862；已完成状态有效性与通信安全诊断接口端到端静态审查：RobotDriver在无数据/无效/过期读取时返回false但不统一清除current_robot_state_有效标志；HardwareInterface::read失败返回ERROR却不失效state_msg_与已导出关节/supervision缓存；update_state先写位置再验证速度，缺字段时可能留下部分更新的混合快照；perform_command_mode_switch仅检查缓存error_state/motion_possible，不检查状态年龄、序号前进或session；write也缺少独立状态新鲜度门禁；ROS supervision接口无state_valid/age/source/auth/error reason字段；connect将diag_interface_ready硬编码true且不调用read_diagnostic_data。SV-01至SV-16验收矩阵已建立，全部未执行。未执行ROS controller_manager运行时错误传播、断线/过期注入、模式切换与write阻断、部分字段原子性、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
@@ -4274,3 +4274,19 @@ RX1–RX7完成固定提交静态源码与测试源码核对；RX-01至RX-14验�
 7. RobotDriver与ROS状态接口未暴露可信来源、认证状态、session epoch、协议拒绝原因及异常计数；本地接收时间不能替代来源认证。
 
 UT1–UT7完成固定提交源码/测试源码静态核对；UT-01至UT-15验收矩阵已建立，全部未执行。未运行C++构建/单测、UDP源地址/端口注入、畸形帧/尾随字节注入、接收错误注入、MAC/会话原型、VAL3 Studio编译下载、CS9仿真、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.279 / SERVO-862。
+
+
+### 2026-11-10｜v10.53 本轮推进记录（§9.3.279 / SERVO-862）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮审查RobotDriver状态读取与失效路径、HardwareInterface::read/update_state/write、命令模式切换、joint/supervision StateInterface导出、诊断连接就绪逻辑及现有测试，详见 [2026-11-10-staubli-ros2-state-validity-diagnostic-propagation-audit.md](docs/audits/2026-11-10-staubli-ros2-state-validity-diagnostic-propagation-audit.md)。
+
+主要结论：
+1. RobotDriver在read失败、无效或过期时返回false，但不统一清除current_robot_state_内部有效标志；is_state_msg_valid仅检查message_type。
+2. HardwareInterface::read返回ERROR时不清除state_msg_与已导出的joint/supervision缓存，状态接口仍指向旧缓存内存。
+3. update_state先写joint positions，再检查joint velocities；后续缺字段时返回false，已写入的部分状态不会回滚，可能形成混合周期快照。
+4. perform_command_mode_switch只检查缓存error_state/motion_possible，不检查状态年龄、序号前进、read成功标志或session；write也没有独立状态新鲜度门禁。
+5. ROS supervision状态接口缺少state_valid、state_age、last sequence、source/auth/session、错误原因与拒绝计数。
+6. connect阶段diag_interface_ready硬编码true，read_diagnostic_data调用仍为TODO，诊断帧不参与真实连接ready判断。
+7. RobotDriver已有staleness返回值测试，但HardwareInterface测试没有覆盖stale/read ERROR后缓存失效、模式切换拒绝、write阻断或部分字段原子提交。
+
+SV-01至SV-16验收矩阵已建立，全部未执行。未运行ROS controller_manager错误传播时序、stale/断线/部分字段注入、模式切换/write阻断、诊断故障、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.280 / SERVO-863。
