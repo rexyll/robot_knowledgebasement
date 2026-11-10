@@ -5076,3 +5076,16 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 5. 现有测试fixture固定16/16/2/2，未发现异常数量/Xacro生成物专项测试。
 
 SERVO-846验收矩阵GPIOV1–GPIOV10及整改建议详见审计追加件。GPIOV1–GPIOV6完成固定提交静态核对；GPIOV7–GPIOV9未执行；GPIOV10缺现场配置/接线签核证据。未运行Xacro展开、ROS 2构建/单测、参数注入、VAL3/CS9、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.264 / SERVO-847。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.264 / SERVO-847）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮从GPIO配置校验继续审查Xacro GPIO声明、C++接口导出、输入状态更新和生命周期缓存，详见 [2026-11-10-staubli-gpio-interface-lifecycle-audit.md](../../audits/2026-11-10-staubli-gpio-interface-lifecycle-audit.md)。
+
+主要结论：
+1. Xacro与C++在正常配置下的GPIO资源名、四类通道命名和state/command类别静态一致；输出state反馈目前双方均未声明/导出。
+2. `update_state`仅在数字/模拟输入有效标志为true时更新输入缓存；标志缺失时保留旧值且函数仍可能返回true，read因此可能返回OK并继续暴露旧GPIO状态。
+3. `on_activate`仅将关节模式设为STOP，没有显式重置GPIO输出命令缓存；`write`在STOP模式仍序列化并发送数字/模拟输出。停用/重新激活或重连后的旧值重放属于潜在风险，需mock和运行时验证。
+4. 现有接口导出测试仅验证总数与少量名称，fixture只用空robot_prefix；未覆盖全通道集合、非空前缀、缺失IO字段和生命周期缓存边界。
+
+IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行时证据；IF6已静态发现缺失字段保留旧值路径。未运行Xacro展开、ResourceManager加载、ROS 2构建/单测、mock注入/输出捕获、VAL3/CS9、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.265 / SERVO-848。
