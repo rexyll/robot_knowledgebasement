@@ -5421,3 +5421,23 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅静态API/ownership设计；未实现类型、handle、manager、retry或ROS lifecycle接入；未执行C++17编译、CMake、gtest、install-space consumer、loopback、native error injection、TSan/ASan、ROS 2 Control、plugin unload、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
 - **历史同步说明：** 本章节正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点，后续需依据根TaskPlan及审计报告逐项回填。
 - **下一节点：** §9.3.297 / SERVO-880：SocketV2 QuarantineManager shutdown contract、bounded retry scheduling 与 process/plugin teardown 资源释放策略设计。
+
+
+### §9.3.297｜SERVO-880：SocketV2 QuarantineManager shutdown contract、有界重试调度与 process/plugin teardown 资源释放策略设计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 QuarantineManager shutdown contract、有界重试调度与 process/plugin teardown 资源释放策略设计](../../audits/2026-11-10-staubli-socket-v2-quarantine-manager-shutdown-bounded-retry-process-plugin-teardown-design.md)。
+- **范围：** QuarantineManager shutdown状态机；entry/manager双层有界retry预算；attempt/max elapsed/shutdown deadline；steady clock；manager容量、并发和scheduler queue上限；ProcessLifecycleOwner；进程退出分类；ROS component teardown；PluginLease、callback/deleter/vtable代码依赖与plugin unload gate；shutdown report flush。
+- **静态结论：**
+  1. Manager采用ACCEPTING、QUIESCING、DRAINING、SEALED_CLEAN、SEALED_RESIDUAL状态；关闭点后拒绝新transfer，失败时源handle仍有效。
+  2. Entry级限制max_attempts、max_elapsed、per_attempt_timeout与退避上限；manager级限制max_entries、max_concurrent_cleanup、scheduler_queue_capacity与shutdown_deadline；容量耗尽不得覆盖或丢弃owner。
+  3. 超时仅终止等待预算，不代表清理成功；pending handler、active callback、worker、native handle未达到稳定终态时必须保留Core owner。
+  4. 所有调度间隔使用monotonic clock；同generation cleanup transaction唯一，不可重试错误停止自动循环。
+  5. ProcessLifecycleOwner负责停止admission、plugin callback quiescence、ROS node/subscriber teardown、transport cleanup、residual转交、有界drain、报告flush和最终退出决策。
+  6. CLEAN、RETRY_EXHAUSTED/RESIDUAL_RETAINED、PLUGIN_UNLOAD_BLOCKED、OWNER_TRANSFER_FAILED与FORCED_PROCESS_EXIT必须分开报告；OS回收进程资源不等于应用层cleanup完成。
+  7. Plugin unload前必须确认pending handler/active callback归零、worker join、custom deleter/vtable/线程入口不再依赖plugin image；否则保持plugin loaded或走显式forced-exit策略。
+  8. manager不反向强持有Node/plugin object/callback target；避免因QuarantineManager强持有plugin而导致无法卸载。
+- **验收状态：** QM-SHUT-01至07、RETRY-BND-01至08、PROC-SHUT-01至04、PLUGIN-01至07、THREAD-EXIT-01至03全部NOT_RUN。
+- **状态与限制：** 仅静态设计；RetryScheduler、QuarantineManager、PluginLease、shutdown report sink与状态机均未实现；未执行C++17编译、CMake、gtest、虚拟时钟、fault injection、TSan/ASan、ROS component/plugin load-unload、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
+- **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点，后续依据根TaskPlan及审计报告回填。
+- **下一节点：** §9.3.298 / SERVO-881：SocketV2 QuarantineManager / RetryScheduler concurrency model、lock ordering、executor integration 与 deterministic shutdown race test design。
