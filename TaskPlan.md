@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.27  
+> 版本：v10.28  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.252 / SERVO-835；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.253 / SERVO-836；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3759,7 +3759,7 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 增加每关节边界内/边界值/越界、NaN/±Inf、超大有限值、周期异常、加速度变化率、模拟输出超量程、不同机器人型号和单位转换测试。
 - 在目标ROS 2/ros2_control发行版验证JTC和JointLimiter真实运行路径；通过VAL3/CS9限幅、SIL/HIL、FAT/SAT和实机测试验证独立控制器边界。ROS/MoveIt软件限幅不得替代CS9安全功能和独立安全回路。
 
-本轮只读固定上游提交源码、配置、xacro、launch和测试；未执行构建/单测、xacro展开、URDF解析、controller_manager/JTC/JointLimiter运行测试、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.253 / SERVO-836。
+本轮只读固定上游提交源码、配置、xacro、launch和测试；未执行构建/单测、xacro展开、URDF解析、controller_manager/JTC/JointLimiter运行测试、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
 
 
 ### 2026-11-10｜v10.27 本轮推进记录（§9.3.252 / SERVO-835）
@@ -3810,3 +3810,53 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 补充丢包、重复/乱序、序号回绕、断连、延迟、目标跳变、关节越界、速度越界、模式切换、停止失败及错误标志发布时序测试。
 
 本轮仅静态审查固定上游提交；未执行构建/单测、VAL3编译、CS9仿真/下载、运动测试、网络故障注入、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.253 / SERVO-836。
+
+
+### 2026-11-10｜v10.28 本轮推进记录（§9.3.253 / SERVO-836）
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。审查TX2-60L与TX2-60L-MED配置差异、xacro模型配置装载链、VAL3工程版本/数据库、位置/速度运动参数及速度配置调用点。
+
+#### 静态审查发现
+
+1. **两个机器人配置目录的关节限制文件完全相同。** `config/tx2_60l/joint_limits.yaml`与`config/tx2_60l_med/joint_limits.yaml`返回相同blob SHA，六轴position/velocity/acceleration限制完全一致。不能据目录名推断MED型号拥有独立关节边界；若实际机械臂变体存在不同限值，当前配置没有表达该差异。
+2. **两个目录的运动学和动力学配置也完全相同。** 两个`kinematics.yaml`和`dynamics.yaml`分别返回相同blob SHA。模型配置`robot_model.yaml`不同之处至少包括末端工具偏置：TX2-60L为z=0.07m，TX2-60L-MED为z=0.1344m；其余已检查能力标志和IO数量一致。由此当前MED目录可见的差异主要是末端工具坐标，而非关节几何、惯量或关节限制差异。需供应方确认MED命名的准确机械配置含义，不能擅自认定两者机械本体相同。
+3. **机器人模型配置由launch参数直接拼接选择。** `launch_robot_control.launch.py`将`robot_model`参数传给顶层`staubli.urdf.xacro`；顶层xacro按`config/<robot_model>/`选择robot_model、kinematics、dynamics、joint_limits和meshes文件。该路径可追溯，但缺少已审查到的型号白名单、必需文件存在性预检和跨文件一致性校验；错误或混搭参数需在xacro/URDF生成阶段暴露。
+4. **bringup的controller_manager只加载controllers.yaml。** launch把controllers.yaml和use_sim_time传给ros2_control_node，没有将MoveIt joint_limits.yaml或额外逐关节运动限制参数传入硬件插件。MoveIt配置和实际控制器执行限制必须分开验收。
+5. **VAL3工程声明绑定特定CS9版本。** `ros2_server.pjx`的Parameters固定为`s8.20.2Cs9_BS4270`。这是工程声明的目标版本标识，不是已验证兼容矩阵；仓库未见对其他CS9软件版本、机器人控制器型号或VAL3运行时版本的自动兼容检测/构建矩阵。
+6. **VAL3运动数据库没有可审查的速度配置对象。** `ros2_server.dtx`仅声明control socket、overrun、mdesc及错误/超期计数，没有motionCfgVel或逐关节最大速度/加速度配置对象。位置程序只使用`mMdesc.blend=off`，没有显式设置速度/加速度配置。
+7. **速度控制参数设置代码仍为注释。** `updateJointVelocityControl.pgx`中`$velJoint(motionCfgVel.tTool, motionCfgVel.mMaxSpeed)`被注释；安全限值检查为TODO，`$setVelCmd`执行同样被注释。搜索仓库未发现motionCfgVel、mMaxSpeed或$velJoint的其他有效调用点。因此没有证据表明VAL3速度控制配置已实现或参数化。
+8. **VAL3位置控制只显式执行isInRange。** 位置程序先把六轴命令转换为jointRx并调用`isInRange`；但工程中没有提供该API内部使用的具体数值边界表或与型号YAML同步的生成过程。不能把此检查等同于已经证明CS9限制与ROS模型配置一致。
+9. **位置运动描述符仅显式关闭blend。** `mMdesc`在数据库初始化blend=off，start中再次设为off；未见对最大速度、加速度、减速度、jerk或工具速度的显式参数设置。实际默认运动参数由控制器/VAL3环境决定的部分必须向供应方索取配置导出并验证，不能推断默认值安全。
+10. **MED模型配置的工具偏置会影响TCP与规划几何。** 两个模型robot_model.yaml的end_effector.xyz分别为0.07m和0.1344m，而kinematics和joint limits相同。若实际安装工具、法兰适配器或TCP参数不匹配，MoveIt末端规划、笛卡尔路径和现场TCP可能出现系统偏差；当前仅核对静态配置，未做标定或碰撞/运动学验证。
+11. **模型限制、VAL3关节范围和CS9运动参数之间没有统一版本标识。** 未发现从型号YAML自动生成VAL3配置、从CS9导出参数并与ROS端比较的脚本或验收报告。位置范围、速度、加速度和工具参数存在配置漂移风险。
+12. **配置命名和内容审计仍不完整。** 本轮只对tx2_60l和tx2_60l_med两套目录做文件级比较；未审计仓库外部其他Staubli机型、不同负载/工具、控制器选件、减速器/机械臂修订和客户定制配置。结论不能外推到所有Stäubli产品。
+13. 本轮未执行xacro展开、URDF校验、VAL3编译、CS9配置读取、运动参数测量、TCP标定或实机测试。
+
+#### SM1–SM12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SM1 | TX2-60L与MED关节限制配置差异 | joint_limits文件相同；型号适用性未确认 |
+| SM2 | 两型号运动学/动力学差异 | 文件相同；机械本体适用性未确认 |
+| SM3 | MED与标准型号工具/TCP偏置 | 0.1344m vs 0.07m；实机标定未验证 |
+| SM4 | robot_model参数到xacro配置文件选择 | 选择链明确；白名单/跨文件预检未见 |
+| SM5 | bringup控制器限制配置加载 | 仅controllers.yaml；未加载MoveIt limits到硬件插件 |
+| SM6 | VAL3工程CS9版本兼容矩阵 | pjx固定s8.20.2Cs9_BS4270；矩阵未提供 |
+| SM7 | VAL3速度配置对象和参数化 | 数据库未见motionCfgVel/逐关节速度参数 |
+| SM8 | VAL3速度执行API和安全限制 | velJoint/setVelCmd注释；限值TODO |
+| SM9 | 位置isInRange与型号限制映射 | 调用存在；具体边界和同步机制未提供 |
+| SM10 | 位置运动速度/加速度/jerk参数 | 仅blend=off可见；其余配置未证实 |
+| SM11 | ROS/VAL3/CS9/TCP配置自动一致性 | 未发现自动对照/版本锁定机制 |
+| SM12 | xacro/CS9/实机运动与安全验收 | 未执行/未确认 |
+
+#### 整改建议
+
+- 建立按精确机器人型号、机械臂修订、控制器/CS9版本、负载、工具和TCP组合的受控配置清单；不允许仅按相似型号目录复用关节限制而不提供供应方确认。
+- 将关节位置/速度/加速度/jerk限制及VAL3/CS9参数纳入单一来源或自动一致性检查；生成ROS YAML、URDF和控制器配置差异报告。
+- 补充型号选择白名单、必需文件存在性检查、参数单位/范围检查和xacro展开后的模型断言。
+- 获取并版本化CS9实际关节限值、运动描述符、速度/加速度/减速度/jerk、工具坐标、负载与安全参数导出；确认与ROS模型、MoveIt和实际机械臂序列号匹配。
+- 在速度控制未实现前，将该模式维持为不支持状态；实现后必须补齐逐轴速度限制、加速度/jerk约束、异常输入处理和停止/故障恢复测试。
+- 对MED与标准TX2-60L完成TCP/工具偏置核验、负载辨识、碰撞模型及实际轨迹验收。
+- 供应方提供CS9/VAL3兼容矩阵及签核；在目标控制器上执行VAL3编译、仿真、SIL/HIL、FAT/SAT与实机验收。
+
+本轮仅静态审查固定上游提交；未执行构建/单测、xacro展开、URDF解析、VAL3编译、CS9配置读取/下载、TCP标定、运动测试、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
