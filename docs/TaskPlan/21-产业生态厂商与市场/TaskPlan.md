@@ -5400,3 +5400,24 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
   6. 定义ERR-01至ERR-24故障注入与生命周期验收矩阵，全部NOT_RUN。
 - **状态：** 仅静态设计审查；未实现FailureRecord、CleanupReport、ResidualResourceHandle、quarantine manager、retry_cleanup、receive lease或RobotDriver适配；未运行C++编译、CMake、gtest、UDP loopback、native error injection、TSan/ASan、ROS 2 Control；未执行VAL3/CS9、SIL/HIL、FAT/SAT或实机；未修改上游、未创建/应用/合并PR；TODO-EXT-001未授权。
 - **下一节点：** §9.3.296 / SERVO-879。
+
+
+### §9.3.296｜SERVO-879：SocketV2 CleanupReport / ResidualResourceHandle API surface 与 quarantine ownership 实施边界设计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 CleanupReport / ResidualResourceHandle API surface 与 quarantine ownership 实施边界设计](../../audits/2026-11-10-staubli-socket-v2-cleanup-report-residual-handle-api-quarantine-boundary-design.md)。
+- **范围：** C++17 public/private header边界；FailureRecord/NativeErrorValue/SocketSnapshot/CleanupReport纯值DTO；move-only ResidualResourceHandle；显式owner transfer；TransportLifecycleOwner/QuarantineManager/CoreControlBlock所有权图；retry状态机、generation guard、deadline与并发串行化；RobotDriver/Subscriber receive lease/ROS lifecycle/plugin unload接入顺序；分配失败与异常边界。
+- **静态结论：**
+  1. Public headers只暴露稳定项目类型与opaque handle，不得泄漏Asio、thread/mutex、native handle、Boost error_category或private Core；C++17不使用std::expected。
+  2. FailureRecord、NativeErrorValue、SocketSnapshot与CleanupReport作为纯诊断值；public DTO不暴露std::exception_ptr，private diagnostic sink可按需保存异常对象。
+  3. ResidualResourceHandle建议move-only，空句柄/重复retry幂等；generation不匹配返回STALE_HANDLE；owner transfer成功后源句柄才失效，失败必须保留源owner。
+  4. CleanupReport不内嵌可复制Core owner；资源owner由独立handle显式传递，避免复制报告隐式复制资源所有权。
+  5. QuarantineManager应由显式TransportLifecycleOwner持有，不采用无析构顺序约束的静态global registry；容量耗尽时transfer拒绝且源handle保持有效。
+  6. retry状态包括EMPTY、RETRYABLE_RESIDUAL、IN_PROGRESS、COMPLETE、OWNER_TRANSFERRED、STALE与ABANDONED_ERROR；同一Core按generation单事务清理，只有quiescent barrier证明handler/callback归零、worker已join且native handle closed后才释放owner。
+  7. Worker/handler不得形成Core self-cycle；禁止detach、worker self-join和最后owner在worker线程析构；handle析构不执行阻塞清理。
+  8. ROS lifecycle应先关admission、停止Subscriber并排空callback，再停止driver sockets；plugin unload前必须证明plugin-owned callback target不再执行，manager生命周期需长于被管理资源。
+  9. string/vector分配失败的最小记录策略、QuarantineManager唯一持有者、plugin unload边界、deadline clock和CleanupReport复制语义仍待冻结。
+- **验收状态：** API-OWN-01至API-OWN-10、RETRY-01至RETRY-06、ROS-01至ROS-05、ERR-ALLOC-01至ERR-ALLOC-02全部NOT_RUN。
+- **状态与限制：** 仅静态API/ownership设计；未实现类型、handle、manager、retry或ROS lifecycle接入；未执行C++17编译、CMake、gtest、install-space consumer、loopback、native error injection、TSan/ASan、ROS 2 Control、plugin unload、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
+- **历史同步说明：** 本章节正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点，后续需依据根TaskPlan及审计报告逐项回填。
+- **下一节点：** §9.3.297 / SERVO-880：SocketV2 QuarantineManager shutdown contract、bounded retry scheduling 与 process/plugin teardown 资源释放策略设计。
