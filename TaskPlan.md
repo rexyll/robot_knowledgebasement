@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.62  
+> 版本：v10.63  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.288 / SERVO-871；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行；本轮新增恢复状态机及SERVO864-FI-01至FI-24故障注入设计、AC-01至AC-10验收准则，全部运行时项目未执行。停止请求、本地发送、控制器ACK、运动停止观测和独立安全链确认严格区分；当前协议无独立STOP ACK/command ID，ROS/UDP STOP不是安全功能。UNCONFIGURED与FINALIZED分别定义受控重连和插件卸载/重载路径，故障后禁止自动恢复运动。未执行ResourceManager/ControllerManager运行时联调、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.289 / SERVO-872。固定上游基线仍为 ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79，ros2_control Jazzy参考基线仍为 c6ef5a24e0cd21463edb99bded552a96f914b716。此前硬件错误传播、生命周期、UDP发送/接收契约、FakeSocket、Subscriber fixture审查均为静态审查/设计，运行时矩阵未执行。SERVO-872确认 RobotDriver::connect 并非事务式回滚：control connect 返回 false 时直接返回；control interface 或 diagnostics subscriber 构造失败会抛异常且无 catch/rollback；diagnostics connect 失败、readiness失败、首帧超时和协议不匹配调用 disconnect 但忽略其清理结果。connect 等待循环即使首帧早到也持续至 timeout 窗口，诊断首帧门禁仍硬编码 true。disconnect 会先析构两个 Subscriber（各无条件 stop 并忽略返回值），随后按 connected/receiving 状态再次 stop 并尝试两个 socket disconnect；返回值仅为两个 disconnect bool 的 AND。RobotDriver 析构函数为空，不等同显式 disconnect。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B，全部 NOT_RUN。未实现 rollback guard、注入构造、FakeSocket、ManualClock、wait strategy 或 fixture；未运行 build/gtest/loopback/TSan/ASan/ROS 2 Control/SIL/HIL/VAL3/CS9/FAT/SAT/实机测试。未修改 Stäubli/ros2_control 上游，未应用 PR，工程级验收未通过，TODO-EXT-001未授权合并。
 
 ---
 
@@ -4362,3 +4362,8 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 新增 [Stäubli RobotDriver / Subscriber fixture 生命周期与集成测试映射](docs/audits/2026-11-10-staubli-robotdriver-subscriber-fixture-lifecycle-integration-map.md)。基于固定上游提交静态核对 RobotDriver 双 Socket 所有权、connect 初始化顺序与 rollback 分支、RealTimeSocketSubscriber 构造时启动接收 callback、callback 捕获裸 this、析构 stop 屏障、RobotDriver disconnect reset 顺序、空析构行为及现有 gtest fixture。将 FS-01至FS-22映射到生产调用点，并设计 F0 Fake UT、F1 SubscriberHarness、F2 双 Fake RobotDriver、F3 真实 UDP loopback、F4 ROS 2 Control integration 分层；新增 SD-01至SD-10 调用方测试规格。明确现有 connect 等待循环 500ms sleep、Subscriber/RobotDriver 直接使用 rclcpp::Clock、diagnostics 首帧门禁硬编码、固定 loopback 端口、mock thread join 与 std::async timeout 风险。
 
 本轮仅完成固定上游静态审查与测试设计；未修改 Stäubli/ros2_control 上游，未创建或应用 PR，TODO-EXT-001仍未授权。注入构造、FakeSocket、ManualClock、wait strategy、fixture 均未实现；FS-01至FS-22及SD-01至SD-10全部 NOT_RUN。未运行 build、gtest、loopback、TSan/ASan、ROS 2 Control集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机测试，工程级验收未通过。根00-01与第21章21-02仍进行中。下一节点 §9.3.289 / SERVO-872。
+
+
+### 2026-11-10｜v10.63 本轮推进记录（§9.3.289 / SERVO-872）
+
+新增 [Stäubli RobotDriver connect/disconnect 回滚路径故障注入矩阵](docs/audits/2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)。固定上游提交 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对 RobotDriver、Socket、Subscriber 与 Interface 实现。确认 control socket connect 返回 false 时直接返回且不回滚；Subscriber start_receive_thread 失败会在构造函数抛 runtime_error，RobotDriver::connect 无 catch/rollback，导致此前已建立的资源可能残留；diagnostics connect 失败、readiness失败、首帧超时和协议不匹配调用 disconnect，但忽略清理结果。make_shared 的失败通过异常传播，后续 null 检查不能作为异常处理。connect 首帧循环不在首帧成功时提前退出，而是持续至 timeout 窗口；诊断首帧仍被硬编码为 ready。disconnect 先 reset 两个 Subscriber（析构各无条件 stop 并忽略 bool），再按 socket 状态执行可能的第二次 stop 和 disconnect；返回值只汇总两个 disconnect bool。RobotDriver 析构函数为空，不能等同显式 disconnect。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 规格，全部 NOT_RUN。仅静态审查与设计，未实现 rollback guard/FakeSocket/注入构造/ManualClock/wait strategy/fixture；未运行 build、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证。未修改上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`仍未授权。下一节点 §9.3.290 / SERVO-873。
