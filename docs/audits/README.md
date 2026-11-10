@@ -324,3 +324,5 @@
 - [2026-11-10 Stäubli GPIO接口导出、状态更新与生命周期缓存一致性审计追加件](2026-11-10-staubli-gpio-interface-lifecycle-audit.md)：新增§9.3.264 / SERVO-847，静态核对Xacro与C++接口命名/类别一致；发现GPIO输入字段缺失时保留旧值且read仍可能成功、生命周期激活未重置GPIO输出命令缓存而write在STOP模式仍发送输出；需mock与生命周期测试验证。
 
 - [2026-11-10 Stäubli GPIO协议端到端映射、有效性标志与VAL3执行链审计](2026-11-10-staubli-gpio-protocol-end-to-end-audit.md)：新增§9.3.265 / SERVO-848，确认VAL3每周期将数字/模拟输入valid flag设为false、状态GPIO payload序列化未实现；命令方向数字位图到VAL3数组转换被注释，controlTask数字/模拟物理输出仍为TODO。C++往返单测不覆盖跨语言协议；未执行golden frame、VAL3/CS9、SIL/HIL或实机验证。
+
+- [2026-11-10 Stäubli GPIO物理IO API、型号通道映射与异常输出状态审计](2026-11-10-staubli-gpio-physical-io-mapping-safety-audit.md)：新增§9.3.266 / SERVO-849，固定VAL3工程未见数字/模拟IO读写API，Libraries为空；SIO配置仅含UDP/串口，TX2-60L与MED仅声明16/16/2/2数量而无模块/槽位/端子映射；STOP/ERROR/断线及应用停止未定义GPIO安全态，GPIO文档仍为Coming soon。sio.cfx文本末尾疑似XML未闭合，待VAL3导入器验证；未执行CS9、SIL/HIL或实机测试。
