@@ -380,3 +380,8 @@
 ### §9.3.281｜SERVO-864：硬件错误恢复状态机与故障注入验收设计
 
 - [2026-11-10 Stäubli ROS 2 硬件错误恢复状态机与故障注入验收设计](2026-11-10-staubli-ros2-hardware-error-recovery-state-machine-fault-injection-design.md)：在固定 Stäubli 与 ros2_control Jazzy 提交上，设计 RUNNING→ERROR_DETECTED→STOP_REQUESTED→接口撤销→UNCONFIGURED/FINALIZED→重连→SESSION_VALIDATING→INACTIVE→ACTIVE 恢复状态机；区分本地 STOP 发送、控制器 ACK、运动停止观测和独立安全链安全确认。当前协议无独立 STOP ACK/command ID，ROS/UDP STOP 不得视为安全功能。新增 SERVO864-FI-01 至 FI-24 故障注入矩阵及 AC-01 至 AC-10 验收准则；全部运行时项目未执行，未修改上游或应用 PR。
+
+
+### §9.3.282｜SERVO-865：硬件错误恢复实现映射与最小接口契约
+
+- [2026-11-10 Stäubli ROS 2 硬件错误恢复实现映射与最小接口契约](2026-11-10-staubli-ros2-hardware-error-recovery-implementation-mapping.md)：固定 Stäubli commit `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态映射 RobotDriver、StaubliHardwareInterface、UDP socket、实时收发接口及现有测试。确认 UDP send 遇到 `would_block` 时日志报告 packet dropped 却仍返回 true，属于优先修正的 P0 发送结果语义缺口；并识别重复/乱序序号未拒绝、来源 endpoint 校验 TODO、on_error 不 disconnect、STOP 依赖缓存状态、状态快照未整体失效、诊断首帧未实际读取和并发契约不足。定义最小接口契约及 UT/IT 测试映射。仅静态分析，未修改上游、未执行任何测试。
