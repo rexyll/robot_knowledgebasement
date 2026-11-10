@@ -5108,3 +5108,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 实现VAL3输入采集与有效标志、状态payload写入、数字输出位图到数组映射、数字/模拟物理输出API调用；定义STOP/ERROR/断线/重连输出安全策略；建立双向字节级golden vectors和隔离IO测试。普通GPIO不得承担安全功能。
 - **状态：** 固定提交静态审查完成；端到端功能验收未通过；不修改上游、不应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.266 / SERVO-849。
+
+
+### §9.3.266｜SERVO-849：GPIO物理IO API、型号通道映射与异常输出状态
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-gpio-physical-io-mapping-safety-audit.md](../../audits/2026-11-10-staubli-gpio-physical-io-mapping-safety-audit.md)。
+- **审查范围：** VAL3工程全部程序/数据库/项目配置、SIO通信配置、TX2-60L与TX2-60L MED型号YAML、GPIO Xacro、GPIO文档、C++ hardware interface生命周期及write路径。
+- **静态结论：**
+  1. 固定VAL3工程未发现数字/模拟物理IO读取或写入API调用；`updateState`输入有效标志关闭，`controlTask`输出区为TODO；SERVO-848的协议层缺口延伸至物理IO层。
+  2. VAL3工程`ros2_server.pjx`的Libraries列表为空；本轮审查的48个VAL3文件未发现物理IO模块/通道地址映射。
+  3. `sio.cfx`只配置control/diagnostics UDP socket和串口，不能证明已配置物理GPIO模块。该文件文本末尾疑似缺少`</sio>`根元素闭合标签；尚未用VAL3 Studio/配置导入器验证。
+  4. TX2-60L与TX2-60L MED的robot_model.yaml均仅声明16路数字输入、16路数字输出、2路模拟输入、2路模拟输出；没有模块型号、槽位、VAL3变量、端子编号、模拟量制式/量程或逐点映射。
+  5. STOP/ERROR/通信错误/应用start-stop路径只处理运动和socket，未定义GPIO输出复位、保持或安全默认态。C++ write在STOP模式仍复制GPIO输出缓存；但VAL3物理GPIO执行尚未实现，不能推断端子状态。
+  6. GPIO示例文档`gpios.rst`仅标注“Coming soon”；没有部署、接线、调试或验收说明。
+- **PH1–PH12状态：** PH1–PH5、PH7–PH8、PH10固定提交静态审查完成并确认实现/资料缺口；PH6缺厂商模块资料和现场端子映射；PH9疑似XML语法问题但未导入验证；PH11–PH12未执行。
+- **整改要求：** 建立型号/控制柜/IO选件版本化物理IO清单；实现VAL3 IO适配层与错误传播；补齐ROS通道到VAL3变量/模块/槽位/端子的映射；定义STOP/ERROR/断线/任务异常/重启输出策略；完善GPIO文档；在隔离环境及CS9现场执行输入输出、量程、模块掉线和端子逐点测试。普通GPIO不得承担安全功能。
+- **状态：** 固定提交静态审查完成；GPIO物理IO端到端验收未通过；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.267 / SERVO-850。
