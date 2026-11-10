@@ -662,3 +662,12 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 本轮定义 RUNNING、ERROR_DETECTED、STOP_REQUESTED、STOP_SEND_ACCEPTED_LOCAL、STOP_UNCONFIRMED、INTERFACES_REVOKED、UNCONFIGURED、FINALIZED、RECONNECTING、SESSION_VALIDATING、INACTIVE、ACTIVE 等状态和关键转移。明确本地发送结果不等于控制器 ACK，运动停止观测不等于独立安全链确认；当前协议无独立 STOP ACK/command ID，不能声称已获控制器停止确认。恢复必须清理旧 socket/异步操作/线程/缓存并验证新会话，UNCONFIGURED 与 FINALIZED 使用不同恢复路径，故障后禁止自动重新使能运动。
 
 新增 SERVO864-FI-01 至 SERVO864-FI-24 故障注入矩阵及 AC-01 至 AC-10 设计验收准则，涵盖读写错误、STOP失败/丢包、断线、重复乱序/旧会话帧、畸形帧、线程清理、生命周期并发、ResourceManager/ControllerManager、插件重载和独立安全链。所有运行时测试均未执行。未修改上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。下一节点 §9.3.282 / SERVO-865。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.282 / SERVO-865）
+
+固定 Stäubli 上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。新增 [Stäubli 硬件错误恢复实现映射与最小接口契约](../../audits/2026-11-10-staubli-ros2-hardware-error-recovery-implementation-mapping.md)。
+
+本轮静态映射 RobotDriver、StaubliHardwareInterface、UDP socket、RealTimeSocketInterface/Subscriber和现有单元测试。发现 P0：UDP send 遇到 would_block 时报告 packet dropped，却仍返回 true，可能造成运动命令/STOP未发送但上层误判成功。其他 P1包括重复/回退序号没有拒绝、UDP sender endpoint校验仍是TODO、on_error不disconnect、STOP构造依赖缓存状态、硬件状态快照无统一失效门禁、connect诊断首帧未实际读取，以及生命周期/read/write并发契约不足。提出 SendResult、FaultLatch、ConnectionGeneration、StateSnapshot、SessionValidation、StopAttemptRecord、CleanupResult和 RecoveryAuthorization 等最小契约，并建立单测/集成测试映射。
+
+本轮仅静态分析与设计；未修改Stäubli上游，未执行构建、测试、TSan、网络注入、SIL/HIL、CS9或实机验证。工程级验收未通过，TODO-EXT-001未授权合并。下一节点 §9.3.283 / SERVO-866。
