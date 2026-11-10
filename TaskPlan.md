@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.36  
+> 版本：v10.37  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.261 / SERVO-844；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
@@ -3987,3 +3987,49 @@ SR1–SR12静态审查与测试代码覆盖已记录于第21章。仅静态源�
 ### SERVO-844摘要｜URDF软限位参数生成与关节限位配置一致性
 
 固定上游：ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。审查staubli.urdf.xacro、staubli_macro.xacro、staubli_helpers.xacro、R2C joint xacro、TX2-60L/TX2-60L MED joint_limits.yaml、StaubliHardwareInterface及其测试。确认URDF joint helper会生成硬限位lower/upper/velocity和可选safety_controller软位置边界；safety_velocity_margin虽在顶层声明、传入macro并列为add_joint参数，但在生成表达式中没有被消费。软位置margin直接加减于硬位置边界，未见非负、有限、且小于半个关节行程的参数校验；非法配置可能生成超出硬边界或上下界倒置的软限位。joint_limits配置中的has_position_limits/has_velocity_limits/has_acceleration_limits字段未在对应Xacro逻辑中读取：URDF helper无条件读取min_position/max_position/max_velocity；真实硬件R2C路径无条件读取max_acceleration生成acceleration command interface，未按has_acceleration_limits决定是否存在。has_effort_limits则有条件处理，形成字段处理不一致。当前TX2-60L与TX2-60L MED六轴配置均声明position/velocity/acceleration limits=true，因此本轮没有证据表明这两套现有文件立即触发缺键故障。硬件write无最终限幅及ROS2 controller_manager版本对URDF limit enforcement的端到端行为已在SERVO-834记录，本节点不重复宣称该问题为新发现；本轮只确认描述文件参数生成与配置语义边界。未运行xacro展开、控制器限位器或真实硬件限位测试。下一节点§9.3.262 / SERVO-845。
+
+
+### 2026-11-10｜v10.37 本轮推进记录（§9.3.262 / SERVO-845）
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮聚焦GPIO数量配置从robot_model.yaml、Xacro递归接口生成到StaubliHardwareInterface缓存/导出的端到端一致性及参数解析边界；避免重复既有SERVO-393–402、SERVO-253–262、SERVO-263–272、SERVO-273–282、SERVO-769、SERVO-764及SERVO-185对GPIO物理执行TODO、STOP缓存、协议映射、模拟输出数值和valid flag状态缓存的审查结论。
+
+静态核对文件：`staubli_robot_description/config/tx2_60l/robot_model.yaml`、`config/tx2_60l_med/robot_model.yaml`、`urdf/include/staubli_helpers.xacro`、`r2c/staubli.r2c.xacro`、`r2c/include/staubli_r2c_gpios.xacro`、`staubli_robot_driver/src/staubli_hardware_interface.cpp`、`include/staubli_robot_driver/communication/messages.hpp`、`src/communication/messages.cpp`、`test/unit_tests/test_staubli_hardware_interface.cpp`及`test/unit_tests/communication/test_message_serialization.cpp`。
+
+#### 主要发现
+
+1. 两套TX2型号的robot_model.yaml均声明16路数字输入、16路数字输出、2路模拟输入、2路模拟输出。urdf helper读取这四个字段并传入R2C GPIO宏；宏通过递归add_numbered_gpios按配置数量生成digital_input_i、digital_output_i、analog_input_i、analog_output_i接口。该链路对静态型号配置可追溯，但本轮没有运行Xacro展开验证最终接口列表。
+2. StaubliHardwareInterface::on_init()从hardware_parameters读取四个数量字段并使用std::stoul转换，异常时返回ERROR；随后只检查数字IO数量不超过16、模拟IO数量不超过4。未发现对转换后是否消费完整输入字符串的检查（未使用std::stoul的pos参数），因此形如`16junk`或`2.5`的参数文本可能被按前缀数值接受，而不是严格拒绝。该风险针对运行时hardware parameter文本，不代表当前YAML配置含有此类值。
+3. 数量检查只有上限，没有统一的型号schema或配置一致性校验；0数量会被接受并生成/分配零个对应接口。零是否对某个实际控制器/选配IO模块有效，需要明确产品配置语义；当前TX2静态配置均非零，未证明现有型号发生错误。
+4. Xacro接口递归生成数量与C++ vector resize数量使用同一组hardware parameters；C++读写循环还以16路数字、4路模拟的协议固定数组上限作第二层min边界。对范围内整数配置，静态结构相互匹配；超出上限的数量会在on_init拒绝，但Xacro自身未见同等fail-fast校验，因此单独展开URDF时可能先生成超出协议容量的接口描述，直到硬件插件初始化才拒绝。
+5. 线级RobotCommand/RobotState协议固定为16位数字IO位图和4路模拟数值数组；C++序列化将数字输出映射为16位mask，模拟输出固定序列化4个double/float字段。接口数量配置并不会改变协议帧长度，因此配置值只能选择暴露的子集，不能扩展线级容量。
+6. 当前TX2两型号的16/16/2/2数量均处于插件硬上限内，与固定协议数组容量一致。该静态一致性不等于现场IO模块、端子排、CS9配置、VAL3变量与接线图逐点匹配；仓库未提供本轮所需的现场模块清单和逐点映射签核。
+7. 已有硬件接口测试fixture使用16/16/2/2的正常参数；InterfaceExport主要核对关节与部分supervision接口，没有发现针对GPIO数量0、上限、上限+1、缺失字段、空字符串、前后缀垃圾字符、浮点文本、负数或不同输入/输出数量组合的参数解析专项测试。本轮未执行测试。
+8. 已有消息序列化测试验证固定消息字段的编码/解码，不足以证明Xacro接口数量、hardware parameter解析、C++ GPIO索引、VAL3数据库数组、CS9物理IO模块及现场端子之间的端到端一致性。此前已记录的VAL3输出执行TODO、数字mask到VAL3数组转换未完成及普通GPIO不是安全I/O等问题继续保持未验收状态，本轮不重复作为新问题。
+
+#### SIO1–SIO12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SIO1 | TX2-60L/TX2-60L MED GPIO数量配置 | 静态确认均为16/16/2/2 |
+| SIO2 | robot_model.yaml到Xacro helper字段传递 | 静态链路确认；未执行展开 |
+| SIO3 | Xacro递归生成接口数量 | 静态确认按配置数量递归；未断言生成物 |
+| SIO4 | C++ hardware parameter数量解析 | 使用std::stoul并捕获异常；未检查完整字符串消费 |
+| SIO5 | 数字/模拟IO数量上限 | 插件检查16/4上限；Xacro端同等校验未见 |
+| SIO6 | 零数量/缺失/非法文本语义 | 零值可通过上限检查；非法文本组合未测试 |
+| SIO7 | C++缓存向量与接口数量一致性 | 静态确认按相同参数resize |
+| SIO8 | C++循环与协议固定数组容量 | 静态确认数字16、模拟4上限 |
+| SIO9 | 数字位图/模拟数组线级容量 | 静态确认16-bit与4路固定数组；未做黄金帧测试 |
+| SIO10 | 两型号静态配置与插件/协议容量一致性 | 16/16/2/2均在16/4容量内 |
+| SIO11 | GPIO参数边界与异常配置专项测试 | 未发现对应测试；本轮未执行 |
+| SIO12 | Xacro→ROS接口→VAL3→CS9模块/端子端到端核对 | 现场模块清单、映射和验证证据缺失；未执行 |
+
+#### 整改建议
+
+- 将四个GPIO数量字段定义为严格整数schema：必填、非负/正值规则、型号/选件允许范围、协议最大容量及零值语义均显式化；配置加载阶段即给出字段路径和可读错误。
+- C++解析使用带pos的严格整数转换，要求消费完整字符串；拒绝前后空白以外的尾随字符、浮点文本、符号异常、溢出和缺失字段。对转换结果再次校验0..16或0..4范围。
+- 在Xacro生成阶段增加同样的容量校验，确保单独生成URDF时就拒绝超协议容量配置，而不是依赖硬件插件on_init后置拒绝。
+- 建立一份型号/控制器/CS9/IO选件/VAL3数据库/ROS接口/线级协议/现场端子映射manifest，明确哪些通道实际装配、可用、保留或禁用；静态YAML数量不能替代现场IO模块与接线核验。
+- 增加参数化单测与Xacro展开测试：0、1、最大值、最大值+1、缺失、空值、`16junk`、`2.5`、负数、超大整数，以及输入/输出数量不相等的组合；断言错误配置fail-fast且有效配置生成的接口名称和数量精确一致。
+- 增加协议黄金向量和端到端mock测试，逐一核对数字IO位0/15、模拟IO通道0/3及不同数量配置的索引；之后在隔离CS9环境核对VAL3数组和实际IO模块映射。普通GPIO不得被用作急停、SS1/SS2或其他安全功能回路。
+
+本轮仅固定上游提交静态YAML/Xacro/C++/协议/现有测试代码审查；未运行Xacro展开、ROS 2构建/单测、异常参数注入、协议黄金向量、VAL3编译/下载、CS9 IO配置读取、端子逐点测试、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.263 / SERVO-846。
