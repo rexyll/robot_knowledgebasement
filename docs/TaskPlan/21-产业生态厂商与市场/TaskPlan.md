@@ -5144,3 +5144,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 建立显式通信/控制恢复状态机；加入独立heartbeat和旧命令失效机制；复位API逐项检查并传播错误；加入静默期、握手和session/boot epoch；ROS区分transport-ready与fresh-state-ready并在重连后重新验证控制权；增加任务退出/防重入和停止回执；GPIO安全默认态必须基于真实硬件并独立验证。
 - **状态：** 固定提交静态审查完成；故障恢复闭环与工程级验收未通过；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.268 / SERVO-851。
+
+
+### §9.3.268｜SERVO-851：断线恢复、会话重同步与命令/状态序号新鲜度
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-reconnect-session-sequence-freshness-audit.md](../../audits/2026-11-10-staubli-reconnect-session-sequence-freshness-audit.md)。
+- **范围：** RobotDriver、RealTimeSocketSubscriber/Interface、UDP socket、StaubliHardwareInterface命令序号路径；VAL3 controlTask、computeSequenceDelay、getNextSequenceNumber、decodeRobotCommandMsg及相关单元测试。
+- **静态结论：**
+  1. Subscriber对每份成功反序列化的数据报刷新reception_timestamp并覆盖latest-value缓存；read_message在序号相同情况下设置new_message=false，但RobotDriver::read_robot_state未检查该标志，重复序号数据报可能持续刷新ROS侧状态新鲜度。该路径尚未动态复现。
+  2. 较小序号一律按uint16回绕处理，没有区分合法回绕、乱序、旧包重放或控制器重启回退；缺少滑动窗口、boot/session epoch和nonce。
+  3. disconnect销毁subscriber并reset_data；重建subscriber后first_read=true，序号基线重置。第一帧没有会话连续性验证，UDP来源校验仍为TODO。
+  4. UDP is_connected只表示本地socket状态，远端失联不一定改变connected标志；connect首帧/协议版本检查不能替代远端heartbeat或会话认证。
+  5. VAL3状态序号uint16回绕；computeSequenceDelay仅对小于-60000的差值加65536，其余负值保留并触发错误路径。它是延迟估算，不是防重放机制。
+  6. HardwareInterface::write将命令序号绑定最近接受的RobotState序号，没有独立命令ID/session ID。模式切换初始化位置命令和速度/加速度缓存，但on_activate仅切换STOP模式。
+  7. 现有subscriber单测覆盖缓存重读staleness与序号跳跃，不覆盖重复数据报刷新时间戳、乱序/回退、重放、回绕边界；RobotDriver恢复测试只停止/重启mock发送线程，没有driver disconnect/reconnect，mock序号为static计数器。
+- **SS1–SS2、SS4–SS8、SS10–SS12状态：** 固定提交静态审查完成；SS3、SS9为需注入确认的潜在风险；SS13–SS15未执行或缺现场证据。
+- **整改要求：** 实现序号滑动窗口、重复/回退帧拒绝和独立新鲜度门禁；增加boot/session epoch与client nonce握手、命令ID/ack/有效期；远端heartbeat和来源校验；重连后默认STOP/UNARMED、清除旧命令/GPIO缓存并显式重新授权；补充duplicate/reorder/replay/reboot/重连故障注入测试。
+- **状态：** 固定提交静态审查完成；会话重同步与防重放能力未通过工程验收；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.269 / SERVO-852。
