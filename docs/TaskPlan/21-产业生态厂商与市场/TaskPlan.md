@@ -5562,3 +5562,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅完成实现策略与构建/ABI防护静态审查；未修改固定上游，未创建/应用/合并PR；未执行编译、ABI工具、符号比较、install-space consumer、CMake target graph、ament export、plugin load/unload、Fake测试、sanitizer、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；`TODO-EXT-001`仍未授权。
 - **历史同步说明：** §9.3.281–§9.3.294历史逐节点同步缺口继续透明保留，不伪造回填。
 - **下一节点：** §9.3.305 / SERVO-888：Fixed-commit CMake/source inventory、private seam placement proof 与 reproducible ABI baseline feasibility audit（先核验真实源码与可复现构建条件，再决定是否进入A1实现）。
+
+
+### §9.3.305｜SERVO-888：Fixed-commit CMake/源码清单、Private Seam Placement 与 ABI Baseline 可行性审查
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [固定提交 CMake/源码清单、Private Seam Placement 与 ABI Baseline 可行性审查](../../audits/2026-11-10-staubli-socket-v2-fixed-commit-cmake-source-inventory-private-seam-placement-abi-baseline-feasibility.md)。
+- **真实源码证据：** 固定commit读取package CMakeLists、package.xml、legacy socket.hpp、udp_socket.hpp、tcp_socket.hpp、socket_factory.cpp、udp_socket.cpp、udp_socket_impl.hpp、plugin XML、README及CI workflow，并记录文件blob SHA。确认主库SHARED target编译socket_factory.cpp与udp_socket.cpp；hardware interface为独立SHARED target并链接主库；测试目标在BUILD_TESTING下建立；plugin XML注册StaubliHardwareInterface。
+- **关键发现：** legacy Socket纯虚接口及SocketFactory签名位于public include；UDPSocket/TCP Socket façade均有unique_ptr PIMPL；UDP Asio实现位于src私有头。CMake整体安装include目录，故private/fake头文件不得放入include树。TCP public header存在并会随include目录安装，但tcp_socket.cpp未列入主库，SocketFactory对TCP抛出not implemented；按候选路径读取tcp_socket_impl.hpp返回404，不推断其存在。CMake使用asio_SOURCE_DIR但本文件未见变量定义；Boost由CMake find/link但package.xml无显式Boost depend，均需后续闭合依赖来源。
+- **Seam placement：** 候选位置收敛至src/communication私有实现层，Fake/test builder放test或独立test-support源码目录；候选不等于placement proof。仍缺完整recursive tree/include-call-site清单、CMake实际target graph、install manifest、ament export closure、plugin DT_NEEDED/导出符号、BUILD_TESTING ON/OFF隔离和callback/plugin unload实测。
+- **ABI baseline：** README/CI显示Ubuntu 24.04/Noble与ROS 2 Jazzy、C++17；CI容器标签为可变latest，未固定镜像digest、apt快照、编译器/Boost精确版本或colcon参数；未取得固定commit shared library/debug info/compile_commands/install tree/ABI dump。故可复现二进制ABI baseline为BLOCKED，不得宣称ABI兼容。
+- **验收：** SRC-INV-01至04、ABI-FEAS-01为STATIC_REVIEWED；SRC-INV-05、PLACE-02/03、ABI-FEAS-02/03为BLOCKED或NOT_RUN；PLACE-01为SPECIFIED；ABI-FEAS-04、CMAKE-BASE-01至03为NOT_RUN；GATE-01为BLOCKED，不准进入A1.1代码实现。
+- **限制：** 仅固定commit文件级静态审查；未修改上游、未创建/应用/合并PR；未执行CMake/colcon构建、gtest、ABI工具、nm/readelf、install consumer、plugin load/unload、sanitizer、SIL/HIL或实机测试；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.306 / SERVO-889：Fixed-tree socket include/call-site closure、`asio_SOURCE_DIR` provenance、Boost/rosdep dependency closure 与 ABI baseline build recipe definition；仍先补证据，不进入上游实现。
