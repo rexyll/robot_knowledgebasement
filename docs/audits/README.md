@@ -349,3 +349,6 @@
 
 
 - [2026-11-10 Stäubli ROS 2—STOP命令接收确认与状态反馈关联协议审计](2026-11-10-staubli-stop-command-ack-sequence-correlation-audit.md)：新增§9.3.276 / SERVO-859，确认本地send成功不是远端ACK；RobotCommand序号回显最近RobotState序号而非独立command ID；协议无STOP ACK/命令结果字段；VAL3未见去重、乱序拒绝和session epoch；重复状态数据报会刷新接收时间，可能续新鲜度。新增ACKT-01至ACKT-13验收矩阵，均未执行。
+
+
+- [2026-11-10 Stäubli ROS 2—UDP接收缓存、序号回绕与重复/乱序数据报新鲜度专项审计](2026-11-10-staubli-udp-cache-sequence-freshness-audit.md)：新增§9.3.277 / SERVO-860，确认C++ Subscriber使用单值最新缓存、重复序号帧仍刷新本地接收时间、序号倒退被无条件当作uint16回绕并污染基线、UDP来源地址检查仍为TODO；VAL3 readData每周期最多两次sioGet且第二帧可能覆盖第一帧；另发现UDP send遇到would_block明确丢包却返回true，可能导致上层误报STOP/命令成功。新增RX-01至RX-14验收矩阵，均未执行。
