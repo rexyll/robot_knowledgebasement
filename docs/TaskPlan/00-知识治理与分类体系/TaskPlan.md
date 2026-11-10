@@ -714,3 +714,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.289 / SERVO-872）
 
 新增 [RobotDriver connect/disconnect 回滚路径故障注入矩阵](../../audits/2026-11-10-staubli-robotdriver-connect-disconnect-rollback-fault-matrix.md)。固定 Stäubli 上游 `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对 RobotDriver 双 Socket connect 阶段、异常安全、部分初始化资源回滚、disconnect stop/disconnect 顺序、旧会话清理与析构差异。确认 control connect false 直接返回；Subscriber 启动接收失败在构造中抛异常且 connect 无 catch/rollback；diagnostics connect/readiness/timeout/protocol mismatch 分支调用 disconnect 但忽略清理结果；首帧早到后仍持续等待 timeout 窗口。新增 RB-01至RB-08、SD-07A至E、SD-08、SD-10A至B 测试规格。仅静态审查和设计，全部测试 NOT_RUN；未实现 rollback guard、注入构造、FakeSocket、ManualClock、wait strategy 或 fixture；未运行构建、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证。未修改上游、未应用 PR，TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.290 / SERVO-873。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.290 / SERVO-873）
+
+新增 [RobotDriver 事务式 connect rollback guard 最小补丁设计](../../audits/2026-11-10-staubli-robotdriver-transactional-connect-rollback-guard-design.md)。基于固定 Stäubli commit 静态复核 RobotDriver、Subscriber、Interface 和 Socket 抽象，设计 connect attempt 状态、attempt-before-side-effect 标记、成功 commit、失败显式 rollback、异常保留 exception_ptr 后 rethrow 的控制流。定义 cleanup 顺序：先排空已构造 Subscriber callback，再处理构造失败的部分启动，按 connect_attempted 清理 diagnostics/control socket，reset data 并检查 residual；cleanup 各步骤失败/异常不短路，原始连接失败/异常优先。提出 CleanupReport、Socket false/partial-state 与幂等契约、Subscriber 两阶段 factory、旧 session 一致性、并发串行化、generation 和析构策略。GUARD-01至GUARD-10、P0至P7 全部 NOT_RUN/NOT_IMPLEMENTED。仅设计审查，未修改上游，未实现补丁，未运行构建、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.291 / SERVO-874。
