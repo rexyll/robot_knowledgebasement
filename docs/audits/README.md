@@ -400,3 +400,8 @@
 ### §9.3.285｜SERVO-868：CMake/gtest 测试结构与最小 seam 增量实施方案
 
 - [2026-11-10 Stäubli CMake/gtest 测试结构与最小 seam 增量实施方案](2026-11-10-staubli-cmake-gtest-seam-minimal-increment-plan.md)：基于固定 commit 核对现有 `Socket` 抽象、RobotDriver 构造依赖、Subscriber 时钟调用、UDPSocket PIMPL 与 CMake/gtest 注册。建议首轮复用 `Socket` 注入 FakeSocket，不另建平行 UDP 抽象；为 Subscriber 注入可控时钟；沿用 `add_unit_test`。列出文件级方案和 SEAM/FS/CLK/IT 矩阵。仅静态审查和设计，所有测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.286 / SERVO-869。
+
+
+### §9.3.286｜SERVO-869：FakeSocket 接口契约与生命周期/线程安全设计
+
+- [2026-11-10 Stäubli FakeSocket 接口契约与生命周期/线程安全设计](2026-11-10-staubli-fake-socket-contract-lifecycle-thread-safety.md)：覆盖 Socket 全部虚函数、独立 FIFO 脚本、fail-closed 默认、手动 callback dispatch、stop/cancel/join 屏障、事件日志快照和 FS-01至FS-22 测试矩阵。明确当前 Socket 接口无法模拟 error_code、sender endpoint 和真实 Asio cancellation。仅静态审查与设计，所有测试 NOT_RUN，Fake 尚未实现，未修改上游或应用 PR。下一节点 §9.3.287 / SERVO-870。
