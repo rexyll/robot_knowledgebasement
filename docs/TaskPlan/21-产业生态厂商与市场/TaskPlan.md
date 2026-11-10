@@ -4821,3 +4821,52 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 补充mock/单测：诊断未到/过期/坏帧、RobotState字段缺失/NaN/Inf、E-stop/SS1/SS2、brakes engaged、motion_possible=false、VAL3 error、STOP send failure、STOP未静止超时、故障锁存与人工复位、网络断连和恢复；之后再做隔离CS9仿真、SIL/HIL、FAT/SAT及受控实机验证。
 
 本轮仅固定提交静态源码与现有测试代码审查；未执行构建、单元测试、ROS运行、mock fault injection、VAL3编译/下载、CS9仿真、网络故障注入、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.258 / SERVO-841。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.258 / SERVO-841）
+
+固定上游基线：ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。本轮聚焦UDP消息丢失/乱序/重复/回绕、控制与诊断通道独立失效、旧命令保持、VAL3通信重置、ROS硬件生命周期与重连一致性。静态审查文件包括src/robot_driver.cpp、include/staubli_robot_driver/robot_driver.hpp、src/real_time_socket_subscriber.cpp、include/staubli_robot_driver/real_time_socket_subscriber.hpp、include/staubli_robot_driver/communication/protocol.hpp、src/communication/protocol.cpp、src/communication/messages.cpp、val3/userapp/ros2_server/controlTask.pgx、Comm/readData.pgx、readDataOnce.pgx、computeSequenceDelay.pgx、getNextSequenceNumber.pgx、resetControlSocket.pgx、src/staubli_hardware_interface.cpp及test/unit_tests/communication/test_rt_socket_interface.cpp、test/unit_tests/test_robot_driver.cpp。
+
+#### 主要发现
+
+1. ROS接收端RealTimeSocketSubscriber::update_message()将每个成功反序列化的UDP帧写入RealtimeThreadSafeBox；该结构是latest-value覆盖，不保留完整队列。读取端read_message()取当前最新值，并以last_read_sequence_number_统计序号间隔。没有基于半区间/单调序号的旧帧拒绝逻辑，也没有会话ID/epoch字段。乱序或延迟到达的旧帧若序号小于上次读取值，会被误判为uint16回绕后的新帧并覆盖当前状态；重复序号会标记new_message=false，但函数仍返回true和重复数据。RobotDriver调用方没有用status.new_message阻止重复状态继续被复制为当前状态。
+2. 序号回绕统计公式为(MAX_FRAME_SEQUENCE_NUMBER - last) + current + 1。按VAL3序号0..65535回绕定义，65535→0应为0个丢包，但该公式返回1；65534→1实际缺少65535与0共2帧，公式返回3。边界统计存在多计1风险。该统计目前主要用于诊断/告警，不构成帧接收门禁。
+3. RobotDriver::read_robot_state()检查message type和本地接收时间，默认staleness timeout为100ms；过期时返回false。lost_packages分支的warning被注释，且未用序号差触发安全状态。它没有验证状态序号相对上次读取严格前进，也没有校验帧来自当前连接会话。接收时间戳由ROS本地时钟在异步反序列化后写入，属于本地接收时间，不是控制器采样时间；网络缓存/乱序到达仍可能获得“新鲜”的本地时间戳。
+4. RobotDriver::read_diagnostic_data()有诊断消息类型、staleness及丢包warning检查，但connect阶段将diag_interface_ready=true硬编码，真实读取调用为TODO；因此连接成功并不证明收到有效诊断帧。诊断subscriber的ready只说明socket接收线程就绪，不代表数据到达或诊断新鲜。
+5. RobotDriver::is_connected()同时要求control与diagnostic socket connected、control interface和diagnostic subscriber ready。两个UDP socket的connected/ready并不提供对端应用层存活确认；诊断通道失效可能使整体is_connected=false，但没有发现独立的通道健康状态机或清晰的“控制数据可用但诊断数据不可用”降级策略。connect的诊断数据就绪条件被绕过，健康判定前后不一致。
+6. VAL3 readDataOnce.pgx在sioGet读取字节数等于消息长度时标记新帧；部分长度消息标记通信错误。零字节读取不标记新数据也不报错。readData.pgx最多尝试两次读取。controlTask在无新命令时保留上一条robot_command_msg.robotCommand.bIsValid，并明确将命令staleness留作TODO；因此不能仅凭“本周期没收到新包”证明旧命令立即失效。
+7. VAL3通过computeSequenceDelay计算当前机器人状态序号与最近命令序号的差，负差小于-60000时加65536处理回绕；运动状态下delay>5进入STOP，静止状态另有较宽阈值。该机制依赖共享序号差而非墙钟租约；无法单独覆盖暂停发送、控制任务/状态序号停止增长、队列重放或跨会话旧命令。状态序号回绕与命令序号重启时的边界一致性需要专门验证。
+8. VAL3错误路径执行stopMove/resetMotion、清除命令有效标志、重置序号和控制socket；resetControlSocket.pgx将socket设为非阻塞并调用clearBuffer。此举清理控制器本地接收缓存，但未看到会话nonce、双向重新同步、ROS侧旧发送队列清理确认或新会话首包握手；源码还留有“延迟后再接受新命令”的TODO。因此无法证明通信恢复后不会接受网络中迟到的旧帧。
+9. ROS侧disconnect()销毁control interface与diagnostics subscriber，停止接收线程、断开socket并调用reset_data()清空状态和序号；重建subscriber后first_read_重置，首个可解码帧无论序号/会话来源都会作为首次消息接受。没有跨连接持久化的最后序号/会话标识用于拒绝旧会话帧。
+10. StaubliHardwareInterface::on_configure()建立RobotDriver连接；on_activate()仅将current_control_mode_设为STOP并返回SUCCESS；on_cleanup()disconnect；on_shutdown()在连接时按条件发送STOP后断开；未发现硬件接口内部自动重连状态机、重连后诊断有效性门禁、机器人状态重新同步、控制器停用/重新激活和操作员确认的一致流程。controller_manager外部是否会自动重试不在本轮源码证据范围内。
+11. 现有test_rt_socket_interface.cpp覆盖首次接收、同一消息重复读取后new_message=false、基于序号跳跃的丢包统计、latest-value覆盖的多包读取和staleness时间戳；没有覆盖乱序/重放旧帧、重复帧对RobotDriver状态更新的影响、65535→0回绕边界、诊断单通道断开、控制单通道断开、网络恢复后的旧帧、连续断连-恢复-再断连和ROS生命周期重入。测试文件中的这些用例本轮未执行。
+12. test_robot_driver.cpp mock线程以4ms周期同时发送状态与诊断帧，连接测试验证双通道正常路径；已有状态staleness/恢复测试不等于真实网线断开、接收线程退出、socket重建和旧包重放的恢复验收。未见VAL3命令租约超时、控制器重启后序号复位、旧命令拒绝和新会话握手专项测试。
+
+#### SR1–SR12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SR1 | UDP状态帧丢失与latest-value覆盖语义 | 静态核对；仅保留最新帧，未保留完整接收队列 |
+| SR2 | 乱序/延迟旧帧拒绝 | 未见单调序号/旧帧拒绝；存在被误判为回绕的风险 |
+| SR3 | 重复帧及new_message处理 | subscriber标记重复；RobotDriver未使用new_message阻止旧状态复用 |
+| SR4 | uint16序号回绕边界 | 统计公式边界多计1；未执行边界测试 |
+| SR5 | 状态接收时间、100ms陈旧门禁与采样时间语义 | 本地接收时间门禁静态确认；无控制器采样时间/会话校验 |
+| SR6 | 控制通道单独失效/恢复 | 未执行；无端到端故障状态机证据 |
+| SR7 | 诊断通道单独失效/恢复及降级策略 | connect跳过有效诊断帧检查；未形成通道降级/安全联锁 |
+| SR8 | VAL3无新命令时旧命令有效标志/租约 | bIsValid保持，staleness为TODO；序号delay不等于墙钟租约 |
+| SR9 | VAL3 STOP、resetControlSocket及恢复后旧帧隔离 | clearBuffer/序号重置存在；无epoch/nonce握手证据 |
+| SR10 | ROS disconnect/reconnect与subscriber首帧处理 | reset_data且subscriber重建；首帧不验证会话身份 |
+| SR11 | hardware lifecycle、controller重新激活和操作员确认 | configure/connect、activate设STOP、cleanup断开；完整恢复门禁未见 |
+| SR12 | 丢包/乱序/重放/回绕/双通道故障/断连恢复注入与SIL/HIL | 未执行 |
+
+#### 整改建议
+
+- 为每条控制/状态/诊断流定义明确的序号比较规则：uint16半区间比较、重复帧拒绝、旧帧拒绝、回绕边界正确性；修正回绕丢包统计公式并加入0/1/65534/65535边界单测。
+- 引入连接会话epoch/nonce或等效握手字段，将机器人启动代次、ROS连接代次、协议版本与序号绑定；重连/控制器复位后先在STOP/禁止运动状态完成双向同步，拒绝旧会话包。
+- 为VAL3命令增加墙钟租约/超时（独立于序号差），无新命令超过阈值即锁存故障并停止；不允许仅因上一帧bIsValid仍为true而持续执行旧参考值。
+- 区分控制与诊断通道状态：诊断未就绪不得伪装ready；定义诊断通道失效时的运行降级/禁止激活策略，并将数据新鲜度和应用层心跳纳入健康判定。
+- 对UDP source endpoint、帧长度、protocol version、message type、payload size、序号与会话字段做一致性验证；结合SERVO-840的协议完整性/诊断消费缺口进行统一整改。
+- 定义统一恢复状态机：通信故障→硬件ERROR/控制器STOP→确认机器人静止与安全状态→清理socket及命令缓存→重新建立双通道→接收并验证新会话状态/诊断→控制器重新同步→人工确认→允许activate；任一步失败保持禁止运动。
+- 补充故障注入：单向断开control/diagnostic、双向断开、丢包/突发丢包、乱序、重复、延迟重放、序号回绕、控制器重启/序号归零、断线期间ROS继续发命令、恢复后旧队列包抵达、短时恢复后再次断线；记录停止响应时间、旧命令拒绝、故障锁存及恢复条件。之后再分阶段执行CS9仿真、SIL/HIL、FAT/SAT和受控实机测试。
+
+本轮仅固定上游提交静态源码与现有测试代码审查；未执行构建、单元测试、断网/丢包/乱序/重放/重连故障注入、VAL3编译/下载、CS9仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.259 / SERVO-842。
