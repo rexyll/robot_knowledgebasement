@@ -476,3 +476,8 @@
 ### §9.3.301｜SERVO-884：SocketV2源码级资源所有权、close-site追踪与真实依赖DAG
 
 - [2026-11-10 Stäubli SocketV2源码级资源所有权、close-site追踪与真实依赖DAG](2026-11-10-staubli-socket-v2-source-resource-ownership-close-site-traceability-real-dag.md)：固定上游commit逐文件提取RobotDriver双Socket shared ownership、UDPSocket unique_ptr PIMPL、Asio socket/io_service/buffer/thread/callback、两层裸this回调及HardwareInterface/plugin teardown关系；定位open/close/disconnect/destructor/stop/join sites。发现close异常后connected标志仍清零、析构/RobotDriver可能跳过显式close重试、Subscriber析构忽略stop结果、join无timeout/self-join检查；TCP实现文件未出现在固定tree且CMake不编译TCP wrapper。SRC-OWN/CLOSE-TRACE/DAG-REAL静态项已核对，运行时项目全部NOT_RUN；Boost.Asio内部native close细节UNKNOWN。未修改上游或应用PR。
+
+
+### §9.3.302｜SERVO-885：SocketV2 source-to-test coverage gap、teardown failure-path matrix与最小验证切片
+
+- [2026-11-10 Stäubli SocketV2 source-to-test coverage gap、teardown failure-path matrix与最小验证切片](2026-11-10-staubli-socket-v2-source-to-test-coverage-teardown-failure-matrix-minimal-slices.md)：固定上游commit测试映射覆盖CMake、UDP socket loopback、RT subscriber/interface、RobotDriver、HardwareInterface/plugin及MockRobotServer测试。确认正常收发/connect/disconnect/reconnect/double start-stop/lifecycle基础路径已有测试；close失败注入、native状态核验、callback并发销毁/异常、self-join/timeout、双通道partial teardown、ROS cleanup/shutdown/error失败矩阵及plugin unload竞态均无覆盖。定义F01–F16故障矩阵和Slice A–F最小验证顺序。静态映射已完成；FAIL-MATRIX与SLICE-ORDER为SPECIFIED；RUN-01至RUN-08全部NOT_RUN，未修改上游。
