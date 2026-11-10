@@ -5089,3 +5089,22 @@ SERVO-846验收矩阵GPIOV1–GPIOV10及整改建议详见审计追加件。GPIO
 4. 现有接口导出测试仅验证总数与少量名称，fixture只用空robot_prefix；未覆盖全通道集合、非空前缀、缺失IO字段和生命周期缓存边界。
 
 IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行时证据；IF6已静态发现缺失字段保留旧值路径。未运行Xacro展开、ResourceManager加载、ROS 2构建/单测、mock注入/输出捕获、VAL3/CS9、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.265 / SERVO-848。
+
+
+### §9.3.265｜SERVO-848：GPIO协议端到端映射、有效性标志与VAL3执行链
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-gpio-protocol-end-to-end-audit.md](../../audits/2026-11-10-staubli-gpio-protocol-end-to-end-audit.md)。
+- **范围：** C++ RobotState/RobotCommand序列化、VAL3 updateState/encodeRobotStateMsg/decodeRobotCommandMsg/controlTask、VAL3 RobotState/RobotCommand数据库和现有消息序列化测试。
+- **静态结论：**
+  1. 固定帧长为RobotState 132 B、RobotCommand 55 B；数字GPIO使用16-bit位图，模拟GPIO固定4个float32；C++与VAL3的little-endian字段布局静态意图一致。
+  2. VAL3 updateState每周期把bValidDigitalInputs和bValidAnalogInputs设为false，固定提交中未见实际输入采集。
+  3. VAL3 encodeRobotStateMsg没有写入数字输入位图和4路模拟输入数据；相关序列化调用被注释/TODO，只推进payload offset。
+  4. VAL3 decodeRobotCommandMsg读取数字输出mask到局部变量，但mask到nDigitalOutputs[0..15]的映射代码被注释；4路模拟输出值被解码到数据库数组。
+  5. VAL3 controlTask中的数字输出、模拟输出物理写入均为TODO。C++ round-trip测试不能证明VAL3跨语言兼容或IO执行。
+  6. 因此固定上游当前不能证明GPIO输入/输出端到端实现；ROS侧接口和C++消息编码存在，不等于CS9物理IO已被读写。
+- **GP1–GP15状态：** GP1、GP2、GP4–GP11的固定提交静态代码路径审查完成（其中GP4–GP7、GP9、GP11静态确认实现缺口）；GP3的C++ bit索引规则静态确认但VAL3映射未实现；GP12仅确认测试源存在、未执行；GP13–GP15未执行或缺证据。
+- **尚未完成：** C++↔VAL3 golden frame、ROS 2构建/单测、VAL3编译/下载、CS9模块与端子逐点核对、UDP故障注入、mock IO、SIL/HIL、FAT/SAT和实机验证。
+- **整改要求：** 实现VAL3输入采集与有效标志、状态payload写入、数字输出位图到数组映射、数字/模拟物理输出API调用；定义STOP/ERROR/断线/重连输出安全策略；建立双向字节级golden vectors和隔离IO测试。普通GPIO不得承担安全功能。
+- **状态：** 固定提交静态审查完成；端到端功能验收未通过；不修改上游、不应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.266 / SERVO-849。
