@@ -650,6 +650,6 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 
 固定Stäubli上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，并固定ros2_control Jazzy参考提交 `c6ef5a24e0cd21463edb99bded552a96f914b716`。新增审计报告见 [Stäubli ros2_control硬件错误传播与生命周期契约审计](../../audits/2026-11-10-staubli-ros2-control-manager-error-lifecycle-contract-audit.md)。
 
-本轮将Stäubli read/write ERROR路径追踪到Jazzy HardwareComponent、ResourceManager和ControllerManager。确认on_error在driver connected时忽略STOP发送返回值并返回SUCCESS，硬件进入UNCONFIGURED；driver断线时返回ERROR，硬件进入FINALIZED；on_error没有disconnect，成功进入UNCONFIGURED后socket/接收线程可能继续运行，重新configure时connect才会断开旧连接。ResourceManager撤销故障接口后，ControllerManager仍尝试mode switch，prepare/perform会因接口不可用或组件状态不符合要求而被拒绝；该框架调用顺序与ros2_control上游Issue #3620一致。现有Stäubli测试未覆盖ResourceManager/ControllerManager错误传播和恢复。
+本轮将Stäubli read/write ERROR路径追踪到Jazzy HardwareComponent、ResourceManager和ControllerManager。确认on_error在driver connected时忽略STOP发送返回值并返回SUCCESS，硬件进入UNCONFIGURED；driver断线时返回ERROR，硬件进入FINALIZED；on_error没有disconnect，成功进入UNCONFIGURED后socket/接收线程可能继续运行，重新configure时connect才会断开旧连接。ResourceManager撤销故障接口后，ControllerManager仍尝试mode switch，prepare阶段因接口不可用而被拒绝；perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件；该框架调用顺序与ros2_control上游Issue #3620一致。现有Stäubli测试未覆盖ResourceManager/ControllerManager错误传播和恢复。
 
 新增SERVO-863/LC-01至LC-15：固定Stäubli与ros2_control提交静态源码、官方Jazzy文档和测试源码核对完成；LC-01至LC-15全部未执行。未运行ROS 2构建/单测、ResourceManager/ControllerManager运行时、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证。未修改Stäubli上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.281 / SERVO-864。
