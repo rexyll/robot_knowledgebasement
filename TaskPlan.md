@@ -4371,10 +4371,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 ### 2026-11-10｜v10.64 本轮推进记录（§9.3.290 / SERVO-873）
 
+
+
+新增 [Stäubli RobotDriver 事务式 connect rollback guard 最小补丁设计](docs/audits/2026-11-10-staubli-robotdriver-transactional-connect-rollback-guard-design.md)。重新核对固定上游 RobotDriver、Subscriber、Interface 和 Socket 抽象，明确事务状态字段、attempt-before-side-effect 登记、commit/fail/exception 路径、统一 cleanup 顺序、CleanupReport、异常优先级和 residual 检测。设计规定先排空并销毁已构造 callback target，再处理构造失败的部分启动，按 connect_attempted 执行两个 socket disconnect，最后 reset data 并核对 residual；清理步骤失败/异常不得短路后续清理，原始异常必须保留。提出 Socket false/partial-state 与幂等契约、Subscriber 两阶段 factory、旧会话检查、连接串行化、session generation 和 destructor policy。新增 GUARD-01至GUARD-10 及 P0至P7 实施门禁，全部 NOT_RUN/NOT_IMPLEMENTED。仅设计审查，未实现任何上游补丁，未运行 build/gtest/loopback/TSan/ASan/ROS 2 Control/SIL/HIL/VAL3/CS9/FAT/SAT/实机测试；未修改上游或应用 PR，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.291 / SERVO-874。
+
+
 ### 2026-11-10｜v10.65 本轮推进记录（§9.3.291 / SERVO-874）
 
 新增 [Stäubli Socket / Subscriber 初始化与清理契约 API 设计](docs/audits/2026-11-10-staubli-socket-subscriber-init-cleanup-contract-api.md)。固定上游提交逐文件复核 Socket 抽象、UDP PIMPL、Subscriber、Interface 与 RobotDriver。确认 UDP disconnect 仅在 is_connected() 为 true 时关闭底层句柄；stop_receive_thread 在 receiving=false 时直接返回 true，未证明 thread joinable/pending handler/callback 已清零；connect 异常路径虽尝试 close，但无结构化 native error 与 residual snapshot；Subscriber 构造期间启动线程并捕获裸 this，析构无条件 stop。定义 OperationResult、SocketSnapshot、SocketOperationResult、TransportState/ReceiveState、详细 connect/disconnect/stop API、callback admission/drain barrier、Subscriber 两阶段 start/stop、CleanupReport、旧 bool API 兼容迁移约束及 API-01至API-18 测试规格。全部测试 NOT_RUN，所有新接口未实现；仅静态审查与设计，未修改上游、未应用 PR，未执行构建/单测/loopback/TSan/ASan/ROS 2 Control/SIL/HIL/VAL3/CS9/FAT/SAT/实机验证，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.292 / SERVO-875。
 
-
-
-新增 [Stäubli RobotDriver 事务式 connect rollback guard 最小补丁设计](docs/audits/2026-11-10-staubli-robotdriver-transactional-connect-rollback-guard-design.md)。重新核对固定上游 RobotDriver、Subscriber、Interface 和 Socket 抽象，明确事务状态字段、attempt-before-side-effect 登记、commit/fail/exception 路径、统一 cleanup 顺序、CleanupReport、异常优先级和 residual 检测。设计规定先排空并销毁已构造 callback target，再处理构造失败的部分启动，按 connect_attempted 执行两个 socket disconnect，最后 reset data 并核对 residual；清理步骤失败/异常不得短路后续清理，原始异常必须保留。提出 Socket false/partial-state 与幂等契约、Subscriber 两阶段 factory、旧会话检查、连接串行化、session generation 和 destructor policy。新增 GUARD-01至GUARD-10 及 P0至P7 实施门禁，全部 NOT_RUN/NOT_IMPLEMENTED。仅设计审查，未实现任何上游补丁，未运行 build/gtest/loopback/TSan/ASan/ROS 2 Control/SIL/HIL/VAL3/CS9/FAT/SAT/实机测试；未修改上游或应用 PR，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.291 / SERVO-874。
