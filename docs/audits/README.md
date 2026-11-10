@@ -343,3 +343,6 @@
 
 
 - [2026-11-10 Stäubli ROS 2—控制状态反馈、模式语义与故障恢复一致性审计](2026-11-10-staubli-state-feedback-recovery-consistency-audit.md)：新增§9.3.274 / SERVO-857，核对VAL3状态位→C++ RobotState→ROS supervision接口映射；发现状态快照先于本轮命令处理、无有效命令可出现INVALID与in_error=false并存、错误复位后直接运动模式重入可能被守卫拦截而需要先STOP重武装、重复序号仍可能刷新接收时间、stale read未向状态接口提供显式invalid标志。仅静态审查，未执行跨语言golden frame、恢复故障注入、CS9/安全链、SIL/HIL/FAT/SAT或实机验证。
+
+
+- [2026-11-10 Stäubli ROS 2—状态有效性、STOP确认与跨层生命周期故障恢复验收设计](2026-11-10-staubli-lifecycle-stop-confirmation-acceptance-audit.md)：新增§9.3.275 / SERVO-858，确认on_error返回SUCCESS后生命周期按Humble契约进入UNCONFIGURED，但插件未disconnect/reset缓存；STOP发送结果与回调成功脱钩；cleanup/shutdown缺少可靠停止确认；位置模式切换未检查状态新鲜度；read失败不失效缓存。更正现有HardwareInterface测试覆盖边界：LifecycleTransitions未调用prepare/perform，write仍走STOP路径且没有mock命令回读。新增LFA-01至LFA-14验收设计；所有测试未执行。
