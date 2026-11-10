@@ -4919,3 +4919,53 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 补充测试：从非白名单源IP/端口发送有效帧、伪造源和畸形帧、接收operation_aborted/ICMP错误、空包/截断/超长包、双网卡监听、重复绑定端口、非法端口文本/负数/65536/大整数、would_block注入、网络ACL阻断/恢复；采集包级日志、丢包率、错误率、控制停止响应和CPU/周期抖动。之后再执行隔离CS9仿真、SIL/HIL、FAT/SAT和受控实机网络验收。
 
 本轮仅固定上游提交静态源码、配置和现有测试代码审查；未执行网络抓包、伪造源IP/UDP注入、跨网卡监听、端口冲突、权限/防火墙验证、渗透测试、构建/单测、VAL3编译下载、CS9仿真、SIL/HIL、FAT/SAT或实机网络验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.260 / SERVO-843。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.260 / SERVO-843）
+
+固定上游基线：ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。本轮从UDP网络边界延伸至ROS 2控制平面：审查bringup启动编排、controller_manager控制接口、硬件/仿真默认值、ROS namespace隔离、DDS访问控制和安全部署声明。核对文件：staubli_bringup/launch/launch_robot_control.launch.py、staubli_bringup/config/controllers.yaml、staubli_robot_description/urdf/staubli.urdf.xacro、staubli_robot_description/r2c/staubli.r2c.xacro、staubli_robot_driver/package.xml、staubli_bringup/package.xml、README.md、staubli_robot_driver/src/robot_driver.cpp、test/unit_tests/test_robot_driver.cpp、test/unit_tests/test_staubli_hardware_interface.cpp。
+
+#### 主要发现
+
+1. launch_robot_control.launch.py将use_mock_hardware默认设为true，start_controller默认none；这两个默认值使默认启动路径偏向mock硬件且不自动激活轨迹控制器。切换真实硬件需要显式use_mock_hardware:=false，自动启动轨迹控制器需要显式start_controller:=joint_trajectory_controller。此为启动参数默认值，不等于已证明真实硬件运行安全。
+2. 当用户显式指定start_controller为joint_trajectory_controller，launch先用spawner --inactive加载控制器，再用OnProcessExit监听spawner退出事件；事件处理没有检查进程退出码或controller_manager中控制器是否确实处于inactive/已配置状态，随后无条件执行ros2 control set_controller_state <controller> active。若spawner因配置错误、资源接口不匹配或其他原因失败，仍会触发一次激活尝试；CLI最终可能报错，但launch编排没有把spawner成功作为明确门禁，也没有将失败转化为系统级禁止启动/报警状态。
+3. launch声明use_sim_time参数，默认false，但没有将LaunchConfiguration("use_sim_time")传给robot_state_publisher；ros2_control_node的参数列表显式写成{"use_sim_time": False}，与launch参数脱节。用户传use_sim_time:=true不会统一启用仿真时钟，可能造成状态发布、控制周期与仿真时钟语义不一致。此问题需在仿真运行环境验证，不应直接推断真实机器人控制周期受影响。
+4. robot_state_publisher、ros2_control_node、RViz和spawner都使用默认根命名空间；spawner参数指向绝对/controller_manager，控制器CLI也未指定namespace。launch没有提供namespace、robot_prefix的launch argument或完整remapping策略。多机器人/多controller_manager部署可能发生绝对服务名冲突、joint/topic资源命名冲突；R2C xacro虽然支持robot_prefix参数，但当前launch没有传递该参数。
+5. controllers.yaml将controller_manager update_rate设为250Hz，joint_trajectory_controller只请求position command interface、position/velocity state interface；allow_partial_joints_goal=false、interpolate_from_desired_state=true、allow_nonzero_velocity_at_trajectory_end=true、stopped_velocity_tolerance=0.01、goal_time=0.0。静态配置不能证明250Hz实时调度、deadline抖动或轨迹终点实际静止；允许轨迹以非零速度结束也需由应用场景/安全要求评估，不能将stopped_velocity_tolerance配置等同于安全停止判据。
+6. package.xml中driver依赖rclcpp、hardware_interface、pluginlib、rclcpp_lifecycle、realtime_tools等；bringup依赖controller_manager、controller_manager_msgs、ros2controlcli及控制器包。审查到的包清单和launch没有SROS2依赖、keystore配置、governance/permissions policy文件路径、DDS security启动参数或节点身份策略。ROS 2 DDS-Security可由外部部署环境/中间件环境变量配置，因此只能记录“仓库没有提供显式安全配置”，不能据此断言所有部署均为明文/无权限控制。
+7. controller_manager提供加载、配置、激活、停用和切换控制器的控制服务；launch使用ros2 control set_controller_state执行激活。若现场ROS graph/DDS未限制服务访问，能够参与同一ROS domain的非授权节点可能尝试切换控制器状态或调用其他控制管理服务。此为访问控制威胁模型，实际可调用范围取决于DDS-Security、domain隔离、网络策略和服务端实现，本轮未运行未授权节点验证。
+8. launch没有设置独立ROS_DOMAIN_ID、DDS domain隔离、节点namespace或专用控制平面网络参数；用户可在进程环境外部设置ROS domain，但仓库默认启动流程没有集中管理/校验该配置。多机器人或多个ROS应用共享domain时，控制器管理服务、joint state和其他图资源需要访问边界设计。
+9. R2C Xacro真实硬件路径加载staubli_robot_driver/StaubliHardwareInterface，mock路径使用mock_components/GenericSystem；README建议首次在MANUAL模式测试，切换AUTO时保持监督和急停可用，MoveIt执行前低速度/加速度并先在RViz检查。此为用户安全操作说明，不能代替风险评估、CS9安全功能、安全PLC或现场验收。
+10. README明确声明项目仍处于development/prototype阶段，活跃开发因资金中断在2025年11月暂停，说明“更像prototype而非industry-ready software”。该声明与本轮静态发现的诊断消费TODO、通信源校验TODO、生命周期和启动门禁缺口一致；不能将CI badge、ROS包能构建或正常mock demo作为量产适用性证明。
+11. 现有test_staubli_hardware_interface.cpp主要覆盖接口导出、mock生命周期、read/write正常路径；test_robot_driver.cpp通过loopback UDP mock检查通信连接/状态命令。未发现launch_testing对spawner非零退出码、controller_manager服务未就绪、激活失败、use_sim_time参数传播、namespace隔离、DDS-Security拒绝未授权服务调用或多节点冲突的专项测试。本轮未执行这些测试。
+12. README安全说明强调MANUAL模式优先、AUTO运行时监督、E-stop保持可用以及低速低加速度测试；该指导应转成项目现场FAT/SAT checklist并与机器人制造商安全功能、风险评估和安全回路责任边界绑定。ROS 2控制服务访问控制是纵深防御，不可替代安全PLC、急停回路或CS9安全配置。
+
+#### SL1–SL12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SL1 | mock硬件与控制器激活默认值 | 静态确认：mock=true、start_controller=none |
+| SL2 | spawner失败时是否阻止控制器激活 | 未实现退出码/状态门禁；未做故障注入 |
+| SL3 | use_sim_time参数贯穿节点与控制器 | 参数声明但未传播；control_node硬编码false |
+| SL4 | ROS namespace、controller_manager服务名与多机器人隔离 | 根命名空间/绝对服务名；未执行多实例 |
+| SL5 | controller_manager update_rate与JTC约束 | 静态确认250Hz/配置值；未测实时性与停止行为 |
+| SL6 | SROS2/DDS-Security策略文件及启动集成 | 检查范围内未见仓库策略/启动集成；外部配置未验证 |
+| SL7 | controller_manager服务的未授权访问防护 | 威胁模型已识别；未执行DDS权限测试 |
+| SL8 | ROS_DOMAIN_ID/domain与控制平面网络隔离 | 仓库launch未集中配置；未做多domain运行验证 |
+| SL9 | 真实硬件与mock路径切换门禁 | 静态确认显式参数切换；未验证误配置/现场启动保护 |
+| SL10 | README安全指导与工业适用性声明 | 文档明确prototype/POC及MANUAL/AUTO/E-stop指导 |
+| SL11 | launch失败、时钟、namespace和权限专项测试 | 现有测试未覆盖；未执行 |
+| SL12 | CS9安全功能、现场风险评估及FAT/SAT | 未执行，不能视为安全认证或工程验收通过 |
+
+#### 整改建议
+
+- 将控制器激活改为显式状态机：spawner返回码为0、controller_manager查询确认目标控制器存在且inactive/configured、hardware lifecycle处于ACTIVE、机器人状态新鲜且安全许可满足后才允许激活；任一失败保持STOP/inactive并让launch返回失败。
+- 将use_sim_time统一传递给所有相关节点；硬件实机模式强制use_sim_time=false，仿真模式才允许启用，并在启动时校验hardware plugin与clock source组合，防止混搭。
+- 为launch增加namespace、robot_prefix、controller_manager相对服务名和topic remapping；多机器人模式要求每台机器人独立namespace/domain与网络访问策略，并验证joint/resource names唯一。
+- 为真实硬件部署提供SROS2/DDS-Security治理模板（keystore、governance、permissions、节点证书/身份、最小权限），只允许受信任的controller_manager/规划节点访问控制服务；密钥生成/部署/轮换和失效策略纳入交付文档。保留外部安全配置方式，但提供可验证的启动检查。
+- 将controller_manager的load/configure/activate/deactivate/switch服务划分权限；对激活、切换、IO写入等控制面操作审计操作者、时间、目标控制器和结果，禁止匿名或非授权节点操作。
+- 将250Hz周期、JTC终点速度、goal_time、stopped_velocity_tolerance和轨迹插值策略与真实机器人控制周期、停止距离/时间、应用风险评估联动；通过实时性能与轨迹终点实测确定参数，而不是把配置静态值视为通过。
+- 补充launch_testing：spawner失败、控制器缺失/接口不匹配、controller_manager延迟/退出、激活服务失败、硬件ERROR/未ACTIVE、仿真时钟开启/关闭、多个namespace/domain并行、DDS未授权服务请求应被拒绝；记录启动退出码和最终生命周期状态。
+- 将README的MANUAL→AUTO受控测试、低速/低加速度、RViz预检、E-stop可用性要求形成正式FAT/SAT安全检查表，并由CS9/安全PLC责任方批准；ROS层任何访问控制/软件门禁均不得替代安全回路。
+
+本轮仅固定上游提交静态源码、launch、配置、包清单、README和现有测试代码审查；未启动launch、未注入spawner失败、未运行ROS graph/DDS discovery或SROS2权限测试、未启动多机器人namespace、未进行仿真时钟验证、未执行controller_manager未授权服务调用、构建/单测、CS9仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.261 / SERVO-844。
