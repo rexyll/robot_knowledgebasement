@@ -5200,3 +5200,20 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 修复payload_size字段；统一跨语言OperationMode枚举；统一验证header和枚举；定义float32精度/范围及finite策略；补齐F/T/IO写入及机型通道映射；实现控制器侧速度/扭矩/加速度限值闭环。
 - **状态：** 固定提交静态审查完成；跨语言帧头/枚举和IO字段实现存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.271 / SERVO-854。
+
+
+### §9.3.271｜SERVO-854：VAL3命令帧入口校验与无效命令处理
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-val3-command-frame-ingress-validation-audit.md](../../audits/2026-11-10-staubli-val3-command-frame-ingress-validation-audit.md)。
+- **范围：** VAL3 initHeader/initRobotCommandMsg/decodeHeader/decodeRobotCommandMsg/controlTask；C++ RobotCommandMessage序列化/反序列化；现有消息序列化测试。
+- **静态结论：**
+  1. VAL3命令帧初始化为header 8 B、payload 47 B、总长度55 B。decodeRobotCommandMsg在解析wire header之前，使用旧对象的header.nHeaderSize+nPayloadSize检查buffer长度。
+  2. decodeHeader随后读取wire header并覆盖payload_size，但只验证magic number和protocol version；调用方检查message type=2，却没有验证wire payload_size=47。解码按固定偏移读取，最后只比较offset与实际buffer长度。因此55 B实际数据报携带错误payload_size声明时，静态路径可能仍将命令标记为有效。
+  3. decoder的header/type错误早退只将motion command type设为STOP，没有显式清除robotCommand.bIsValid；controlTask后续错误复位会清除有效标志，但decoder失败出口本身不完整。
+  4. C++ RobotCommandMessage::deserialize会验证wire payload_size=47和message_type；VAL3接收端没有等价的wire payload_size检查。现有C++ round-trip测试没有执行VAL3解码器。
+  5. controlTask错误路径执行软件STOP、运动停止/复位和socket reset，但没有物理静止回读/停止时间证明；普通STOP不等于认证安全停止，GPIO物理写入仍为TODO。
+- **CI1–CI9状态：** 固定提交静态源码/现有测试核对完成或确认缺口；CI10跨语言畸形帧、CI11错误payload声明注入、CI12旧有效命令后错误header注入、CI13 CS9停止响应/静止反馈、CI14 SIL/HIL/FAT/SAT/实机均未执行。
+- **整改要求：** 先解析wire header，再严格验证payload_size=47与总长度55；所有decoder失败出口立即清除bIsValid、强制STOP并隔离旧命令缓存；建立C++/VAL3共用黄金报文与畸形帧测试；软件STOP与认证安全停止分离。
+- **状态：** 固定提交静态审查完成；VAL3命令入口wire payload长度校验存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.272 / SERVO-855。
