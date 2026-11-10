@@ -405,3 +405,8 @@
 ### §9.3.286｜SERVO-869：FakeSocket 接口契约与生命周期/线程安全设计
 
 - [2026-11-10 Stäubli FakeSocket 接口契约与生命周期/线程安全设计](2026-11-10-staubli-fake-socket-contract-lifecycle-thread-safety.md)：覆盖 Socket 全部虚函数、独立 FIFO 脚本、fail-closed 默认、手动 callback dispatch、stop/cancel/join 屏障、事件日志快照和 FS-01至FS-22 测试矩阵。明确当前 Socket 接口无法模拟 error_code、sender endpoint 和真实 Asio cancellation。仅静态审查与设计，所有测试 NOT_RUN，Fake 尚未实现，未修改上游或应用 PR。下一节点 §9.3.287 / SERVO-870。
+
+
+### §9.3.287｜SERVO-870：FakeSocket 状态机伪代码与 AAA 测试矩阵
+
+- [2026-11-10 Stäubli FakeSocket 状态机伪代码与 AAA 测试矩阵](2026-11-10-staubli-fakesocket-pseudocode-and-aaa-test-matrix.md)：将 FakeSocket 状态变量、合法转换、connect/send/receive/start/stop/disconnect 伪代码、锁与 RAII callback guard、stop/deliver 线性化点、事件日志快照和 FS-01至FS-22 Arrange/Act/Assert 逐项细化。明确 stop 失败仍须清理、callback 异常清理后传播、self-stop 拒绝及测试层级边界。全部测试 NOT_RUN，Fake 未实现，未修改上游或应用 PR。下一节点 §9.3.288 / SERVO-871。
