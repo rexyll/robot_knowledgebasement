@@ -5364,3 +5364,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 建立含validity、age、sequence、session、source/auth与协议校验结果的统一状态快照；read失败即失效；update_state先全量验证再原子提交；位置/速度模式准入与每次非STOP write均检查快照新鲜度；扩展ROS状态/诊断接口；诊断ready必须基于真实诊断帧或明确optional策略。
 - **状态：** 静态审计完成；状态失效传播、原子提交、模式准入与write新鲜度门禁存在P0缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.280 / SERVO-863。
+
+
+> **进度同步说明（2026-11-10）：** 根目录 TaskPlan.md 已推进至 §9.3.293 / SERVO-876，审计索引亦包含§9.3.281–§9.3.293；本章节 TaskPlan 正文当前尾部仅同步至§9.3.280 / SERVO-863。此前§9.3.281–§9.3.293的逐节点正文同步缺口在本轮被识别，不能将其视为未执行或删除；后续应按根TaskPlan及审计索引逐项回填。本次仅追加当前节点§9.3.294，不伪造缺失节点正文。
+
+### §9.3.294｜SERVO-877：SocketV2 header dependency closure、public type layout 与 factory Result API C++17 编译契约设计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 header dependency closure、public type layout 与 factory Result API C++17 编译契约审查](../../audits/2026-11-10-staubli-socket-v2-header-dependency-result-contract-audit.md)。
+- **范围：** legacy Socket/UDPSocket接口边界；建议新增的socket_v2_types.hpp、socket_v2.hpp、socket_factory_v2.hpp、visibility_control.hpp；public include closure；C++17 Result/enum类型；PIMPL incomplete-type析构；install-space standalone consumer fixture。
+- **静态结论：**
+  1. V2 public headers必须自包含，不能暴露Boost.Asio、thread/mutex、native socket或private Core；实现依赖仅存在于src/private headers。
+  2. 短期API明确为同一工具链source-level API；std::string/vector/shared_ptr等STL类型不构成跨编译器稳定ABI。
+  3. C++17没有std::expected，factory采用自定义FactoryResult；TCP返回UNSUPPORTED_PROTOCOL，非法enum返回INVALID_ARGUMENT，禁止legacy fallback。
+  4. public enum固定uint32_t underlying type和显式值；未知值fail-closed；不得与ICube wire protocol枚举混用。
+  5. unique_ptr PIMPL的析构函数必须在impl完整的.cpp中定义，不能在public header内联default；factory noexcept必须等待异常/分配路径审计。
+  6. 设计HDR-01至HDR-07、TYPE-01至TYPE-04、RES-01至RES-04、ABI-17至ABI-18 standalone/install-space验收项。
+- **状态：** 仅静态接口契约设计；未新增上游头文件/类型/fixture，未执行C++17编译、CMake、gtest、install-space consumer、nm/readelf、Windows DLL、TSan、loopback或ROS集成；VAL3/CS9、SIL/HIL、FAT/SAT、实机均未执行；未修改上游或应用PR；`TODO-EXT-001`未授权。
+- **下一节点：** §9.3.295 / SERVO-878。
