@@ -5441,3 +5441,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅静态设计；RetryScheduler、QuarantineManager、PluginLease、shutdown report sink与状态机均未实现；未执行C++17编译、CMake、gtest、虚拟时钟、fault injection、TSan/ASan、ROS component/plugin load-unload、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
 - **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点，后续依据根TaskPlan及审计报告回填。
 - **下一节点：** §9.3.298 / SERVO-881：SocketV2 QuarantineManager / RetryScheduler concurrency model、lock ordering、executor integration 与 deterministic shutdown race test design。
+
+
+### §9.3.298｜SERVO-881：SocketV2 QuarantineManager / RetryScheduler concurrency model、lock ordering、executor integration 与 deterministic shutdown race test design
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 QuarantineManager / RetryScheduler concurrency model、lock ordering、executor integration 与 deterministic shutdown race test design](../../audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md)。
+- **范围：** 并发角色与数据模型；Manager/Entry/Scheduler/Core/Lease锁域；锁顺序与禁止持锁操作；retry原子claim、generation/revision fencing；owner transfer reservation/prepare/commit；ROS executor stop、task拒绝/取消与completion fallback；确定性shutdown race测试规格。
+- **静态结论：**
+  1. 同一Core generation至多一个cleanup transaction；entry claim由attempt token与revision保护，旧generation/旧revision completion不得覆盖新状态。
+  2. 锁域为M（manager）、E（entry）、S（scheduler）、C（Core）、L（lease）；建议唯一嵌套顺序M->E->S，避免C嵌套。持锁期间禁止cleanup、callback、executor future wait、join、condition wait及日志sink调用。
+  3. 跨锁域采用两阶段协议：锁内claim稳定key/revision，锁外执行，重新加锁校验token后提交。
+  4. Owner transfer采用reservation/prepare/commit；shutdown admission close后不得提交新transfer，失败时源handle保持有效。
+  5. Executor拒绝、取消、context shutdown或completion dispatch失败必须显式恢复entry状态；manager仍可独立seal和生成snapshot，不依赖已销毁ROS Node。
+  6. Manager shutdown先关闭新任务admission、停止scheduler claim、取消queued task、协作取消running task、drain至deadline；超时保留Core和线程owner，不以detach/self-join绕过。
+  7. 测试采用barrier/latch、fake executor、fake monotonic clock和fault injection，不依赖sleep猜测时序。
+- **验收状态：** RACE-01至RACE-16、LOCK-01至LOCK-02、EXEC-01至EXEC-04全部NOT_RUN。
+- **状态与限制：** 仅静态并发/测试设计；manager、scheduler、worker pool、executor bridge与lock instrumentation均未实现；未执行C++17编译、CMake、gtest、fake clock、barrier race、TSan/ASan/UBSan、压力测试、ROS component/plugin、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
+- **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点。
+- **下一节点：** §9.3.299 / SERVO-882：SocketV2 cleanup transaction idempotency、generation fencing、partial-step recovery 与 native resource close ordering formalization。
