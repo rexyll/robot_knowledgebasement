@@ -466,3 +466,8 @@
 ### §9.3.299｜SERVO-882：SocketV2 cleanup transaction 幂等性、generation fencing、partial-step recovery 与 native resource close ordering formalization
 
 - [2026-11-10 Stäubli SocketV2 cleanup transaction 幂等性、generation fencing、partial-step recovery 与 native resource close ordering formalization](2026-11-10-staubli-socket-v2-cleanup-transaction-idempotency-generation-fencing-partial-recovery-native-close-ordering.md)：定义transaction identity与step journal、幂等副作用分类、generation/revision/attempt-token fencing、partial-step recovery、UNKNOWN隔离/reconcile策略、native资源依赖关闭候选顺序及POSIX close平台语义边界。TX-IDEM-01至05、GEN-FENCE-01至04、PART-REC-01至04、CLOSE-ORD-01至10全部NOT_RUN；仅静态设计，未实现或修改上游，未执行编译/测试。下一节点 §9.3.300 / SERVO-883。
+
+
+### §9.3.300｜SERVO-883：SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy
+
+- [2026-11-10 Stäubli SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy](2026-11-10-staubli-socket-v2-cleanup-dag-platform-close-semantics-residual-reconciliation.md)：定义资源依赖DAG节点/边、owner/barrier完整性、环检测/可达性/版本绑定；整理Linux close、POSIX标准版本、Apple历史文档和Windows Winsock closesocket语义差异；定义residual状态分类、平台probe与owner保留/升级reconciliation策略。DAG-01至04、LINUX-01至04、POSIX-01至02、MAC-01、WIN-01至04、RES-01至06全部NOT_RUN；真实driver DAG尚未从源码提取，平台adapter未实现。下一节点 §9.3.301 / SERVO-884。
