@@ -330,3 +330,5 @@
 - [2026-11-10 Stäubli ROS 2—VAL3通信故障传播、任务调度与恢复闭环审计](2026-11-10-staubli-control-communication-fault-recovery-audit.md)：新增§9.3.267 / SERVO-850，确认VAL3旧命令staleness检查仍为TODO、序号延迟门禁仅在控制活动时运行、resetControlSocket不检查底层复位结果却清除错误标志；ROS连接就绪与状态新鲜度分离，未发现自动重连/会话握手闭环；软件STOP无停止回执，VAL3 GPIO物理输出仍未实现。仅静态审查，未执行CS9/网络故障注入或SIL/HIL/FAT/SAT。
 
 - [2026-11-10 Stäubli ROS 2—断线恢复、会话重同步与命令/状态序号新鲜度审计](2026-11-10-staubli-reconnect-session-sequence-freshness-audit.md)：新增§9.3.268 / SERVO-851，确认Subscriber对每份成功解码数据报刷新接收时间，相同序号的new_message=false未被RobotDriver作为状态拒绝门禁；较小序号一律按uint16回绕处理，缺少乱序/重放窗口和会话epoch；断开重连重置本地subscriber序号基线但无会话连续性握手；现有恢复测试未执行driver disconnect/reconnect。重复帧刷新新鲜度为静态推断，未动态复现。
+
+- [2026-11-10 Stäubli ROS 2—诊断数据通道、控制器状态反馈与安全状态语义审计](2026-11-10-staubli-diagnostic-state-feedback-audit.md)：新增§9.3.269 / SERVO-852，确认connect阶段诊断ready被硬编码为true、未调用read_diagnostic_data且固件版本打印读取默认值；固定VAL3工程未发现诊断帧发送端；DiagnosticData header校验顺序错误；SafetyStatus被压缩为estop_pressed、制动释放由drive power推导，GPIO invalid时保留旧缓存。仅静态审查，未执行畸形帧/CS9/现场验证。
