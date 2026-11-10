@@ -390,3 +390,8 @@
 ### §9.3.283｜SERVO-866：UDP 发送结果契约与状态帧接纳门禁专项设计
 
 - [2026-11-10 Stäubli ROS 2 UDP 发送结果契约与状态帧接纳门禁专项设计](2026-11-10-staubli-udp-send-result-and-state-frame-admission-contract.md)：固定 Stäubli commit `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对 UDP `would_block` 丢包却返回 true 的发送路径、异步接收错误回调、sender endpoint TODO、重复/乱序序号及消息反序列化校验。定义 `NOT_SENT` / `LOCAL_ACCEPTED` / `UNKNOWN` 发送结果；定义 endpoint、精确长度、帧头/字段、16-bit 半空间序号、freshness、generation 和原子快照接纳契约。新增 TX-01至TX-09、RX-01至RX-15、IT-01至IT-06测试规格及 AC-866-01至AC-866-10。仅静态审查和设计，所有测试未执行，未修改上游、未应用 PR。
+
+
+### §9.3.284｜SERVO-867：UDP 故障注入测试夹具与 Mock Socket seam 架构设计
+
+- [2026-11-10 Stäubli UDP 故障注入测试夹具与 Mock Socket seam 架构设计](2026-11-10-staubli-udp-fault-injection-test-harness-and-mock-seam-design.md)：定义窄 `IUdpTransport` / `IMonotonicClock` seam、Mock 与 loopback UDP fixture、确定性事件脚本、datagram/frame/state builder、并发屏障、ROS 2 Control 集成层及不可覆盖的证据归档。所有 UT/IT/SYS 均 NOT_RUN，seam 未实现；未修改上游或应用 PR。下一节点 §9.3.285 / SERVO-868。
