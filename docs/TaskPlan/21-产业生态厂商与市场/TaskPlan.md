@@ -5163,3 +5163,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 实现序号滑动窗口、重复/回退帧拒绝和独立新鲜度门禁；增加boot/session epoch与client nonce握手、命令ID/ack/有效期；远端heartbeat和来源校验；重连后默认STOP/UNARMED、清除旧命令/GPIO缓存并显式重新授权；补充duplicate/reorder/replay/reboot/重连故障注入测试。
 - **状态：** 固定提交静态审查完成；会话重同步与防重放能力未通过工程验收；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.269 / SERVO-852。
+
+
+### §9.3.269｜SERVO-852：诊断数据通道、控制器状态反馈与安全状态语义
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-diagnostic-state-feedback-audit.md](../../audits/2026-11-10-staubli-diagnostic-state-feedback-audit.md)。
+- **范围：** RobotDriver诊断连接/读取、RealTimeSocketSubscriber、DiagnosticDataMessage序列化、StaubliHardwareInterface状态导出/更新、VAL3 updateState/encodeRobotStateMsg/controlTask、诊断示例文档及现有单元测试。
+- **静态结论：**
+  1. connect创建诊断subscriber后，readiness仅检查本地socket与接收线程；connect等待循环将diag_interface_ready硬编码为true，read_diagnostic_data调用仍为TODO。connect随后打印未读取的current_diagnostic_data_默认固件版本0.0.0；型号检查被注释，VAL3兼容检查TODO。
+  2. 固定VAL3工程树未发现DiagnosticData数据库/编码发送任务；controlTask只发送RobotState。单元测试fixture会通过mock diagnostics socket发送数据，但这不是控制器端实现证据；diagnostics.rst仍为“Coming soon :)”。
+  3. DiagnosticDataMessage::deserialize先检查当前对象默认header的payload_size/message_type，再解析wire header；FrameHeader::deserialize只校验magic，读入后未统一验证protocol_version、message_type和payload_size。畸形帧尚未动态注入。
+  4. VAL3 updateState把非零SafetyStatus（等待安全重启、SS1、SS2、等待WMS重启）全部映射为bEStopped；C++将其导出为estop_pressed。bBrakeReleased由isPowered()推导，bMotionPossible未完整考虑操作模式/Hold。它们不能证明急停按钮、制动器物理反馈或安全回路状态。
+  5. controlTask错误处理在复位后清除l_bError；周期状态只提供error_state布尔量，诊断错误日志/control_task_status没有接入HardwareInterface，未形成持久故障记录链。
+  6. VAL3持续将digital/analog input valid flag设为false；HardwareInterface在flag为false时保留旧输入缓存，没有validity/sample-age状态接口，可能让旧值继续显示为当前值。
+- **DS1–DS11状态：** 固定提交静态源码/测试核对完成或确认缺口；DS12畸形帧注入、DS13 CS9安全状态对照、DS14 ROS diagnostics/FRACAS端到端验证、DS15 SIL/HIL/FAT/SAT/实机均未执行或缺现场证据。
+- **整改要求：** connect等待并验证真实诊断帧；修正header解析与统一校验；实现VAL3诊断数据生产发送和ROS diagnostics发布；拆分急停按钮、安全停止类型、等待复位、运动许可；制动释放仅使用真实反馈；建立持久故障事件记录；GPIO无效时显式发布validity/sample age。
+- **状态：** 固定提交静态审查完成；诊断数据端到端、安全状态语义与工程级验收未通过；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.270 / SERVO-853。
