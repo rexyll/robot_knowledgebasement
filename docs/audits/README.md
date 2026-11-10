@@ -369,7 +369,7 @@
   1. read/write ERROR触发HardwareComponent error/on_error，并由ResourceManager撤销故障硬件接口。
   2. Stäubli on_error在driver connected时忽略STOP发送返回值并返回SUCCESS，硬件进入UNCONFIGURED；driver断线时返回ERROR，硬件进入FINALIZED。
   3. on_error未disconnect或执行cleanup；UNCONFIGURED后socket/接收线程可能保持连接，下一次configure时connect才先断开旧连接。
-  4. ResourceManager撤销接口后，ControllerManager仍尝试故障组件mode switch；接口不可用及组件生命周期状态不满足，导致prepare/perform拒绝。该顺序与ros2_control上游Issue #3620记录一致，属于框架交互边界。
+  4. ResourceManager撤销接口后，ControllerManager仍尝试故障组件mode switch；接口不可用及组件生命周期状态不满足，导致prepare阶段因接口不可用而拒绝；perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件。该顺序与ros2_control上游Issue #3620记录一致，属于框架交互边界。
   5. Stäubli现有测试没有覆盖真实ResourceManager/ControllerManager错误传播、接口撤销、控制器停用、FINALIZED和恢复重载。
 - **LC-01至LC-15状态：** 验收矩阵已建立，全部未执行。
 - **整改要求：** 明确可恢复/不可恢复错误分级；让STOP尝试结果和生命周期结果可观测但不把UDP STOP当作安全功能；定义on_error后的socket/线程/缓存/session清理；验证目标Jazzy二进制版本和ControllerManager故障路径。
