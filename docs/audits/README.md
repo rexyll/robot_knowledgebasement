@@ -430,3 +430,8 @@
 ### §9.3.291｜SERVO-874：Socket / Subscriber 初始化与清理契约 API 设计
 
 - [2026-11-10 Stäubli Socket / Subscriber 初始化与清理契约 API 设计](2026-11-10-staubli-socket-subscriber-init-cleanup-contract-api.md)：固定上游静态复核 Socket bool API、UDP PIMPL、Subscriber 构造启动线程/裸 this callback/析构 stop。明确 API 操作结果与资源快照分离；TransportState/ReceiveState 独立建模；connect/disconnect/stop 失败与残留状态语义；幂等 stop 的 callback admission、pending handler、active callback、worker join 屏障；Subscriber 两阶段 start/stop、析构 noexcept best-effort、CleanupReport 和旧 API 兼容迁移策略。新增 API-01至API-18，全部 NOT_RUN；接口未实现，未修改上游或应用 PR。下一节点 §9.3.292 / SERVO-875。
+
+
+### §9.3.292｜SERVO-875：Socket v2 兼容迁移与 UDP 状态观测实现切片设计
+
+- [2026-11-10 Stäubli Socket v2 兼容迁移与 UDP 状态观测实现切片设计](2026-11-10-staubli-socket-v2-compatibility-and-udp-observability-slice-design.md)：确认旧 Socket 是纯虚接口，增加 virtual 会改变 vtable；建议保留旧接口/工厂并新增 SocketV2/SocketFactoryV2 与独立 UDPSocketV2 façade、唯一 UDP Core。确认当前 CMake 主库仅编译 UDP wrapper，TCP factory 明确 unsupported，测试仅实例化 UDP。设计 Asio native handle/local endpoint/thread joinable 与应用侧 handler/callback 计数快照、connect 阶段记录、cancel/drain/join、timeout owner 保留及 V2-0至V2-5迁移切片。V2-API-01至V2-CMAKE-02全部NOT_RUN；未实现、未修改上游或应用PR。下一节点 §9.3.293 / SERVO-876。
