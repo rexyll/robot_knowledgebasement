@@ -177,3 +177,8 @@
 ## 9. 明确未执行事项
 
 未修改固定上游；未创建、应用或合并上游PR；未实施SocketV2/private seam/Fake/CMake改动；未运行CMake configure/build、colcon、gtest、ABI工具、nm/readelf、install-space consumer、plugin load/unload、sanitizer、loopback、SIL/HIL、VAL3/CS9、FAT/SAT或实机测试。未确认硬件/控制器协议兼容性。工程级验收未通过，`TODO-EXT-001`仍未授权。历史同步缺口§9.3.281–§9.3.294继续透明保留，不伪造回填。
+
+
+## 补充勘误（2026-11-10，SERVO-889复核）
+
+此前报告中“TCP源码文件未列入主库”的表述只表示CMake未编译该文件，不表示该文件不存在。进一步固定commit检索确认 `staubli_robot_driver/src/communication/tcp_socket.cpp`确实存在，blob SHA为`cdb18d03b0413cd9d88758c63fefaae51e3f5e29`，实现TCPSocket façade与TCPSocketFactory；但该文件未列入`LIBRARY_SOURCES`，且其include的`tcp_socket_impl.hpp`在预期同目录路径读取404。故TCP Impl闭包仍未完成，且`SocketFactory::create(TCP)`继续抛出not implemented。后续以SERVO-889报告为准；不把TCP facade源文件存在等同于TCP功能可构建/可用。
