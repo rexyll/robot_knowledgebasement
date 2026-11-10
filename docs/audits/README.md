@@ -352,3 +352,6 @@
 
 
 - [2026-11-10 Stäubli ROS 2—UDP接收缓存、序号回绕与重复/乱序数据报新鲜度专项审计](2026-11-10-staubli-udp-cache-sequence-freshness-audit.md)：新增§9.3.277 / SERVO-860，确认C++ Subscriber使用单值最新缓存、重复序号帧仍刷新本地接收时间、序号倒退被无条件当作uint16回绕并污染基线、UDP来源地址检查仍为TODO；VAL3 readData每周期最多两次sioGet且第二帧可能覆盖第一帧；另发现UDP send遇到would_block明确丢包却返回true，可能导致上层误报STOP/命令成功。新增RX-01至RX-14验收矩阵，均未执行。
+
+
+- [2026-11-10 Stäubli ROS 2—UDP协议输入可信边界与状态数据完整性审计](2026-11-10-staubli-udp-protocol-trust-boundary-integrity-audit.md)：新增§9.3.278 / SERVO-861，确认UDP sender_endpoint来源过滤未启用、接收error仍进入回调；C++ FrameHeader只校验magic，RobotState/RobotCommand/DiagnosticData的版本/类型/payload长度校验不统一，DiagnosticData解析前使用对象默认header字段；VAL3检查magic/version但不校验payload_size；协议缺少消息认证与session epoch/抗重放机制，ROS状态层未暴露来源认证和协议拒绝原因。新增UT-01至UT-15验收矩阵，全部未执行。
