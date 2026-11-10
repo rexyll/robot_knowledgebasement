@@ -326,3 +326,5 @@
 - [2026-11-10 Stäubli GPIO协议端到端映射、有效性标志与VAL3执行链审计](2026-11-10-staubli-gpio-protocol-end-to-end-audit.md)：新增§9.3.265 / SERVO-848，确认VAL3每周期将数字/模拟输入valid flag设为false、状态GPIO payload序列化未实现；命令方向数字位图到VAL3数组转换被注释，controlTask数字/模拟物理输出仍为TODO。C++往返单测不覆盖跨语言协议；未执行golden frame、VAL3/CS9、SIL/HIL或实机验证。
 
 - [2026-11-10 Stäubli GPIO物理IO API、型号通道映射与异常输出状态审计](2026-11-10-staubli-gpio-physical-io-mapping-safety-audit.md)：新增§9.3.266 / SERVO-849，固定VAL3工程未见数字/模拟IO读写API，Libraries为空；SIO配置仅含UDP/串口，TX2-60L与MED仅声明16/16/2/2数量而无模块/槽位/端子映射；STOP/ERROR/断线及应用停止未定义GPIO安全态，GPIO文档仍为Coming soon。sio.cfx文本末尾疑似XML未闭合，待VAL3导入器验证；未执行CS9、SIL/HIL或实机测试。
+
+- [2026-11-10 Stäubli ROS 2—VAL3通信故障传播、任务调度与恢复闭环审计](2026-11-10-staubli-control-communication-fault-recovery-audit.md)：新增§9.3.267 / SERVO-850，确认VAL3旧命令staleness检查仍为TODO、序号延迟门禁仅在控制活动时运行、resetControlSocket不检查底层复位结果却清除错误标志；ROS连接就绪与状态新鲜度分离，未发现自动重连/会话握手闭环；软件STOP无停止回执，VAL3 GPIO物理输出仍未实现。仅静态审查，未执行CS9/网络故障注入或SIL/HIL/FAT/SAT。
