@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.61  
+> 版本：v10.62  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.287 / SERVO-870；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行；本轮新增恢复状态机及SERVO864-FI-01至FI-24故障注入设计、AC-01至AC-10验收准则，全部运行时项目未执行。停止请求、本地发送、控制器ACK、运动停止观测和独立安全链确认严格区分；当前协议无独立STOP ACK/command ID，ROS/UDP STOP不是安全功能。UNCONFIGURED与FINALIZED分别定义受控重连和插件卸载/重载路径，故障后禁止自动恢复运动。未执行ResourceManager/ControllerManager运行时联调、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.288 / SERVO-871；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch在prepare阶段因接口不可用被拒绝（perform通常因逻辑AND短路不执行，其生命周期门禁也不允许UNCONFIGURED/FINALIZED组件）（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行；本轮新增恢复状态机及SERVO864-FI-01至FI-24故障注入设计、AC-01至AC-10验收准则，全部运行时项目未执行。停止请求、本地发送、控制器ACK、运动停止观测和独立安全链确认严格区分；当前协议无独立STOP ACK/command ID，ROS/UDP STOP不是安全功能。UNCONFIGURED与FINALIZED分别定义受控重连和插件卸载/重载路径，故障后禁止自动恢复运动。未执行ResourceManager/ControllerManager运行时联调、STOP失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
@@ -4355,3 +4355,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 新增 [Stäubli FakeSocket 状态机伪代码与 AAA 测试矩阵](docs/audits/2026-11-10-staubli-fakesocket-pseudocode-and-aaa-test-matrix.md)。本轮将 FakeSocket 设计细化为连接/接收组合状态机、connect/send/receive/start/stop/disconnect 伪代码、mutex/condition_variable/RAII callback guard、stop 与 deliver 竞态线性化点、事件日志快照语义，并将 FS-01 至 FS-22 全部展开为 Arrange/Act/Assert 与失败证据。冻结关键规则：stop 线性化后拒绝新 callback、等待已登记 callback 归零；stop 故障脚本即使返回 false 也必须完成清理；callback 异常由 RAII 清理后传播，不得吞掉；self-stop/self-disconnect 明确拒绝；双 Fake 不推断跨 socket 全序。区分 Fake 自身测试、RobotDriver/Subscriber 调用方测试、真实 UDP adapter 与 ROS 2 Control/SIL/CS9/HIL 系统验收。
 
 本轮仅完成设计规格与计划同步。FS-01至FS-22全部 NOT_RUN；FakeSocket、RAII guard、事件日志、ManualClock、RobotDriver 注入构造均未实现。未运行 CMake/build、gtest、TSan/ASan、loopback、ROS 2 Control 集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证。未修改 Stäubli/ros2_control 上游，未应用或合并 PR；工程级验收未通过，`TODO-EXT-001`仍未授权。根00-01与第21章21-02仍进行中。下一节点 §9.3.288 / SERVO-871。
+
+
+### 2026-11-10｜v10.62 本轮推进记录（§9.3.288 / SERVO-871）
+
+新增 [Stäubli RobotDriver / Subscriber fixture 生命周期与集成测试映射](docs/audits/2026-11-10-staubli-robotdriver-subscriber-fixture-lifecycle-integration-map.md)。基于固定上游提交静态核对 RobotDriver 双 Socket 所有权、connect 初始化顺序与 rollback 分支、RealTimeSocketSubscriber 构造时启动接收 callback、callback 捕获裸 this、析构 stop 屏障、RobotDriver disconnect reset 顺序、空析构行为及现有 gtest fixture。将 FS-01至FS-22映射到生产调用点，并设计 F0 Fake UT、F1 SubscriberHarness、F2 双 Fake RobotDriver、F3 真实 UDP loopback、F4 ROS 2 Control integration 分层；新增 SD-01至SD-10 调用方测试规格。明确现有 connect 等待循环 500ms sleep、Subscriber/RobotDriver 直接使用 rclcpp::Clock、diagnostics 首帧门禁硬编码、固定 loopback 端口、mock thread join 与 std::async timeout 风险。
+
+本轮仅完成固定上游静态审查与测试设计；未修改 Stäubli/ros2_control 上游，未创建或应用 PR，TODO-EXT-001仍未授权。注入构造、FakeSocket、ManualClock、wait strategy、fixture 均未实现；FS-01至FS-22及SD-01至SD-10全部 NOT_RUN。未运行 build、gtest、loopback、TSan/ASan、ROS 2 Control集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机测试，工程级验收未通过。根00-01与第21章21-02仍进行中。下一节点 §9.3.289 / SERVO-872。
