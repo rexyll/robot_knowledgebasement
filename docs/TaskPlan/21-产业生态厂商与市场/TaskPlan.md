@@ -5271,3 +5271,20 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 定义空闲/STOP/INVALID/ERROR及命令接受状态真值表；调整状态快照与错误事件锁存；明确复位后STOP重武装握手；严格校验新序号/session epoch；为状态接口增加valid/stale及接收时间；完成VAL3-C++ golden frame、恢复状态机与CS9安全验证。
 - **状态：** 固定提交静态审查完成；状态语义、周期一致性、恢复重武装及新鲜度/缓存失效仍存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.275 / SERVO-858。
+
+
+### §9.3.275｜SERVO-858：状态有效性、STOP确认与跨层生命周期故障恢复验收设计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-lifecycle-stop-confirmation-acceptance-audit.md](../../audits/2026-11-10-staubli-lifecycle-stop-confirmation-acceptance-audit.md)。
+- **范围：** StaubliHardwareInterface的read/write/on_activate/on_cleanup/on_shutdown/on_error、command mode switch；RobotDriver STOP发送/断开；MockRobotServer命令接收能力；现有HardwareInterface与RobotDriver测试；ROS 2 Humble lifecycle合同。
+- **静态结论：**
+  1. Humble文档规定read/write返回ERROR触发on_error，on_error返回SUCCESS后组件回到UNCONFIGURED；插件已连接分支只尝试STOP，没有disconnect/reset缓存，通信资源可能仍运行。
+  2. on_error/on_shutdown/write异常路径忽略STOP发送返回值；on_shutdown仅以缓存control_state!=STOP决定是否发送且不检查状态年龄/in_motion，随后立即disconnect。
+  3. on_cleanup只disconnect且忽略结果，未建立先STOP、确认静止、再断开顺序；on_activate只设置本地STOP模式。
+  4. 位置模式perform_command_mode_switch依赖缓存error_state/motion_possible，无新鲜度/序号/session epoch准入检查；read失败后接口缓存不失效。
+  5. 已存在test_staubli_hardware_interface.cpp；但LifecycleTransitions未调用prepare/perform_command_mode_switch，写入position命令后write仍是默认STOP路径；未从mock读取命令或验证STOP反馈，未覆盖错误生命周期。
+- **LF1–LF6状态：** 固定提交源码、测试源码与Humble官方生命周期文档核对完成；LFA-01至LFA-14验收设计已形成，单元/mock集成/SIL/HIL/CS9/安全/FAT/SAT测试均未执行。
+- **整改要求：** lifecycle success必须与socket/thread/cache资源状态一致；所有STOP结果必须区分sent/accepted/stopped；状态过期必须阻止运动模式准入；read失败显式失效缓存；cleanup/shutdown执行有确认条件的停止后断开流程；修订LifecycleTransitions以实际执行位置模式与mock命令回读。
+- **状态：** 静态审计及验收设计完成；STOP确认、生命周期资源一致性、状态有效性传播和测试覆盖仍存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.276 / SERVO-859。
