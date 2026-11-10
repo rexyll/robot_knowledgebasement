@@ -435,3 +435,8 @@
 ### §9.3.292｜SERVO-875：Socket v2 兼容迁移与 UDP 状态观测实现切片设计
 
 - [2026-11-10 Stäubli Socket v2 兼容迁移与 UDP 状态观测实现切片设计](2026-11-10-staubli-socket-v2-compatibility-and-udp-observability-slice-design.md)：确认旧 Socket 是纯虚接口，增加 virtual 会改变 vtable；建议保留旧接口/工厂并新增 SocketV2/SocketFactoryV2 与独立 UDPSocketV2 façade、唯一 UDP Core。确认当前 CMake 主库仅编译 UDP wrapper，TCP factory 明确 unsupported，测试仅实例化 UDP。设计 Asio native handle/local endpoint/thread joinable 与应用侧 handler/callback 计数快照、connect 阶段记录、cancel/drain/join、timeout owner 保留及 V2-0至V2-5迁移切片。V2-API-01至V2-CMAKE-02全部NOT_RUN；未实现、未修改上游或应用PR。下一节点 §9.3.293 / SERVO-876。
+
+
+### §9.3.293｜SERVO-876：SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查
+
+- [2026-11-10 Stäubli SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查](2026-11-10-staubli-socket-v2-public-header-abi-and-udp-core-ownership-design.md)：逐符号审查 legacy Socket/UDPSocket public API、PIMPL、CMake install/export 与 package metadata。提出独立 v2 public headers、private Core、visibility/export macro 与 ABI policy；区分同工具链 C++ source API 和稳定 binary ABI；默认 legacy facade 保持独立，v2 façade 独占 Core，明确 callback/worker shutdown、timeout owner 保留和 factory Result 契约。ABI-0至ABI-5切片、ABI-01至ABI-16全部NOT_RUN；未实现、未修改上游或应用PR。下一节点 §9.3.294 / SERVO-877。
