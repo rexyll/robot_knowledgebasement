@@ -5654,3 +5654,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态：** F01–F16、PLUG-L01–L12映射SPECIFIED；owner/reconcile唯一性DESIGN_REVIEWED；SERVO-881竞态关联STATIC_MAPPED；所有运行测试NOT_RUN；A1.1 BLOCKED。
 - **限制：** 未执行CMake/colcon/gtest、故障注入、线程竞态、plugin load/unload、平台handle reuse、协议仿真、sanitizer或硬件测试；未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续保留。
 - **下一节点：** §9.3.312 / SERVO-895：定义机器可检查的YAML/JSON traceability schema与CI policy contract，包含schema version、stable IDs、owner cardinality、required evidence、status vocabulary和cross-reference integrity；先做schema与静态一致性规格。
+
+
+### §9.3.312｜SERVO-895：机器可检查的 YAML/JSON Traceability Schema 与 CI Policy Contract
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [Traceability Schema v1.0.0 与 CI Policy Contract](../../audits/2026-11-10-staubli-socket-v2-traceability-schema-ci-policy-contract.md)。
+- **机器可检查交付：** 新增JSON Schema Draft 2020-12（`docs/schemas/staubli-lifecycle-traceability.schema.json`）、规范化manifest（`docs/audits/2026-11-10-staubli-socket-v2-lifecycle-traceability-manifest-v1.json`）和CI policy（`docs/ci/staubli-lifecycle-traceability-policy.yml`）。Manifest包含F01–F16与PLUG-L01–L12共28条记录，并将RACE-01–16、EXEC-01–04纳入reference catalog。
+- **合同约束：** 固定schema_version=1.0.0；record/reference IDs唯一；每条资源记录使用单一resource_owner与单一reconcile_coordinator字段；区分生命周期Owner与串行清理执行者；handoff采用prepare/commit；状态词汇为SPECIFIED、STATIC_REVIEWED、DESIGN_REVIEWED、RUN_PASS、RUN_FAIL、NOT_RUN、BLOCKED；RUN_PASS必须有测试日志、不可变环境身份和工件hash；BLOCKED必须说明blocker；NOT_RUN不得自动升级。
+- **静态检查：** 28条记录数正确；record ID/reference ID无重复；Owner/Coordinator字段齐全且单值；所有test_refs均解析到reference_catalog；SPECIFIED记录均具有PRESENT design_spec证据。该检查不等于独立JSON Schema validator或CI pipeline已运行。
+- **验收状态：** Schema、manifest、CI policy为SPECIFIED；本轮manifest静态一致性检查为STATIC_REVIEWED；独立validator、自动化checker、CI、C++/ROS/插件/硬件运行测试均NOT_RUN；A1.1仍BLOCKED。
+- **限制：** 未修改固定上游、未创建/应用/合并上游PR；未实现自动validator/CI checker；未运行JSON Schema validator、CMake/colcon/gtest、故障注入、TSan/ASan、plugin load/unload、clean Jazzy/install consumer/ABI、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.313 / SERVO-896：定义独立manifest validator与CI最小实现规格（JSON Schema validator、cross-reference/owner/evidence policy checks、负向fixture与CI退出码）；先在知识库侧实现并自测，不触碰上游driver。
