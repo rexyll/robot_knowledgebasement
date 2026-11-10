@@ -5528,3 +5528,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **限制：** 未运行CMake/编译/gtest/loopback/故障注入/sanitizer/ROS生命周期或实机验证；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。
 - **历史同步说明：** §9.3.281–§9.3.294历史逐节点同步缺口继续透明保留。
 - **下一节点：** §9.3.303 / SERVO-886：Fake transport seam、socket lifecycle state snapshot与failure-injection contract详细设计（不落上游实现）。
+
+
+### §9.3.303｜SERVO-886：Fake Transport Seam、Socket Lifecycle Snapshot 与 Failure-Injection Contract
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [Stäubli SocketV2 Fake Transport Seam、Lifecycle Snapshot 与 Failure-Injection Contract](../../audits/2026-11-10-staubli-socket-v2-fake-transport-seam-lifecycle-snapshot-failure-injection-contract.md)。
+- **范围：** private transport backend seam；Asio production backend 与 test-only fake backend 隔离；LifecycleSnapshot字段与OBSERVATIONAL/QUIESCENT_BARRIER一致性等级；按generation/operation/attempt/stage/ordinal定位的FailureRule；FAILED_NO_EFFECT、FAILED_PARTIAL_EFFECT、OUTCOME_UNKNOWN、COMPLETED_WITH_ERROR语义；deterministic executor、barrier/latch与fake monotonic clock；F01–F16测试映射。
+- **静态结论：**
+  1. 测试替换点仅在private/detail层；FakeTransport、FaultScript和TestExecutor不得进入安装头文件、生产plugin导出或ROS参数；默认生产构造仍使用Asio backend。
+  2. Fake backend必须建模资源状态与副作用，而非只返回bool；cancel请求与handler完成分离；close区分成功、失败仍open、完成但报错及OUTCOME_UNKNOWN。
+  3. LifecycleSnapshot区分core/generation/revision、TransportState、ReceiveState、pending operation/handler、active callback、worker状态和native状态；普通OBSERVATIONAL快照不能作为CLEAN或释放owner的依据。
+  4. 只有admission关闭、handler/callback drain、worker exit/join及native close/reconcile barrier均通过，才能形成QUIESCENT_BARRIER；UNKNOWN不得折算为CLOSED。
+  5. FailureRule冻结generation、operation、attempt、revision、stage与触发序号；旧revision和stale completion不得覆盖新状态；部分副作用和结果未知必须进入reconcile。
+  6. 确定性执行器通过显式run/cancel/barrier/release/fake steady clock推进事件，不依赖sleep猜测竞态；Fake测试不冒充Boost.Asio或真实OS close行为。
+  7. 将SERVO-885的F01–F16映射到Slice A–F，先完成A1 seam、A2 snapshot、A3 fault script、A4 deterministic driver，再进入callback、worker、close、ROS/plugin与平台验证。
+- **验收状态：** MAP-01至02为SPECIFIED；SEAM-01至04、SNAP-01至04、FAULT-01至04、EXEC-01至04全部NOT_RUN。
+- **状态与限制：** 仅完成测试架构/接口合同静态设计；未实现backend seam、FakeTransport、LifecycleSnapshot、FaultScript或deterministic executor；未执行C++17编译、CMake/gtest、install-space consumer、ABI符号比较、barrier竞态、fake clock、fault injection、TSan/ASan/UBSan、真实UDP/native close、ROS lifecycle/plugin、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。
+- **历史同步说明：** §9.3.281–§9.3.294历史逐节点同步缺口继续透明保留，不伪造回填。
+- **下一节点：** §9.3.304 / SERVO-887：Private transport seam implementation strategy selection、legacy ABI guard 与 test-only dependency wiring review（继续设计审查，不擅自修改上游）。
