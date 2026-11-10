@@ -685,3 +685,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.284 / SERVO-867）
 
 新增 [UDP 故障注入测试夹具与 Mock Socket seam 架构设计](../../audits/2026-11-10-staubli-udp-fault-injection-test-harness-and-mock-seam-design.md)。本轮定义 `IUdpTransport` 发送/接收窄接口、`SendOutcome` 三态结果、Mock/loopback fixture、`IMonotonicClock`/ManualTestClock、确定性 FaultScenario、RawDatagram/ProtocolFrame/RobotState builder、generation 与并发屏障测试、ROS 2 Control 真实集成层及 test-evidence manifest/run-id 归档规范。明确 UT、socket adapter、RobotDriver、ResourceManager/ControllerManager、SIL/CS9/HIL/FAT/SAT 分层，测试未执行统一为 NOT_RUN。未实现 seam/fixture，未运行构建、单测、集成、TSan/ASan、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；未修改 Stäubli/ros2_control 上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`未授权。下一节点 §9.3.285 / SERVO-868。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.285 / SERVO-868）
+
+新增 [CMake/gtest 测试结构与最小 seam 增量实施方案](../../audits/2026-11-10-staubli-cmake-gtest-seam-minimal-increment-plan.md)。基于固定 Stäubli commit 核对 CMake/gtest 注册、既有 `Socket` 纯虚抽象、UDPSocket PIMPL、RobotDriver 默认构造直接创建双 UDP socket、Subscriber 构造启动接收线程及接收/读取时直接使用 `rclcpp::Clock().now()`。确定最小实施方向为保留默认构造并增加双 Socket 注入构造、FakeSocket helper、Subscriber clock seam，沿用既有 `add_unit_test` 注册；明确现有 bool send 和接收 callback 缺 endpoint/error/generation 的覆盖边界。仅静态审查和方案设计，SEAM/FS/CLK/IT 测试全部 NOT_RUN，未实现接口或夹具，未运行构建/单测/集成/TSan/ASan/SIL/HIL/VAL3/CS9/FAT/SAT/实机验证；未修改 Stäubli/ros2_control 上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`未授权。下一节点 §9.3.286 / SERVO-869。
