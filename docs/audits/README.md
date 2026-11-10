@@ -338,3 +338,5 @@
 - [2026-11-10 Stäubli ROS 2—VAL3命令帧入口校验与无效命令处理审计](2026-11-10-staubli-val3-command-frame-ingress-validation-audit.md)：新增§9.3.271 / SERVO-854，确认VAL3 decodeRobotCommandMsg在解析wire header前使用旧对象字段检查长度，decodeHeader未校验wire payload_size，55 B实际帧携带错误payload声明时可能仍被接受；header/type错误早退未在decoder内立即清除旧bIsValid。C++端有47 B payload检查而VAL3端缺失；未执行畸形帧/CS9动态验证。
 
 - [2026-11-10 Stäubli ROS 2—VAL3命令语义、控制周期与数值边界校验审计](2026-11-10-staubli-command-semantic-period-numeric-validation-audit.md)：新增§9.3.272 / SERVO-855，确认remote control period虽解码但未进入控制周期校验/执行闭环；VAL3命令类型范围门禁与真实支持分支不一致；位置目标跳变检查、速度限值/执行仍未实现；模拟输出入口缺少finite/量程检查；现有控制周期测试值0.008与“8 ms”注释不一致。仅静态审查，未执行构建、异常注入、CS9/SIL/HIL或实机验证。
+
+- [2026-11-10 Stäubli ROS 2—控制错误传播、停止路径与恢复授权审计](2026-11-10-staubli-control-error-recovery-authorization-audit.md)：新增§9.3.273 / SERVO-856，确认VAL3运行时错误在状态发布后产生并在同轮清除，存在bInError不可观测风险；resetControlSocket不检查底层调用结果且无条件返回成功；速度模式更新错误分支缺少专用停止调用；恢复等待/人工确认/重新授权仍为TODO；C++ on_error忽略STOP发送结果。仅静态审查，未执行ROS逐周期观测、CS9停止/恢复注入或安全验证。
