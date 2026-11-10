@@ -4726,3 +4726,20 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 静态发现：当前Xacro显式模型校验仅覆盖joint/link名称非空、link数量为joint数量+1和末端执行器父link合法性；kinematics/dynamics/joint_limits/initial_positions/meshes没有统一schema与跨文件校验。关节轴/坐标数组、质量/质心/惯量、位置/速度/加速度/effort限制均在生成宏中直接索引或写入，未见有限性和物理合理性预检。mesh映射直接拼接package/path，宏内未检查资源存在或解析。六轴initial_positions直接写入position state interface initial_value，未见键完整性、有限性和限位范围校验；它只是接口初始值，不代表真实机械臂姿态。真实硬件路径的acceleration接口从max_acceleration生成正负边界，未见该处参数有效性检查。
 
 新增SERVO-837/SC1–SC12验收矩阵；SC1–SC11静态源码核对完成，SC12畸形配置/mesh/多型号负向测试未执行。未运行xacro/URDF/mesh/ROS测试、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。工程级验收仍未通过，`TODO-EXT-001`未授权合并。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.255 / SERVO-838）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。审查文件：`staubli_robot_description/config/tx2_60l/meshes.yaml`、`config/tx2_60l_med/meshes.yaml`、`urdf/include/staubli_helpers.xacro`、`urdf/staubli_macro.xacro`、`urdf/include/default_names.yaml`、`staubli_moveit_config/srdf/staubli.srdf.xacro`、`srdf/staubli_macro.srdf.xacro`、`launch/staubli_moveit.launch.py`、`config/kinematics.yaml`、`config/moveit_controllers.yaml`及`.setup_assistant`。
+
+主要发现：
+
+- 两型号meshes.yaml中base_link、link_1至link_5资源相同；link_6资源不同。标准版使用link_6.dae/link_6.stl，MED使用link_6_L_med.dae/link_6_L_med.stl。未解析二进制网格，不能评价几何尺寸、精度或碰撞包络。
+- URDF宏为每个link分别加载visual与collision mesh，origin均为零偏移/零旋转；未发现网格单位、缩放、包络误差、拓扑/法线和资源版本自动验证。
+- SRDF arm group从base_link（link_names[0]）规划到tool0（end_effector_frame_name）；tool0由URDF固定关节附着到link_6。TX2-60L与MED的tool0 z偏置分别0.07m、0.1344m，实机TCP标定未取得。
+- SRDF显式禁用11组link碰撞：6组相邻Adjacent，以及5组非相邻Never（link_1-link_3、link_2-link_4、link_2-link_5、link_3-link_5、link_3-link_6）。Never禁用依据、姿态采样和MED几何适用性均未见可审计证据；不能将标签解释为已证明永不碰撞。
+- MED使用不同link_6几何，但复用同一套SRDF碰撞禁用矩阵，适用性未验证。
+- MoveIt launch实际加载`srdf/staubli.srdf.xacro`并传入robot_model；`.setup_assistant`却引用`config/tx2_60l.srdf`，该路径未能在固定提交中读取确认存在，属于工具元数据与实际运行入口可能不一致的线索，不据此判定运行时启动失败。
+- MoveIt arm规划组使用KDL；控制器映射声明joint_trajectory_controller及六个关节。未验证运行时控制器、TF、PlanningScene或实际规划执行。
+
+新增SERVO-838/ST1–ST12矩阵。ST1、ST2、ST6、ST8、ST10完成静态配置核对；其余需网格、运行时或动态证据。未执行mesh解析、xacro/URDF/SRDF展开、PlanningScene碰撞采样、TCP标定、MoveIt启动、仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。工程级验收仍未通过，`TODO-EXT-001`未授权合并。
