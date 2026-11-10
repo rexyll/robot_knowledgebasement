@@ -695,3 +695,10 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.286 / SERVO-869）
 
 新增 [FakeSocket 接口契约与生命周期/线程安全设计](../../audits/2026-11-10-staubli-fake-socket-contract-lifecycle-thread-safety.md)。按固定上游 Socket 全部纯虚方法定义 Fake 替身契约、分操作 FIFO 脚本、fail-closed 默认、手动确定性 callback dispatch、取消排队回调、active callback 归零后 stop/join、self-stop 防死锁、结构化事件日志与 FS-01至FS-22 测试矩阵。Fake 不模拟 socket error_code、sender endpoint、内核 UDP 和 Asio cancellation。仅静态审查和设计，测试全部 NOT_RUN，Fake/ManualClock 未实现，未运行构建、gtest、TSan/ASan、ROS 2 Control 集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机；未修改上游、未应用 PR，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.287 / SERVO-870。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.287 / SERVO-870）
+
+新增 [FakeSocket 状态机伪代码与 AAA 测试矩阵](../../audits/2026-11-10-staubli-fakesocket-pseudocode-and-aaa-test-matrix.md)。本轮细化连接/接收状态、合法状态转换、connect/send/receive/start/stop/disconnect 实现级伪代码、mutex/condition_variable/RAII callback guard、stop 与 deliver 的线性化点、事件日志序号与快照语义，并将 FS-01至FS-22逐项写成 Arrange/Act/Assert 及失败证据。特别冻结：stop 线性化后不接受新 callback，等待已登记 callback 归零；stop 失败脚本仍执行完整清理；callback 异常在 RAII 清理后传播；callback 内 self-stop/self-disconnect 拒绝；两个 Fake 不推断跨 socket 全序。Fake 自身测试与 RobotDriver/Subscriber、真实 UDP adapter、ROS 2 Control/SIL/CS9/HIL系统验收分层。
+
+本轮仅静态规格设计，FS-01至FS-22全部 NOT_RUN；FakeSocket、RAII guard、事件日志、ManualClock和RobotDriver注入构造均未实现。未运行构建、gtest、TSan/ASan、loopback、ROS 2 Control集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；未修改上游、未应用PR，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.288 / SERVO-871。
