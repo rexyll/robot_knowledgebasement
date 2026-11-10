@@ -5628,3 +5628,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收状态：** TARGET-01、EXPORT-01、HEADER-01、PACKAGE-DEP-01、PLUGIN-STATIC-01为STATIC_REVIEWED；ARTIFACT-SCHEMA-01为SPECIFIED；ASIO-EXPORT-01、ABI-01为BLOCKED；AMENT-INDEX、CONSUMER A/B、PLUGIN运行、DT_NEEDED/SYMBOLS均NOT_RUN；GATE-01 BLOCKED，A1.1不得启动。
 - **限制：** 仅固定commit静态审查；未运行CMake/colcon/rosdep/gtest/consumer/pluginlib/readelf/nm/ABI/sanitizer或硬件测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.310 / SERVO-893：汇总SocketV2 production/test target隔离、plugin unload与异步callback生命周期屏障、legacy ABI守护矩阵，形成架构决策与验收追踪矩阵；不进入上游实现。
+
+
+### §9.3.310｜SERVO-893：Production/Test 隔离、Plugin Unload 生命周期与 Legacy ABI 架构决策
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，Tree `257face41970c91f95890ddf47db40b168eca331`。
+- **审计报告：** [Production/Test 隔离、Plugin Unload 生命周期与 Legacy ABI 架构决策](../../audits/2026-11-10-staubli-socket-v2-production-test-isolation-plugin-unload-lifecycle-legacy-abi-architecture-decision.md)。
+- **新增源码核验：** UDP async handler以`[this]`捕获UDPSocketImpl；Subscriber callback以`[this]`捕获Subscriber，析构调用stop；UDP stop执行io_service.stop与thread.join，但没有结构化callback drain/lease报告，也未处理join异常；disconnect在close异常后仍将connected flag置false，可能使后续重试误判资源已清理。
+- **ROS/plugin lifecycle风险：** RobotDriver析构为空；HardwareInterface析构调用disconnect但忽略结果；on_cleanup忽略disconnect结果并始终SUCCESS；on_shutdown仅在is_connected为true时disconnect；on_error仅发送STOP，不做完整teardown。上述是静态控制流风险，不代表已复现UAF或资源泄漏。
+- **架构决策：** 冻结private abstract backend interface + PIMPL + 单一SocketCore方向；生产plugin只依赖Asio production target；Fake/FaultScript/DeterministicExecutor仅进入test-only variant/support，禁止安装/导出/链接生产plugin；Fake与Asio复用同一Core状态机源代码。
+- **卸载屏障：** 规定close admission→cancel receive→处理pending handler→drain active callback lease→worker exit/join→native resource reconcile→destroy callback/core→plugin code lease归零→释放plugin DSO。失败时保留唯一owner和Residual/Quarantine，不detach后释放。
+- **ABI守护：** 不改变legacy Socket纯虚接口、SocketFactory签名、既有public类布局/vtable/析构语义；private seam/Fake不进入public/install/ament export；建立ABI header/vtable/layout/symbol/structural diff/consumer/plugin/install/test leakage矩阵。
+- **验收状态：** SRC-LIFE-01至03为STATIC_REVIEWED；ADR-01为DESIGN_DECIDED；ADR-02至04为SPECIFIED；ABI、plugin unload和test-only target运行验收均NOT_RUN或BLOCKED；A1.1-GATE仍BLOCKED。
+- **限制：** 未运行CMake/colcon/gtest/Fake故障注入/callback并发/plugin load-unload/readelf/nm/ABI/sanitizer或硬件测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.311 / SERVO-894：构建生命周期事件—资源状态—owner转移—失败残留—测试用例五维追踪表，映射F01–F16与PLUG-L01–L12并核对唯一reconcile owner；不修改上游。
