@@ -5588,3 +5588,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收：** CALL-01至03、DEP-01至02为STATIC_REVIEWED；CALL-04/05、CMAKE-01、ABI-RECIPE-02、GATE-01为BLOCKED；ABI-RECIPE-01为SPECIFIED；DEP-03、ABI-RECIPE-03等运行项为NOT_RUN。A1.1仍BLOCKED。
 - **限制：** 仅固定commit文件级静态检索与依赖声明检查；未取得完整recursive tree，代码搜索不构成穷尽性证明；未修改上游、未创建/应用/合并PR；未执行CMake/colcon/rosdep/gtest、ABI工具、nm/readelf、install consumer、plugin load/unload、sanitizer或硬件验证；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续保留。
 - **下一节点：** §9.3.307 / SERVO-890：Obtain complete fixed-commit Git tree and resolve TCP implementation closure, CMake variable provenance and clean Jazzy dependency/export consumer feasibility; do not start A1.1 before evidence closure.
+
+
+### §9.3.307｜SERVO-890：固定提交完整 Git Tree、TCP Impl 闭包、CMake 变量来源与 Jazzy Consumer Gate
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`；commit Tree `257face41970c91f95890ddf47db40b168eca331`。
+- **审计报告：** [固定提交完整 Git Tree、TCP Impl 闭包、CMake 变量来源与 Jazzy Consumer Gate](../../audits/2026-11-10-staubli-socket-v2-complete-tree-tcp-closure-cmake-provenance-jazzy-consumer-gate.md)。
+- **完整树证据：** 递归 Git Tree 返回 `truncated=false`、284 entries。无 gitlink/submodule、`.gitmodules`、`.repos` 或 rosinstall manifest。通信目录含tcp_socket.hpp与tcp_socket.cpp，但整个固定树没有tcp_socket_impl.hpp（任何路径均未命中）。
+- **TCP闭包：** tcp_socket.cpp实现TCPSocket façade/TCPSocketFactory，但include缺失的tcp_socket_impl.hpp；该cpp未列入主库LIBRARY_SOURCES；socket_factory.cpp只include UDP façade，TCP分支明确抛出`TCP protocol not implemented yet`。因此TCP façade不可构建/链接/运行，公共工厂拒绝TCP。SERVO-889勘误结论经完整树证据强化。
+- **CMake来源：** 完整树只有五个CMakeLists，无Asio子树、submodule或vcs manifest。固定commit搜索`asio_SOURCE_DIR`仅命中driver CMake PUBLIC include path，未发现变量定义、find_package(asio)、FetchContent、ExternalProject、add_subdirectory或Docker/CI注入；Dockerfile仅基于可变`osrf/ros:${ROS_DISTRO}-desktop-full`，执行rosdep与colcon。该变量来源仍UNRESOLVED。Boost::system由CMake查找/链接，UDP Impl直接include boost/asio.hpp。
+- **依赖声明风险：** package.xml未显式声明boost/backward_ros，但CMake REQUIRED查找；Docker rosdep安装基于package.xml，系统镜像可能预装依赖，故不能推断必然失败。realtime_tools虽在package.xml和ament_target_dependencies中，但未列入ament_export_dependencies，且安装public header include其头文件；install-space consumer风险仍需实测。
+- **验证边界：** 未运行容器、apt/rosdep、CMake、colcon、gtest、install-space consumer、ABI工具或plugin验证。干净Jazzy build/test、CMake变量最终值、export闭包与ABI baseline均NOT_RUN/BLOCKED。
+- **验收状态：** TREE-01至03、TCP-01至03、CMAKE-PROV-01、DEP-01至02为TREE_REVIEWED或STATIC_REVIEWED；CMAKE-PROV-02为UNRESOLVED；JAZZY-01至05、CONSUMER-01、ABI-01全部NOT_RUN；GATE-01仍BLOCKED，A1.1不得启动。
+- **限制：** 仅固定commit只读静态审查；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续保留。
+- **下一节点：** §9.3.308 / SERVO-891：整理clean Jazzy validation harness、dependency provenance evidence package、install-space consumer fixture与A1.1 gate checklist；运行证据缺失时保持NOT_RUN并列出外部CI最小复现要求。
