@@ -4617,3 +4617,51 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 在目标ROS 2/ros2_control、CS9/VAL3、SIL/HIL及FAT/SAT环境验证；软件限幅不能替代独立安全回路。
 
 本轮仅静态审查；未执行构建/测试、xacro展开、URDF解析、JTC/JointLimiter运行、VAL3/CS9、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.252 / SERVO-835。
+
+
+### 2026-11-10｜SERVO-835：VAL3执行端运动指令校验与故障停止链路
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。追踪C++ RobotCommand、VAL3 decodeRobotCommandMsg、controlTask、updateJointPositionControl、updateJointVelocityControl和停止函数。
+
+#### 主要发现
+
+1. VAL3位置控制通过`isInRange(jointRx)`执行控制器侧关节范围检查，超范围会停止movejSync并报错。这修正了SERVO-834“驱动write没有限幅”容易被理解为整条链路无位置保护的边界：执行端存在位置范围检查，但具体型号边界值及其与URDF/YAML的一致性未证实。
+2. 位置控制“目标与当前关节位置是否足够接近”仍是TODO；范围内的大跨度目标缺少仓库可见的目标跳变/单周期变化率检查。
+3. VAL3速度控制的安全限值检查为TODO；`$setVelCmd`仍注释，程序明确not yet implemented并返回错误。速度命令类型可解码，但不代表速度控制已经实现。
+4. 命令解码将controller period读入nRemoteCtrlPeriod，但控制任务和运动执行程序没有使用点，也没有有限性、正值和允许范围检查。
+5. controlTask只检查命令类型数值在0–4；速度类型3仍会进入未实现分支。应建立协议枚举与真实执行能力矩阵。
+6. 从一个运动模式直接切换到另一运动模式需要经过STOP；程序会将本轮切为STOP并置错误。STOP后若机器人状态仍显示运动，也会拒绝重新启动。
+7. 4ms控制周期下，序号差大于5（约20ms）且机器人运动时触发STOP/错误；静止时序号差大于25（约100ms）触发STOP/错误；大于3会告警。但无新消息staleness和丢包检查仍有TODO。
+8. controlTask先发布RobotState中的bInError，再处理命令；本轮后半段发生错误时可能在发布下一帧前被错误处理分支清除，存在故障没有被ROS端观察到的风险。
+9. 错误处理分支仅在当前cmd mode为position时显式调用stopJointPositionControl；速度错误路径没有对应stopJointVelocityControl，而依赖stopMove/resetMotion。需动态确认通用停止函数对所有运动模式的效果。
+10. stopJointPositionControl调用movejSyncEnd后直接报告成功，没有等待机器人静止或验证速度回读；stopJointVelocityControl调用resetMotion后也直接成功。
+11. VAL3 isInRange与ROS型号YAML/URDF/MoveIt limits没有自动对照，配置漂移风险仍存在。
+12. 数字/模拟输出虽被解码，但controlTask中的GPIO执行仍为TODO。
+
+#### SE1–SE12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SE1 | VAL3位置机械关节范围 | isInRange调用存在；具体型号边界未证实 |
+| SE2 | 位置目标跳变/接近度/变化率 | TODO |
+| SE3 | VAL3速度安全限值和执行 | TODO；setVelCmd未实现 |
+| SE4 | controller period校验/用途 | 解码存在；消费与校验未发现 |
+| SE5 | 命令类型与真实能力 | 只检查0–4；速度类型仍未实现 |
+| SE6 | 模式切换STOP门禁 | 静态存在；动态未测 |
+| SE7 | 序号延迟与staleness | 序号差门禁存在；其他TODO |
+| SE8 | 故障发布/锁存/ROS可见 | 发布时序可能先清除；未证实可见 |
+| SE9 | 停止函数和静止确认 | stop/reset存在；无静止回读/超时 |
+| SE10 | VAL3与URDF/YAML/MoveIt边界一致 | 未自动对齐 |
+| SE11 | GPIO输出执行 | 解码存在；执行TODO |
+| SE12 | CS9/VAL3/安全动态验收 | 未执行/未确认 |
+
+#### 整改方向
+
+- 建立控制模式真实能力矩阵；速度控制完成并验证前不得视为可用模式。
+- 增加位置目标跳变/变化率约束，验证isInRange与每型号边界一致。
+- 校验controller period、命令有限性、序号和消息新鲜度。
+- 故障锁存、先发布后恢复，增加停止回执、静止确认、超时和人工复位策略。
+- 对齐CS9、VAL3、URDF、MoveIt及型号YAML限制。
+- 增加命令跳变、越界、延迟/丢包、模式切换、停止失败和故障回执时序测试。
+
+本轮仅静态审查；未执行VAL3编译、CS9仿真/下载、网络故障注入、运动测试、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.253 / SERVO-836。
