@@ -385,3 +385,8 @@
 ### §9.3.282｜SERVO-865：硬件错误恢复实现映射与最小接口契约
 
 - [2026-11-10 Stäubli ROS 2 硬件错误恢复实现映射与最小接口契约](2026-11-10-staubli-ros2-hardware-error-recovery-implementation-mapping.md)：固定 Stäubli commit `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态映射 RobotDriver、StaubliHardwareInterface、UDP socket、实时收发接口及现有测试。确认 UDP send 遇到 `would_block` 时日志报告 packet dropped 却仍返回 true，属于优先修正的 P0 发送结果语义缺口；并识别重复/乱序序号未拒绝、来源 endpoint 校验 TODO、on_error 不 disconnect、STOP 依赖缓存状态、状态快照未整体失效、诊断首帧未实际读取和并发契约不足。定义最小接口契约及 UT/IT 测试映射。仅静态分析，未修改上游、未执行任何测试。
+
+
+### §9.3.283｜SERVO-866：UDP 发送结果契约与状态帧接纳门禁专项设计
+
+- [2026-11-10 Stäubli ROS 2 UDP 发送结果契约与状态帧接纳门禁专项设计](2026-11-10-staubli-udp-send-result-and-state-frame-admission-contract.md)：固定 Stäubli commit `bd658e2d266e315d2ee35f985fb352ea88306b79` 静态核对 UDP `would_block` 丢包却返回 true 的发送路径、异步接收错误回调、sender endpoint TODO、重复/乱序序号及消息反序列化校验。定义 `NOT_SENT` / `LOCAL_ACCEPTED` / `UNKNOWN` 发送结果；定义 endpoint、精确长度、帧头/字段、16-bit 半空间序号、freshness、generation 和原子快照接纳契约。新增 TX-01至TX-09、RX-01至RX-15、IT-01至IT-06测试规格及 AC-866-01至AC-866-10。仅静态审查和设计，所有测试未执行，未修改上游、未应用 PR。
