@@ -461,3 +461,8 @@
 ### §9.3.298｜SERVO-881：SocketV2 QuarantineManager / RetryScheduler concurrency model、lock ordering、executor integration 与 deterministic shutdown race test design
 
 - [2026-11-10 Stäubli SocketV2 QuarantineManager / RetryScheduler concurrency model、lock ordering、executor integration 与 deterministic shutdown race test design](2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md)：定义并发角色、M/E/S/C/L锁域与M->E->S唯一嵌套顺序、锁外cleanup/callback/executor/join、attempt token与generation/revision fencing、owner transfer prepare/commit、executor停止与completion fallback，以及RACE-01至16、LOCK-01至02、EXEC-01至04确定性测试规格。所有验收NOT_RUN；仅静态设计，未实现或修改上游，未执行编译/测试。下一节点 §9.3.299 / SERVO-882。
+
+
+### §9.3.299｜SERVO-882：SocketV2 cleanup transaction 幂等性、generation fencing、partial-step recovery 与 native resource close ordering formalization
+
+- [2026-11-10 Stäubli SocketV2 cleanup transaction 幂等性、generation fencing、partial-step recovery 与 native resource close ordering formalization](2026-11-10-staubli-socket-v2-cleanup-transaction-idempotency-generation-fencing-partial-recovery-native-close-ordering.md)：定义transaction identity与step journal、幂等副作用分类、generation/revision/attempt-token fencing、partial-step recovery、UNKNOWN隔离/reconcile策略、native资源依赖关闭候选顺序及POSIX close平台语义边界。TX-IDEM-01至05、GEN-FENCE-01至04、PART-REC-01至04、CLOSE-ORD-01至10全部NOT_RUN；仅静态设计，未实现或修改上游，未执行编译/测试。下一节点 §9.3.300 / SERVO-883。
