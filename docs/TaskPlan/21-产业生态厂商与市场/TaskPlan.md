@@ -5460,3 +5460,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态与限制：** 仅静态并发/测试设计；manager、scheduler、worker pool、executor bridge与lock instrumentation均未实现；未执行C++17编译、CMake、gtest、fake clock、barrier race、TSan/ASan/UBSan、压力测试、ROS component/plugin、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
 - **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点。
 - **下一节点：** §9.3.299 / SERVO-882：SocketV2 cleanup transaction idempotency、generation fencing、partial-step recovery 与 native resource close ordering formalization。
+
+
+### §9.3.299｜SERVO-882：SocketV2 cleanup transaction 幂等性、generation fencing、partial-step recovery 与 native resource close ordering formalization
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10 Stäubli SocketV2 cleanup transaction 幂等性、generation fencing、partial-step recovery 与 native resource close ordering formalization](../../audits/2026-11-10-staubli-socket-v2-cleanup-transaction-idempotency-generation-fencing-partial-recovery-native-close-ordering.md)。
+- **范围：** transaction identity与step journal；step状态机和幂等副作用分类；generation/revision/attempt-token fencing；partial-step recovery；native resource依赖DAG与close ordering；POSIX close错误语义边界；C++接口草案与验收门禁。
+- **静态结论：**
+  1. transaction key由Core ID、generation、plan revision及transaction sequence组成；同key重复请求合并，不隐式启动第二套cleanup。
+  2. step状态包含NOT_STARTED、CLAIMED、IN_PROGRESS、SUCCEEDED、FAILED_RETRYABLE、FAILED_TERMINAL、OUTCOME_UNKNOWN和SKIPPED；UNKNOWN必须进入reconcile/probe，不可盲目重试。
+  3. 旧generation、旧revision或旧attempt token的结果一律拒绝提交；native handle必须来自事务捕获的旧资源owner，不能从当前Core重新读取可能已复用的fd。
+  4. partial recovery保留SUCCEEDED步骤，只恢复可证明安全的FAILED_RETRYABLE步骤；依赖未满足时后续步骤blocked；预算耗尽保留ResidualResourceHandle。
+  5. 候选关闭顺序为admission关闭、callback ingress停止/drain、async operation处理、worker唤醒/退出/join、protocol/session shutdown、native transport close、buffer释放、ROS entity teardown、plugin lease/code image卸载、Core owner最后释放；最终拓扑须按实际资源依赖DAG验证。
+  6. POSIX close错误/EINTR语义需按目标OS核验；禁止跨平台盲目重试同一整数fd，避免fd复用误关。
+- **验收状态：** TX-IDEM-01至05、GEN-FENCE-01至04、PART-REC-01至04、CLOSE-ORD-01至10全部NOT_RUN。
+- **状态与限制：** 仅静态事务设计；journal、backend、reconciliation、平台close adapter及资源DAG均未实现；未执行C++17编译、CMake、gtest、fake backend、fault injection、fd leak/double-close检查、ASan/UBSan/TSan、ROS component/plugin、ROS 2 Control、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`未授权。
+- **历史同步说明：** 第21章TaskPlan正文仍存在§9.3.281–§9.3.294历史逐节点同步缺口；本轮不伪造缺失节点。
+- **下一节点：** §9.3.300 / SERVO-883：SocketV2 cleanup dependency DAG validation、platform-specific native close semantics evidence matrix 与 residual resource reconciliation policy。
