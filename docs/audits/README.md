@@ -395,3 +395,8 @@
 ### §9.3.284｜SERVO-867：UDP 故障注入测试夹具与 Mock Socket seam 架构设计
 
 - [2026-11-10 Stäubli UDP 故障注入测试夹具与 Mock Socket seam 架构设计](2026-11-10-staubli-udp-fault-injection-test-harness-and-mock-seam-design.md)：定义窄 `IUdpTransport` / `IMonotonicClock` seam、Mock 与 loopback UDP fixture、确定性事件脚本、datagram/frame/state builder、并发屏障、ROS 2 Control 集成层及不可覆盖的证据归档。所有 UT/IT/SYS 均 NOT_RUN，seam 未实现；未修改上游或应用 PR。下一节点 §9.3.285 / SERVO-868。
+
+
+### §9.3.285｜SERVO-868：CMake/gtest 测试结构与最小 seam 增量实施方案
+
+- [2026-11-10 Stäubli CMake/gtest 测试结构与最小 seam 增量实施方案](2026-11-10-staubli-cmake-gtest-seam-minimal-increment-plan.md)：基于固定 commit 核对现有 `Socket` 抽象、RobotDriver 构造依赖、Subscriber 时钟调用、UDPSocket PIMPL 与 CMake/gtest 注册。建议首轮复用 `Socket` 注入 FakeSocket，不另建平行 UDP 抽象；为 Subscriber 注入可控时钟；沿用 `add_unit_test`。列出文件级方案和 SEAM/FS/CLK/IT 矩阵。仅静态审查和设计，所有测试 NOT_RUN，未修改上游或应用 PR。下一节点 §9.3.286 / SERVO-869。
