@@ -5575,3 +5575,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收：** SRC-INV-01至04、ABI-FEAS-01为STATIC_REVIEWED；SRC-INV-05、PLACE-02/03、ABI-FEAS-02/03为BLOCKED或NOT_RUN；PLACE-01为SPECIFIED；ABI-FEAS-04、CMAKE-BASE-01至03为NOT_RUN；GATE-01为BLOCKED，不准进入A1.1代码实现。
 - **限制：** 仅固定commit文件级静态审查；未修改上游、未创建/应用/合并PR；未执行CMake/colcon构建、gtest、ABI工具、nm/readelf、install consumer、plugin load/unload、sanitizer、SIL/HIL或实机测试；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.306 / SERVO-889：Fixed-tree socket include/call-site closure、`asio_SOURCE_DIR` provenance、Boost/rosdep dependency closure 与 ABI baseline build recipe definition；仍先补证据，不进入上游实现。
+
+
+### §9.3.306｜SERVO-889：固定树 Socket 引用闭包、Asio/Boost 依赖来源与 ABI 构建配方审查
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [固定树 Socket 引用闭包、Asio/Boost 依赖来源与 ABI 构建配方审查](../../audits/2026-11-10-staubli-socket-v2-fixed-tree-include-callsite-dependency-closure-abi-recipe.md)。
+- **关键勘误：** 固定提交确实存在`src/communication/tcp_socket.cpp`（blob `cdb18d03b0413cd9d88758c63fefaae51e3f5e29`），实现TCPSocket façade与TCPSocketFactory；但它未加入主库`LIBRARY_SOURCES`，其include的`tcp_socket_impl.hpp`在预期同目录路径404，代码搜索仅找到该include引用。SocketFactory对TCP仍抛出not implemented。TCP应描述为facade源文件存在但未编译、Impl闭包未完成，而不是源文件不存在。SERVO-888报告已追加勘误。
+- **调用链静态发现：** UDP factory -> UDPSocket façade -> UDPSocketImpl；UDP实现直接包含`boost/asio.hpp`。RobotDriver和MockRobotServer构造控制/诊断UDP sockets；TCP façade没有进入SocketFactory的实际TCP分支。
+- **依赖闭包发现：** CMake查找Boost system并链接Boost::system，但package.xml未声明boost；CMake REQUIRED查找backward_ros，但package.xml未声明backward_ros；`asio_SOURCE_DIR`在CMake PUBLIC include路径中只有使用点，没有发现定义；`realtime_tools`出现在package.xml和ament_target_dependencies，但未出现在ament_export_dependencies，而安装public header直接包含realtime_tools头。以上是静态声明不对称风险，必须用干净ROS Jazzy环境rosdep/colcon和install-space consumer验证，不能仅据此断言必然构建失败。
+- **ABI构建配方：** SPECIFIED了固定Ubuntu镜像digest、ROS Jazzy apt snapshot、GCC/binutils/CMake/Boost精确版本、源码/vcs SHA、colcon参数、compile_commands、so/debug symbols、install manifest、plugin metadata和ABI工具归档流程；尚未执行或锁定。
+- **验收：** CALL-01至03、DEP-01至02为STATIC_REVIEWED；CALL-04/05、CMAKE-01、ABI-RECIPE-02、GATE-01为BLOCKED；ABI-RECIPE-01为SPECIFIED；DEP-03、ABI-RECIPE-03等运行项为NOT_RUN。A1.1仍BLOCKED。
+- **限制：** 仅固定commit文件级静态检索与依赖声明检查；未取得完整recursive tree，代码搜索不构成穷尽性证明；未修改上游、未创建/应用/合并PR；未执行CMake/colcon/rosdep/gtest、ABI工具、nm/readelf、install consumer、plugin load/unload、sanitizer或硬件验证；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续保留。
+- **下一节点：** §9.3.307 / SERVO-890：Obtain complete fixed-commit Git tree and resolve TCP implementation closure, CMake variable provenance and clean Jazzy dependency/export consumer feasibility; do not start A1.1 before evidence closure.
