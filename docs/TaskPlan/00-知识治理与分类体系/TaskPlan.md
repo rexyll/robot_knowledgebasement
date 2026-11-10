@@ -729,3 +729,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.292 / SERVO-875）
 
 新增 [Socket v2 兼容迁移与 UDP 状态观测实现切片设计](../../audits/2026-11-10-staubli-socket-v2-compatibility-and-udp-observability-slice-design.md)。固定上游复核 Socket 纯虚接口、UDP PIMPL、TCP wrapper、factory、CMake 和 socket tests。确认给旧 Socket 增加 virtual 会改变 vtable；建议旧 Socket/SocketFactory 保持不变，新增 SocketV2/SocketFactoryV2 与独立 UDPSocketV2 façade，底层唯一 UDP Core。CMake 当前只编译 udp_socket.cpp，factory 对 TCP 明确 unsupported，socket tests 只实例化 UDP。定义基于 Asio is_open/local_endpoint、remote resolve、thread.joinable 与应用侧 handler/callback 计数的 snapshot，connect 分阶段记录，cancel/drain/join 与 timeout 后 Core owner 保留；分 V2-0至V2-5推进。V2-API-01至V2-CMAKE-02全部NOT_RUN，未新增接口或修改上游。未运行构建、gtest、loopback、TSan/ASan、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；TODO-EXT-001未授权，工程级验收未通过。下一节点 §9.3.293 / SERVO-876。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.293 / SERVO-876）
+
+新增 [SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查](../../audits/2026-11-10-staubli-socket-v2-public-header-abi-and-udp-core-ownership-design.md)。固定上游审查 public declarations、PIMPL、CMake 安装/导出和 package metadata。确认当前没有专用 visibility/export macro 或显式 ABI policy；include/整体安装、SHARED target 导出并不等于跨平台 ABI 保证。设计独立 v2 public header 与 private Core；区分含 STL value types 的同工具链 source API 与稳定 binary ABI；明确 enum 固定 underlying/value、symbol visibility、legacy facade 独立保留、v2 facade 独占 Core、callback/worker shutdown 顺序、timeout 后 owner 保留及禁止 worker self-cycle/detach。新增 ABI-0至ABI-5切片和 ABI-01至ABI-16验收规格，全部NOT_RUN；未新增头文件/宏/Core/factory，未修改上游。未运行编译、gtest、nm/readelf、DLL smoke、TSan、loopback、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.294 / SERVO-877。
