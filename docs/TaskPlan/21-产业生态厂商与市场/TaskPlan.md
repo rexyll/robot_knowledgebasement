@@ -5602,3 +5602,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收状态：** TREE-01至03、TCP-01至03、CMAKE-PROV-01、DEP-01至02为TREE_REVIEWED或STATIC_REVIEWED；CMAKE-PROV-02为UNRESOLVED；JAZZY-01至05、CONSUMER-01、ABI-01全部NOT_RUN；GATE-01仍BLOCKED，A1.1不得启动。
 - **限制：** 仅固定commit只读静态审查；未修改上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续保留。
 - **下一节点：** §9.3.308 / SERVO-891：整理clean Jazzy validation harness、dependency provenance evidence package、install-space consumer fixture与A1.1 gate checklist；运行证据缺失时保持NOT_RUN并列出外部CI最小复现要求。
+
+
+### §9.3.308｜SERVO-891：Clean Jazzy Validation Harness、Dependency Provenance 与 Install Consumer Gate
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [Clean Jazzy Validation Harness、Dependency Provenance 与 Install Consumer Gate](../../audits/2026-11-10-staubli-socket-v2-clean-jazzy-validation-harness-dependency-provenance-install-consumer-gate.md)。
+- **新增Dockerfile事实：** 固定上游Dockerfile在colcon build后删除`/opt/ros/staubli/staubli_robot_driver/include/`。该镜像最终文件系统不能作为public-header/install-space consumer基线；必须针对未裁剪install space执行独立consumer。
+- **验证方案：** SPECIFIED clean Noble/Jazzy runner输入锁定（OCI digest、apt snapshot、工具链/ROS/Boost精确版本）、固定commit checkout、rosdep/build/test日志、CMake/Asio provenance采集、install manifest与工件hash归档。定义两轮独立consumer：仅声明staubli_robot_driver，以及显式增加realtime_tools；分别记录头文件/ament export闭包结果。
+- **ABI证据包：** 规定so/debug symbols、compile_commands、CMakeCache/target属性、readelf/nm、ABI工具版本与输出、plugin metadata、install manifest和SHA256归档。单次构建产物仅为候选baseline，不等于兼容性结论。
+- **A1.1门禁：** G-01固定源码STATIC_REVIEWED；G-02镜像/apt锁定NOT_RUN；G-03 Asio来源BLOCKED；G-04依赖闭包NOT_RUN；G-05 clean build、G-06 tests、G-07 consumer、G-09 plugin/export、G-10测试隔离均NOT_RUN；G-08 ABI baseline BLOCKED；G-11 scope authorization BLOCKED。A1.1继续禁止启动。
+- **验收状态：** HARNESS-01、DEPS-01、CONSUMER-01为SPECIFIED；DOCKER-01为STATIC_REVIEWED；BUILD-01、TEST-01、CONSUMER-RUN-01、ABI-01、PLUGIN-01均NOT_RUN；GATE-01 BLOCKED。
+- **限制：** 本节点只提供外部执行模板和fixture，不表示已执行验证；未运行Docker/apt/rosdep/CMake/colcon/gtest/consumer/ABI/plugin/sanitizer或硬件测试；未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.309 / SERVO-892：静态核验安装导出与plugin packaging（exported CMake targets/config、ament index、plugin XML安装路径、public header闭包与动态库依赖），并定义CI artifact acceptance schema；不把本轮SPECIFIED误记为运行PASS。
