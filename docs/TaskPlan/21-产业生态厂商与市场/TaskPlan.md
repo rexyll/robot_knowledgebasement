@@ -5326,3 +5326,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 写入缓存前校验sender/session/sequence；使用半区间模序规则拒绝重复/旧帧；明确最新值/队列语义与溢出策略；重复帧不得刷新last_fresh_timestamp；VAL3明确每周期接收上限与队列积压策略；would_block必须返回DROPPED/false并计数。
 - **状态：** 静态审计完成；状态缓存保序、来源校验、回绕/乱序过滤和发送丢包传播存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.278 / SERVO-861。
+
+
+### §9.3.278｜SERVO-861：UDP协议输入可信边界与状态数据完整性审计
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-udp-protocol-trust-boundary-integrity-audit.md](../../audits/2026-11-10-staubli-udp-protocol-trust-boundary-integrity-audit.md)。
+- **范围：** UDPSocketImpl来源端点与接收错误路径；FrameHeader；RobotState/RobotCommand/DiagnosticData反序列化；RobotDriver状态有效性/新鲜度；VAL3 decodeHeader/readDataOnce/decodeRobotCommandMsg；ROS状态接口与现有通信测试。
+- **静态结论：**
+  1. UDP接收端保存sender_endpoint_，但来源IP过滤仍为TODO注释，未强制校验来源IP/端口。
+  2. handle_data_received在error非空时只记录错误，仍调用接收回调；异常路径可能把非有效接收缓冲区交给反序列化，具体影响待注入确认。
+  3. C++ FrameHeader::deserialize只检查magic；RobotState缺wire type/version/payload_size校验；RobotCommand检查type/length但不检查version；DiagnosticData在解析wire header前检查对象默认字段，随后未校验wire payload_size。
+  4. 多类消息只检查buffer_size不小于固定长度，未统一拒绝超长数据报/尾随字节。
+  5. VAL3 decodeHeader检查magic/version但未校验payload_size，C++/VAL3输入长度与字段校验契约不一致。
+  6. 协议无MAC/签名、controller boot ID/session nonce/epoch，不能提供发送者认证、消息完整性或跨会话抗重放。
+  7. ROS状态层未暴露来源认证、session epoch、协议拒绝原因/计数；本地接收时间不等同于可信来源。
+- **UT1–UT7状态：** 固定提交源码、协议、VAL3与现有测试源码静态核对完成；UT-01至UT-15验收矩阵已建立，全部未执行。
+- **整改要求：** 在回调前校验来源端点并隔离错误接收；统一解析wire header后验证magic/version/type/payload_size/精确总长度；引入带密钥的消息认证与会话nonce/epoch/重放窗口；增加跨语言有效/畸形黄金向量；将valid/stale/unauthenticated/wrong-source/malformed/replay状态与计数向ROS层显式传播。
+- **状态：** 静态审计完成；来源认证、协议字段一致性、消息完整性和会话抗重放存在P0缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.279 / SERVO-862。
