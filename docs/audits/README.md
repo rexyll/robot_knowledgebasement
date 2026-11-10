@@ -346,3 +346,6 @@
 
 
 - [2026-11-10 Stäubli ROS 2—状态有效性、STOP确认与跨层生命周期故障恢复验收设计](2026-11-10-staubli-lifecycle-stop-confirmation-acceptance-audit.md)：新增§9.3.275 / SERVO-858，确认on_error返回SUCCESS后生命周期按Humble契约进入UNCONFIGURED，但插件未disconnect/reset缓存；STOP发送结果与回调成功脱钩；cleanup/shutdown缺少可靠停止确认；位置模式切换未检查状态新鲜度；read失败不失效缓存。更正现有HardwareInterface测试覆盖边界：LifecycleTransitions未调用prepare/perform，write仍走STOP路径且没有mock命令回读。新增LFA-01至LFA-14验收设计；所有测试未执行。
+
+
+- [2026-11-10 Stäubli ROS 2—STOP命令接收确认与状态反馈关联协议审计](2026-11-10-staubli-stop-command-ack-sequence-correlation-audit.md)：新增§9.3.276 / SERVO-859，确认本地send成功不是远端ACK；RobotCommand序号回显最近RobotState序号而非独立command ID；协议无STOP ACK/命令结果字段；VAL3未见去重、乱序拒绝和session epoch；重复状态数据报会刷新接收时间，可能续新鲜度。新增ACKT-01至ACKT-13验收矩阵，均未执行。
