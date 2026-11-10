@@ -690,3 +690,8 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.285 / SERVO-868）
 
 新增 [CMake/gtest 测试结构与最小 seam 增量实施方案](../../audits/2026-11-10-staubli-cmake-gtest-seam-minimal-increment-plan.md)。基于固定 Stäubli commit 核对 CMake/gtest 注册、既有 `Socket` 纯虚抽象、UDPSocket PIMPL、RobotDriver 默认构造直接创建双 UDP socket、Subscriber 构造启动接收线程及接收/读取时直接使用 `rclcpp::Clock().now()`。确定最小实施方向为保留默认构造并增加双 Socket 注入构造、FakeSocket helper、Subscriber clock seam，沿用既有 `add_unit_test` 注册；明确现有 bool send 和接收 callback 缺 endpoint/error/generation 的覆盖边界。仅静态审查和方案设计，SEAM/FS/CLK/IT 测试全部 NOT_RUN，未实现接口或夹具，未运行构建/单测/集成/TSan/ASan/SIL/HIL/VAL3/CS9/FAT/SAT/实机验证；未修改 Stäubli/ros2_control 上游、未应用 PR，工程级验收未通过，`TODO-EXT-001`未授权。下一节点 §9.3.286 / SERVO-869。
+
+
+### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.286 / SERVO-869）
+
+新增 [FakeSocket 接口契约与生命周期/线程安全设计](../../audits/2026-11-10-staubli-fake-socket-contract-lifecycle-thread-safety.md)。按固定上游 Socket 全部纯虚方法定义 Fake 替身契约、分操作 FIFO 脚本、fail-closed 默认、手动确定性 callback dispatch、取消排队回调、active callback 归零后 stop/join、self-stop 防死锁、结构化事件日志与 FS-01至FS-22 测试矩阵。Fake 不模拟 socket error_code、sender endpoint、内核 UDP 和 Asio cancellation。仅静态审查和设计，测试全部 NOT_RUN，Fake/ManualClock 未实现，未运行构建、gtest、TSan/ASan、ROS 2 Control 集成、SIL/HIL、VAL3/CS9、FAT/SAT或实机；未修改上游、未应用 PR，工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.287 / SERVO-870。
