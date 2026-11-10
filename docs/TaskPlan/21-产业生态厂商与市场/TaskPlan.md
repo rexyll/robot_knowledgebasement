@@ -5066,7 +5066,7 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 
 ### 2026-11-10｜Stäubli专项审查推进记录（§9.3.263 / SERVO-846）
 
-固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮沿SERVO-845继续审查GPIO数量配置的输入校验与Xacro递归边界，新增审计记录见 [2026-11-10-staubli-gpio-configuration-validation-addendum.md](../../../audits/2026-11-10-staubli-gpio-configuration-validation-addendum.md)。
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮沿SERVO-845继续审查GPIO数量配置的输入校验与Xacro递归边界，新增审计记录见 [2026-11-10-staubli-gpio-configuration-validation-addendum.md](../../audits/2026-11-10-staubli-gpio-configuration-validation-addendum.md)。
 
 主要结论：
 1. `load_robot_model_config`直接读取四个GPIO数量字段；`check_robot_model_config`仅检查关节/连杆数组和末端执行器父连杆，不校验GPIO字段存在性、整数类型、非负性或协议上限。
