@@ -375,3 +375,8 @@
 - **整改要求：** 明确可恢复/不可恢复错误分级；让STOP尝试结果和生命周期结果可观测但不把UDP STOP当作安全功能；定义on_error后的socket/线程/缓存/session清理；验证目标Jazzy二进制版本和ControllerManager故障路径。
 - **状态：** 固定提交静态审计完成；断线FINALIZED恢复策略、STOP发送结果与生命周期SUCCESS脱钩、on_error资源清理和故障mode-switch交互存在P0/P1缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.281 / SERVO-864。
+
+
+### §9.3.281｜SERVO-864：硬件错误恢复状态机与故障注入验收设计
+
+- [2026-11-10 Stäubli ROS 2 硬件错误恢复状态机与故障注入验收设计](2026-11-10-staubli-ros2-hardware-error-recovery-state-machine-fault-injection-design.md)：在固定 Stäubli 与 ros2_control Jazzy 提交上，设计 RUNNING→ERROR_DETECTED→STOP_REQUESTED→接口撤销→UNCONFIGURED/FINALIZED→重连→SESSION_VALIDATING→INACTIVE→ACTIVE 恢复状态机；区分本地 STOP 发送、控制器 ACK、运动停止观测和独立安全链安全确认。当前协议无独立 STOP ACK/command ID，ROS/UDP STOP 不得视为安全功能。新增 SERVO864-FI-01 至 FI-24 故障注入矩阵及 AC-01 至 AC-10 验收准则；全部运行时项目未执行，未修改上游或应用 PR。
