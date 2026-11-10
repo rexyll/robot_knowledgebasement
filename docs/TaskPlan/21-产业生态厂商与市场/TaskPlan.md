@@ -4665,3 +4665,50 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 增加命令跳变、越界、延迟/丢包、模式切换、停止失败和故障回执时序测试。
 
 本轮仅静态审查；未执行VAL3编译、CS9仿真/下载、网络故障注入、运动测试、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.253 / SERVO-836。
+
+
+### 2026-11-10｜SERVO-836：机器人型号配置、VAL3运动参数与CS9版本一致性
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。比较TX2-60L与TX2-60L-MED配置、xacro加载链、VAL3工程版本/数据库、位置和速度控制程序。
+
+#### 主要发现
+
+1. TX2-60L与TX2-60L-MED的`joint_limits.yaml`具有相同blob SHA，六轴位置/速度/加速度限制完全相同；两套`kinematics.yaml`和`dynamics.yaml`也分别完全相同。MED的robot_model.yaml至少将end_effector.z从0.07m改为0.1344m；不能从目录名推断MED拥有独立关节限制，型号适用性仍需供应方确认。
+2. `launch_robot_control.launch.py`将robot_model传入`staubli.urdf.xacro`；顶层xacro按`config/<robot_model>/`装载robot_model、kinematics、dynamics、joint_limits和meshes配置。未见型号白名单和跨文件一致性预检。
+3. bringup controller_manager只加载controllers.yaml，没有把MoveIt joint_limits.yaml加载到硬件插件；规划层限幅不等于硬件/VAL3限制。
+4. `ros2_server.pjx`固定声明`s8.20.2Cs9_BS4270`版本；未见CS9/VAL3软件版本兼容矩阵或自动检测。
+5. `ros2_server.dtx`未定义motionCfgVel或逐关节速度/加速度配置对象；只有控制socket、overrun、mdesc和错误计数等数据。
+6. VAL3速度程序中的`$velJoint(motionCfgVel.tTool,motionCfgVel.mMaxSpeed)`为注释；安全限值检查TODO，`$setVelCmd`也为注释。仓库未发现其他有效调用点，速度控制参数化和执行仍未实现。
+7. 位置程序调用`isInRange`，但没有具体限值表或与型号YAML同步的生成机制；不能证明CS9边界与ROS模型一致。
+8. VAL3数据库/启动代码只显式设置`mMdesc.blend=off`；未见速度、加速度、减速度、jerk等运动参数显式设置。实际控制器默认参数需要导出验证。
+9. 两个型号末端工具偏置不同，可能影响TCP和规划几何；本轮未做标定、碰撞模型或实机轨迹验证。
+10. 未发现ROS YAML、URDF、VAL3和CS9配置之间的统一版本标识或自动差异检查；配置漂移风险存在。
+
+#### SM1–SM12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SM1 | 两型号关节限制差异 | YAML相同；适用性未确认 |
+| SM2 | 两型号运动学/动力学差异 | 文件相同；适用性未确认 |
+| SM3 | TCP/工具偏置 | 0.07m vs 0.1344m；未实机标定 |
+| SM4 | robot_model到xacro配置选择 | 路径明确；白名单/预检未见 |
+| SM5 | controller_manager限制配置 | 仅controllers.yaml；未加载MoveIt limits |
+| SM6 | CS9/VAL3版本兼容 | pjx固定版本；兼容矩阵缺失 |
+| SM7 | VAL3速度配置对象 | 未见motionCfgVel/逐轴参数 |
+| SM8 | 速度执行与限值 | velJoint/setVelCmd注释；限值TODO |
+| SM9 | isInRange与型号边界 | 调用存在；具体映射未证实 |
+| SM10 | 位置速度/加速度/jerk参数 | 仅blend=off可见 |
+| SM11 | 多层配置自动一致性 | 未发现自动对照机制 |
+| SM12 | xacro/CS9/实机验收 | 未执行/未确认 |
+
+#### 整改方向
+
+- 按精确型号、机械臂修订、CS9版本、负载、工具/TCP建立配置矩阵。
+- 自动比较型号YAML、URDF、MoveIt、VAL3和CS9限值；差异阻断发布。
+- 补充型号白名单、文件存在性、单位/范围和xacro展开断言。
+- 获取CS9实际限值、运动参数、负载和工具配置导出并版本化。
+- 速度控制实现前保持不支持；实现后验证逐轴速度、加速度、jerk及故障停止。
+- 完成MED与标准型号的TCP标定、碰撞模型和实机轨迹验收。
+- 取得CS9/VAL3兼容矩阵，执行VAL3编译、仿真、SIL/HIL、FAT/SAT和实机验收。
+
+本轮仅静态审查；未执行xacro/URDF、VAL3编译、CS9配置读取/下载、TCP标定、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
