@@ -320,3 +320,5 @@
 - [2026-11-09 Stäubli命令序号关联与确认闭环审计追加件](2026-11-09-staubli-moveit-mesh-filter-lifecycle-addendum.md)：新增§9.3.209。发现hardware write命令序号复用最近一次有效机器人状态序号；协议MessageType未定义独立ACK/command-result，send_robot_command不等待控制器接收/接受/执行确认；状态subscriber只跟踪状态帧序号，不关联待确认命令；未发现命令ACK超时、重发、去重或重连清理状态机。命令序号协议意图需CS9/VAL3规范确认。新增SERVO-792/AW1–AW10，AW1–AW9静态核对完成，AW10需协议规范及CS9/HIL证据。
 
 - [2026-11-10 Stäubli GPIO型号配置校验与Xacro递归边界审计追加件](2026-11-10-staubli-gpio-configuration-validation-addendum.md)：新增§9.3.263 / SERVO-846，确认Xacro模型配置校验未覆盖GPIO数量schema、GPIO递归宏以相等作为终止条件、C++ std::stoul未检查完整字符串消费；非法输入边界及Xacro展开未执行。
+
+- [2026-11-10 Stäubli GPIO接口导出、状态更新与生命周期缓存一致性审计追加件](2026-11-10-staubli-gpio-interface-lifecycle-audit.md)：新增§9.3.264 / SERVO-847，静态核对Xacro与C++接口命名/类别一致；发现GPIO输入字段缺失时保留旧值且read仍可能成功、生命周期激活未重置GPIO输出命令缓存而write在STOP模式仍发送输出；需mock与生命周期测试验证。
