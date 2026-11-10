@@ -4712,3 +4712,17 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 取得CS9/VAL3兼容矩阵，执行VAL3编译、仿真、SIL/HIL、FAT/SAT和实机验收。
 
 本轮仅静态审查；未执行xacro/URDF、VAL3编译、CS9配置读取/下载、TCP标定、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.254 / SERVO-837）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮核对：
+
+- `staubli_robot_description/urdf/include/staubli_helpers.xacro`：配置loader、`check_robot_model_config`、`add_joint`、`add_link`、`get_mesh`。
+- `staubli_robot_description/urdf/staubli.urdf.xacro`、`staubli_macro.xacro`：模型参数及六类配置文件装载链。
+- `staubli_robot_description/r2c/staubli.r2c.xacro`、`r2c/include/staubli_r2c_joints.xacro`：真实硬件加速度接口和关节初始状态生成。
+- `config/tx2_60l/robot_model.yaml`、`config/tx2_60l_med/robot_model.yaml`、`config/tx2_60l/meshes.yaml`、`config/initial_positions.yaml`、`urdf/include/default_names.yaml`。
+
+静态发现：当前Xacro显式模型校验仅覆盖joint/link名称非空、link数量为joint数量+1和末端执行器父link合法性；kinematics/dynamics/joint_limits/initial_positions/meshes没有统一schema与跨文件校验。关节轴/坐标数组、质量/质心/惯量、位置/速度/加速度/effort限制均在生成宏中直接索引或写入，未见有限性和物理合理性预检。mesh映射直接拼接package/path，宏内未检查资源存在或解析。六轴initial_positions直接写入position state interface initial_value，未见键完整性、有限性和限位范围校验；它只是接口初始值，不代表真实机械臂姿态。真实硬件路径的acceleration接口从max_acceleration生成正负边界，未见该处参数有效性检查。
+
+新增SERVO-837/SC1–SC12验收矩阵；SC1–SC11静态源码核对完成，SC12畸形配置/mesh/多型号负向测试未执行。未运行xacro/URDF/mesh/ROS测试、CS9/VAL3、SIL/HIL、FAT/SAT或实机验收；未修改上游、未应用PR。工程级验收仍未通过，`TODO-EXT-001`未授权合并。
