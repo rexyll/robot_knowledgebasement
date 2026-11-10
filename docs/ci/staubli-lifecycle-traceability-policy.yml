@@ -1,0 +1,78 @@
+schema_version: "1.0.0"
+manifest: docs/audits/2026-11-10-staubli-socket-v2-lifecycle-traceability-manifest-v1.json
+schema: docs/schemas/staubli-lifecycle-traceability.schema.json
+scope:
+  upstream_repository: ICube-Robotics/staubli_driver_ros2
+  upstream_commit: bd658e2d266e315d2ee35f985fb352ea88306b79
+  audit_only: true
+  implementation_authorized: false
+stable_ids:
+  required_prefixes: [F, PLUG-L, RACE, EXEC]
+  uniqueness_scope: manifest_and_reference_catalog
+  immutable_after_publication: true
+ownership:
+  resource_owner_cardinality: exactly_one_per_resource_generation
+  reconcile_coordinator_cardinality: exactly_one_per_resource_generation
+  owner_and_coordinator_may_differ: true
+  handoff: atomic_move_only_prepare_commit
+  reject_if: [zero_owner, multiple_owners, zero_coordinators, multiple_coordinators, ambiguous_generation]
+evidence:
+  allowed_kinds: [design_spec, source_review, test_log, environment_manifest, artifact_hash, hardware_acceptance]
+  status_requirements:
+    SPECIFIED: [design_spec]
+    STATIC_REVIEWED: [design_spec, source_review]
+    DESIGN_REVIEWED: [design_spec, source_review]
+    RUN_PASS: [test_log, environment_manifest, artifact_hash]
+    RUN_FAIL: [test_log, environment_manifest, artifact_hash]
+    NOT_RUN: []
+    BLOCKED: []
+  runtime_pass_requires:
+    - immutable_environment_identity
+    - command_and_exit_code
+    - raw_log_uri
+    - artifact_sha256
+    - test_scope_and_result
+  hardware_acceptance_requires:
+    - controller_and_robot_model
+    - firmware_and_configuration_revision
+    - safety_chain_and_operating_mode
+    - measured_result_and_acceptance_limit
+    - signed_or_attributable_record
+statuses:
+  vocabulary: [SPECIFIED, STATIC_REVIEWED, DESIGN_REVIEWED, RUN_PASS, RUN_FAIL, NOT_RUN, BLOCKED]
+  default: NOT_RUN
+  forbidden_inference:
+    - SPECIFIED_is_not_reviewed
+    - STATIC_REVIEWED_is_not_runtime_pass
+    - stop_requested_is_not_joined
+    - connected_false_is_not_native_closed
+    - local_socket_closed_is_not_remote_session_acked
+    - quarantine_handoff_is_not_plugin_unload_safe
+cross_references:
+  all_test_refs_must_resolve_in_reference_catalog: true
+  duplicate_record_ids: error
+  duplicate_reference_ids: error
+  dangling_refs: error
+  missing_required_evidence: error
+  evidence_uri_must_be_repo_relative_or_immutable_external_uri: true
+  sha256_required_for: [test_log, environment_manifest, artifact_hash, hardware_acceptance]
+ci_policy:
+  validation_order:
+    - json_parse
+    - json_schema_validation
+    - stable_id_uniqueness
+    - owner_cardinality
+    - reconcile_coordinator_cardinality
+    - status_evidence_compatibility
+    - reference_resolution
+    - evidence_hash_and_uri_validation
+  failure_behavior: fail_closed
+  warnings:
+    - BLOCKED_records_remain_open
+    - NOT_RUN_records_remain_open
+    - A1_1_gate_must_remain_blocked_until_external_gates_pass
+  prohibited:
+    - convert_NOT_RUN_to_PASS_without_artifacts
+    - auto_close_unknown_or_residual_resources
+    - infer_plugin_unload_safety_from_quarantine_ownership
+    - merge_or_modify_upstream_without_explicit_authorization
