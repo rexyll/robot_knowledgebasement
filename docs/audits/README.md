@@ -355,3 +355,6 @@
 
 
 - [2026-11-10 Stäubli ROS 2—UDP协议输入可信边界与状态数据完整性审计](2026-11-10-staubli-udp-protocol-trust-boundary-integrity-audit.md)：新增§9.3.278 / SERVO-861，确认UDP sender_endpoint来源过滤未启用、接收error仍进入回调；C++ FrameHeader只校验magic，RobotState/RobotCommand/DiagnosticData的版本/类型/payload长度校验不统一，DiagnosticData解析前使用对象默认header字段；VAL3检查magic/version但不校验payload_size；协议缺少消息认证与session epoch/抗重放机制，ROS状态层未暴露来源认证和协议拒绝原因。新增UT-01至UT-15验收矩阵，全部未执行。
+
+
+- [2026-11-10 Stäubli ROS 2—状态有效性与通信安全诊断接口端到端审计](2026-11-10-staubli-ros2-state-validity-diagnostic-propagation-audit.md)：新增§9.3.279 / SERVO-862，确认RobotDriver读失败/过期时不统一失效内部状态对象；HardwareInterface::read返回ERROR但不清除已导出的joint/supervision缓存；update_state可能部分写入形成混合周期快照；模式切换与write未独立检查状态新鲜度；supervision接口缺少validity/source/auth/error诊断字段；诊断ready仍硬编码true。新增SV-01至SV-16验收矩阵，全部未执行。
