@@ -4870,3 +4870,52 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 补充故障注入：单向断开control/diagnostic、双向断开、丢包/突发丢包、乱序、重复、延迟重放、序号回绕、控制器重启/序号归零、断线期间ROS继续发命令、恢复后旧队列包抵达、短时恢复后再次断线；记录停止响应时间、旧命令拒绝、故障锁存及恢复条件。之后再分阶段执行CS9仿真、SIL/HIL、FAT/SAT和受控实机测试。
 
 本轮仅固定上游提交静态源码与现有测试代码审查；未执行构建、单元测试、断网/丢包/乱序/重放/重连故障注入、VAL3编译/下载、CS9仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.259 / SERVO-842。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.259 / SERVO-842）
+
+固定上游基线：ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。本轮审查UDP传输边界、发送源识别、接口绑定、网络参数解析、协议完整性字段和接收错误路径。核对文件：staubli_robot_driver/src/communication/udp_socket_impl.hpp、include/staubli_robot_driver/communication/udp_socket.hpp、include/staubli_robot_driver/communication/socket.hpp、src/real_time_socket_subscriber.cpp、src/real_time_socket_interface.cpp、include/staubli_robot_driver/communication/protocol.hpp、src/communication/protocol.cpp、src/robot_driver.cpp、include/staubli_robot_driver/robot_driver.hpp、src/staubli_hardware_interface.cpp、staubli_robot_description/r2c/staubli.r2c.xacro、staubli_bringup/launch/launch_robot_control.launch.py、test/unit_tests/communication/test_rt_socket_interface.cpp、test/unit_tests/test_robot_driver.cpp。
+
+#### 主要发现
+
+1. UDP接收由UDPSocketImpl::start_receive()调用async_receive_from，并将对端填入sender_endpoint_。handle_data_received()中明确留有“validate sender before processing”TODO和按sender_endpoint_.address()对比remote_endpoint_.address()的注释示例；实际执行路径没有源地址或源端口白名单检查，仍无条件调用reception_callback_。因此同网段可达的非预期主机若能向本地监听端口发包，理论上可尝试注入状态/诊断帧或干扰序列状态；是否可达取决于现场网络拓扑、防火墙和交换机ACL，本轮未验证。
+2. UDPSocketImpl::connect()打开IPv4 UDP socket、设置reuse_address(true)、bind本地endpoint并解析remote_endpoint_。未调用socket_.connect(remote_endpoint_)；remote_endpoint_只用于send_to目的地址，不能据此认为入站包已由内核限制为该机器人IP。sender_endpoint_当前只被Boost.Asio写入，没有被用作授权判定。
+3. NetworkConfig::local_ip默认空字符串；udp_socket_impl将空字符串或0.0.0.0转换为address_v4::any()。StaubliHardwareInterface::on_configure()只读取robot_ip和四个端口，不读取/设置local_ip；R2C Xacro只传robot_ip、control/diagnostic端口和本地端口，没有local_ip配置项。因此常规硬件接口配置默认在所有本地IPv4接口绑定UDP控制/诊断端口，而非限制在机器人专用网卡。launch默认robot_ip为192.168.0.254；实际控制端口在R2C Xacro为11000/11001。默认监听范围需由部署网络隔离/主机防火墙限制。
+4. UDP socket设置reuse_address(true)，源码没有对共享绑定、多个driver实例使用相同本地端口或多进程竞争行为作平台限定说明。两个实例如果配置相同local endpoint，是否能够同时绑定及数据如何分发取决于OS/socket选项语义；本轮未执行目标Linux内核测试。需要明确禁止重复端口或实现实例隔离，并测试端口冲突失败行为。
+5. FrameHeader固定8字节，仅含magic_number、protocol_version、message_type、sequence_number和payload_size。协议头和本轮核对的消息序列化路径未见CRC、MAC、数字签名、认证nonce或加密字段；未发现UDP应用层的来源认证、报文完整性保护或保密机制。Magic Number=0xABCD仅用于协议识别，不是秘密，也不能防止伪造。此结论仅针对本仓库该UDP协议层，不代表机器人控制器其他网络服务/安全模块没有独立防护。
+6. UDPSocketImpl::handle_data_received()对error非零只记录ERROR日志，未return/丢弃，而是继续调用reception_callback_，然后若receiving仍为true则安排下一次接收。错误回调可能把未完整/无效数据交给上层反序列化；应先按error和bytes_transferred规则拒绝无效回调，并区分operation_aborted等正常停线程情形。具体错误事件下bytes_transferred与buffer内容需动态注入验证。
+7. hardware interface将四个端口读为int，std::stoi成功后直接static_cast<uint16_t>传入NetworkConfig；未见显式检查端口必须处于1..65535、控制/诊断端口互异、local/remote端口关系合理，也未见检查stoi是否消费完整输入字符串。负值或大于65535的整数在窄化转换时可能映射到其他16位端口；非法值可能导致绑定错误或意外端口。Xacro目前固定端口，外部手工改URDF或使用其他入口时仍需参数边界验证。
+8. robot_ip只检查非空，随后交给IPv4 UDP resolver解析；本轮没有看到对robot_ip是否为指定控制器网段/静态IP白名单的策略。DNS解析或地址变化风险需由网络配置管理、静态地址和部署ACL控制；不能仅靠字符串非空检查确认连接对象身份。
+9. UDP send使用send_to(remote_endpoint_)和MSG_DONTWAIT。would_block时仅记录“Packet dropped”，但函数仍返回true；SERVO-828已记录这一发送成功语义缺陷。本轮将其纳入网络边界风险：发送端本地返回true不能作为命令实际发出、到达控制器或被执行的证据；需有丢包计数、阈值故障门禁和端到端确认机制。
+10. 现有test_rt_socket_interface.cpp的socket pair使用127.0.0.1，覆盖正常接收、序列丢包、latest-value、双向消息；未见发送方地址不匹配时拒绝、非预期源端口、伪造帧、error callback、端口重用/冲突、多网卡绑定或非法硬件端口输入的专项用例。test_robot_driver.cpp同样以loopback mock验证正常双通道通信，不是网络安全测试。
+11. 部署资料说明robot_ip与控制/诊断端口，但本轮固定提交未找到将机器人专用网段、防火墙ACL、主机入站规则、路由隔离、网络变更审批、抓包留档或源地址认证列为驱动运行前置验收的完整检查清单。Docker示例使用host network模式的线索也意味着宿主机网络隔离策略需要在容器外另行审查；本轮未进行容器网络运行测试。
+12. 不应把ROS层状态超时、协议Magic Number、UDP本地socket ready或远端IP配置当成网络身份认证。即便部署在隔离网络，仍需源地址/端口绑定、控制器身份确认、消息完整性保护、重放防护和失效安全状态机的组合设计；若增加认证/加密，必须与VAL3端协议同步升级并评估实时周期、密钥存储/轮换、失效恢复和安全认证影响。
+
+#### SE1–SE12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SE1 | UDP入站源IP/源端口白名单 | 源校验TODO；未执行伪造源注入 |
+| SE2 | UDP socket是否内核连接到指定对端 | 仅bind本地端口并send_to；未调用UDP connect过滤入站源 |
+| SE3 | local_ip绑定范围与机器人专用接口隔离 | 默认空值→0.0.0.0；硬件配置未暴露local_ip |
+| SE4 | reuse_address与重复实例/端口冲突行为 | 已启用；目标OS多进程语义未测试 |
+| SE5 | 协议帧认证、完整性与保密 | FrameHeader无MAC/CRC/认证字段；未发现本协议层加密/认证 |
+| SE6 | 接收error与bytes_transferred异常路径 | error只记录仍调用回调；未执行注入 |
+| SE7 | hardware端口输入范围/格式/唯一性 | stoi后窄化为uint16；缺少显式范围与完整格式校验 |
+| SE8 | robot_ip目标身份和地址变更策略 | 仅非空检查并解析；无控制器身份绑定证据 |
+| SE9 | UDP would_block丢包与send成功语义 | SERVO-828已确认would_block仍返回true；本轮未做负载测试 |
+| SE10 | loopback之外的多网卡/跨网段/主机防火墙行为 | 未执行 |
+| SE11 | 非预期源、错误回调、畸形包和端口竞争专项测试 | 现有单测未覆盖；未执行 |
+| SE12 | 现场网络隔离、ACL、身份认证、SIL/HIL和实机网络验收 | 未执行 |
+
+#### 整改建议
+
+- 在socket接收层实施严格源endpoint allow-list，同时核验IP与端口；不符合白名单的包在反序列化前丢弃并计数。考虑机器人多网卡/NAT等实际网络部署，但不要仅检查IP而忽略端口与会话。
+- 优先将UDP socket绑定到专用机器人网卡地址，硬件配置显式暴露local_ip并拒绝默认any绑定用于真实硬件；为mock/test保留loopback模式。明确reuse_address策略，生产模式避免未经评估的共享绑定。
+- 在控制器与ROS端协议中加入经过认证的消息完整性机制（例如基于密钥的MAC/AEAD）、会话nonce/epoch与重放窗口；由VAL3端同步实现，协议版本升级并保留兼容性验证。不要自行假定TLS可直接套用于当前VAL3 UDP接口。
+- receive handler遇到非预期error或不满足完整帧长度时停止本次回调，正确处理operation_aborted；错误计数达到阈值时让通信接口进入故障状态，不允许坏帧刷新状态新鲜度。
+- 对robot_ip、local_ip及四个端口增加严格解析：IP格式/允许网段、端口1..65535、stoi完整消费、控制/诊断端口冲突和端口绑定结果；在硬件configure阶段失败即拒绝激活。
+- 形成部署网络基线：机器人专用VLAN/物理隔离、静态IP、主机防火墙只允许ROS主机与CS9指定地址/端口双向通信、禁止不必要路由/远程访问、记录ACL与网络变更；安全功能仍由CS9安全系统/安全PLC承担，ROS网络策略不能替代安全回路。
+- 补充测试：从非白名单源IP/端口发送有效帧、伪造源和畸形帧、接收operation_aborted/ICMP错误、空包/截断/超长包、双网卡监听、重复绑定端口、非法端口文本/负数/65536/大整数、would_block注入、网络ACL阻断/恢复；采集包级日志、丢包率、错误率、控制停止响应和CPU/周期抖动。之后再执行隔离CS9仿真、SIL/HIL、FAT/SAT和受控实机网络验收。
+
+本轮仅固定上游提交静态源码、配置和现有测试代码审查；未执行网络抓包、伪造源IP/UDP注入、跨网卡监听、端口冲突、权限/防火墙验证、渗透测试、构建/单测、VAL3编译下载、CS9仿真、SIL/HIL、FAT/SAT或实机网络验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.260 / SERVO-843。
