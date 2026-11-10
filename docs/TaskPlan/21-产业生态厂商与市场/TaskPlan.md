@@ -5062,3 +5062,17 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 增加协议黄金向量和端到端mock测试，逐一核对数字IO位0/15、模拟IO通道0/3及不同数量配置的索引；之后在隔离CS9环境核对VAL3数组和实际IO模块映射。普通GPIO不得被用作急停、SS1/SS2或其他安全功能回路。
 
 本轮仅固定上游提交静态YAML/Xacro/C++/协议/现有测试代码审查；未运行Xacro展开、ROS 2构建/单测、异常参数注入、协议黄金向量、VAL3编译/下载、CS9 IO配置读取、端子逐点测试、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.263 / SERVO-846。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.263 / SERVO-846）
+
+固定上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮沿SERVO-845继续审查GPIO数量配置的输入校验与Xacro递归边界，新增审计记录见 [2026-11-10-staubli-gpio-configuration-validation-addendum.md](../../../audits/2026-11-10-staubli-gpio-configuration-validation-addendum.md)。
+
+主要结论：
+1. `load_robot_model_config`直接读取四个GPIO数量字段；`check_robot_model_config`仅检查关节/连杆数组和末端执行器父连杆，不校验GPIO字段存在性、整数类型、非负性或协议上限。
+2. `add_numbered_gpios`以`current_idx != num_gpios`作为递归条件，每次递增1。负数、非整数或字符串等异常配置可能无法达到相等终点，存在递归持续展开直至处理失败的静态边界风险；本轮未运行Xacro复现。
+3. C++ `std::stoul`未检查完整字符串消费，合法数字前缀后带尾随字符可能被接受；目标标准库行为及具体输入结果仍需参数注入测试确认。
+4. Xacro与C++尚无统一GPIO schema；当前TX2两型号16/16/2/2静态配置与16/4协议容量相符，但不能替代现场IO模块、VAL3变量、CS9映射和端子核验。
+5. 现有测试fixture固定16/16/2/2，未发现异常数量/Xacro生成物专项测试。
+
+SERVO-846验收矩阵GPIOV1–GPIOV10及整改建议详见审计追加件。GPIOV1–GPIOV6完成固定提交静态核对；GPIOV7–GPIOV9未执行；GPIOV10缺现场配置/接线签核证据。未运行Xacro展开、ROS 2构建/单测、参数注入、VAL3/CS9、SIL/HIL、FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.264 / SERVO-847。
