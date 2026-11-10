@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.53  
+> 版本：v10.54  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.279 / SERVO-862；已完成状态有效性与通信安全诊断接口端到端静态审查：RobotDriver在无数据/无效/过期读取时返回false但不统一清除current_robot_state_有效标志；HardwareInterface::read失败返回ERROR却不失效state_msg_与已导出关节/supervision缓存；update_state先写位置再验证速度，缺字段时可能留下部分更新的混合快照；perform_command_mode_switch仅检查缓存error_state/motion_possible，不检查状态年龄、序号前进或session；write也缺少独立状态新鲜度门禁；ROS supervision接口无state_valid/age/source/auth/error reason字段；connect将diag_interface_ready硬编码true且不调用read_diagnostic_data。SV-01至SV-16验收矩阵已建立，全部未执行。未执行ROS controller_manager运行时错误传播、断线/过期注入、模式切换与write阻断、部分字段原子性、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证；未修改上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.280 / SERVO-863；已完成固定Stäubli驱动提交与ros2_control Jazzy固定提交的硬件错误传播、ResourceManager接口撤销、ControllerManager故障mode-switch及生命周期状态转换静态审查：read/write ERROR会触发HardwareComponent error处理；on_error返回SUCCESS时进入UNCONFIGURED，返回ERROR时进入FINALIZED；driver断线分支会进入FINALIZED，connected分支忽略STOP发送返回值仍报告SUCCESS；on_error未disconnect，错误后接口撤销且ControllerManager后续mode-switch可能因接口不可用/组件生命周期状态被拒绝（ros2_control上游Issue #3620）。LC-01至LC-15验收矩阵已建立，全部未执行。未执行ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机停止验证；未修改Stäubli上游、未应用PR，工程级验收未通过，`TODO-EXT-001`未授权合并。
 
 ---
 
@@ -4290,3 +4290,17 @@ UT1–UT7完成固定提交源码/测试源码静态核对；UT-01至UT-15验收
 7. RobotDriver已有staleness返回值测试，但HardwareInterface测试没有覆盖stale/read ERROR后缓存失效、模式切换拒绝、write阻断或部分字段原子提交。
 
 SV-01至SV-16验收矩阵已建立，全部未执行。未运行ROS controller_manager错误传播时序、stale/断线/部分字段注入、模式切换/write阻断、诊断故障、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.280 / SERVO-863。
+
+
+### 2026-11-10｜v10.54 本轮推进记录（§9.3.280 / SERVO-863）
+
+固定Stäubli上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`；固定ROS 2 Control参考：`ros-controls/ros2_control@c6ef5a24e0cd21463edb99bded552a96f914b716`（Jazzy分支快照，hardware_interface 4.50.0）。新增审计报告：[2026-11-10-staubli-ros2-control-manager-error-lifecycle-contract-audit.md](docs/audits/2026-11-10-staubli-ros2-control-manager-error-lifecycle-contract-audit.md)。
+
+主要结论：
+1. Stäubli read/write返回ERROR后，Jazzy HardwareComponent触发error()/on_error()，ResourceManager撤销故障硬件接口；ControllerManager停用相关控制器。
+2. Stäubli on_error在driver仍connected时尝试STOP但忽略发送函数返回值，仍返回SUCCESS并进入UNCONFIGURED；driver断线时返回ERROR并进入FINALIZED，普通生命周期服务不能恢复。
+3. on_error未调用disconnect/on_cleanup；成功进入UNCONFIGURED后socket/接收线程可能仍保持连接，重新configure时RobotDriver::connect才检测旧连接并先disconnect。
+4. ResourceManager撤销接口后，ControllerManager仍尝试mode switch；故障组件已UNCONFIGURED/FINALIZED且接口不可用，prepare/perform路径会被拒绝。ros2_control上游Issue #3620记录了该Jazzy调用顺序问题；本轮固定源码静态核对一致。
+5. 现有Stäubli LifecycleTransitions测试只覆盖直接回调和正常read/write，没有覆盖ResourceManager/ControllerManager真实错误传播、接口撤销、控制器停用、FINALIZED及恢复重载。
+
+LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单测、ResourceManager/ControllerManager运行时故障注入、STOP发送失败/断线注入、生命周期服务、插件卸载重载、VAL3/CS9、SIL/HIL/FAT/SAT或实机验证。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.281 / SERVO-864。
