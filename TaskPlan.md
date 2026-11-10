@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v10.29  
+> 版本：v10.30  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.254 / SERVO-837；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项审查推进至§9.3.255 / SERVO-838；SERVO-836确认TX2-60L与MED关节限制/运动学/动力学文件相同但工具偏置不同；VAL3速度配置与执行API仍为注释/TODO；CS9工程版本固定且兼容矩阵缺失；SERVO-835确认VAL3位置控制通过isInRange执行关节范围检查但目标跳变/接近度仍TODO；速度安全限制与$setVelCmd执行均未实现；remote control period解码后未被消费/校验；序号差门禁存在但staleness仍有TODO；故障标志可能在ROS发布前清除，停止函数无静止回读确认；SERVO-834确认硬件write未见最终位置/速度限幅、加速度接口消费链路未证实、NaN检查未覆盖Infinity，MoveIt与bringup限制配置分离；修正SERVO-833 CM1适用范围：当前R2C调用将has_joint_torque_control固定为false；SERVO-827发现MoveIt Servo输出/forward_position_controller话题未在bringup控制器清单声明；本轮SERVO-828确认UDP would_block丢包后仍返回true，可能使hardware write误判命令成功；接收异步error仍调用回调，未校验发送源；状态消息箱为latest-value覆盖语义，时间戳使用ROS clock；接收线程stop/join及共享send buffer并发约束缺少专项验证；250Hz实时性、WCET和抖动未测；新增SERVO-798/CC1–CC10：固定ICube提交静态审查发现FrameHeader仅校验Magic Number，不统一校验protocol_version；RobotState反序列化不校验message_type/payload_size；DiagnosticData在反序列化新帧头前使用旧对象header校验类型/长度，检查时机错误；RobotCommand有类型/长度检查但缺少统一协议版本校验。RobotDriver连接阶段检查一次RobotState协议版本，持续收包路径未统一执行版本/长度验证。消息枚举值缺少完整合法性检查；命令序列化不校验controller_period、命令类型、关节/IO数值的有限性和设备限值；HardwareInterface仅对关节命令使用isnan，未覆盖Inf和模拟输出，状态输入也未见finite校验。CC1–CC8固定提交静态源码/现有测试核对完成；CC9畸形帧、版本漂移、非法枚举、NaN/Inf与边界值注入未执行；CC10控制器协议规范、限值表及隔离SIL/HIL/FAT/SAT证据缺失。未执行构建/单测或动态验证，未修改上游，工程级验收未通过，TODO-EXT-001未授权合并。 本轮继续推进至§9.3.216 / SERVO-799：核对UDP接收缓冲区1024字节、异步接收错误仍调用回调、消息反序列化对尾随字节不统一拒绝，以及无效状态帧写入邮箱后覆盖RobotDriver当前状态的条件性风险。DD1–DD8静态源码/现有测试覆盖核对完成；DD9定向短/长/截断/污染与恢复注入未执行；DD10目标控制器协议及隔离SIL/HIL/FAT/SAT证据缺失。
 
 ---
 
@@ -3759,7 +3759,7 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 增加每关节边界内/边界值/越界、NaN/±Inf、超大有限值、周期异常、加速度变化率、模拟输出超量程、不同机器人型号和单位转换测试。
 - 在目标ROS 2/ros2_control发行版验证JTC和JointLimiter真实运行路径；通过VAL3/CS9限幅、SIL/HIL、FAT/SAT和实机测试验证独立控制器边界。ROS/MoveIt软件限幅不得替代CS9安全功能和独立安全回路。
 
-本轮只读固定上游提交源码、配置、xacro、launch和测试；未执行构建/单测、xacro展开、URDF解析、controller_manager/JTC/JointLimiter运行测试、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
+本轮只读固定上游提交源码、配置、xacro、launch和测试；未执行构建/单测、xacro展开、URDF解析、controller_manager/JTC/JointLimiter运行测试、VAL3编译/仿真、CS9下载、SIL/HIL、FAT/SAT或实机验收；未修改ICube/MoveIt/ros2_control上游，未应用PR。根任务00-01与第21章21-02继续进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.255 / SERVO-838。
 
 
 ### 2026-11-10｜v10.27 本轮推进记录（§9.3.252 / SERVO-835）
@@ -3859,10 +3859,10 @@ PR失败分支continue只跳过后续配置与登记，依赖updater对象析构
 - 对MED与标准TX2-60L完成TCP/工具偏置核验、负载辨识、碰撞模型及实际轨迹验收。
 - 供应方提供CS9/VAL3兼容矩阵及签核；在目标控制器上执行VAL3编译、仿真、SIL/HIL、FAT/SAT与实机验收。
 
-本轮仅静态审查固定上游提交；未执行构建/单测、xacro展开、URDF解析、VAL3编译、CS9配置读取/下载、TCP标定、运动测试、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.254 / SERVO-837。
+本轮仅静态审查固定上游提交；未执行构建/单测、xacro展开、URDF解析、VAL3编译、CS9配置读取/下载、TCP标定、运动测试、SIL/HIL、FAT/SAT或实机验收。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.255 / SERVO-838。
 
 
-### 2026-11-10｜v10.29 本轮推进记录（§9.3.254 / SERVO-837）
+### 2026-11-10｜v10.29 本轮推进记录（§9.3.255 / SERVO-838）
 
 固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮审查机器人描述层的Xacro配置加载、配置校验、关节初始状态、加速度接口参数和网格资源引用链。
 
@@ -3905,3 +3905,49 @@ R2C宏在真实硬件路径启用acceleration command interface，并从joint_li
 - 增加故意缺字段、错误数组长度、NaN/Inf、负质量、非正定惯量、上下限反转、越界初值、缺失mesh和错误型号参数的负向测试。
 
 本轮仅静态审查固定上游提交中的Xacro/YAML配置读取与接口生成路径；未运行xacro展开、URDF解析、mesh加载/碰撞检查、ROS构建/单测、JointState初始化、硬件启动、CS9/VAL3、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.255 / SERVO-838。
+
+
+### 2026-11-10｜v10.30 本轮推进记录（§9.3.255 / SERVO-838）
+
+固定审查上游：`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。本轮聚焦TX2-60L与TX2-60L-MED视觉/碰撞网格差异、SRDF规划组链路、自碰撞禁用矩阵及MoveIt实际加载路径。
+
+静态源码核对发现：
+
+1. TX2-60L与TX2-60L-MED的`meshes.yaml`中base_link、link_1至link_5资源映射相同；link_6不同。标准版引用`meshes/tx2_60/visual/link_6.dae`及`meshes/tx2_60/collision/link_6.stl`；MED版引用`link_6_L_med.dae`及`link_6_L_med.stl`。证明两型号至少末端连杆几何资源有差异；未解析二进制网格，不能判定包络尺寸、精度、简化程度或与实机一致性。
+2. `add_link`为每个link分别生成visual和collision，分别按meshes.yaml的visual/collision路径加载；两者origin目前均固定为零偏移/零旋转。没有在本轮证据中找到针对视觉/碰撞网格单位、缩放、局部坐标、三角面质量、watertight、法线、包络误差或碰撞几何简化程度的自动校验。
+3. SRDF宏`staubli_macro.srdf.xacro`以`link_names[0]`为arm base，`end_effector_frame_name`为tip；`staubli.srdf.xacro`将tip配置为robot_model.yaml的end_effector frame。URDF宏将tool0作为固定link附着到配置的parent link，TX2-60L偏置z=0.07m，MED为z=0.1344m。MoveIt规划链因此包含tool0末端坐标；TCP偏置错误会直接影响规划末端位姿。当前没有标定报告证明两个偏置与实机工具/法兰一致。
+4. SRDF宏为七个机械臂link声明11组disable_collisions：6组Adjacent（base_link-link_1、link_1-link_2、link_2-link_3、link_3-link_4、link_4-link_5、link_5-link_6），另有5组reason=Never（link_1-link_3、link_2-link_4、link_2-link_5、link_3-link_5、link_3-link_6）。这些条目会从MoveIt自碰撞检查中排除对应link对。Never类非相邻link对的禁用依据、采样覆盖、姿态空间和不同型号几何适用性没有随仓库提供可审计证明；不能据reason标签认定实机永不碰撞。其余未列link对保留默认碰撞检查行为。
+5. `staubli.srdf.xacro`基于同一robot_model.yaml加载link names与end-effector配置；SRDF宏中碰撞禁用矩阵以link_names固定索引写死，未按不同型号几何资源生成/选择独立碰撞矩阵。MED的link_6 mesh已不同，但SRDF禁用规则相同，需证明该矩阵仍适用。
+6. MoveIt启动文件`staubli_moveit.launch.py`实际通过MoveItConfigsBuilder加载`srdf/staubli.srdf.xacro`，并传入robot_model参数；因此本轮运行路径是模型参数驱动的SRDF Xacro，不是单独的静态tx2_60l.srdf文件。
+7. `.setup_assistant`元数据仍引用`config/tx2_60l.srdf`，该路径在固定提交中未能通过仓库文件读取确认存在；它与当前launch实际引用的`srdf/staubli.srdf.xacro`不同。应视为Setup Assistant元数据可能过期/未同步的迹象，需运行Setup Assistant或核对包内实际文件树，不据此断言运行时MoveIt启动失败。
+8. MoveIt规划组名为`arm`，使用KDLKinematicsPlugin；MoveIt controller映射声明joint_trajectory_controller及六个关节。静态配置能建立规划组到控制器关节名称的对应关系，但未验证实际运行时controller action可用、joint state完整、TF链正确或规划轨迹可安全执行。
+9. 本轮没有执行mesh二进制下载/解析、xacro展开、URDF/SRDF解析、MoveIt PlanningScene自碰撞采样、碰撞距离/包络比较、TCP标定、RViz/MoveGroup启动、Gazebo/仿真、SIL/HIL或实机测试。
+
+#### ST1–ST12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| ST1 | TX2-60L与MED各link视觉网格映射 | 静态映射核对；link_6不同 |
+| ST2 | 两型号各link碰撞网格映射 | 静态映射核对；link_6不同 |
+| ST3 | visual/collision几何包络、单位与坐标一致性 | 未解析网格/未测量 |
+| ST4 | collision mesh完整性、拓扑与可加载性 | 未验证 |
+| ST5 | URDF visual/collision origin和缩放 | 源码均零偏移；无网格缩放审计 |
+| ST6 | SRDF arm规划组base/tip链路 | 静态链路明确；展开解析未执行 |
+| ST7 | tool0固定变换及型号TCP偏置 | 0.07m/0.1344m；实机标定未验证 |
+| ST8 | disable_collisions矩阵及Adjacent/Never语义 | 11组静态读取；几何依据未验证 |
+| ST9 | MED几何变体与自碰撞矩阵适用性 | 共用矩阵；未验证适用性 |
+| ST10 | MoveIt运行时SRDF加载路径 | launch引用staubli.srdf.xacro |
+| ST11 | Setup Assistant元数据与实际SRDF路径一致性 | 路径存在差异；元数据待清理 |
+| ST12 | PlanningScene自碰撞、规划、仿真及实机验收 | 未执行/未确认 |
+
+#### 整改建议
+
+- 为TX2-60L与MED分别建立视觉/碰撞网格清单，记录文件SHA-256、单位、坐标系、三角面数量、包围盒、质量/拓扑检查和来源版本。
+- 对visual与collision网格执行配准/包络误差比较；碰撞网格应覆盖安全相关外形，不得因过度简化漏掉可能与工件、夹具或环境接触的结构。
+- 对两个型号分别执行URDF/SRDF展开和TF检查，验证base_link、link_6、tool0与现场法兰/TCP标定一致。
+- 为所有reason=Never的link对提供碰撞矩阵生成报告、采样方法、采样姿态覆盖、距离阈值及人工复核；对MED变体重新运行自碰撞矩阵生成/验证，不能无证据沿用。
+- 将SRDF矩阵与机器人型号、机械臂修订和mesh版本绑定；几何模型变化应触发矩阵重新生成及回归。
+- 对齐`.setup_assistant`引用与实际SRDF Xacro文件；明确单一权威入口并加入CI检查，防止工具元数据和运行配置漂移。
+- 在MoveIt PlanningScene中执行全关节范围自碰撞采样、关键姿态/极限姿态测试、碰撞距离回归、工作空间/工具偏置验证；再在仿真、SIL/HIL及受控实机环境逐级验收。
+
+本轮仅静态审查固定上游提交；未修改上游、未应用PR。未执行网格解析、URDF/SRDF展开、碰撞采样、MoveIt运行、TCP标定、SIL/HIL、FAT/SAT或实机验收。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，`TODO-EXT-001`未授权合并。下一节点§9.3.256 / SERVO-839。
