@@ -5253,3 +5253,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **整改要求：** 错误事件锁存并可观测；将通信恢复、运动停止、控制器复位、安全重启和ROS重新授权分层；实现可验证的socket重置后置条件；统一位置/速度停止路径与超时/静止判据；检查C++ STOP发送结果；建立跨层状态转换表和故障注入矩阵。
 - **状态：** 固定提交静态审查完成；错误可观测性、socket重置结果、模式停止对称性和恢复授权存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
 - **下一节点：** §9.3.274 / SERVO-857。
+
+
+### §9.3.274｜SERVO-857：控制状态反馈、模式语义与故障恢复一致性
+
+- **固定审查基线：** `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- **审计报告：** [2026-11-10-staubli-state-feedback-recovery-consistency-audit.md](../../audits/2026-11-10-staubli-state-feedback-recovery-consistency-audit.md)。
+- **范围：** VAL3 updateState/controlTask/RobotState/encodeRobotStateMsg；C++ RobotStateMessage、RobotDriver、RealTimeSocketSubscriber、StaubliHardwareInterface；状态序列化与RobotDriver现有单元测试。
+- **静态结论：**
+  1. VAL3 bit0–5状态标志与C++ StatusFlag、ROS supervision state interfaces静态映射一致；但bInMotion来自`!isSettled()`，bMotionPossible只检查drive power和EStop，brakes_released由drive power推导，不能作为安全许可或静止证明。
+  2. controlTask在处理当前命令前发布RobotState，nControlMode/bInError是本轮处理前快照，存在周期滞后；无有效命令时可出现control_state=INVALID且error_state=false。
+  3. 错误复位后l_nCmdMode/previous mode为0；恢复后直接进入位置/速度模式会命中模式转换守卫，需要先发STOP模式1。该恢复顺序是静态推导，未在CS9复现。
+  4. RobotDriver忽略MessageStatus.new_message，相同序号报文仍可能刷新reception_timestamp并被当作有效状态；与SERVO-851的重复序号/新鲜度问题相关。
+  5. read stale时硬件接口返回ERROR，但supervision/joint state缓存没有显式置invalid或清除；无state_valid/接收时间接口。
+  6. 当前单元测试覆盖C++往返和mock状态超时/重启，但不覆盖VAL3跨语言状态帧、恢复后STOP重武装、重复序号重传、模式接受回执与硬件状态失效传播。
+- **SF1–SF8状态：** 固定提交静态源码/接口/现有测试源码核对完成或确认缺口；SF9跨语言golden frame、SF10状态机恢复故障注入、SF11 CS9停止/静止回读及安全链、SF12 SIL/HIL/FAT/SAT/实机均未执行。
+- **整改要求：** 定义空闲/STOP/INVALID/ERROR及命令接受状态真值表；调整状态快照与错误事件锁存；明确复位后STOP重武装握手；严格校验新序号/session epoch；为状态接口增加valid/stale及接收时间；完成VAL3-C++ golden frame、恢复状态机与CS9安全验证。
+- **状态：** 固定提交静态审查完成；状态语义、周期一致性、恢复重武装及新鲜度/缓存失效仍存在缺口；未修改上游、未应用PR；`TODO-EXT-001`未授权合并。
+- **下一节点：** §9.3.275 / SERVO-858。
