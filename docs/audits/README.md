@@ -336,3 +336,5 @@
 - [2026-11-10 Stäubli ROS 2—协议字段映射、枚举语义、单位与边界值一致性审计](2026-11-10-staubli-protocol-field-mapping-enum-units-audit.md)：新增§9.3.270 / SERVO-853，确认VAL3 encodeHeader将序号重复写入payload_size、OperationMode跨语言数值错位、float64转float32及NaN/Inf边界缺口、F/T与GPIO字段未完整编码。HardwareInterface的rad↔deg转换静态一致；CS9互操作与边界测试未执行。
 
 - [2026-11-10 Stäubli ROS 2—VAL3命令帧入口校验与无效命令处理审计](2026-11-10-staubli-val3-command-frame-ingress-validation-audit.md)：新增§9.3.271 / SERVO-854，确认VAL3 decodeRobotCommandMsg在解析wire header前使用旧对象字段检查长度，decodeHeader未校验wire payload_size，55 B实际帧携带错误payload声明时可能仍被接受；header/type错误早退未在decoder内立即清除旧bIsValid。C++端有47 B payload检查而VAL3端缺失；未执行畸形帧/CS9动态验证。
+
+- [2026-11-10 Stäubli ROS 2—VAL3命令语义、控制周期与数值边界校验审计](2026-11-10-staubli-command-semantic-period-numeric-validation-audit.md)：新增§9.3.272 / SERVO-855，确认remote control period虽解码但未进入控制周期校验/执行闭环；VAL3命令类型范围门禁与真实支持分支不一致；位置目标跳变检查、速度限值/执行仍未实现；模拟输出入口缺少finite/量程检查；现有控制周期测试值0.008与“8 ms”注释不一致。仅静态审查，未执行构建、异常注入、CS9/SIL/HIL或实机验证。
