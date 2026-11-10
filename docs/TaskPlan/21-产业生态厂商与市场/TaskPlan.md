@@ -4969,3 +4969,50 @@ AI1仅完成固定源码静态审查；AI2、AI3、AI8需目标版本/现场证�
 - 将README的MANUAL→AUTO受控测试、低速/低加速度、RViz预检、E-stop可用性要求形成正式FAT/SAT安全检查表，并由CS9/安全PLC责任方批准；ROS层任何访问控制/软件门禁均不得替代安全回路。
 
 本轮仅固定上游提交静态源码、launch、配置、包清单、README和现有测试代码审查；未启动launch、未注入spawner失败、未运行ROS graph/DDS discovery或SROS2权限测试、未启动多机器人namespace、未进行仿真时钟验证、未执行controller_manager未授权服务调用、构建/单测、CS9仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.261 / SERVO-844。
+
+
+### 2026-11-10｜Stäubli专项审查推进记录（§9.3.261 / SERVO-844）
+
+固定上游基线：ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79。本轮聚焦URDF软限位生成参数与关节限位配置字段语义，避免重复SERVO-834已记录的hardware write最终限幅缺口、加速度接口消费链路及MoveIt/bringup限值分离问题。审查文件：staubli_robot_description/urdf/staubli.urdf.xacro、urdf/staubli_macro.xacro、urdf/include/staubli_helpers.xacro、r2c/include/staubli_r2c_joints.xacro、config/tx2_60l/joint_limits.yaml、config/tx2_60l_med/joint_limits.yaml、staubli_robot_driver/src/staubli_hardware_interface.cpp、include/staubli_robot_driver/staubli_hardware_interface.hpp及test/unit_tests/test_staubli_hardware_interface.cpp。
+
+#### 主要发现
+
+1. 顶层staubli.urdf.xacro声明use_soft_limits=true、safety_position_margin=0.1、safety_velocity_margin=0.1、safety_k_position=0.1、safety_k_velocity=10.0，并将它们传入staubli_robot宏。宏默认值与顶层参数默认值不同（宏自身k_position/k_velocity默认20.0），但当前完整URDF入口会显式传入顶层值；评估默认行为必须以真实入口的参数传递链为准，不能只读宏默认值。
+2. staubli_helpers.xacro的add_joint无条件从joint_limits_config读取min_position、max_position、max_velocity，并将其写入URDF limit lower/upper/velocity。配置中的has_position_limits和has_velocity_limits标志没有在该生成逻辑中读取。当前模型文件均将这两个标志设为true，未证明现有两款模型会触发错误；但对新增型号、可连续旋转关节或缺省/禁用限位配置，生成逻辑没有尊重标准字段语义的分支。
+3. 同一helper会在use_soft_limits=true时生成safety_controller，soft_lower_limit=hard_lower+margin、soft_upper_limit=hard_upper-margin，并写入k_position/k_velocity。当前参数safety_velocity_margin虽在顶层声明、传入macro并列为add_joint参数，但全仓库生成表达式没有引用它；它不会改变生成的软位置边界或速度限位。故当前配置名容易使维护者误以为速度边界也留有margin，实际代码没有该效果。
+4. soft position margin没有发现有限性、非负性或范围检查。若margin为负数，软边界会向硬边界外侧扩展；若margin大于等于半个关节硬行程，上下软边界可能重合或倒置。Xacro目前直接做加减运算，没有显式fail门禁或单元测试覆盖这些输入。
+5. safety_k_position和safety_k_velocity也没有发现正值、有限值或适用范围校验。配置错误可能生成无效或不符合预期的safety_controller参数；实际URDF解析器/下游控制器是否拒绝、忽略或采用这些值需在目标ROS发行版验证。
+6. TX2-60L与TX2-60L MED的六轴joint_limits配置均将has_position_limits、has_velocity_limits、has_acceleration_limits设为true。位置/速度/加速度数值均以!degrees表示；helper将位置/速度限值用于URDF，R2C真实硬件路径读取max_acceleration填充acceleration command interface的max/min。该证据仅证明配置声明与生成路径，不证明运行时限幅已生效。
+7. R2C joint xacro只在真实硬件路径启用acceleration command interface，并无条件读取max_acceleration；没有按has_acceleration_limits判断是否启用/提供加速度上限。若后续某型号将has_acceleration_limits=false或缺少max_acceleration，当前真实硬件Xacro路径仍尝试读取该键。当前两套TX2配置都有该字段，因此尚无现有型号触发此问题的证据。
+8. 限位字段处理存在不对称：has_effort_limits被读取，决定是否读取max_effort；has_position_limits、has_velocity_limits和has_acceleration_limits未见对应分支。建议统一定义字段语义与必填条件，避免配置作者以为设置false即可关闭某项约束。
+9. 硬件插件write路径仅把位置/速度命令转换为度并发出；该函数没有读取joint_limits.yaml或在发送前直接clamp位置/速度/加速度。硬件write最终限幅及控制器限位器端到端行为已在SERVO-834记录，本轮不把它重复统计为新问题；ROS 2 controller_manager是否按当前发行版/配置解析URDF hard/soft limits仍需版本固定的运行时验证。
+10. 现有test_staubli_hardware_interface.cpp覆盖接口导出、mock生命周期和一次正常write；未见xacro生成物断言、soft margin边界值、negative/NaN/Inf margin、limit flags false、max_acceleration缺失、模型字段schema校验或下游控制器限位行为专项测试。
+11. 本轮没有运行xacro展开，因此对生成物的判断来自静态表达式路径，不宣称已观测到实际生成的URDF数值。也未执行controller_manager limit enforcement、MoveIt轨迹越界注入或CS9机器人控制器端限位测试。
+
+#### SLIM1–SLIM12验收矩阵
+
+| ID | 验收项 | 状态 |
+|---|---|---|
+| SLIM1 | 顶层软限位参数默认值及传递链 | 静态确认：顶层参数传入staubli_robot宏 |
+| SLIM2 | 硬位置/速度限值生成 | 静态确认：无条件读取min/max/max_velocity并写入URDF |
+| SLIM3 | has_position_limits字段语义 | 生成逻辑未读取；当前TX2模型均为true |
+| SLIM4 | has_velocity_limits字段语义 | 生成逻辑未读取；当前TX2模型均为true |
+| SLIM5 | safety_velocity_margin实际效果 | 声明/传参但生成逻辑未消费 |
+| SLIM6 | soft position margin范围校验 | 未发现非负/有限/小于半行程校验 |
+| SLIM7 | k_position/k_velocity合法性校验 | 未发现参数范围校验 |
+| SLIM8 | has_acceleration_limits与R2C接口生成 | 未读取标志；真实硬件路径无条件读取max_acceleration |
+| SLIM9 | effort limit字段处理对照 | has_effort_limits有条件处理，字段行为不对称 |
+| SLIM10 | 当前TX2-60L/TX2-60L MED配置兼容性 | 静态确认六轴相关标志均true且有max_acceleration |
+| SLIM11 | Xacro/控制器限位专项测试 | 现有测试未覆盖；本轮未执行 |
+| SLIM12 | 实际控制器/VAL3/CS9限位效果 | 未执行xacro展开、控制器动态测试、VAL3或实机测试 |
+
+#### 整改建议
+
+- 明确joint_limits.yaml schema：position/velocity/acceleration限值标志为false时，定义URDF字段、MoveIt配置和ros2_control接口的统一行为；为true时强制对应数值字段存在且有限。
+- 对margin与gain参数增加Xacro生成前校验：margin必须有限、非负，且严格小于每轴硬行程的一半；k_position/k_velocity必须有限并符合目标控制器规定范围；失败时xacro.fatal而不是生成错误URDF。
+- 明确safety_velocity_margin的工程语义。若确实需要速度软边界，应按目标控制器/ROS版本实现并验证；若没有实际用途，应移除该参数或标记为保留字段，避免误导。
+- 将当前模型limits、URDF hard limits、soft limits、R2C acceleration interface、MoveIt joint_limits和VAL3关节范围放入同一自动化交叉校验表，注明单位、版本、机器人型号、工具/负载及安全责任来源。
+- 增加xacro测试：默认参数、关闭soft limits、不同margin、负margin、超大margin、非有限gain、缺失limit字段、false flags、缺少max_acceleration及多型号生成物；对生成URDF解析并断言每轴hard/soft边界关系。
+- 在目标ROS发行版固定版本下验证controller_manager实际限位执行路径；分别对位置越界、速度越界、加速度越界、软限位渐近/减速行为、控制器切换及绕过标准控制器直写hardware interface的场景进行隔离测试。软件限位不得替代CS9/安全PLC硬件安全功能。
+
+本轮仅固定上游提交静态Xacro、YAML、C++硬件接口与现有测试代码审查；未执行xacro展开、ROS 2 controller_manager限位器运行、MoveIt越界轨迹测试、VAL3编译/下载、CS9仿真、SIL/HIL、FAT/SAT或实机测试。未修改上游、未应用PR。根00-01与第21章21-02仍进行中；Stäubli工程级验收未通过，TODO-EXT-001未授权合并。下一节点§9.3.262 / SERVO-845。
