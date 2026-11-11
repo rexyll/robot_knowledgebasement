@@ -44,6 +44,26 @@ def test_build_matrix_runs_install_space_consumer_in_both_modes():
     assert "Run each consumer in a clean ROS environment" in content
 
 
+def test_build_matrix_requires_all_upstream_gtest_xml_reports_to_pass():
+    content = SCRIPT.read_text(encoding="utf-8")
+    expected = {
+        "test_primitives_serialization.gtest.xml",
+        "test_message_serialization.gtest.xml",
+        "test_sockets.gtest.xml",
+        "test_rt_socket_interface.gtest.xml",
+        "test_robot_driver.gtest.xml",
+        "test_mock_robot_server.gtest.xml",
+        "test_staubli_hardware_interface.gtest.xml",
+    }
+    for report in expected:
+        assert report in content
+    assert "gtest result inventory mismatch" in content
+    assert "UPSTREAM_GTEST_XML_PASS" in content
+    assert 'int(root.attrib.get("tests", "0"))' in content
+    assert 'int(root.attrib.get("failures", "0"))' in content
+    assert 'int(root.attrib.get("errors", "0"))' in content
+
+
 def test_build_matrix_shell_syntax_is_valid():
     result = subprocess.run(
         ["bash", "-n", str(SCRIPT)],
