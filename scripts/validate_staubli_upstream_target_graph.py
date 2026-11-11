@@ -198,7 +198,12 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError(f"{label}.exported_targets must be an array of strings")
         export_names = normalized_exports(exports)
         missing_exports = sorted(set(PRODUCTION_TARGETS) - export_names)
-        exported_includes = snapshot.get("exported_target_include_directories", [])
+        if "exported_target_include_directories" not in snapshot:
+            raise ValueError(
+                f"{label}.exported_target_include_directories is required; "
+                "recollect the install export snapshot"
+            )
+        exported_includes = snapshot["exported_target_include_directories"]
         if not isinstance(exported_includes, list) or any(
             not isinstance(value, str) for value in exported_includes
         ):
