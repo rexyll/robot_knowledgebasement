@@ -4806,3 +4806,13 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **状态：** 知识库脚本修复与测试已提交；Bash/Python CI待复验。ROS Jazzy真实OFF/ON build/install、consumer、gtest仍NOT_RUN；SERVO-907手动workflow尚未执行。
 - **边界：** 仅修改知识库main；未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
 - **下一步：** 检查本轮CI结果；随后由用户在GitHub Actions手动运行`.github/workflows/staubli-ros-jazzy-build.yml`，审阅完整日志和证据artifact。未获得真实运行证据前，不更新ROS验收状态或设置required门禁。
+
+
+### 2026-11-11｜CI #3622：SERVO-907 双配置环境隔离修复回归复验
+
+- 触发提交：`42c408fb4f0cf1adaf16530467334796198b743d`；GitHub Actions Run ID `42958783662`。
+- Python 3.10/3.11/3.12均为SUCCESS，每个版本113 passed；Ruff全部通过；OSV依赖审计与Python runtime/development SBOM均SUCCESS。
+- 新增consumer环境隔离合同测试已进入三版本pytest矩阵并通过。
+- 检查到GitHub Actions提示checkout/setup-python/upload-artifact当前固定SHA对应的action仍声明Node.js 20，runner正强制Node.js 24执行。此为维护性弃用警告，本次作业成功；记录为独立维护事项，不影响本次测试结果，不在未经版本与SHA核验前盲目升级固定action。
+- **验证边界：** CI #3622只证明知识库Python/静态合同测试及OSV/SBOM作业成功；SERVO-907手动ROS Jazzy workflow尚未执行，真实OFF/ON colcon build/install、install-space consumer、gtest仍NOT_RUN。
+- **下一步：** 等待用户手动触发SERVO-907工作流并审查日志与artifact；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
