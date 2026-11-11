@@ -5755,7 +5755,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 ### CI-HIST-001｜GitHub Actions 历史失败记录审查与修复
 
 - **审计报告：** [GitHub Actions历史失败记录审查与修复验收](../../audits/2026-11-11-github-actions-historical-failure-review.md)。
-- **历史记录：** 2026-11-03至2026-11-11共盘点164条失败run；这些记录包含重复提交触发，并非164个独立缺陷。主要类别包括Ruff 113项、pytest导入路径/target顺序断言、Python 3.10下载HTTP 504、Artifact上传ECONNRESET、uv.lock与locked模式不一致、OSV安全发现、源码SHA校验shell变量引用、早期浮点精度/导入排序问题。
+- **历史记录：** 2026-11-03至2026-11-11共盘点167条失败run；这些记录包含重复提交触发，并非164个独立缺陷。主要类别包括Ruff 113项、pytest导入路径/target顺序断言、Python 3.10下载HTTP 504、Artifact上传ECONNRESET、uv.lock与locked模式不一致、OSV安全发现、源码SHA校验shell变量引用、早期浮点精度/导入排序问题。
 - **代码修复：** 对6个Stäubli Python工具/测试文件执行规范化格式修复；修正pytest仓库根pythonpath；关闭matrix fail-fast以确保各Python版本独立完成；测试按target name断言，不依赖collector排序索引。
 - **CI验收：** GitHub Actions CI #3560 / Run ID 42951823527 SUCCESS。Python 3.10、3.11、3.12各98 passed，Ruff均通过；OSV与SBOM job均成功。历史run保持原始failure记录，不改写。
 - **外部故障：** 2026-11-08/09的Python 3.10发行包下载HTTP 504及2026-11-05的Artifact Finalize ECONNRESET属于外部服务/网络故障；当前matrix及SBOM归档均已成功。
@@ -5768,3 +5768,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 | 日期 | 节点 | 执行记录 | 状态/边界 |
 |---|---|---|---|
 | 2026-11-11 | §9.3.321 / SERVO-904 | 审查当前GitHub Actions workflow及固定上游CMake/package元数据。确认当前CI仅覆盖Python 3.10/3.11/3.12、Ruff、pytest、SBOM和OSV；未运行ROS Jazzy/colcon/C++。固定上游目标包为staubli_robot_driver（仓库根目录无CMakeLists.txt）；CMake显式find_package(backward_ros/Boost)，package.xml未声明相应build依赖；${asio_SOURCE_DIR}在已检查CMakeLists中无定义来源。SERVO-902脚本仅configure，不build/install，不能形成真实install manifest/export target证据。新增审计报告：docs/audits/2026-11-11-staubli-servo-904-github-actions-ros-jazzy-integration-review.md。 | 静态审查与CI接入设计完成；真实ROS workflow、双配置build/install、install-space consumer、C++/gtest/plugin/ABI/sanitizer/HIL均NOT_RUN。未修改固定上游，TODO-EXT-001未授权，A1.1保持BLOCKED。下一节点§9.3.322 / SERVO-905：解析依赖闭包与Asio来源，设计真实双配置build/install脚本。 |
+
+
+| 2026-11-11 | CI-HIST-001二次核验 | 对GitHub Actions workflow-runs API分页并按UTC日期/conclusion过滤，纠正初版统计：2026-11-03至2026-11-11共167条失败run（11/03 48、11/04 40、11/05 1、11/08 5、11/09 5、11/11 68）；新增逐条CSV索引docs/audits/github-actions-failure-run-index-2026-11-03-to-11-11.csv，并修正历史失败审查报告。 | 历史记录索引已补齐；run次数不等于独立缺陷。修复后CI #3560–#3564均SUCCESS；历史失败记录不改写。 |
