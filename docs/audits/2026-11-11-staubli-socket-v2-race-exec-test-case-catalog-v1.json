@@ -1,0 +1,988 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_id": "staubli_socket_v2_race_exec_test_cases",
+  "project": "staubli_socket_v2_lifecycle",
+  "upstream_baseline": {
+    "repository": "ICube-Robotics/staubli_driver_ros2",
+    "commit": "bd658e2d266e315d2ee35f985fb352ea88306b79"
+  },
+  "status_semantics": "All entries are design specifications; NOT_RUN means no runtime execution evidence has been supplied.",
+  "reference_catalog": [
+    "RACE-01",
+    "RACE-02",
+    "RACE-03",
+    "RACE-04",
+    "RACE-05",
+    "RACE-06",
+    "RACE-07",
+    "RACE-08",
+    "RACE-09",
+    "RACE-10",
+    "RACE-11",
+    "RACE-12",
+    "RACE-13",
+    "RACE-14",
+    "RACE-15",
+    "RACE-16",
+    "EXEC-01",
+    "EXEC-02",
+    "EXEC-03",
+    "EXEC-04"
+  ],
+  "test_cases": [
+    {
+      "test_id": "RACE-01",
+      "title": "Duplicate retry claim for one entry",
+      "category": "claim",
+      "scenario": "Two cleanup workers race to claim the same EntryKey.",
+      "preconditions": [
+        "A single RETRY_PENDING entry exists with a stable core_id and generation."
+      ],
+      "stimulus": [
+        "Release two worker claim barriers simultaneously."
+      ],
+      "expected_assertions": [
+        "Exactly one attempt token is issued; in_flight is true once; the losing worker observes the existing claim and does not execute cleanup."
+      ],
+      "test_harness": {
+        "description": "Fake scheduler, two cleanup workers, claim barrier, entry snapshot observer.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-02",
+      "title": "Retry claim versus shutdown admission close",
+      "category": "admission",
+      "scenario": "A retry claim races with manager shutdown closing admission.",
+      "preconditions": [
+        "Manager is ACCEPTING; one retry is eligible; shutdown and claim can be paused at the admission boundary."
+      ],
+      "stimulus": [
+        "Release claim and shutdown-close barriers in both orderings."
+      ],
+      "expected_assertions": [
+        "No claim starts after the close linearization point; a claim already admitted is counted in shutdown drain; owner remains retained until terminal outcome."
+      ],
+      "test_harness": {
+        "description": "Fake scheduler, manager admission barrier, shutdown drain counter, monotonic clock.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F03",
+        "F10",
+        "PLUG-L05",
+        "PLUG-L11"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-03",
+      "title": "Owner transfer prepare versus shutdown",
+      "category": "ownership_transfer",
+      "scenario": "Shutdown begins after transfer reservation is prepared but before commit.",
+      "preconditions": [
+        "Source ResidualResourceHandle is valid; manager capacity reservation is available; transfer is paused between prepare and commit."
+      ],
+      "stimulus": [
+        "Trigger shutdown while transfer is prepared, then release commit barrier."
+      ],
+      "expected_assertions": [
+        "Transfer either commits atomically and is included in drain, or aborts with source handle intact; never zero owners or two owners."
+      ],
+      "test_harness": {
+        "description": "Move-only fake resource handle, transfer reservation hook, manager shutdown barrier.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F14",
+        "PLUG-L12"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-04",
+      "title": "Stale completion after generation replacement",
+      "category": "generation_fencing",
+      "scenario": "An old cleanup completion arrives after the entry has advanced to a new generation.",
+      "preconditions": [
+        "Entry generation N has an in-flight attempt; generation N+1 is installed before old completion submission."
+      ],
+      "stimulus": [
+        "Submit the generation N completion after generation N+1 is active."
+      ],
+      "expected_assertions": [
+        "Old completion is rejected as stale; generation N+1 state and revision are unchanged; no new owner is released."
+      ],
+      "test_harness": {
+        "description": "Fake entry registry, generation switch hook, delayed completion injector.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-05",
+      "title": "Executor rejects an admitted cleanup task",
+      "category": "executor_dispatch",
+      "scenario": "Executor refuses a task after it was selected for dispatch.",
+      "preconditions": [
+        "Entry is RETRY_PENDING and retains its Core owner; fake executor can reject submission deterministically."
+      ],
+      "stimulus": [
+        "Return submission-rejected from the fake executor after claim preparation."
+      ],
+      "expected_assertions": [
+        "Entry returns to a queryable pending/residual state; in_flight is cleared; owner remains retained; no cleanup side effect is claimed."
+      ],
+      "test_harness": {
+        "description": "Fake executor with deterministic reject hook, entry snapshot observer.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F03"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-06",
+      "title": "Executor shutdown during submit/accept handshake",
+      "category": "executor_dispatch",
+      "scenario": "Executor shutdown races with task submission and acceptance acknowledgement.",
+      "preconditions": [
+        "One task is at the submit/accept boundary; fake executor exposes both transitions."
+      ],
+      "stimulus": [
+        "Close executor context between submission and acknowledgement."
+      ],
+      "expected_assertions": [
+        "Task outcome is recorded exactly once; no task is silently lost or executed twice; owner remains retained if execution did not complete."
+      ],
+      "test_harness": {
+        "description": "Fake executor, submit/accept barriers, task event recorder.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F12"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-07",
+      "title": "Duplicate retry while completion commits",
+      "category": "revision_fencing",
+      "scenario": "A second retry arrives after Core work but before entry completion is committed.",
+      "preconditions": [
+        "One attempt token is active; cleanup result is ready; entry revision is observable."
+      ],
+      "stimulus": [
+        "Submit a second retry and then release the first completion commit barrier."
+      ],
+      "expected_assertions": [
+        "Only the matching token/revision commits; duplicate retry does not create a second cleanup transaction or overwrite state."
+      ],
+      "test_harness": {
+        "description": "Fake cleanup worker, token/revision observer, completion barrier.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F01",
+        "F02",
+        "F08",
+        "F10",
+        "F11",
+        "F16",
+        "PLUG-L02",
+        "PLUG-L08",
+        "PLUG-L11",
+        "PLUG-L12"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-08",
+      "title": "Cross-entry lock-order inversion attempt",
+      "category": "lock_order",
+      "scenario": "Two entries execute operations that could acquire manager, entry, and scheduler locks in conflicting orders.",
+      "preconditions": [
+        "Two entries exist; lock acquisition instrumentation is enabled; operations can be interleaved by barriers."
+      ],
+      "stimulus": [
+        "Interleave registration, claim, reschedule, and snapshot operations across both entries."
+      ],
+      "expected_assertions": [
+        "No reverse nested lock order is observed; no deadlock occurs; external work is performed without manager/entry/scheduler locks held."
+      ],
+      "test_harness": {
+        "description": "Instrumented mutexes, two-entry stress harness, deterministic barriers, deadlock watchdog.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-09",
+      "title": "Retry deadline expiry with residual owner",
+      "category": "deadline",
+      "scenario": "A retry reaches its deadline while cleanup remains incomplete.",
+      "preconditions": [
+        "Entry has a retained Core owner; fake monotonic clock controls the deadline."
+      ],
+      "stimulus": [
+        "Advance fake clock beyond the attempt deadline while cleanup is blocked."
+      ],
+      "expected_assertions": [
+        "Entry becomes timed-out/exhausted or residual according to policy; Core owner and worker lifetime remain retained; timeout is not treated as cleanup success."
+      ],
+      "test_harness": {
+        "description": "Fake monotonic clock, blocked cleanup worker, immutable snapshot observer.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F07",
+        "F09",
+        "F16",
+        "PLUG-L03",
+        "PLUG-L07"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-10",
+      "title": "Retry flood versus shutdown drain fairness",
+      "category": "shutdown_fairness",
+      "scenario": "Continuous retry arrivals compete with shutdown drain work.",
+      "preconditions": [
+        "Retry queue is active; shutdown has a reserved progress budget; fake clock and scheduler are controllable."
+      ],
+      "stimulus": [
+        "Generate retry arrivals while shutdown begins and drain work becomes eligible."
+      ],
+      "expected_assertions": [
+        "Shutdown drain receives bounded/fair scheduling progress; new admission closes; no unbounded starvation or owner eviction occurs."
+      ],
+      "test_harness": {
+        "description": "Deterministic scheduler, fake clock, bounded queue, event sequence recorder.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-11",
+      "title": "Worker callback re-enters stop or shutdown",
+      "category": "reentrant_stop",
+      "scenario": "A worker callback invokes stop/shutdown from the worker thread itself.",
+      "preconditions": [
+        "Worker identity is known; callback executes under a controlled barrier; external lifecycle thread is available."
+      ],
+      "stimulus": [
+        "Invoke stop and shutdown from the worker callback."
+      ],
+      "expected_assertions": [
+        "API returns a documented asynchronous/reentrancy result such as WOULD_DEADLOCK or ASYNC; no self-join, detach, or destruction of the last Core owner occurs."
+      ],
+      "test_harness": {
+        "description": "Worker-thread harness, callback barrier, external join coordinator, thread identity probe.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F05",
+        "F06",
+        "PLUG-L06"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-12",
+      "title": "Completion dispatcher disappears before result delivery",
+      "category": "completion_fallback",
+      "scenario": "The completion dispatcher is destroyed or unavailable when cleanup finishes.",
+      "preconditions": [
+        "A cleanup attempt is in flight; dispatcher rejection/destruction can be injected."
+      ],
+      "stimulus": [
+        "Destroy or reject the dispatcher before the worker submits completion."
+      ],
+      "expected_assertions": [
+        "Manager internal synchronous fallback records the outcome exactly once; entry remains queryable; owner is not lost."
+      ],
+      "test_harness": {
+        "description": "Fake completion dispatcher, worker completion hook, internal state observer.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-13",
+      "title": "Active callback versus plugin unload gate",
+      "category": "plugin_unload_gate",
+      "scenario": "Plugin unload races with active callback leases and pending handlers.",
+      "preconditions": [
+        "Plugin DSO lease is held; callback admission and active/pending counters are instrumented."
+      ],
+      "stimulus": [
+        "Block a callback, request unload, and complete/cancel handlers in controlled order."
+      ],
+      "expected_assertions": [
+        "Unload remains blocked until pending=0, active=0, worker joined, and plugin code leases=0; no callback target or deleter executes after unload."
+      ],
+      "test_harness": {
+        "description": "Callback latch, fake DSO lease counter, plugin unload gate, handler barrier.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F04",
+        "F13",
+        "PLUG-L01",
+        "PLUG-L04",
+        "PLUG-L05",
+        "PLUG-L09",
+        "PLUG-L10"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-14",
+      "title": "Last external handle released during worker execution",
+      "category": "core_lifetime",
+      "scenario": "The last facade/external handle is released while a worker still uses the Core.",
+      "preconditions": [
+        "Worker holds a valid in-flight operation; external handle count can be controlled."
+      ],
+      "stimulus": [
+        "Release the final external handle while worker remains blocked, then allow worker completion."
+      ],
+      "expected_assertions": [
+        "Worker/lifecycle owner keeps Core alive through safe completion and join; no use-after-free or premature native resource release occurs."
+      ],
+      "test_harness": {
+        "description": "Reference/owner probe, worker barrier, lifetime event recorder.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F03",
+        "F07",
+        "PLUG-L10"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-15",
+      "title": "Duplicate completion and retry for one key",
+      "category": "idempotency",
+      "scenario": "Repeated complete/retry requests target the same resource generation.",
+      "preconditions": [
+        "One entry has a known terminal or residual state and a stable generation key."
+      ],
+      "stimulus": [
+        "Issue duplicate completion and retry requests in varied order."
+      ],
+      "expected_assertions": [
+        "Operations are idempotent; no double close, double join, double free, or loss of UNKNOWN/RESIDUAL state occurs."
+      ],
+      "test_harness": {
+        "description": "Fake native resource with operation counters, duplicate request injector, snapshot observer.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F01",
+        "F02",
+        "F08",
+        "F11",
+        "F15",
+        "PLUG-L02",
+        "PLUG-L08"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "RACE-16",
+      "title": "Manager capacity reached during owner handoff",
+      "category": "capacity_backpressure",
+      "scenario": "A new residual handoff arrives when entry or queue capacity is full.",
+      "preconditions": [
+        "Manager capacity is fixed and fully occupied; a new source owner is valid."
+      ],
+      "stimulus": [
+        "Attempt another transfer while capacity is exhausted."
+      ],
+      "expected_assertions": [
+        "New handoff is rejected without consuming or invalidating source owner; existing entries and owners are not evicted."
+      ],
+      "test_harness": {
+        "description": "Bounded fake manager, capacity barrier, move-only source handle and ownership probe.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F10",
+        "F14",
+        "PLUG-L11"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "EXEC-01",
+      "title": "Seal manager after executor has stopped",
+      "category": "executor_independent_seal",
+      "scenario": "The executor context stops before manager seal and report generation.",
+      "preconditions": [
+        "Executor is stopped; manager registry and residual entries remain available."
+      ],
+      "stimulus": [
+        "Invoke manager seal and request final snapshot/report after executor stop."
+      ],
+      "expected_assertions": [
+        "Seal and report generation complete without dispatching to the stopped executor; residual owners remain retained and visible."
+      ],
+      "test_harness": {
+        "description": "Stopped fake executor, manager state machine, snapshot/report serializer.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F07",
+        "PLUG-L07"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "EXEC-02",
+      "title": "Queued cancellation versus running task completion",
+      "category": "task_cancel_completion",
+      "scenario": "A queued task is cancelled while a separate running task completes.",
+      "preconditions": [
+        "One task is queued and one task is running; cancellation and completion barriers are available."
+      ],
+      "stimulus": [
+        "Cancel the queued task while releasing the running task completion barrier."
+      ],
+      "expected_assertions": [
+        "Queued task never executes; running task outcome commits exactly once; task and owner accounting remains consistent."
+      ],
+      "test_harness": {
+        "description": "Fake executor with queued/running task states, cancellation and completion barriers.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "EXEC-03",
+      "title": "ROS context shutdown versus node destruction",
+      "category": "ros_context_lifetime",
+      "scenario": "ROS executor context shutdown races with destruction of a node/callback target.",
+      "preconditions": [
+        "Node and callback target leases are tracked; fake context shutdown and node destruction can be ordered."
+      ],
+      "stimulus": [
+        "Interleave context shutdown, callback completion, and node destruction."
+      ],
+      "expected_assertions": [
+        "No callback accesses a destroyed node; plugin/node leases remain until callbacks drain; teardown result is explicit."
+      ],
+      "test_harness": {
+        "description": "ROS lifecycle integration harness or deterministic fake context, callback latch, node lifetime probe.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F04",
+        "F12",
+        "F13",
+        "PLUG-L01",
+        "PLUG-L03",
+        "PLUG-L09",
+        "PLUG-L12"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    },
+    {
+      "test_id": "EXEC-04",
+      "title": "Worker exit and external join ownership",
+      "category": "worker_join",
+      "scenario": "A worker exits after stop is requested and must be joined by its external owner.",
+      "preconditions": [
+        "Worker is started and lifecycle owner is retained; worker exit can be barrier-controlled."
+      ],
+      "stimulus": [
+        "Request stop, release worker exit, and invoke join from the external lifecycle thread."
+      ],
+      "expected_assertions": [
+        "Every join is performed by the external owner; no detach or self-join occurs; Core is retained until join completes."
+      ],
+      "test_harness": {
+        "description": "Dedicated worker harness, thread identity probe, external join coordinator.",
+        "synchronization": "Deterministic barrier/latch; no sleep-based ordering.",
+        "clock": "Fake monotonic clock where time is relevant.",
+        "fault_injection": "Explicit test hook; no production fault injection assumed."
+      },
+      "manifest_record_ids": [
+        "F05",
+        "F06",
+        "F09",
+        "PLUG-L06",
+        "PLUG-L10"
+      ],
+      "execution_state": "NOT_RUN",
+      "evidence_contract": {
+        "required_artifacts": [
+          "test_log",
+          "environment_manifest",
+          "artifact_hash",
+          "state_snapshot",
+          "event_trace"
+        ],
+        "hash_algorithm": "SHA-256",
+        "must_capture": [
+          "repository commit and build configuration",
+          "test case ID and attempt token",
+          "resource generation and revision",
+          "before/after state snapshots",
+          "owner-retention and cleanup outcome",
+          "deterministic event sequence"
+        ],
+        "pass_rule": "All expected assertions pass in the declared harness and the complete evidence bundle is archived and hash-verified.",
+        "not_run_rule": "Design specification or CI schema validation alone never changes execution_state from NOT_RUN."
+      },
+      "source_audit": "docs/audits/2026-11-10-staubli-socket-v2-quarantine-retry-concurrency-lock-order-executor-shutdown-race-design.md"
+    }
+  ]
+}
