@@ -8,7 +8,7 @@
 
 ## 1. 审查范围与统计
 
-GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclusion过滤后，2026-11-03至2026-11-11期间共确认181条失败运行记录。逐条索引见[历史失败run CSV](github-actions-failure-run-index-2026-11-03-to-11-11.csv)。按失败运行创建日期统计：
+GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclusion过滤后，2026-11-03至2026-11-11期间共确认182条失败运行记录。逐条索引见[历史失败run CSV](github-actions-failure-run-index-2026-11-03-to-11-11.csv)。按失败运行创建日期统计：
 
 | 日期 | 失败运行数 |
 | --- | ---: |
@@ -17,8 +17,8 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 | 2026-11-05 | 1 |
 | 2026-11-08 | 5 |
 | 2026-11-09 | 5 |
-| 2026-11-11 | 82 |
-| **合计** | **181** |
+| 2026-11-11 | 83 |
+| **合计** | **182** |
 
 这些是workflow run次数，不等于164个独立缺陷。连续小提交会重复触发同一故障。所有失败run均纳入历史索引，并按日期、失败job/step及代表性日志聚类。历史run是不可变审计记录，不会因后续修复而被改写为成功；修复效果以当前main的新运行结果判定。
 
@@ -138,3 +138,19 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - 2026-11-11新增 `tests/test_staubli_ros_jazzy_build_script.py` 时，标准库导入块排序/空行格式与仓库Ruff/isort规则不一致，导致CI #3587–#3593、#3595–#3597共10条push触发run的Lint步骤失败；Python 3.10/3.11/3.12均在Lint处停止，pytest未执行。OSV与SBOM job保持成功。
 - 影响：仅知识库新增测试文件的Lint门禁失败，不涉及固定上游Stäubli C++代码，也没有真实ROS构建执行。
 - 修复：调整导入顺序与空行，后续CI运行用于验证。10条历史失败run保留原始failure，不改写为成功；这些run属于同一导入排序缺陷的重复触发，不代表10个独立缺陷。
+
+
+### 2.10 ROS Jazzy workflow测试断言行宽回归
+
+- 运行：[CI #3598](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42955635997)。
+- 新增手动ROS Jazzy workflow的测试中，完整镜像digest字符串直接写入单行断言，触发Ruff E501；三个Python版本均在Lint阶段失败，OSV/SBOM成功。
+- 修复：将镜像digest拆分为相邻字符串常量；后续CI #3599已成功，证明本次Ruff修复生效。#3598保留为历史failure，并新增到CSV索引。
+
+
+## 5. ROS Jazzy workflow环境来源记录
+
+- 手动workflow：`.github/workflows/staubli-ros-jazzy-build.yml`，仅由 `workflow_dispatch` 触发，不自动作为每次Python CI的阻断门禁。
+- 容器：`osrf/ros@sha256:ae7ad3ac243da1dfd8bd402a2fa08e149ffbf7a385013bd8ef798d0800accdc8`，Docker Hub页面标注linux/amd64，Ubuntu 24.04/Noble。来源：[OSRF ROS Jazzy desktop-full image digest](https://hub.docker.com/layers/osrf/ros/jazzy-desktop-full/images?tab=layers)。
+- `backward_ros`：ROS Index显示Jazzy发行版包含backward_ros 1.0.8；来源：[ROS Index backward_ros](https://index.ros.org/r/backward_ros/)。
+- Ubuntu Noble包：`libboost-system-dev` 与 `libasio-dev` 均有Noble发行包记录；来源：[libboost-system-dev](https://packages.ubuntu.com/noble/libboost-system-dev)、[libasio-dev](https://packages.ubuntu.com/noble/libasio-dev)。
+- 状态：workflow已提交但尚未触发。镜像digest和包来源已核对；apt/rosdep实时解析、colcon双配置build/install、gtest和consumer仍待手动运行产出真实证据。
