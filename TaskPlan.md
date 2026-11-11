@@ -4876,3 +4876,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 依赖风险分级修正：realtime_tools因公共头文件直接依赖而列为优先真实consumer验证项；Boost.System当前为实现侧使用且链接未声明PUBLIC，不仅凭未出现在ament_export_dependencies就断言下游导出失败，但package.xml缺少构建依赖声明仍需核实；backward_ros目前只确认find_package，未证实必须作为传递导出依赖；asio_SOURCE_DIR定义来源继续独立待查。
 - 新提交对应普通CI待复验；真实ROS Jazzy OFF/ON build/install、公共头文件consumer编译/运行、gtest、manifest证据包仍NOT_RUN。固定上游未修改；无上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
 - 下一步：检查新增提交触发的CI；CI全部通过后等待用户手动触发`.github/workflows/staubli-ros-jazzy-build.yml`，优先检查realtime_tools公共头文件导出路径。
+
+### 2026-11-11｜v11.13 SERVO-907 Boost.Asio 依赖与构建预检清理
+
+- 固定上游`udp_socket_impl.hpp`明确使用Boost.Asio；`CMakeLists.txt`查找Boost.System。全仓搜索未发现standalone Asio使用，也未找到`asio_SOURCE_DIR`定义来源；CMake的PUBLIC include路径`${asio_SOURCE_DIR}/asio/include`在当前入口下可能退化为`/asio/include`，列为待真实configure/install consumer验证的遗留路径风险。
+- 知识库侧从ROS Jazzy workflow移除不匹配源码依赖的`libasio-dev`，从构建脚本移除`/usr/include/asio.hpp`强制检查，保留Boost.System预检；新增静态合同测试。
+- 提交：脚本`9d0ff8dfb92d95d493d1d0b10f57cf19f82e8a3b`；workflow`f9d818586206f7ebc2b0dc338d667d2589d4672e`；测试`ab7631a17640aba6c37e6d12e092f496dc2bab32`；审计报告同步追加第15节。
+- `package.xml`未声明Boost/backward_ros，而workflow显式安装对应依赖；仍作为固定上游依赖元数据问题待核实，不擅自修改上游或猜测rosdep key。
+- 新提交CI待复验；真实ROS Jazzy OFF/ON build/install、PUBLIC include export、consumer、gtest与证据包仍`NOT_RUN`。固定上游未修改；无上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
