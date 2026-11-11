@@ -119,6 +119,8 @@ def collect(
         name = target.get("name", item.get("name"))
         if not isinstance(target_id, str) or not isinstance(name, str):
             raise ValueError("target requires string id and name")
+        if target_id in target_ids:
+            raise ValueError(f"duplicate CMake target id: {target_id}")
         target_ids[target_id] = name
         raw_targets.append((item, target))
 
@@ -128,15 +130,19 @@ def collect(
         dependencies = target.get("dependencies", [])
         if not isinstance(dependencies, list):
             raise ValueError(f"{name}.dependencies must be an array")
-        dependency_names = sorted(
-            {
-                target_ids[item["id"]]
-                for item in dependencies
-                if isinstance(item, dict)
-                and isinstance(item.get("id"), str)
-                and item["id"] in target_ids
-            }
-        )
+        dependency_ids = []
+        for dependency in dependencies:
+            if not isinstance(dependency, dict) or not isinstance(
+                dependency.get("id"), str
+            ):
+                raise ValueError(f"{name}.dependencies contains an invalid target reference")
+            dependency_id = dependency["id"]
+            if dependency_id not in target_ids:
+                raise ValueError(
+                    f"{name}.dependencies references unknown target id: {dependency_id}"
+                )
+            dependency_ids.append(dependency_id)
+        dependency_names = sorted({target_ids[item] for item in dependency_ids})
 
         includes = set()
         definitions = set()
