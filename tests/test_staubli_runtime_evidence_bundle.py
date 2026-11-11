@@ -124,6 +124,13 @@ def make_synthetic_bundle(root: Path, status: str) -> tuple[dict, dict]:
             "blockers": [],
         }
     )
+    if status == "RUN_FAIL":
+        failure_snapshot = copy.deepcopy(bundle["resource_snapshots"][-1])
+        failure_snapshot["phase"] = "failure"
+        failure_snapshot["lifecycle_state"] = "CLEANUP_FAILED"
+        failure_snapshot["native_handle_state"] = "UNKNOWN"
+        bundle["resource_snapshots"].append(failure_snapshot)
+
     environment_doc = {
         "bundle_id": bundle["bundle_id"],
         "test_id": bundle["test_id"],
