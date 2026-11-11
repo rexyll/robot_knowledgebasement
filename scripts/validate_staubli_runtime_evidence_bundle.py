@@ -43,7 +43,7 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def _safe_artifact_path(root: Path, relative: str) -> tuple[Path | None, str | None]:
     rel = Path(relative)
-    if rel.is_absolute() or "\\\\" in relative or not relative or any(
+    if rel.is_absolute() or "\\" in relative or not relative or any(
         part in {".", ".."} for part in rel.parts
     ):
         return None, f"artifact path is not a normalized safe relative path: {relative}"
