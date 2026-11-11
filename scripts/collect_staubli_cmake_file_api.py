@@ -16,6 +16,19 @@ def read_json(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path}: expected JSON object")
     return value
 
+def reply_file(reply: Path, filename: str, label: str) -> Path:
+    """Resolve a File API filename without allowing reads outside the reply tree."""
+    candidate = Path(filename)
+    if candidate.is_absolute():
+        raise ValueError(f"{label} must be a relative reply path: {filename!r}")
+    resolved_reply = reply.resolve()
+    resolved = (reply / candidate).resolve()
+    if not resolved.is_relative_to(resolved_reply):
+        raise ValueError(f"{label} escapes the CMake File API reply directory")
+    if not resolved.is_file():
+        raise FileNotFoundError(f"{label} does not identify a reply file: {filename!r}")
+    return resolved
+
 
 def find_export_files(export_root: Path) -> list[Path]:
     """Find CMake exports in merged or one-package-per-prefix install layouts."""
@@ -82,14 +95,19 @@ def collect(
     if not indexes:
         raise FileNotFoundError(f"no CMake File API index found in {reply}")
 
-    index = read_json(indexes[-1])
-    reference = index.get("reply", {}).get("codemodel-v2")
+    index_path = reply_file(reply, indexes[-1].name, "CMake File API index")
+    index = read_json(index_path)
+    replies = index.get("reply")
+    if not isinstance(replies, dict):
+        raise ValueError("CMake File API index.reply must be an object")
+    reference = replies.get("codemodel-v2")
     if not isinstance(reference, dict) or not isinstance(
         reference.get("jsonFile"), str
     ):
         raise ValueError("missing codemodel-v2 reply")
 
-    model = read_json(reply / reference["jsonFile"])
+    model_path = reply_file(reply, reference["jsonFile"], "codemodel-v2 jsonFile")
+    model = read_json(model_path)
     configurations = model.get("configurations")
     if not isinstance(configurations, list) or not configurations:
         raise ValueError("codemodel has no configurations")
@@ -121,7 +139,8 @@ def collect(
     for item in references:
         if not isinstance(item, dict) or not isinstance(item.get("jsonFile"), str):
             raise ValueError("invalid target reference")
-        target = read_json(reply / item["jsonFile"])
+        target_path = reply_file(reply, item["jsonFile"], "target jsonFile")
+        target = read_json(target_path)
         reference_id = item.get("id")
         reference_name = item.get("name")
         target_id = target.get("id")
