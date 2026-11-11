@@ -5738,3 +5738,8 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 ### §9.3.318｜SERVO-901：Fake Harness Header 与 Target Graph 静态验收设计
 
 - [2026-11-11 Stäubli Fake Harness Header 与 Target Graph 静态验收设计](../audits/2026-11-11-staubli-socket-v2-servo-901-fake-harness-target-graph-validation.md)：新增归一化CMake双配置快照Schema、target graph validator与正反向测试；检查BUILD_TESTING=OFF/ON下test-only target边界、production依赖传递闭包、install manifest、exported targets及plugin依赖闭包零Fake泄漏。当前validator仅消费外部collector快照，collector未实现；真实CMake双配置、header自包含编译、install/ament export和plugin运行均NOT_RUN。未修改上游或应用PR，A1.1保持BLOCKED。下一节点§9.3.319 / SERVO-902。
+
+
+### §9.3.319｜SERVO-902：CMake File API Collector 与双配置快照采集
+
+- [2026-11-11 Stäubli CMake File API Collector 与双配置快照采集](../audits/2026-11-11-staubli-socket-v2-servo-902-cmake-file-api-collector.md)：新增codemodel-v2采集器、BUILD_TESTING=OFF/ON独立目录configure脚本、合成reply fixture测试和快照Schema。采集target/依赖/include/definitions/install manifest；exported targets通过显式清单输入，不作推断。当前fixture测试待CI确认；真实ROS Jazzy双配置、install/export、C++/plugin/ABI/sanitizer/HIL均NOT_RUN。A1.1保持BLOCKED。下一节点§9.3.320 / SERVO-903。
