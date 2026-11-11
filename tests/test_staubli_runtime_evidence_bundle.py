@@ -21,9 +21,8 @@ def load_inputs() -> tuple[dict, dict]:
         (
             ROOT
             / (
-                (
-                    "docs/audits/2026-11-11-staubli-runtime-evidence-bundle-example-NOT_RUN.json"
-                )
+                "docs/audits/2026-11-11-staubli-runtime-evidence-"
+                "bundle-example-NOT_RUN.json"
             )
         ).read_text(encoding="utf-8")
     )
