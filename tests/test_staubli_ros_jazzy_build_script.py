@@ -54,6 +54,19 @@ def test_build_matrix_shell_syntax_is_valid():
     assert result.returncode == 0, result.stderr
 
 
+def test_manual_ros_workflow_refreshes_apt_indexes_before_rosdep_install():
+    workflow = (
+        Path(__file__).parents[1]
+        / ".github"
+        / "workflows"
+        / "staubli-ros-jazzy-build.yml"
+    ).read_text(encoding="utf-8")
+    dependency_step = workflow.split("      - name: Resolve declared ROS dependencies", 1)[1]
+    assert dependency_step.index("rosdep update") < dependency_step.index("apt-get update")
+    assert dependency_step.index("apt-get update") < dependency_step.index("rosdep install")
+    assert "rm -rf /var/lib/apt/lists/*" not in workflow
+
+
 def test_manual_ros_workflow_pins_image_and_upstream_source():
     workflow = (
         Path(__file__).parents[1]
