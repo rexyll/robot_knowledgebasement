@@ -277,9 +277,13 @@ def test_ros_setup_is_sourced_without_nounset_and_strict_mode_is_restored():
     assert 'source "${ROS_SETUP}"' not in content
 
 
-def test_install_consumer_resolves_boost_and_records_failures_without_skipping_matrix():
+def test_install_consumer_does_not_mask_unexported_boost_dependency():
     content = SCRIPT.read_text(encoding="utf-8")
-    assert "find_package(Boost REQUIRED COMPONENTS system)" in content
+    marker = 'cat > "${consumer_src}/CMakeLists.txt" <<\'CMAKE\''
+    consumer_cmake = content.split(marker, 1)[1].split("\nCMAKE", 1)[0]
+    assert "find_package(staubli_robot_driver REQUIRED)" in consumer_cmake
+    assert "find_package(Boost" not in consumer_cmake
+    assert "Boost::system" not in consumer_cmake
     assert "CONSUMER_FAILURES_FILE" in content
     assert "INSTALL_SPACE_CONSUMER_FINDINGS_PRESENT" in content
     assert "installed CMake package consumer configure/build failed" in content
