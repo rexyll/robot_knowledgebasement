@@ -5761,3 +5761,10 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **外部故障：** 2026-11-08/09的Python 3.10发行包下载HTTP 504及2026-11-05的Artifact Finalize ECONNRESET属于外部服务/网络故障；当前matrix及SBOM归档均已成功。
 - **状态边界：** Node.js 20 deprecation warning仍为非阻断维护项；本轮CI不代表真实ROS Jazzy/CMake/C++/plugin/ABI/HIL验收。未修改固定上游，TODO-EXT-001未授权，A1.1保持BLOCKED，RACE/EXEC真实运行仍NOT_RUN。
 - **节点状态：** CI-HIST-001已完成。后续恢复§9.3.321 / SERVO-904：审阅现有workflow并确定真实ROS Jazzy/CMake双配置证据采集的最小CI接入方式。
+
+
+---
+
+| 日期 | 节点 | 执行记录 | 状态/边界 |
+|---|---|---|---|
+| 2026-11-11 | §9.3.321 / SERVO-904 | 审查当前GitHub Actions workflow及固定上游CMake/package元数据。确认当前CI仅覆盖Python 3.10/3.11/3.12、Ruff、pytest、SBOM和OSV；未运行ROS Jazzy/colcon/C++。固定上游目标包为staubli_robot_driver（仓库根目录无CMakeLists.txt）；CMake显式find_package(backward_ros/Boost)，package.xml未声明相应build依赖；${asio_SOURCE_DIR}在已检查CMakeLists中无定义来源。SERVO-902脚本仅configure，不build/install，不能形成真实install manifest/export target证据。新增审计报告：docs/audits/2026-11-11-staubli-servo-904-github-actions-ros-jazzy-integration-review.md。 | 静态审查与CI接入设计完成；真实ROS workflow、双配置build/install、install-space consumer、C++/gtest/plugin/ABI/sanitizer/HIL均NOT_RUN。未修改固定上游，TODO-EXT-001未授权，A1.1保持BLOCKED。下一节点§9.3.322 / SERVO-905：解析依赖闭包与Asio来源，设计真实双配置build/install脚本。 |
