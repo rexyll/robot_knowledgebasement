@@ -108,6 +108,29 @@ def test_diagnostic_utility_must_remain_executable(tmp_path):
     assert any("DIAGNOSTIC-TYPE-ON" in error for error in report["errors"])
 
 
+def test_gtest_targets_must_remain_executables(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    target = next(item for item in data["targets"] if item["name"] == GTEST_TARGETS[0])
+    target["type"] = "STATIC_LIBRARY"
+    on.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any(f"GTEST-TYPE-ON-{GTEST_TARGETS[0]}" in error for error in report["errors"])
+
+
+def test_gtest_name_substrings_do_not_count_as_installed_or_exported(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    data["install_entries"].append("lib/staubli_robot_driver/not_test_sockets_helper")
+    data["exported_targets"].append("staubli_robot_driver::not_test_sockets_helper")
+    on.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "PASS"
+    assert not any("INSTALL-EXCLUDES-GTEST-ON" in error for error in report["errors"])
+    assert not any("EXPORT-EXCLUDES-GTEST-ON" in error for error in report["errors"])
+
+
 def test_gtest_targets_must_be_absent_when_testing_off(tmp_path):
     off, on = valid_pair(tmp_path)
     data = json.loads(off.read_text())
