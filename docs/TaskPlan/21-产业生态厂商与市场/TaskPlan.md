@@ -5783,3 +5783,5 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 | 2026-11-11 | §9.3.323 / SERVO-906 | 复核固定上游Dockerfile与package.xml/CMake依赖差异；更新scripts/run_staubli_build_testing_matrix.sh，要求固定上游commit/clean checkout，执行ROS Jazzy colcon BUILD_TESTING OFF/ON build/install、CMake File API采集、双配置install-space consumer、ON配置gtest、固定上游target graph validator及SHA-256证据包。新增tests/test_staubli_ros_jazzy_build_script.py和审计报告docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md。 | 驱动脚本已实现但未在ROS Jazzy环境执行；真实build/install/gtest/consumer均NOT_RUN。未修改上游，A1.1保持BLOCKED。下一节点§9.3.324 / SERVO-907：核实ROS镜像digest和依赖包来源，执行双配置脚本。 |
+
+| 2026-11-11 | CI-HIST-001 / SERVO-906新增Lint回归 | CI #3587–#3593、#3595–#3597共10条run因新增测试文件的Ruff I001导入排序/空行问题失败；三个Python版本均在Lint阶段停止，OSV/SBOM成功。已调整导入块格式，后续CI运行待验证。10条历史记录保留failure并加入CSV索引，归并为同一缺陷。 | 知识库测试文件质量回归，不涉及上游Stäubli代码；pytest未执行。历史失败run总数由171更正为181（11/11为82）。 |
