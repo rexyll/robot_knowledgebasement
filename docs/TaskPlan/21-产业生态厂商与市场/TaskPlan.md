@@ -6039,3 +6039,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 该结果证明知识库脚本静态合同与普通CI通过，不证明真实 ROS 环境已生成这些XML。必须由专用workflow验证实际报告路径、suite执行数量和结果。专用workflow最新运行仍是修复前失败的 `43008853603`；修复后的apt/rosdep依赖引导尚未通过专用workflow复验，OFF/ON colcon build/install、consumer、gtest、validator和SHA-256 evidence仍NOT_RUN。
 - 专项审计记录：`docs/audits/2026-11-11-staubli-servo-907-gtest-result-completeness-audit.md`。SERVO-907继续BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
 - 下一步：由有Actions写权限的用户在main手动触发专用ROS Jazzy workflow；若实际gtest报告路径与脚本预期不一致，先基于artifact/log修正门禁，再重跑动态验收。
+
+
+- 补充 CI 复验：审计文档提交 Run `43012296237`、本章记录提交 Run `43012304340`、根计划记录提交 Run `43012312051` 均 completed/success，各自五个Job全部SUCCESS。三次均为普通Python/供应链CI，不构成ROS Jazzy动态验收。
