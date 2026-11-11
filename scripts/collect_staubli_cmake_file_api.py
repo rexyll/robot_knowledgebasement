@@ -128,6 +128,63 @@ def collect_exported_target_include_directories(export_root: Path) -> list[str]:
     return sorted(include_directories)
 
 
+def mask_cmake_non_code(content: str) -> str:
+    """Mask comments and quoted/bracket arguments before scanning CMake commands."""
+    masked = list(content)
+
+    def blank(start: int, end: int) -> None:
+        for position in range(start, end):
+            if masked[position] not in "\r\n":
+                masked[position] = " "
+
+    index = 0
+    while index < len(content):
+        char = content[index]
+        if char == '"':
+            start = index
+            index += 1
+            while index < len(content):
+                if content[index] == "\\":
+                    index += 2
+                    continue
+                if content[index] == '"':
+                    index += 1
+                    break
+                index += 1
+            blank(start, min(index, len(content)))
+            continue
+
+        if char == "[":
+            opening = re.match(r"\[(=*)\[", content[index:])
+            if opening:
+                closing = "]" + opening.group(1) + "]"
+                end = content.find(closing, index + opening.end())
+                end = len(content) if end < 0 else end + len(closing)
+                blank(index, end)
+                index = end
+                continue
+
+        if char == "#":
+            bracket = re.match(r"#\[(=*)\[", content[index:])
+            if bracket:
+                closing = "]" + bracket.group(1) + "]"
+                end = content.find(closing, index + bracket.end())
+                end = len(content) if end < 0 else end + len(closing)
+            else:
+                newline = content.find("\n", index)
+                end = len(content) if newline < 0 else newline
+            blank(index, end)
+            index = end
+            continue
+
+        if char == "\\":
+            index += 2
+        else:
+            index += 1
+
+    return "".join(masked)
+
+
 def collect(
     build_dir: Path,
     build_testing: bool,
@@ -338,7 +395,7 @@ def collect(
         )
         for resolved in find_export_files(prefix):
             content = read_export_file(resolved)
-            names = pattern.findall(content)
+            names = pattern.findall(mask_cmake_non_code(content))
             if names:
                 exported_targets.extend(names)
                 export_sources.append(str(resolved))
