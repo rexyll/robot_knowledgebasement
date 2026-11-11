@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.50  
+> 版本：v11.51  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.333 / SERVO-907。最近完成CMake File API reply路径、安装清单路径及安装导出文件路径边界加固，并收紧非UTF-8导出文件解码与快照Schema必需字段；相关普通CI均已通过，但SERVO-907真实ROS Jazzy动态验收仍为NOT_RUN；历史记录节点§9.3.324已完成；当前Stäubli专项节点以本段首句§9.3.327 / SERVO-907为准。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`仍无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径仍是待真实构建验证的风险，不是已复现故障。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；本轮新增target graph类型合同：固定上游两项生产库均须在OFF/ON codemodel中呈现为`SHARED_LIBRARY`，不再仅检查target名称存在；新增负向测试覆盖误变为`STATIC_LIBRARY`。validator提交`3526c4d`的CI #42978151314五个jobs全部SUCCESS；测试提交`0f333a4`的CI #42978180872五个jobs全部SUCCESS。A1.1保持BLOCKED，`TODO-EXT-001`未授权。 本轮继续收紧gtest target边界：BUILD_TESTING=ON时七个固定上游gtest target均须为`EXECUTABLE`；安装清单按路径basename精确匹配gtest target，导出集按规范化target名精确匹配，避免子串误报/漏报。validator提交`9ab0a24`对应CI #42981498450五个jobs全部SUCCESS；新增target类型负向测试及相似名称非泄漏测试提交`93a1f52`对应CI #42981522435五个jobs全部SUCCESS。以上为知识库Python/静态合同验证，不替代ROS Jazzy动态验收。 本轮继续补齐诊断工具target类型合同：固定上游`add_executable(test_receive_robot_state ...)`，validator现要求OFF/ON两份快照中该target均为`EXECUTABLE`，并新增将其伪装为`STATIC_LIBRARY`时必须失败的负向测试。validator提交`a96f3c8`对应CI #42980931735五个jobs全部SUCCESS；负向测试提交`02596ca`对应CI #42980948186五个jobs全部SUCCESS。以上仍为知识库Python/静态合同验证，不代表ROS Jazzy动态构建验收。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.336 / SERVO-906/907。最近完成CMake File API reply路径、安装清单路径及安装导出文件路径边界加固，并收紧非UTF-8导出文件解码与快照Schema必需字段；相关普通CI均已通过，但SERVO-907真实ROS Jazzy动态验收仍为NOT_RUN；历史记录节点§9.3.324已完成；当前Stäubli专项节点以本段首句§9.3.327 / SERVO-907为准。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`已实际运行多轮：Run #5/#6均失败于安装导出/consumer检查；OFF/ON build/install与快照已执行，但consumer和完整gtest/evidence验收未通过。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及Run #5/#6已通过真实ROS Jazzy安装空间consumer确认固定上游导出接口包含无效`/asio/include`；Run #5还直接报告未定义的`Boost::system`链接target。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；本轮新增target graph类型合同：固定上游两项生产库均须在OFF/ON codemodel中呈现为`SHARED_LIBRARY`，不再仅检查target名称存在；新增负向测试覆盖误变为`STATIC_LIBRARY`。validator提交`3526c4d`的CI #42978151314五个jobs全部SUCCESS；测试提交`0f333a4`的CI #42978180872五个jobs全部SUCCESS。A1.1保持BLOCKED，`TODO-EXT-001`未授权。 本轮继续收紧gtest target边界：BUILD_TESTING=ON时七个固定上游gtest target均须为`EXECUTABLE`；安装清单按路径basename精确匹配gtest target，导出集按规范化target名精确匹配，避免子串误报/漏报。validator提交`9ab0a24`对应CI #42981498450五个jobs全部SUCCESS；新增target类型负向测试及相似名称非泄漏测试提交`93a1f52`对应CI #42981522435五个jobs全部SUCCESS。以上为知识库Python/静态合同验证，不替代ROS Jazzy动态验收。 本轮继续补齐诊断工具target类型合同：固定上游`add_executable(test_receive_robot_state ...)`，validator现要求OFF/ON两份快照中该target均为`EXECUTABLE`，并新增将其伪装为`STATIC_LIBRARY`时必须失败的负向测试。validator提交`a96f3c8`对应CI #42980931735五个jobs全部SUCCESS；负向测试提交`02596ca`对应CI #42980948186五个jobs全部SUCCESS。以上仍为知识库Python/静态合同验证，不代表ROS Jazzy动态构建验收。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -5215,3 +5215,14 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 
 - 后续审计文档、章节计划和根计划同步提交对应 Run `43012296237`、`43012304340`、`43012312051` 均 completed/success，各自五个Job全部SUCCESS。普通CI仍不替代专用ROS Jazzy动态验证。
+
+
+### 2026-11-11｜v11.51：真实ROS Jazzy Run #5/#6缺陷确认与consumer测试夹具纠偏
+
+- 专用workflow Run #5 / `43027974929`（SHA `5102e31ca2c51a5875b108efceb3287f2f02ce07`）的独立install-space consumer直接报告两个上游导出错误：`/asio/include`不存在，以及导出链接接口引用未定义的`Boost::system`。
+- Run #6 / `43031245835`（SHA `0fc60dfd911837bbe9e544676f0a4df3671c345e`）再次在OFF/ON两个模式下检测到`/asio/include`无效路径，validator对应两项均FAIL；证据artifact ID `13860064639`。
+- Run #6的consumer夹具预先执行`find_package(Boost)`，掩盖Run #5已暴露的Boost依赖导出缺陷。已移除该预查找（提交`1f698152ebfa41ef82f2efe7389cdb33e26ec851`），并新增回归测试禁止consumer自行创建`Boost::system`（提交`ad6220b6e6f5cf89e1bbcba31f532928f7ef6349`）。
+- 上述两个提交触发普通CI Run `43032513964`、`43032558011`；本记录生成时仍在运行，待后续读取最终job/step状态。
+- 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`只读。不得创建空目录、手工注入Boost target或改写导出文件来使consumer假通过；真正修复需要上游修正CMake依赖与安装导出合同，但本项目当前不允许修改上游或创建未授权PR。
+- 第21章专项节点推进至§9.3.336；审计记录见 `docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §6。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- **当前任务节点：根当前任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.336。先核验Run `43032513964`与`43032558011`，再由有Actions写权限的用户在最新main重新手动运行ROS Jazzy专项workflow。**
