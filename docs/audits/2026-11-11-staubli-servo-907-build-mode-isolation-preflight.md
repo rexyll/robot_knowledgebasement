@@ -85,3 +85,14 @@ target_link_libraries(
 **改动提交：** 脚本`ed422168d8669eb683281c80101b6e60ade61f36`；静态合同测试`22fc89228c9533bc9adfc91e442b05ee324b3cc7`。新增测试要求consumer直接链接`staubli_robot_driver::staubli_robot_driver`，并禁止回退为间接ament_target_dependencies写法。
 
 此改动让真实consumer更直接地检查导出target及其传递链接接口；若导出target名称、Boost::system目标发现或其他依赖元数据不完整，预期会在真实CMake配置/链接阶段暴露。它仍未在ROS Jazzy容器中运行，故当前只能标记为IMPLEMENTED / NOT_RUN，不能宣称已验证通过。
+
+## 8. 2026-11-11 最新 CI 与手动工作流状态复核
+
+- **main HEAD：** `f457650bd8eea50276c55c910dee9508fc87af74`。
+- **CI #3638：** Run ID `42960630349`，完成状态 `success`；五个作业（Python 3.10/3.11/3.12、OSV、SBOM）均成功。
+- **CI #3639：** Run ID `42960648358`，由当前 main HEAD 触发，完成状态 `success`；五个作业全部成功，无失败步骤。该结果验证知识库 Python/静态合同及供应链检查，不执行 ROS Jazzy 容器构建。
+- **手动 ROS workflow：** 检查 main 最近 100 条 Actions runs，未发现路径 `.github/workflows/staubli-ros-jazzy-build.yml` 的运行记录，也未发现该 workflow 的 `workflow_dispatch` 运行。工作流文件本身已存在，触发方式仍为 GitHub Actions 页面手动运行。
+- **真实验收：** `BUILD_TESTING=OFF/ON` colcon build/install、两套 install-space consumer、gtest、证据包生成与SHA-256验证仍为 `NOT_RUN`。不得以CI #3638/#3639替代。
+- **当前处理：** 无需修复本轮普通CI；继续保持固定上游未修改、未创建/应用/合并上游PR、`TODO-EXT-001`未授权、A1.1 `BLOCKED`。
+
+**下一步：** 用户需手动运行 [Stäubli ROS Jazzy build/install workflow](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)。运行完成后再依据job日志和artifact决定是否存在可修复的脚本缺陷或上游依赖导出问题。
