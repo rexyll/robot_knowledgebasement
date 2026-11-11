@@ -4905,3 +4905,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 补充检索确认Boost.Asio使用位于实现侧私有头；固定上游虽`find_package(backward_ros REQUIRED)`，但源码检索未发现backward_ros API/header引用，仍只列为依赖元数据待核实项。
 - 相关提交：collector helper`84549734e255f6b640565d8e1fe282e8943fafe0`；行为测试`14ed24307d634c09ddd6ab5d880eaab4e32a4beb`；validator强制快照字段`dec8e76fe389ab277325f6c5d5abb6b4054777c8`；静态测试`f4785e9462f87ee54b38107fcd7ceae95182e18a`。
 - 最新提交尚无可确认CI结果；本轮未执行本地pytest/Ruff或ROS Jazzy动态矩阵。真实OFF/ON build/install、consumer、gtest和证据包仍`NOT_RUN`。A1.1保持`BLOCKED`；`TODO-EXT-001`未授权；固定上游不变。
+
+
+### 2026-11-11｜v11.13 补充：SERVO-907 CI失败修复与复验
+
+- 审查Actions #3686–#3696的失败job与日志：早期collector helper调用未定义导致Ruff F821；后续测试合同仍引用已迁移的asio_SOURCE_DIR字面量，target graph测试fixture又未提供新增必需的exported_target_include_directories字段。
+- 已修复静态合同测试与快照fixture，并增加/asio/include拒绝和缺失证据字段拒绝回归测试。提交2f7601e、a04999e。
+- CI #3698（Run ID 42968264032）全部job SUCCESS；Python 3.10/3.11/3.12均Ruff通过、pytest 125 passed；OSV审计与SBOM成功。
+- 该结果仅为普通Python CI，不替代ROS Jazzy OFF/ON colcon构建、安装空间consumer、gtest和证据包SHA-256。上述动态验收仍NOT_RUN；A1.1保持BLOCKED；TODO-EXT-001未授权；固定上游未修改。
