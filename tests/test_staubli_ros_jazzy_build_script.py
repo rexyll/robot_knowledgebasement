@@ -121,3 +121,19 @@ def test_build_matrix_does_not_require_unused_standalone_asio():
     assert "libasio-dev" not in workflow
     assert "libasio-dev" not in content
     assert "/usr/include/asio.hpp" not in content
+
+
+def test_export_validator_checks_installed_include_directories():
+    validator = (
+        Path(__file__).parents[1]
+        / "scripts"
+        / "validate_staubli_upstream_target_graph.py"
+    ).read_text(encoding="utf-8")
+    collector = (
+        Path(__file__).parents[1]
+        / "scripts"
+        / "collect_staubli_cmake_file_api.py"
+    ).read_text(encoding="utf-8")
+    assert "exported_target_include_directories" in collector
+    assert "EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-" in validator
+    assert 'value == "/asio/include"' in validator
