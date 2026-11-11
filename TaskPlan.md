@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.11  
+> 版本：v11.12  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；consumer实际调用FrameHeader::serialize非内联符号的加强已由CI #3646–#3651全部SUCCESS复验。随后新增OFF/ON consumer安装产物运行步骤；CI #3656因两条测试断言超长而Ruff失败，已在0f415e6修复，CI #3657五个job全部SUCCESS。新增运行步骤尚待专用ROS Jazzy workflow动态验证；普通CI不代表ROS/C++验收。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。证据manifest完整性校验已加强，缺少必需OFF/ON快照、验证报告或环境指纹，以及重复artifact路径均会被拒绝；CI #3661五个job全部SUCCESS。A1.1保持BLOCKED，TODO-EXT-001未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；consumer实际调用FrameHeader::serialize非内联符号的加强已由CI #3646–#3651全部SUCCESS复验。随后新增OFF/ON consumer安装产物运行步骤；CI #3656因两条测试断言超长而Ruff失败，已在0f415e6修复，CI #3657五个job全部SUCCESS。新增运行步骤尚待专用ROS Jazzy workflow动态验证；普通CI不代表ROS/C++验收。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。证据manifest完整性校验已加强，缺少必需OFF/ON快照、验证报告或环境指纹，以及重复artifact路径均会被拒绝；CI #3661五个job全部SUCCESS。最新静态复核确认realtime_tools被已安装公共头文件直接包含但未列入ament_export_dependencies；install-space consumer已补入该公共头文件以暴露真实导出依赖问题。Boost/backward_ros风险已按公开/私有依赖证据重新分级，不将静态怀疑写成已复现故障。新增脚本与测试提交后等待CI复验。A1.1保持BLOCKED，TODO-EXT-001未授权。
 
 ---
 
@@ -4866,3 +4866,13 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - CI #3661 / Run ID `42964535212`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
 - 该CI验证知识库Python测试与静态检查，不执行ROS Jazzy/C++构建。OFF/ON colcon build/install、consumer实际运行、gtest、证据包生成及SHA-256真实workflow仍NOT_RUN。
 - 固定上游未修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
+
+
+### 2026-11-11｜v11.12 SERVO-907 公共头文件依赖导出覆盖补强
+
+- 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79` 的已安装公共头文件`real_time_socket_subscriber.hpp`直接包含`realtime_tools/realtime_thread_safe_box.hpp`，而生产目标`DEPENDENCIES`虽包含realtime_tools，`ament_export_dependencies()`清单却遗漏该依赖。此前consumer只包含protocol.hpp，未覆盖此公共头文件依赖。
+- 更新install-space consumer fixture，新增包含`real_time_socket_subscriber.hpp`，不在consumer侧显式find_package(realtime_tools)或手工添加include目录；新增静态合同测试。
+- 脚本提交`1ff335332f37185d2d52f8cfcf7917aeca0e8eb4`；测试提交`dfd9af37452c90ef559159325abe69b7feb518d0`；审计报告提交`10b13ed458a6c20ab9b6d64457590efe1e555c94`；第21章TaskPlan提交`935120b29be488f5537458cf6867e1730079b894`。
+- 依赖风险分级修正：realtime_tools因公共头文件直接依赖而列为优先真实consumer验证项；Boost.System当前为实现侧使用且链接未声明PUBLIC，不仅凭未出现在ament_export_dependencies就断言下游导出失败，但package.xml缺少构建依赖声明仍需核实；backward_ros目前只确认find_package，未证实必须作为传递导出依赖；asio_SOURCE_DIR定义来源继续独立待查。
+- 新提交对应普通CI待复验；真实ROS Jazzy OFF/ON build/install、公共头文件consumer编译/运行、gtest、manifest证据包仍NOT_RUN。固定上游未修改；无上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+- 下一步：检查新增提交触发的CI；CI全部通过后等待用户手动触发`.github/workflows/staubli-ros-jazzy-build.yml`，优先检查realtime_tools公共头文件导出路径。
