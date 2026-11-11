@@ -254,3 +254,10 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 ### 15.5 当前验收边界
 
 本次只调整知识库workflow/script/test，并增加静态审计证据。新提交对应普通CI尚待复验；真实ROS Jazzy OFF/ON build/install、PUBLIC include path导出内容、consumer编译/运行、gtest和SHA-256 evidence仍为`NOT_RUN`。固定上游commit不变；无上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
+
+
+## 16. 安装导出 include 路径的动态证据采集（2026-11-11）
+
+- CMake File API collector现从安装空间的`*Targets.cmake` / `*Export.cmake`中提取`INTERFACE_INCLUDE_DIRECTORIES`，写入OFF/ON快照字段`exported_target_include_directories`。
+- target graph validator新增OFF/ON检查：拒绝精确的`/asio/include`空变量展开路径，以及仍未展开的`${asio_SOURCE_DIR}`。不因任意合法目录名含`asio/include`而误报。
+- 该机制让真实ROS Jazzy install export能直接验证上游PUBLIC include路径是否污染下游包；仍需手动运行专用workflow取得实际快照，静态测试不等于动态验收。
