@@ -1,5 +1,5 @@
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "run_staubli_build_testing_matrix.sh"
 
