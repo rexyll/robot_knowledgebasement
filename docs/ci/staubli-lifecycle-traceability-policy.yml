@@ -11,6 +11,9 @@ stable_ids:
   uniqueness_scope: manifest_and_reference_catalog
   immutable_after_publication: true
 ownership:
+  group_key: [resource_key, ownership_phase]
+  group_assignment_consistency: exactly_one_owner_and_one_coordinator_per_group
+  ownership_phases: [ACTIVE, RESIDUAL_TRANSFERRED, PROCESS_RETAINED]
   resource_owner_cardinality: exactly_one_per_resource_generation
   reconcile_coordinator_cardinality: exactly_one_per_resource_generation
   owner_and_coordinator_may_differ: true
@@ -76,3 +79,27 @@ ci_policy:
     - auto_close_unknown_or_residual_resources
     - infer_plugin_unload_safety_from_quarantine_ownership
     - merge_or_modify_upstream_without_explicit_authorization
+
+validator:
+  entrypoint: scripts/validate_staubli_lifecycle_manifest.py
+  schema_keyword_subset:
+    - type
+    - additionalProperties
+    - required
+    - properties
+    - const
+    - enum
+    - minLength
+    - pattern
+    - minItems
+    - items
+    - uniqueItems
+    - allOf
+    - if
+    - then
+  exit_codes:
+    0: valid_manifest
+    1: policy_or_schema_validation_failure
+    2: input_output_or_json_parse_error
+  report_format: JSON
+  runtime_dependencies: python_standard_library_only
