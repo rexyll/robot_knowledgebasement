@@ -137,3 +137,14 @@ def test_export_validator_checks_installed_include_directories():
     assert "exported_target_include_directories" in collector
     assert "EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-" in validator
     assert 'value == "/asio/include"' in validator
+
+
+def test_export_collector_captures_installed_include_directories():
+    collector = (
+        Path(__file__).parents[1]
+        / "scripts"
+        / "collect_staubli_cmake_file_api.py"
+    ).read_text(encoding="utf-8")
+    assert "exported_target_include_directories" in collector
+    assert "INTERFACE_INCLUDE_DIRECTORIES" in collector
+    assert "asio_SOURCE_DIR" in collector
