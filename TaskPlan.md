@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.39  
+> 版本：v11.40  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.325 / SERVO-907。最近完成CMake File API reply路径、安装清单路径及安装导出文件路径边界加固，并收紧非UTF-8导出文件解码与快照Schema必需字段；相关普通CI均已通过，但SERVO-907真实ROS Jazzy动态验收仍为NOT_RUN；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`仍无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径仍是待真实构建验证的风险，不是已复现故障。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；本轮新增target graph类型合同：固定上游两项生产库均须在OFF/ON codemodel中呈现为`SHARED_LIBRARY`，不再仅检查target名称存在；新增负向测试覆盖误变为`STATIC_LIBRARY`。validator提交`3526c4d`的CI #42978151314五个jobs全部SUCCESS；测试提交`0f333a4`的CI #42978180872五个jobs全部SUCCESS。A1.1保持BLOCKED，`TODO-EXT-001`未授权。 本轮继续收紧gtest target边界：BUILD_TESTING=ON时七个固定上游gtest target均须为`EXECUTABLE`；安装清单按路径basename精确匹配gtest target，导出集按规范化target名精确匹配，避免子串误报/漏报。validator提交`9ab0a24`对应CI #42981498450五个jobs全部SUCCESS；新增target类型负向测试及相似名称非泄漏测试提交`93a1f52`对应CI #42981522435五个jobs全部SUCCESS。以上为知识库Python/静态合同验证，不替代ROS Jazzy动态验收。 本轮继续补齐诊断工具target类型合同：固定上游`add_executable(test_receive_robot_state ...)`，validator现要求OFF/ON两份快照中该target均为`EXECUTABLE`，并新增将其伪装为`STATIC_LIBRARY`时必须失败的负向测试。validator提交`a96f3c8`对应CI #42980931735五个jobs全部SUCCESS；负向测试提交`02596ca`对应CI #42980948186五个jobs全部SUCCESS。以上仍为知识库Python/静态合同验证，不代表ROS Jazzy动态构建验收。
@@ -5130,3 +5130,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - validator新增OFF/ON独立检查：导出 include 路径中必须至少存在末级目录名为 `include` 的安装路径。测试夹具使用 `${_IMPORT_PREFIX}/include`，新增负向测试清空两种配置的路径列表并要求两者均失败。
 - validator提交 `02ec59d29758274aa9ce1eb29dd9e34c89c0c926`；负向测试提交 `b432d67817de4e9d55333b314cb226707c1e73fc`；专项审计记录提交 `7d73abb7e0b3fd9b7f7c3f32940f85c7eeb91a2b`。CI以这些提交触发的GitHub Actions实际结果为准。
 - 该检查只收紧知识库静态快照合同，不构成真实CMake export或ROS Jazzy install验证。固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+
+### 2026-11-11｜v11.40：记录安装态 include 证据检查的 CI 验收与中间失败
+
+- validator提交 `02ec59d29758274aa9ce1eb29dd9e34c89c0c926` 对应Actions #3786。该提交先于测试夹具同步，Python 3.10/3.11/3.12均因旧合成快照仍提供空 include 数组而失败；失败是validator合同收紧后夹具未同步的提交顺序问题，不是新检查误拒绝有效安装路径。Python 3.11日志为156 passed、2 failed。
+- 测试夹具及空数组负向测试提交 `b432d67817de4e9d55333b314cb226707c1e73fc` 对应Actions #3787，五个jobs全部SUCCESS；审计记录提交 `7d73abb7e0b3fd9b7f7c3f32940f85c7eeb91a2b` 对应#3788，五个jobs全部SUCCESS；根计划v11.39提交 `d005605f87be66bfd3b86579daedd2259004f409` 对应#3789，五个jobs全部SUCCESS。
+- 历史失败#3786保留；最终HEAD以#3789为准。上述CI验证的是知识库Python测试、依赖审计和SBOM工作，不代表真实ROS Jazzy构建、安装导出或install-space consumer验收。
+- 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
