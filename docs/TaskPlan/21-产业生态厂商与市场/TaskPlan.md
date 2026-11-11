@@ -5914,3 +5914,9 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 代码提交：构建脚本`9d0ff8dfb92d95d493d1d0b10f57cf19f82e8a3b`；workflow`f9d818586206f7ebc2b0dc338d667d2589d4672e`；测试`ab7631a17640aba6c37e6d12e092f496dc2bab32`。
 - `package.xml`未声明Boost/backward_ros而workflow显式安装，仍属上游依赖元数据待核实；不修改固定上游，不猜测rosdep key。
 - 真实ROS Jazzy OFF/ON build/install、consumer、gtest、证据manifest与SHA-256仍`NOT_RUN`；A1.1保持`BLOCKED`，`TODO-EXT-001`未授权。
+
+
+### §9.3.324 补充｜安装导出 include 路径采集
+
+- CMake File API collector新增采集安装导出target的`INTERFACE_INCLUDE_DIRECTORIES`，target graph validator在OFF/ON快照中拒绝精确`/asio/include`及未展开的`${asio_SOURCE_DIR}`。
+- 已增加静态合同测试。真实安装导出检查仍需ROS Jazzy workflow运行；不据此将上游路径问题标为已修复。
