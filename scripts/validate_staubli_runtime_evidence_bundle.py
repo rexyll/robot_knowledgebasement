@@ -113,14 +113,19 @@ def validate_bundle(
 
     attempt_tokens = {event["attempt_token"] for event in trace}
     if len(attempt_tokens) > 1:
-        errors.append("event_trace contains multiple attempt_token values for one bundle")
+        errors.append(
+            "event_trace contains multiple attempt_token values for one bundle"
+        )
 
     for barrier in bundle["harness"]["barriers"]:
         if len(barrier["arrivals"]) > barrier["participants"]:
-            errors.append(f"barrier {barrier['barrier_id']}: arrivals exceed participants")
+            errors.append(
+                f"barrier {barrier['barrier_id']}: arrivals exceed participants"
+            )
         if barrier["released"] and len(barrier["arrivals"]) != barrier["participants"]:
             errors.append(
-                f"barrier {barrier['barrier_id']}: released before all participants arrived"
+                f"barrier {barrier['barrier_id']}: released before "
+                "all participants arrived"
             )
 
     paths: set[str] = set()
@@ -167,15 +172,22 @@ def validate_bundle(
         if missing_roles:
             errors.append(f"RUN_PASS missing artifact roles: {sorted(missing_roles)}")
         if not assertions or any(item["result"] != "PASS" for item in assertions):
-            errors.append("RUN_PASS requires at least one assertion and every assertion PASS")
+            errors.append(
+                "RUN_PASS requires at least one assertion and every assertion PASS"
+            )
         if not trace or not bundle["resource_snapshots"]:
-            errors.append("RUN_PASS requires non-empty event_trace and resource_snapshots")
+            errors.append(
+                "RUN_PASS requires non-empty event_trace and resource_snapshots"
+            )
         phases = {snapshot["phase"] for snapshot in bundle["resource_snapshots"]}
         if not {"before", "after"}.issubset(phases):
             errors.append("RUN_PASS requires before and after resource snapshots")
         errors.extend(_environment_errors(bundle))
         if any(
-            any(token in str(snapshot[field]).upper() for token in ("UNKNOWN", "RESIDUAL"))
+            any(
+                token in str(snapshot[field]).upper()
+                for token in ("UNKNOWN", "RESIDUAL")
+            )
             for snapshot in bundle["resource_snapshots"]
             for field in (
                 "owner",
@@ -186,7 +198,9 @@ def validate_bundle(
             )
         ):
             errors.append("RUN_PASS contains UNKNOWN/RESIDUAL resource state")
-        if "failure" in {snapshot["phase"] for snapshot in bundle["resource_snapshots"]}:
+        if "failure" in {
+            snapshot["phase"] for snapshot in bundle["resource_snapshots"]
+        }:
             errors.append("RUN_PASS cannot contain a failure-phase resource snapshot")
     if status == "RUN_FAIL":
         if not assertions or not any(item["result"] == "FAIL" for item in assertions):
@@ -279,7 +293,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
     if errors:
-        print(f"Stäubli Runtime Evidence Bundle validation FAIL: {len(errors)} finding(s).")
+        print(
+            "Stäubli Runtime Evidence Bundle validation FAIL: "
+            f"{len(errors)} finding(s)."
+        )
         for error in errors:
             print(f"- {error}")
         return 1
