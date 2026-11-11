@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.16  
+> 版本：v11.17  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮静态审查基线为`50c8e6fedd23560e136d70f53cdbd22a38b9cfe9`；随后提交证据打包器失败关闭修复`a7e63f0`及回归测试`3cdd35e`、fixture换行修正`7a16d14`，上述新提交的CI结果尚未取得；普通CI #3707–#3709的Python 3.10/3.11/3.12、OSV、SBOM五个job均SUCCESS，#3709 pytest 126 passed、Ruff通过。CI只验证知识库Python/静态合同与供应链检查，不代表ROS/C++动态验收。专用ROS Jazzy `workflow_dispatch`尚无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。静态审查已补强isolated install导出扫描并由CI #3703验证；仍待真实验证的重点包括公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`，以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径。不得把这些静态风险写成已复现故障。固定上游commit为`bd658e2d266e315d2ee35f985fb352ea88306b79`且保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮静态审查基线为`50c8e6fedd23560e136d70f53cdbd22a38b9cfe9`；随后提交证据打包器失败关闭修复`a7e63f0`及回归测试`3cdd35e`、fixture换行修正`7a16d14`，以及本次计划同步提交`a26a70c`均已取得普通CI成功结果：#42974916332、#42974957121、#42975000263分别对应a7e63f0、7a16d14、a26a70c，三个run各自Python 3.10/3.11/3.12、OSV、SBOM五个job全部SUCCESS；中间测试提交3cdd35e对应#42974929336，三个Python测试job曾失败，后续fixture修正提交的三个版本测试均通过。CI只验证知识库Python/静态合同与供应链检查，不代表ROS/C++动态验收。专用ROS Jazzy `workflow_dispatch`尚无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。静态审查已补强isolated install导出扫描并由CI #3703验证；仍待真实验证的重点包括公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`，以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径。不得把这些静态风险写成已复现故障。固定上游commit为`bd658e2d266e315d2ee35f985fb352ea88306b79`且保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
 
 ---
 
@@ -4939,3 +4939,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 已再次静态复核ROS Jazzy矩阵脚本、CMake File API collector、target graph validator、证据打包器及固定上游CMakeLists；没有新增足以支持立即修改的知识库侧缺陷。关键问题仍必须由真实ROS Jazzy构建和install-space consumer证实。
 - 当前普通CI历史失败已闭环；专用ROS Jazzy workflow仍无workflow_dispatch运行。真实OFF/ON colcon build/install、consumer、gtest、导出快照与SHA-256证据仍NOT_RUN。当前任务节点保持SERVO-907动态验收（BLOCKED）。
 - 固定上游commit bd658e2d266e315d2ee35f985fb352ea88306b79未修改；未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+
+
+### 2026-11-11｜v11.17 补充：证据打包器修复CI闭环与专项工作流状态复核
+
+- 通过Actions runs REST记录确认提交`a7e63f0`对应run #42974916332、`7a16d14`对应#42974957121、根计划同步提交`a26a70c`对应#42975000263，三个run均为completed/success；每个run的Python 3.10/3.11/3.12测试、OSV和SBOM五个job全部SUCCESS。
+- 中间提交`3cdd35e`对应run #42974929336，Python 3.10/3.11/3.12的Test step均失败；紧随其后的fixture换行修正`7a16d14`及最新`a26a70c`的三个Python测试job全部成功。保留历史失败记录，不将其抹除；当前修复状态以修正后的成功run为准。
+- 按`event=workflow_dispatch`查询main分支Actions记录，当前返回0条专用手动触发运行。普通CI成功不等同于ROS Jazzy/C++动态验收；OFF/ON真实colcon build/install、install-space consumer、gtest、安装导出快照、validator及证据包SHA-256仍`NOT_RUN`。
+- 复核矩阵脚本与target-graph validator：`servo-906`是现有矩阵输出目录、日志和报告文件的历史命名；validator本身针对固定上游CMake target graph，不代表SERVO-906任务节点。暂不进行无必要的路径/产物重命名，以免破坏既有workflow与artifact契约；后续如统一命名，需作为独立兼容性变更处理。
+- 当前根主节点00-01与第21章21-02继续进行中；Stäubli专项SERVO-907仍BLOCKED / NOT_RUN。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
