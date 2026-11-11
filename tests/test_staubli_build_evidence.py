@@ -49,7 +49,7 @@ def test_package_and_verify_sha256(tmp_path):
 
 def test_package_refuses_failed_validator_report(tmp_path):
     off, on, report = make_inputs(tmp_path)
-    report.write_text('{"execution_status":"FAIL"}\\n', encoding="utf-8")
+    report.write_text('{"execution_status":"FAIL"}\n', encoding="utf-8")
     output = tmp_path / "evidence"
 
     with pytest.raises(ValueError, match="execution_status is PASS"):
