@@ -210,7 +210,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         )
         check(
             f"DIAGNOSTIC-INSTALLED-{label}",
-            any(DIAGNOSTIC_TARGET in entry for entry in install_entries),
+            any(Path(entry).name == DIAGNOSTIC_TARGET for entry in install_entries),
             f"install manifest must retain the explicitly installed {DIAGNOSTIC_TARGET} utility",
         )
 
