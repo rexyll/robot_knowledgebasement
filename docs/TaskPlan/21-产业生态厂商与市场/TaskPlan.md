@@ -5846,3 +5846,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 真实`BUILD_TESTING=OFF/ON` colcon build/install、双配置install-space consumer、gtest、证据包与SHA-256校验继续`NOT_RUN`。
 - **下一步：** 用户手动触发ROS Jazzy workflow；完成后检查日志与artifact，按真实失败证据继续修复。固定上游不修改，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
 
+### §9.3.324 补充｜CI #3640–#3641 成功及 ROS workflow dispatch 权限边界
+
+- CI #3640 / Run ID `42961639340`与#3641 / Run ID `42961648789`均`SUCCESS`；每次Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功，无失败step。
+- 已复核ROS专用workflow文件位于main，配置`workflow_dispatch`，镜像digest及上游commit固定；最近Actions运行列表仍未出现该workflow的运行实例。
+- GitHub手动触发要求仓库write权限。当前GitHub集成工具没有workflow-dispatch写操作，因此不能替用户启动；用户需在Actions页面选择该workflow、`main`并点击Run workflow。
+- 真实ROS Jazzy OFF/ON build/install、双配置install-space consumer、gtest、artifact及SHA-256仍`NOT_RUN`；常规CI成功不改变该状态。
+- **下一步：** 用户手动触发专用workflow；收到run ID后检查日志、失败点及证据artifact。固定上游不修改，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
+
