@@ -79,7 +79,11 @@ RUN_FAIL 必须至少包含一个 FAIL 断言、test_log、非空trace以及 bef
 | 合成PASS/FAIL fixture生成器与负向测试 | CI_PASS（Python 3.10/3.11/3.12） |
 | Stäubli Fake/C++/ROS/Plugin/TSan/ASan/HIL真实运行 | NOT_RUN |
 
-## 8. CI验收\n\nGitHub Actions CI #3518 / Run ID `42945227762` / head `c520c91146635664c2c18acbbc69c875d913764c` SUCCESS。Python 3.10/3.11/3.12均通过Evidence Bundle validator、Manifest/Catalog校验和Ruff；每个版本81项pytest通过；OSV与SBOM作业成功。[CI运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42945227762)。本CI验证的是知识库侧Schema/validator/测试，不是Stäubli C++/ROS运行时。\n\n## 9. 信任边界与未完成事项
+## 8. CI验收
+
+GitHub Actions CI #3518 / Run ID `42945227762` / head `c520c91146635664c2c18acbbc69c875d913764c` SUCCESS。Python 3.10/3.11/3.12均通过Evidence Bundle validator、Manifest/Catalog校验和Ruff；每个版本81项pytest通过；OSV与SBOM作业成功。[CI运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42945227762)。本CI验证的是知识库侧Schema/validator/测试，不是Stäubli C++/ROS运行时。
+
+## 9. 信任边界与未完成事项
 
 - SHA-256证明文件字节与manifest记录一致，不证明文件来源真实、签名身份真实或执行环境可信。真实执行流程仍需可信runner、签名/可归属记录、不可变工件存储与访问审计。
 - `observed_execution`是来源声明，不是密码学签名；本validator不能自行认证外部执行者。
