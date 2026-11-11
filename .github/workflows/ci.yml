@@ -42,6 +42,18 @@ jobs:
           path: ${{ runner.temp }}/staubli-manifest-validation.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Validate Stäubli RACE/EXEC test catalog bidirectional traceability
+        run: |
+          uv run --locked python scripts/validate_staubli_test_case_catalog.py \
+            --report "${RUNNER_TEMP}/staubli-test-catalog-validation.json"
+      - name: Archive Stäubli test catalog validation report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: staubli-test-catalog-validation-py${{ matrix.python-version }}
+          path: ${{ runner.temp }}/staubli-test-catalog-validation.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Build source and wheel with verified PEP 517 build dependency hashes
         run: uv build --require-build-hashes
       - name: Lint
