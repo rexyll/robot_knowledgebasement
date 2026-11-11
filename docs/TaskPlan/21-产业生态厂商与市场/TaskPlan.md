@@ -5838,3 +5838,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **依据：** ROS 2官方ament_cmake文档说明`ament_export_targets`用于导出CMake targets供下游通过`target_link_libraries(client PRIVATE package::target)`链接；`ament_export_dependencies`负责传递依赖发现。
 - **状态：** 修改已提交，静态合同测试待CI复验；真实ROS Jazzy OFF/ON build/install/consumer/gtest仍NOT_RUN。该改动不修改固定上游，不在consumer端补Boost依赖以掩盖导出问题。
 - **下一步：** 复核本轮Python CI；真实运行仍需用户手动触发SERVO-907 workflow。
+
+### §9.3.324 补充｜CI #3638–#3639 复验与 ROS workflow 触发状态
+
+- CI #3638 / Run ID `42960630349` 与 CI #3639 / Run ID `42960648358` 均 SUCCESS；最新HEAD `f457650bd8eea50276c55c910dee9508fc87af74` 的 #3639 五个作业（Python 3.10/3.11/3.12、OSV、SBOM）全部成功，无失败步骤。
+- 这两次均为常规知识库CI，不包含ROS Jazzy/C++构建。最近100条Actions运行记录中没有`.github/workflows/staubli-ros-jazzy-build.yml`运行记录；手动workflow尚未触发。
+- 真实`BUILD_TESTING=OFF/ON` colcon build/install、双配置install-space consumer、gtest、证据包与SHA-256校验继续`NOT_RUN`。
+- **下一步：** 用户手动触发ROS Jazzy workflow；完成后检查日志与artifact，按真实失败证据继续修复。固定上游不修改，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
+
