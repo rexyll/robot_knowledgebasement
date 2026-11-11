@@ -199,3 +199,12 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - 逐个检查三次run的工件清单：SBOM、OSV报告，以及Python 3.10/3.11/3.12的Stäubli lifecycle、test-catalog、Runtime Evidence Bundle验证报告均已归档，未过期。
 - 因此#3803–#3815连续13次main push均completed/success。此结论只覆盖普通Python CI与供应链任务；不覆盖ROS Jazzy/C++动态构建。
 - ROS Jazzy专用workflow仍为手动workflow_dispatch；当前GitHub连接器没有触发写入动作，本轮未运行。OFF/ON colcon build/install、install-space consumer、gtest、manifest/SHA-256仍NOT_RUN；SERVO-907继续BLOCKED。
+
+
+### 2.18 Stäubli ROS Jazzy build/install evidence #1：apt索引被提前清理导致依赖安装失败（2026-11-11）
+
+- 专用workflow首次手动运行：#1 / Run ID `43008853603`，固定上游commit为 `bd658e2d266e315d2ee35f985fb352ea88306b79`，结果completed/failure。Job `Pinned ROS Jazzy build/install matrix`中，容器初始化、工具checkout、显式CMake依赖安装、固定上游checkout均成功；失败发生在 `Resolve declared ROS dependencies`，不是上游CMake编译阶段。
+- 代表日志显示 `rosdep update` 成功，但随后apt无法定位 `ros-jazzy-controller-manager`、`ros-jazzy-hardware-interface`、`ros-jazzy-realtime-tools`、MoveIt相关包，以及 `python3-sphinx`、`doxygen` 等依赖。根因是前一安装步骤在 `apt-get install` 后执行 `apt-get clean` 并删除 `/var/lib/apt/lists/*`；依赖解析步骤没有再次刷新apt索引，rosdep虽更新自身规则缓存，却调用apt时使用空的软件包索引。构建矩阵步骤因此skipped；OFF/ON build/install、install-space consumer、gtest、manifest/SHA-256均未执行。Artifact上传步骤显示success但明确warning无文件，不能视为证据包已生成。
+- 知识库workflow修复提交：`eb1021a868129a7b6338414514a4d943390ce839`，保留apt索引并在 `rosdep update` 后显式执行 `apt-get update`。回归测试提交：`4e22b6a1f7d916786c12c2eecdf751995e31b511`，新增断言确保apt索引刷新位于 `rosdep install` 之前，且workflow不再删除apt lists。
+- 修复后的普通main push CI #3819 / Run `43009801401` 与 #3820 / Run `43009831428`均completed/success；两次各五个Job全部SUCCESS。#3820逐步核验Python 3.10/3.11/3.12测试、Lint、Stäubli静态验证、SBOM、OSV全部成功，11个artifact均归档且未过期。该结果只验证知识库workflow文本与Python回归测试，不证明apt/rosdep在ROS容器中已成功，也不替代专用workflow重跑。
+- 下一步必须在修复后的main HEAD重新手动触发 `Stäubli ROS Jazzy build/install evidence`，检查依赖安装后继续双配置构建、安装、consumer、gtest和manifest/SHA-256。当前GitHub连接器没有workflow_dispatch写入动作，本轮未伪造重跑。SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit保持只读。
