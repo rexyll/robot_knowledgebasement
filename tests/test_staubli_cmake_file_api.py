@@ -433,3 +433,17 @@ def test_reply_symlink_cannot_escape_reply_directory(tmp_path):
         assert "escapes the CMake File API reply directory" in str(exc)
     else:
         raise AssertionError("reply symlink escape must fail")
+
+
+def test_relative_install_manifest_entry_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    (build / "install_manifest.txt").write_text(
+        "lib/libstaubli.so\\n", encoding="utf-8"
+    )
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "non-absolute paths" in str(exc)
+    else:
+        raise AssertionError("relative install manifest entries must fail")
