@@ -315,3 +315,13 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 - 普通CI现已在a04999e1d398e732262a0dd6d83603e0d075fa40通过；该结果只证明Python lint/tests、OSV与SBOM jobs，不代表ROS Jazzy/C++构建通过。
 - ROS Jazzy OFF/ON colcon build/install、安装空间consumer编译与运行、gtest、证据包SHA-256仍为NOT_RUN。专用workflow仍需真实workflow_dispatch运行。
 - 固定上游commit保持bd658e2d266e315d2ee35f985fb352ea88306b79；未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+
+
+## 19. colcon isolated install 导出扫描覆盖修复（2026-11-11）
+
+- 对专用矩阵脚本进行静态执行路径审查，确认collector的export_root传入colcon install-base。colcon默认isolated install时，包导出文件通常位于install-base/<package>/share/<package>/cmake，而此前collector仅扫描install-base/share与install-base/lib/cmake，存在漏采集风险。
+- 新增find_export_files()统一扫描merged install根目录和isolated install下一级包前缀；collector的target name扫描与INTERFACE_INCLUDE_DIRECTORIES扫描共用该文件发现函数，避免两条扫描路径布局行为不一致。
+- 新增行为测试，模拟install-base/staubli_robot_driver/share/staubli_robot_driver/cmake/staubli_robot_driverExport.cmake，确认isolated布局可发现导出文件并提取include目录。
+- 实现提交6bf1fa5146b7ceb32aead67b2706608637fde11b；行为测试提交99242ab4fa9d8a6c68f9734c3d36a3aa5a03b60f。
+- CI #3702（Run ID 42968762503）在实现提交上SUCCESS；CI #3703（Run ID 42968810375）在行为测试提交上SUCCESS，Python 3.10/3.11/3.12、OSV、SBOM全部成功；三个版本Ruff均通过，pytest均为126 passed。
+- 这修复了静态确认的采集器布局覆盖缺口，但不是ROS Jazzy真实构建结果。仍需手动触发专用workflow确认真实install tree、导出文件、consumer与gtest；当前workflow_dispatch运行数为0。固定上游commit不变，未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
