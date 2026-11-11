@@ -228,6 +228,15 @@ def test_production_exports_must_use_exact_package_namespace(tmp_path):
     assert any("EXPORT-PRODUCTION-TARGETS-ON" in error for error in report["errors"])
 
 
+def test_unexpected_non_test_export_is_rejected(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    data["exported_targets"].append("staubli_robot_driver::unreviewed_helper")
+    on.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any("EXPORT-PRODUCTION-TARGETS-ON" in error for error in report["errors"])
+
 def test_production_exports_must_not_be_unqualified(tmp_path):
     off, on = valid_pair(tmp_path)
     data = json.loads(off.read_text())
