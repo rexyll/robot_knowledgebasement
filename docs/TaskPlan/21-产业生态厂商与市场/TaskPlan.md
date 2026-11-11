@@ -5795,3 +5795,5 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 | 2026-11-11 | CI #3613 最终复验 | main HEAD `e8329d56b439f44ab4bf13eee2bd9f0723d6df5c`；Run ID `42956329860`；Python 3.10/3.11/3.12、Lint、OSV、SBOM均SUCCESS。 | 最新运行记录中尚未发现SERVO-907独立手动workflow运行；真实ROS Jazzy build/install/gtest/install-space consumer继续NOT_RUN。 |
+
+| 2026-11-11 | CI #3614–#3615最终复验 | Run ID `42956657257`与`42956663448`均SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM jobs全部成功。复核近期11条失败run，确认属于已登记的SERVO-906 Ruff I001/E501回归，修复后#3599及#3614/#3615通过。 | 历史失败记录保持原始failure，不改写；当前main HEAD `a78f010e8f13ab2faf8ea5dc2d6f669f901e8f02`。SERVO-907手动workflow仍未见运行记录，真实ROS Jazzy build/install/gtest/consumer继续NOT_RUN；等待用户手动触发后验收。 |
