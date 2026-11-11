@@ -5933,3 +5933,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 提交：collector helper`84549734e255f6b640565d8e1fe282e8943fafe0`；行为测试`14ed24307d634c09ddd6ab5d880eaab4e32a4beb`；validator快照字段强制`dec8e76fe389ab277325f6c5d5abb6b4054777c8`；静态合同测试`f4785e9462f87ee54b38107fcd7ceae95182e18a`。
 - 最新普通CI结果尚无可确认记录；本轮未运行pytest/Ruff/shellcheck，也未运行ROS Jazzy动态矩阵。真实OFF/ON colcon build/install、install-space consumer编译/运行、gtest、manifest与SHA-256仍`NOT_RUN`。
 - 固定上游commit保持`bd658e2d266e315d2ee35f985fb352ea88306b79`；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
+
+
+### §9.3.324 补充｜CI #3686–#3698失败修复与复验
+
+- 失败根因分两类：collector重构时调用了尚未定义的collect_exported_target_include_directories()，触发Ruff F821；helper补入后，静态合同测试仍检查已迁移的asio_SOURCE_DIR字面量，target graph测试fixture又未提供validator新增必需字段，导致3个Python版本测试矩阵重复失败。
+- 修复静态合同测试，改为验证collector helper调用；统一补齐fixture的exported_target_include_directories字段，并增加未解析/asio/include拒绝、证据字段缺失拒绝两项回归测试。
+- 修复提交：测试合同2f7601e68951f1be5c6b0922de32cb5841abc91a；target graph fixture/回归a04999e1d398e732262a0dd6d83603e0d075fa40。
+- CI #3698 / Run ID 42968264032 SUCCESS：OSV、SBOM、Python 3.10/3.11/3.12全部成功；三个版本Ruff均通过，pytest均为125 passed。#3697仍失败的历史记录保留。
+- 普通CI通过不代表ROS Jazzy动态构建通过。OFF/ON colcon build/install、install-space consumer、gtest、证据包SHA-256仍NOT_RUN；A1.1保持BLOCKED，TODO-EXT-001未授权，上游固定commit不变。
