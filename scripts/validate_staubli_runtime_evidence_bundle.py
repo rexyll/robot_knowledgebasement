@@ -278,6 +278,11 @@ def main(argv: list[str] | None = None) -> int:
         "test_id": bundle.get("test_id"),
         "execution_status": bundle.get("execution_status"),
         "evidence_origin": bundle.get("evidence_origin"),
+        "validation_scope": (
+            "SYNTHETIC_FIXTURE_ONLY_NOT_RUNTIME_EVIDENCE"
+            if bundle.get("evidence_origin") == "synthetic_fixture"
+            else "OBSERVED_EXECUTION_EVIDENCE"
+        ),
         "artifact_count": len(bundle.get("artifacts", [])),
         "trace_event_count": len(bundle.get("event_trace", [])),
         "error_count": len(errors),
