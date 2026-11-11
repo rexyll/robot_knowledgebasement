@@ -5722,3 +5722,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收边界：** 本节点Schema/Validator/pytest/CI只验证证据格式与策略，不证明执行记录真实；`observed_execution`仍是来源声明，不是密码学签名。Fake/C++/ROS/Plugin/TSan/ASan/HIL和RACE/EXEC实际执行继续NOT_RUN。
 - **限制：** 未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`仍未授权，A1.1保持BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
 - **下一节点：** §9.3.317 / SERVO-900：定义C++17 test-only Fake Harness target边界、生产target零依赖约束与FakeClock/Barrier/DeterministicExecutor最小header/API草案；仅知识库侧规格，不触碰上游driver，不执行未授权A1.1。
+
+
+### §9.3.317｜SERVO-900：C++17 Deterministic Fake Harness 契约与 Target 隔离规范
+
+- **审计报告：** [C++17 Deterministic Fake Harness 契约与 Target 隔离规范](../../audits/2026-11-11-staubli-socket-v2-servo-900-cpp17-fake-harness-contract.md)。
+- **机器可读合同：** 新增 `docs/schemas/staubli-fake-harness-cpp17-contract-v1.json`，固定C++17、test-only target边界、production零Fake依赖、install/export禁入，以及FakeClock、Barrier/Latch、DeterministicExecutor、FaultInjector的关键语义。
+- **Target隔离：** 规范性目标划分为production core/plugin与test-only support/unit tests；test support仅在BUILD_TESTING时存在，不得安装、导出或进入plugin链接闭包；禁止全局测试宏污染production target。CMake片段仅为设计示例，未应用于上游。
+- **API契约：** 明确FakeClock单调逻辑时间、Barrier全员到达与取消终态、Executor有界队列/拒绝/取消/shutdown线性化、FaultInjector规则不可变/确定性/不得直接释放资源；统一要求task ID、generation/revision/attempt-token和事件追踪。
+- **验收矩阵：** TARGET-ISO-01–04、CLOCK-01、BARRIER-01–02、EXEC-API-01–03、FAULT-01、TRACE-01均为SPECIFIED；C++ header自包含编译、BUILD_TESTING双配置、production dependency closure、install/export consumer、gtest、TSan/ASan全部NOT_RUN。
+- **重要边界：** 本轮没有新增C++源文件、真实CMake target或gtest实现；接口草案不是可编译实现。未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED；RACE-01–16与EXEC-01–04仍NOT_RUN；§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.318 / SERVO-901：建立Fake Harness header草案独立编译与target-graph静态验收设计，覆盖header自包含、BUILD_TESTING双配置、test-only install/export泄漏和production dependency closure报告；仅知识库侧工作，不触碰上游driver。
