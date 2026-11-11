@@ -4772,3 +4772,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - main HEAD：`e8329d56b439f44ab4bf13eee2bd9f0723d6df5c`；GitHub Actions Run ID `42956329860`（CI #3613）。
 - Python 3.10/3.11/3.12矩阵、Lint、OSV与SBOM作业均SUCCESS。
 - 最近GitHub Actions运行记录中尚未出现 `.github/workflows/staubli-ros-jazzy-build.yml` 的独立手动运行；SERVO-907仍待触发。CI #3613不代表ROS Jazzy C++ build/install/gtest/consumer通过。
+
+
+### 2026-11-11｜CI #3614–#3615 最终复验补记
+
+- CI #3614 / Run ID `42956657257`（HEAD `6733bc4a8dae6efa0088d26036b3cfe268ccb7a2`）与CI #3615 / Run ID `42956663448`（HEAD `a78f010e8f13ab2faf8ea5dc2d6f669f901e8f02`）均SUCCESS；Python 3.10/3.11/3.12、OSV与SBOM jobs全部成功。
+- 对近期11条失败run复核确认，它们对应前文已登记的SERVO-906测试文件Ruff I001/E501回归，不是新增独立根因；失败run仍保留原始failure，修复后的#3599及#3614/#3615验证通过。
+- 最新main HEAD为`a78f010e8f13ab2faf8ea5dc2d6f669f901e8f02`。最近可见运行记录仍未发现SERVO-907手动workflow运行；真实ROS Jazzy双配置colcon build/install、gtest和install-space consumer继续NOT_RUN。普通CI成功不改变此验收边界。
+- **下一步：** 用户手动触发`.github/workflows/staubli-ros-jazzy-build.yml`，获取真实容器运行与证据artifact；未获得真实结果前不设置required门禁。
