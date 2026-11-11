@@ -5717,7 +5717,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **工件完整性：** RUN_PASS/RUN_FAIL必须提供`--bundle-root`；逐文件核验实际字节数和SHA-256，拒绝重复role/path、绝对路径、空/点/点点路径段、反斜线、符号链接和bundle root逃逸。
 - **环境与状态门禁：** 拒绝全零commit/digest及NOT_CAPTURED/UNKNOWN/UNSET环境占位；RUN_PASS要求before/after快照、所有断言PASS、四类必需工件且无failure/UNKNOWN/RESIDUAL；RUN_FAIL要求FAIL断言、test log、trace及before/failure快照并保留失败残留。
 - **跨工件关联：** environment_manifest、event_trace、state_snapshot均绑定bundle_id/test_id/attempt，并与bundle内联source/environment/trace/snapshot做精确JSON值比对。
-- **合成测试：** 测试辅助构造器在临时目录中可重复生成完整合成RUN_PASS/RUN_FAIL四工件样例及真实fixture字节hash；负向覆盖hash/size篡改、跨工件身份错配、占位环境、路径穿越、symlink、trace/barrier和状态门禁。合成样例不写入真实运行证据目录、不连接Stäubli设备。
+- **合成测试：** 测试辅助构造器在临时目录中可重复生成完整合成RUN_PASS/RUN_FAIL四工件样例及真实fixture字节hash；负向覆盖hash/size篡改、跨工件身份错配、占位环境、路径穿越、symlink、trace/barrier和状态门禁。合成样例不写入真实运行证据目录、不连接Stäubli设备。\n- **CI验收：** GitHub Actions CI #3518 / Run ID `42945227762` / head `c520c91146635664c2c18acbbc69c875d913764c` SUCCESS；Python 3.10/3.11/3.12各81项pytest通过，Ruff、Evidence Bundle validator、Manifest/Catalog、OSV与SBOM均成功。[运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42945227762)。
 - **验收边界：** 本节点Schema/Validator/pytest/CI只验证证据格式与策略，不证明执行记录真实；`observed_execution`仍是来源声明，不是密码学签名。Fake/C++/ROS/Plugin/TSan/ASan/HIL和RACE/EXEC实际执行继续NOT_RUN。
 - **限制：** 未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`仍未授权，A1.1保持BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
 - **下一节点：** §9.3.317 / SERVO-900：定义C++17 test-only Fake Harness target边界、生产target零依赖约束与FakeClock/Barrier/DeterministicExecutor最小header/API草案；仅知识库侧规格，不触碰上游driver，不执行未授权A1.1。
