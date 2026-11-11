@@ -202,8 +202,8 @@ def test_export_include_parser_preserves_escaped_semicolons_and_quotes(tmp_path)
     result = collect(build, True, "Debug", None, prefix)
 
     assert result["exported_target_include_directories"] == [
-        "include;with;semicolons",
         'include/with"quote',
+        "include;with;semicolons",
     ]
 
 
