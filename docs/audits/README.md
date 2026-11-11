@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-11 Stäubli SocketV2 RACE/EXEC Test Case Catalog 与双向追踪验收](2026-11-11-staubli-socket-v2-race-exec-test-case-catalog.md)：新增RACE-01–16与EXEC-01–04共20项机器可读测试规格及Schema；为28条Manifest记录补齐所有20项测试引用的正向/反向映射，新增fail-closed双向校验器、负向测试和CI报告归档。CI #3477在Python 3.10/3.11/3.12全部通过，每个版本67项测试通过；所有测试case仍为NOT_RUN，C++/ROS/plugin/HIL/实机未执行。
+
 - [2026-11-11 Stäubli SocketV2 Lifecycle Manifest Validator 与 CI 自动化验收](2026-11-11-staubli-socket-v2-manifest-validator-ci-integration.md)：新增依赖零的专用JSON Schema关键词子集校验器、28项Manifest资源代际Owner/Coordinator分组约束、20项RACE/EXEC引用完整性、Status/Evidence policy、负向测试与CLI退出码；GitHub Actions CI #3462在Python 3.10/3.11/3.12全部通过，每个版本58项测试通过并归档校验报告。该校验器不是通用完整Draft 2020-12实现；Stäubli C++/ROS/插件/HIL/实机验证仍NOT_RUN。
 
 - [2026-11-06 FANUC ROS 2 Driver / Stream Motion 1 ms与数据包可靠性增量审计](2026-11-06-fanuc-ros2-stream-motion-reliability-review.md)：对照FANUC Open Platform 1 ms宣传与实际ROS 2控制器/选件/URDF矩阵；静态核对v2.4.0 main Stream Motion序列处理、open Issue #67乱序UDP状态包、轨迹加速度/jerk约束、position-only command接口和ros2_control API迁移风险；未构建、未运行网络注入或连接实机。
