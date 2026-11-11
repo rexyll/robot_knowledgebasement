@@ -2,10 +2,13 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.28  
+> 版本：v11.29  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；本轮v11.26继续强化CMake File API codemodel一致性与编译元数据失败关闭；collector提交`63af9ee`、负向测试提交`a97ec6e`，对应普通CI待运行/复核；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`仍无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径仍是待真实构建验证的风险，不是已复现故障。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；本轮新增target graph类型合同：固定上游两项生产库均须在OFF/ON codemodel中呈现为`SHARED_LIBRARY`，不再仅检查target名称存在；新增负向测试覆盖误变为`STATIC_LIBRARY`。validator提交`3526c4d`的CI #42978151314五个jobs全部SUCCESS；测试提交`0f333a4`的CI #42978180872五个jobs全部SUCCESS。A1.1保持BLOCKED，`TODO-EXT-001`未授权。 本轮继续收紧gtest target边界：BUILD_TESTING=ON时七个固定上游gtest target均须为`EXECUTABLE`；安装清单按路径basename精确匹配gtest target，导出集按规范化target名精确匹配，避免子串误报/漏报。validator提交`9ab0a24`对应CI #42981498450五个jobs全部SUCCESS；新增target类型负向测试及相似名称非泄漏测试提交`93a1f52`对应CI #42981522435五个jobs全部SUCCESS。以上为知识库Python/静态合同验证，不替代ROS Jazzy动态验收。 本轮继续补齐诊断工具target类型合同：固定上游`add_executable(test_receive_robot_state ...)`，validator现要求OFF/ON两份快照中该target均为`EXECUTABLE`，并新增将其伪装为`STATIC_LIBRARY`时必须失败的负向测试。validator提交`a96f3c8`对应CI #42980931735五个jobs全部SUCCESS；负向测试提交`02596ca`对应CI #42980948186五个jobs全部SUCCESS。以上仍为知识库Python/静态合同验证，不代表ROS Jazzy动态构建验收。
+
+> v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
+
 
 ---
 
@@ -5029,3 +5032,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - collector提交：`70f25efc9f9541e54368328148cbe47df814c8ab`；测试提交：`4fa715d1e546c72e3740cd342f88f4cfeeb5321a`；schema提交：`27c8625b30000204cdaa9ef34f83e3d9e311af6c`。相关CI待最终结果。
 - v11.27 TaskPlan提交`38e1d7c`对应CI #42987025283已completed/success，5个jobs全部成功。
 - 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。普通CI不构成真实ROS Jazzy动态验收。
+
+
+### 2026-11-11｜v11.29：CMake File API reply 引用路径边界
+
+- 审查发现collector直接拼接CMake File API的`jsonFile`并读取，未约束引用必须留在`.cmake/api/v1/reply`目录内；异常index的`reply`若不是对象还可能触发未处理的结构异常。虽然这些文件通常由CMake生成，但快照采集器不应信任输入路径或嵌套结构。
+- 新增`reply_file()`统一解析index、codemodel与target JSON引用：拒绝绝对路径、目录穿越、指向reply目录外的符号链接，并要求目标为普通文件；index的`reply`字段必须为对象。路径检查基于解析后的真实路径，避免仅做字符串前缀检查。
+- 新增4项负向测试：非对象`index.reply`、codemodel JSON路径越界、target JSON路径越界、符号链接逃逸均必须失败关闭。
+- collector提交：`4501138ca64f6dfcacb48e7c58597da5b9759f31`；测试提交：`4fec30d6f83f1ad66ac2406f66558387219566b3`。测试提交首次CI #42988622866因新增测试一行超过Ruff E501长度限制而失败；根据Python 3.12 job日志修正格式，提交`07a8c015eb77ff26ef9365db74cd9b2cfdcfd8b2`，对应CI #42988699799已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。collector提交CI #42988618404亦全部SUCCESS。
+- 以上为CMake File API collector的路径与结构防御及普通CI验证，不是ROS Jazzy真实构建/安装验收。固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
