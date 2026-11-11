@@ -54,6 +54,18 @@ jobs:
           path: ${{ runner.temp }}/staubli-test-catalog-validation.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Validate Stäubli Runtime Evidence Bundle schema and policy
+        run: |
+          uv run --locked python scripts/validate_staubli_runtime_evidence_bundle.py \
+            --report "${RUNNER_TEMP}/staubli-runtime-evidence-bundle-validation.json"
+      - name: Archive Stäubli Runtime Evidence Bundle validation report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: staubli-runtime-evidence-bundle-validation-py${{ matrix.python-version }}
+          path: ${{ runner.temp }}/staubli-runtime-evidence-bundle-validation.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Build source and wheel with verified PEP 517 build dependency hashes
         run: uv build --require-build-hashes
       - name: Lint
