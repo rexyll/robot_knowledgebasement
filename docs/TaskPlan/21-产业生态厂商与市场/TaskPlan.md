@@ -6005,3 +6005,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 重新查询main push workflow runs，#3807 / Run `43006389248`、#3808 / `43006397849`、#3809 / `43006407880`现均completed/success。逐个读取每个run的五个Job和全部步骤，Python 3.10/3.11/3.12（Lint、Test及Stäubli验证）、SBOM、OSV全部成功，无失败步骤。
 - 扩展检查main push运行列表#3803–#3809，连续7次全部成功；未发现修复提交之后的新失败run。#3795–#3802保留历史失败状态，其共同测试合同冲突已由 `987b769` 修复，并在#3803得到验证。
 - 已将结果写入历史Actions审计报告§2.15。当前普通Python CI修复闭环完成。ROS Jazzy workflow仍需单独workflow_dispatch执行，SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改。
+
+### 2026-11-11｜§9.3.332 CI-HIST-005：#3810–#3812完整Job与工件复验
+
+- #3810 / Run `43006777912`、#3811 / `43006785943`、#3812 / `43006791890`分别对应历史审计、第21章和根TaskPlan文档提交；三次main push均completed/success。
+- 逐个读取每次运行的五个Job及全部步骤：Python 3.10/3.11/3.12（Lint、Test及Stäubli静态验证）、SBOM、OSV全部SUCCESS，无失败或未完成步骤。
+- 逐个读取artifact清单，确认SBOM、OSV报告及三个Python版本的lifecycle/test-catalog/Runtime Evidence Bundle验证报告均已归档且未过期。以上工件是Python静态/供应链验证产物，不是ROS Jazzy C++构建证据。
+- 检查#3803–#3812连续10次main push，全部completed/success；未发现新的普通CI失败。审计报告已补充§2.16。
+- ROS Jazzy workflow仍需workflow_dispatch；当前连接器只有Actions GET读取能力，无触发写入动作，因此没有擅自声称已执行。真实OFF/ON colcon build/install、consumer、gtest、manifest/SHA-256仍NOT_RUN。固定上游commit保持只读；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
