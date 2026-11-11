@@ -148,6 +148,43 @@ run_logged colcon test \
   --event-handlers console_direct+
 run_logged colcon test-result --test-result-base "${BUILD_ROOT}/build-testing-on" --verbose
 
+# colcon test-result only evaluates result files that exist. Require every
+# upstream gtest target to have produced a non-empty, passing XML report so
+# an accidentally skipped test suite cannot be mistaken for a green run.
+run_logged python3 - "${BUILD_ROOT}/build-testing-on/staubli_robot_driver/test_results/staubli_robot_driver" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+result_dir = Path(sys.argv[1])
+expected = {
+    "test_primitives_serialization.gtest.xml",
+    "test_message_serialization.gtest.xml",
+    "test_sockets.gtest.xml",
+    "test_rt_socket_interface.gtest.xml",
+    "test_robot_driver.gtest.xml",
+    "test_mock_robot_server.gtest.xml",
+    "test_staubli_hardware_interface.gtest.xml",
+}
+actual = {path.name for path in result_dir.glob("*.gtest.xml")} if result_dir.is_dir() else set()
+missing = sorted(expected - actual)
+unexpected = sorted(actual - expected)
+if missing or unexpected:
+    raise SystemExit(
+        f"gtest result inventory mismatch: missing={missing}, unexpected={unexpected}"
+    )
+for name in sorted(expected):
+    root = ET.parse(result_dir / name).getroot()
+    tests = int(root.attrib.get("tests", "0"))
+    failures = int(root.attrib.get("failures", "0"))
+    errors = int(root.attrib.get("errors", "0"))
+    if tests < 1 or failures or errors:
+        raise SystemExit(
+            f"{name}: tests={tests}, failures={failures}, errors={errors}"
+        )
+print(f"UPSTREAM_GTEST_XML_PASS reports={len(expected)}")
+PY
+
 run_logged python3 "${SCRIPT_DIR}/validate_staubli_upstream_target_graph.py" \
   --build-off "${OUTPUT_DIR}/build-testing-off.json" \
   --build-on "${OUTPUT_DIR}/build-testing-on.json" \
