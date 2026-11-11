@@ -4609,6 +4609,6 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **完整性校验：** RUN_PASS/RUN_FAIL必须传入bundle root；核验每个artifact实际字节数与SHA-256，规范化路径、拒绝symlink/路径穿越/重复role与path；对environment_manifest、event_trace、state_snapshot执行bundle_id/test_id/attempt和内联内容精确关联。
 - **状态门禁：** 环境全零commit/digest与NOT_CAPTURED/UNKNOWN/UNSET占位值拒绝；RUN_PASS需要before/after、所有断言PASS且无failure/UNKNOWN/RESIDUAL；RUN_FAIL需FAIL断言和before/failure现场快照。
 - **测试：** 新增可重复合成RUN_PASS/RUN_FAIL fixture builder和hash/size篡改、跨工件错配、占位环境、symlink等负向测试；fixture仅用于validator，不代表Stäubli执行。
-- **CI：** 本节点CI待运行验收，待结果确认后回填。
+- **CI：** GitHub Actions CI #3518 / Run ID `42945227762` / head `c520c91146635664c2c18acbbc69c875d913764c` SUCCESS；Python 3.10/3.11/3.12各81 passed，Ruff、Evidence Bundle/Manifest/Catalog校验、OSV与SBOM均通过。[运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42945227762)。
 - **边界：** RACE-01–16与EXEC-01–04全部仍NOT_RUN；未执行Fake/C++/ROS/Plugin/TSan/ASan/HIL；未修改固定上游或应用PR；`TODO-EXT-001`未授权，A1.1仍BLOCKED；历史同步缺口继续透明保留。
 - **下一节点：** §9.3.317 / SERVO-900：定义C++17 test-only Fake Harness target隔离、生产target零依赖约束与FakeClock/Barrier/DeterministicExecutor最小header/API草案。
