@@ -123,13 +123,16 @@ def collect_exported_target_include_directories(export_root: Path) -> list[str]:
     )
     for path in find_export_files(export_root):
         content = read_export_file(path)
-        for value in property_pattern.findall(content):
+        code = mask_cmake_non_code(content, preserve_quoted_arguments=True)
+        for value in property_pattern.findall(code):
             include_directories.update(split_cmake_list(value))
     return sorted(include_directories)
 
 
-def mask_cmake_non_code(content: str) -> str:
-    """Mask comments and quoted/bracket arguments before scanning CMake commands."""
+def mask_cmake_non_code(
+    content: str, *, preserve_quoted_arguments: bool = False
+) -> str:
+    """Mask comments and bracket arguments; optionally retain quoted values."""
     masked = list(content)
 
     def blank(start: int, end: int) -> None:
@@ -151,7 +154,8 @@ def mask_cmake_non_code(content: str) -> str:
                     index += 1
                     break
                 index += 1
-            blank(start, min(index, len(content)))
+            if not preserve_quoted_arguments:
+                blank(start, min(index, len(content)))
             continue
 
         if char == "[":
