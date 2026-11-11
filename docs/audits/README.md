@@ -490,3 +490,8 @@
 ### §9.3.315｜SERVO-898：确定性 Fake Harness 与 Runtime Evidence Bundle
 
 - [2026-11-11 Stäubli SocketV2 确定性 Fake Harness 接口与 Runtime Evidence Bundle 设计](2026-11-11-staubli-socket-v2-deterministic-fake-harness-runtime-evidence-bundle-design.md)：定义FakeClock、Barrier/Latch、DeterministicExecutor、FaultScript、Event Trace、Resource Snapshot、环境身份和SHA-256工件契约；新增Runtime Evidence Bundle Schema与NOT_RUN示例、专用fail-closed validator及CI报告归档。CI #3495在Python 3.10/3.11/3.12通过，Ruff通过，每个版本75项pytest通过；这只验证Schema/validator与知识库Python测试，Fake/C++/ROS运行测试仍NOT_RUN。未修改上游或应用PR；A1.1仍BLOCKED。下一节点§9.3.316 / SERVO-899。
+
+
+### §9.3.316｜SERVO-899：Runtime Evidence Bundle 深度完整性校验
+
+- [2026-11-11 Stäubli SocketV2 Runtime Evidence Bundle 深度完整性校验](2026-11-11-staubli-socket-v2-runtime-evidence-bundle-integrity-validation.md)：强化实际artifact字节数/SHA-256、规范相对路径/symlink防护、环境占位值拦截、RUN_PASS/RUN_FAIL快照门禁和environment/trace/snapshot跨工件身份绑定。新增必需`evidence_origin`，将合成fixture与observed execution显式区分；测试内可重复生成合成RUN_PASS/RUN_FAIL数据，CLI和JSON报告明确标记合成数据不是运行证据。真实Stäubli Fake/C++/ROS执行仍NOT_RUN；CI待本轮验收。
