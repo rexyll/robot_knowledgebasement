@@ -4765,3 +4765,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - main HEAD：`184de16cd974460a17787d3e804add373537a51b`；GitHub Actions Run ID `42955926260`。
 - Python 3.10/3.11/3.12测试矩阵、Lint、OSV审计与SBOM作业均SUCCESS；该run没有执行独立的ROS Jazzy手动workflow。
 - **验收边界：** 这是知识库Python/静态工具链验证，不代表ROS Jazzy colcon build/install、gtest或install-space consumer通过。SERVO-907仍等待手动workflow真实执行。
+
+
+### 2026-11-11｜CI #3613 最终复验
+
+- main HEAD：`e8329d56b439f44ab4bf13eee2bd9f0723d6df5c`；GitHub Actions Run ID `42956329860`（CI #3613）。
+- Python 3.10/3.11/3.12矩阵、Lint、OSV与SBOM作业均SUCCESS。
+- 最近GitHub Actions运行记录中尚未出现 `.github/workflows/staubli-ros-jazzy-build.yml` 的独立手动运行；SERVO-907仍待触发。CI #3613不代表ROS Jazzy C++ build/install/gtest/consumer通过。
