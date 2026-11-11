@@ -220,7 +220,12 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         ):
             raise ValueError(f"{label}.exported_targets must be an array of strings")
         export_names = normalized_exports(exports)
-        missing_exports = sorted(set(PRODUCTION_TARGETS) - export_names)
+        expected_export_targets = {
+            f"staubli_robot_driver::{name}" for name in PRODUCTION_TARGETS
+        }
+        actual_export_targets = set(exports)
+        missing_exports = sorted(expected_export_targets - actual_export_targets)
+        unexpected_exports = sorted(actual_export_targets - expected_export_targets)
         if "exported_target_include_directories" not in snapshot:
             raise ValueError(
                 f"{label}.exported_target_include_directories is required; "
@@ -258,9 +263,12 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         leaked_exports = sorted(name for name in GTEST_TARGETS if name in export_names)
         check(
             f"EXPORT-PRODUCTION-TARGETS-{label}",
-            not missing_exports,
-            "export set must include both production libraries: "
-            + (", ".join(missing_exports) or "complete"),
+            not missing_exports and not unexpected_exports,
+            "export set must exactly match the package-namespaced production libraries; "
+            "missing: "
+            + (", ".join(missing_exports) or "none")
+            + "; unexpected: "
+            + (", ".join(unexpected_exports) or "none"),
         )
         check(
             f"EXPORT-EXCLUDES-GTEST-{label}",
