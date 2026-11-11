@@ -4728,3 +4728,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **状态：** 驱动脚本IMPLEMENTED_NOT_EXECUTED；真实ROS Jazzy build/install、gtest、consumer、plugin、ABI、TSan/ASan、HIL均NOT_RUN。CI #3585 SUCCESS仅验证Python与静态工具链。
 - **安全边界：** 仅更新知识库main；固定上游ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79未修改；未创建/应用/合并上游PR；TODO-EXT-001未授权，A1.1保持BLOCKED。
 - **下一节点：** §9.3.324 / SERVO-907：核实ROS Jazzy容器镜像digest与依赖包来源，执行SERVO-906双配置脚本；依据真实失败日志修复知识库脚本或记录上游阻断项，真实构建未通过前不启用required CI门禁。
+
+
+### 2026-11-11｜CI-HIST-001新增失败记录校正
+
+- **新增历史失败：** SERVO-906测试文件的Ruff导入排序回归导致CI #3587–#3593、#3595–#3597共10条失败run；三版本matrix均在Lint失败，OSV/SBOM成功，pytest未执行。
+- **修复方向：** 调整导入顺序与空行；后续main CI运行验证。历史run保持failure，不改写。
+- **统计：** 2026-11-03至2026-11-11失败run由171更新为181；11月11日由72更新为82。新增10条已加入CSV逐条索引，均归并为同一个Ruff I001导入排序问题，不视为10个独立缺陷。
