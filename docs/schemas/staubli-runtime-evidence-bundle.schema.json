@@ -9,6 +9,7 @@
     "bundle_id",
     "test_id",
     "attempt",
+    "evidence_origin",
     "execution_status",
     "source_identity",
     "environment",
@@ -453,6 +454,13 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "evidence_origin": {
+      "type": "string",
+      "enum": [
+        "synthetic_fixture",
+        "observed_execution"
+      ]
     }
   }
 }
