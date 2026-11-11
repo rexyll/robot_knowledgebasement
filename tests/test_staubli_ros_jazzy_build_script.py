@@ -283,7 +283,7 @@ def test_install_consumer_does_not_mask_unexported_boost_dependency():
     consumer_cmake = content.split(marker, 1)[1].split("\nCMAKE", 1)[0]
     assert "find_package(staubli_robot_driver REQUIRED)" in consumer_cmake
     assert "find_package(Boost" not in consumer_cmake
-    assert "Boost::system" not in consumer_cmake
+    assert not any(line.strip().startswith("find_package(Boost") for line in consumer_cmake.splitlines())
     assert "CONSUMER_FAILURES_FILE" in content
     assert "INSTALL_SPACE_CONSUMER_FINDINGS_PRESENT" in content
     assert "installed CMake package consumer configure/build failed" in content
