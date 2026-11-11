@@ -262,3 +262,4 @@ def test_ros_setup_is_sourced_without_nounset_and_strict_mode_is_restored():
     assert "set -u" in content
     assert 'source_ros_environment "${ROS_SETUP}"' in content
     assert 'source_ros_environment "${install_base}/setup.bash"' in content
+    assert 'source "${ROS_SETUP}"' not in content
