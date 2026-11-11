@@ -1211,9 +1211,9 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 ### §9.3.139 PlanningSceneMonitor直接重配置与显式stop/restart边界
 
-- 复核MoveIt main源码及PR #3907 head源码：main \`startWorldGeometryMonitor()\`入口先调用stop；当前main stop仍以if/else if只释放一个subscriber。PR修复分别reset两个subscriber，新增测试只验证双topic单次stop后的成员topic列表移除。
+- 复核MoveIt main源码及PR #3907 head源码：main `startWorldGeometryMonitor()`入口先调用stop；当前main stop仍以if/else if只释放一个subscriber。PR修复分别reset两个subscriber，新增测试只验证双topic单次stop后的成员topic列表移除。
 - 关键路径区分：双topic活动时直接调用start切换为仅CollisionObject或双空topic，当前main内部stop仅清除CollisionObject，旧PlanningSceneWorld subscriber会残留；若先显式stop一次再start，start入口内部的第二次stop会清除残留。切换为新world topic时旧world成员会被新subscriber覆盖，不能将所有restart场景一概而论。
-- \`getMonitoredTopics()\`仅反映subscriber成员指针，不足以证明回调静默或ROS graph无订阅。SERVO-725矩阵新增旧/新topic发布、回调计数和\`ros2 topic info -v\`观测；PR测试未覆盖这些行为，也未覆盖octomap生命周期。
+- `getMonitoredTopics()`仅反映subscriber成员指针，不足以证明回调静默或ROS graph无订阅。SERVO-725矩阵新增旧/新topic发布、回调计数和`ros2 topic info -v`观测；PR测试未覆盖这些行为，也未覆盖octomap生命周期。
 - PR #3907 head与main比较为diverged，ahead 1 / behind 3；PR仍Open，reviews/threads为空，CI失败原因不可读。SERVO-724持续跟踪；SERVO-725完成静态矩阵修订但动态测试未执行；SERVO-721/723未执行，SERVO-722现场证据缺失/阻塞。
 - 未修改上游/ICube、未应用补丁，未执行VAL3/CS9/SRS/HIL/FAT/SAT或实机验收。Stäubli工程级验收未通过。
 
@@ -4628,8 +4628,8 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 ### 2026-11-11｜v10.91 本轮推进记录（§9.3.318 / SERVO-901）
 
 - **审计报告：** [Fake Harness Header 与 Target Graph 静态验收设计](docs/audits/2026-11-11-staubli-socket-v2-servo-901-fake-harness-target-graph-validation.md)。
-- **工具交付：** 新增\`scripts/validate_staubli_fake_harness_target_graph.py\`、\`tests/test_staubli_fake_harness_target_graph.py\`与\`docs/schemas/staubli-fake-harness-target-graph.schema.json\`。
+- **工具交付：** 新增`scripts/validate_staubli_fake_harness_target_graph.py`、`tests/test_staubli_fake_harness_target_graph.py`与`docs/schemas/staubli-fake-harness-target-graph.schema.json`。
 - **验收范围：** 对BUILD_TESTING=OFF/ON归一化快照检查test-only target存在性、production依赖传递闭包、install manifest、exported targets与plugin闭包中的Fake组件泄漏；拒绝重复target和结构错误输入。
 - **边界：** Validator消费外部CMake File API collector生成的归一化快照；collector尚未实现，因此本轮没有真实target graph输入。header自包含编译、真实双配置构建、install/ament export、plugin依赖实测、C++/ROS/ABI/sanitizer/硬件均NOT_RUN。Python测试结果待CI运行确认。
-- **安全约束：** 仅更新知识库\`main\`；未修改固定上游\`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79\`，未创建/应用/合并上游PR；\`TODO-EXT-001\`仍未授权，A1.1保持BLOCKED。
+- **安全约束：** 仅更新知识库`main`；未修改固定上游`ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`，未创建/应用/合并上游PR；`TODO-EXT-001`仍未授权，A1.1保持BLOCKED。
 - **下一节点：** §9.3.319 / SERVO-902：设计并实现CMake File API snapshot collector及可复现BUILD_TESTING双配置采集脚本；先以合成codemodel fixture验证解析与路径归一化，再明确ROS Jazzy外部执行要求。
