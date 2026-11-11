@@ -149,3 +149,27 @@ def test_export_file_and_root_are_mutually_exclusive(tmp_path):
         assert "use only one" in str(exc)
     else:
         raise AssertionError("ambiguous export inputs must fail")
+
+
+def test_export_root_scans_ament_export_targets_file(tmp_path):
+    build = fixture(tmp_path)
+    prefix = tmp_path / "ament-prefix"
+    export = (
+        prefix
+        / "share/staubli_robot_driver/cmake/"
+        / "export_staubli_robot_driverExport.cmake"
+    )
+    export.parent.mkdir(parents=True)
+    export.write_text(
+        "add_library(staubli_robot_driver::staubli_robot_driver SHARED IMPORTED)\\n"
+        "add_library(staubli_robot_driver::staubli_robot_driver_hardware_interface SHARED IMPORTED)\\n",
+        encoding="utf-8",
+    )
+
+    result = collect(build, True, "Debug", None, prefix)
+
+    assert result["exported_targets"] == [
+        "staubli_robot_driver::staubli_robot_driver",
+        "staubli_robot_driver::staubli_robot_driver_hardware_interface",
+    ]
+    assert result["exported_target_sources"] == [str(export.resolve())]
