@@ -20,7 +20,9 @@ def load_inputs() -> tuple[dict, dict]:
     bundle = json.loads(
         (
             ROOT
-            / "docs/audits/2026-11-11-staubli-runtime-evidence-bundle-example-NOT_RUN.json"
+            / (
+                "docs/audits/2026-11-11-staubli-runtime-evidence-bundle-example-NOT_RUN.json"
+            )
         ).read_text(encoding="utf-8")
     )
     return schema, bundle
@@ -35,7 +37,9 @@ def _write_artifact(root: Path, role: str, relative: str, data: bytes) -> dict:
         "path": relative,
         "sha256": hashlib.sha256(data).hexdigest(),
         "size_bytes": len(data),
-        "media_type": "application/json" if relative.endswith(".json") else "text/plain",
+        "media_type": (
+            "application/json" if relative.endswith(".json") else "text/plain"
+        ),
     }
 
 
@@ -118,7 +122,9 @@ def make_synthetic_bundle(root: Path, status: str) -> tuple[dict, dict]:
                 {
                     "assertion_id": "SYNTHETIC-ASSERT-01",
                     "result": "FAIL" if status == "RUN_FAIL" else "PASS",
-                    "detail": "Synthetic validator fixture; not a Stäubli execution result.",
+                    "detail": (
+                        "Synthetic validator fixture; not a Stäubli execution result."
+                    ),
                 }
             ],
             "blockers": [],
@@ -299,7 +305,9 @@ def test_artifact_hash_and_size_are_checked(tmp_path: Path) -> None:
 
 def test_cross_artifact_bundle_identity_is_checked(tmp_path: Path) -> None:
     schema, bundle = make_synthetic_bundle(tmp_path, "RUN_PASS")
-    artifact = next(item for item in bundle["artifacts"] if item["role"] == "event_trace")
+    artifact = next(
+        item for item in bundle["artifacts"] if item["role"] == "event_trace"
+    )
     path = tmp_path / artifact["path"]
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["bundle_id"] = "SERVO-000-mismatched"
