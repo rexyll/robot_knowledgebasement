@@ -31,8 +31,7 @@
       "pattern": "^(RACE-(0[1-9]|1[0-6])|EXEC-0[1-4])$"
     },
     "attempt": {
-      "type": "integer",
-      "minimum": 1
+      "type": "integer"
     },
     "execution_status": {
       "enum": [
@@ -149,12 +148,10 @@
               ]
             },
             "initial_time_ns": {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             "ticks": {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             }
           }
         },
@@ -175,8 +172,7 @@
                 "minLength": 1
               },
               "participants": {
-                "type": "integer",
-                "minimum": 1
+                "type": "integer"
               },
               "released": {
                 "type": "boolean"
@@ -212,20 +208,16 @@
               ]
             },
             "accepted": {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             "rejected": {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             "cancelled": {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             "completed": {
-              "type": "integer",
-              "minimum": 0
+              "type": "integer"
             },
             "shutdown_state": {
               "enum": [
@@ -287,12 +279,10 @@
         ],
         "properties": {
           "sequence": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "logical_time_ns": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "thread_id": {
             "type": "string",
@@ -307,12 +297,10 @@
             "minLength": 1
           },
           "resource_generation": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "resource_revision": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "attempt_token": {
             "type": "string",
@@ -353,12 +341,10 @@
             "minLength": 1
           },
           "generation": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "revision": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "owner": {
             "type": "string",
@@ -373,12 +359,10 @@
             "minLength": 1
           },
           "active_callbacks": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "pending_handlers": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "worker_state": {
             "type": "string",
@@ -425,8 +409,7 @@
             "pattern": "^[0-9a-f]{64}$"
           },
           "size_bytes": {
-            "type": "integer",
-            "minimum": 0
+            "type": "integer"
           },
           "media_type": {
             "type": "string",
