@@ -5194,3 +5194,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - #3813 / `43007378346`、#3814 / `43007387076`、#3815 / `43007394986`全部completed/success。逐个核验全部Job/步骤：Python 3.10/3.11/3.12、SBOM、OSV全部SUCCESS；三个run的SBOM、OSV和Stäubli静态验证工件均已归档且未过期。
 - #3803–#3815连续13次main push均成功；证据见历史Actions审计报告§2.17、第21章§9.3.333。
 - 本结果仅证明普通Python CI和供应链任务成功。ROS Jazzy workflow_dispatch尚未触发；OFF/ON colcon build/install、install-space consumer、gtest、manifest/SHA-256仍NOT_RUN。SERVO-907保持BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
+
+
+### 2026-11-11｜v11.49：修复Stäubli ROS Jazzy workflow依赖引导失败
+
+- 专用ROS Jazzy workflow #1 / Run `43008853603`首次手动执行失败。日志根因是前置apt步骤清空 `/var/lib/apt/lists/*`，而rosdep依赖安装前未刷新apt索引，导致多个ROS Jazzy及Ubuntu依赖包无法定位；失败发生在依赖安装阶段，双配置构建与动态验收未启动。
+- 已修复知识库workflow：`eb1021a868129a7b6338414514a4d943390ce839`保留apt索引，并在rosdep update后刷新apt索引；`4e22b6a1f7d916786c12c2eecdf751995e31b511`增加回归测试。修复后普通CI #3819 / `43009801401`、#3820 / `43009831428`全部completed/success，五个Job均成功；#3820的全部步骤和11个artifact均核验成功。
+- 本轮真实失败原因、修复提交、普通CI证据及未完成边界已记录在第21章§9.3.334与历史Actions审计报告§2.18。普通Python CI成功不代表ROS Jazzy apt/rosdep、C++ build/install或consumer动态验收通过。
+- **当前任务节点：第21章§9.3.334之后，等待修复后专用ROS Jazzy workflow重新运行。** OFF/ON colcon build/install、install-space consumer、gtest、manifest/SHA-256仍NOT_RUN；SERVO-907仍BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权；上游固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
