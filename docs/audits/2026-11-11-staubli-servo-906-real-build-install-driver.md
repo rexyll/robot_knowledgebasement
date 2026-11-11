@@ -63,3 +63,35 @@
 - **不可夸大的结论：** 该静态证据不能单独证明consumer必然失败；必须由固定digest ROS Jazzy workflow的实际consumer build确定。未修改固定上游。
 - **CI复验：** CI #3620 / Run ID `42958035088` 与 CI #3621 / Run ID `42958041757` 均SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM全部成功。仅验证知识库Python/静态测试，不代表ROS/C++ build/install/gtest/consumer通过。
 - **当前状态：** SERVO-906 `IMPLEMENTED_NOT_EXECUTED`；SERVO-907仍未发现独立workflow run；真实ROS Jazzy验收继续 `NOT_RUN`。
+
+
+## 6. 专用 workflow Run #5/#6：安装导出缺陷动态证据（2026-11-11）
+
+### Run #5
+
+- Run ID：`43027974929`；提交：`5102e31ca2c51a5875b108efceb3287f2f02ce07`；结果：`failure`。
+- 固定上游 checkout、ROS Jazzy依赖准备、BUILD_TESTING=OFF构建与安装均推进成功；失败出现在独立 install-space consumer。
+- CMake报告导入target `staubli_robot_driver::staubli_robot_driver` 的链接接口引用 `Boost::system`，但该target未定义；同时导出include路径包含不存在的 `/asio/include`。
+- 两项错误分别对应固定上游缺少Boost下游依赖导出，以及将未定义的 `asio_SOURCE_DIR` 展开为错误绝对路径。该consumer未预先调用 `find_package(Boost)`，因此Run #5保留了Boost导出缺陷的直接动态证据。
+
+### Run #6
+
+- Run ID：`43031245835`；提交：`0fc60dfd911837bbe9e544676f0a4df3671c345e`；结果：`failure`。
+- ROS Jazzy容器、固定上游checkout、rosdep、BUILD_TESTING=OFF/ON构建与安装、CMake File API快照均已推进；两个模式的consumer均在CMake生成阶段因导入target包含不存在的 `/asio/include` 而失败。
+- target-graph validator在OFF/ON快照中均检测到 `/asio/include`，对应检查 `EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-OFF/ON` 均FAIL。证据工件已上传：`13860064639`。
+- 对Run #6脚本进行复核时发现consumer夹具增加了 `find_package(Boost REQUIRED COMPONENTS system)`。这会预先创建 `Boost::system`，从而掩盖Run #5已实际暴露的上游Boost依赖导出缺陷；该测试夹具改动方向错误，不能保留。
+
+### 知识库侧纠正
+
+- 提交 `1f698152ebfa41ef82f2efe7389cdb33e26ec851`：移除consumer中的预先 `find_package(Boost)`，让独立消费者直接加载上游安装包，不再人为补齐上游未导出的Boost target。
+- 提交 `ad6220b6e6f5cf89e1bbcba31f532928f7ef6349`：新增回归测试，明确禁止consumer夹具预先定义 `Boost::system` 或调用 `find_package(Boost)`。
+- 两个提交触发的普通CI Run `43032513964`、`43032558011`在本记录写入时仍未完成，结果待逐Job复核；不得提前标记PASS。
+- 固定上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。本仓库不通过创建空目录、伪造include目录、改写已安装导出文件或consumer手工补依赖来绕过缺陷。
+
+### 当前结论与下一步
+
+- **已由真实ROS Jazzy运行确认的上游安装导出缺陷：**
+  1. `asio_SOURCE_DIR`未定义，导致导出接口包含无效路径 `/asio/include`，OFF/ON均失败。
+  2. `Boost::system`出现在生产库的导出链接接口，但上游没有通过 `ament_export_dependencies(Boost)` 或等效配置确保下游target存在；Run #5的consumer直接失败，Run #6曾被测试夹具预先find_package掩盖，现已撤销该掩盖。
+- 不能通过只改consumer夹具让该包通过。若要使上游安装包真正可消费，需要上游修复CMake依赖/导出合同；但本项目明确禁止修改固定上游或未经授权创建上游PR。
+- SERVO-906与SERVO-907继续BLOCKED；完整gtest七项报告、consumer编译链接运行、manifest/SHA-256动态验收均未通过。A1.1保持BLOCKED；`TODO-EXT-001`未授权。
