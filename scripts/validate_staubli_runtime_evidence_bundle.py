@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed structural and policy checks for Stäubli Runtime Evidence Bundles."""
+"""Fail-closed validation for Stäubli Runtime Evidence Bundles."""
 from __future__ import annotations
 
 import argparse
@@ -24,6 +24,7 @@ REQUIRED_PASS_ROLES = {
     "event_trace",
     "state_snapshot",
 }
+PLACEHOLDERS = {"", "NOT_CAPTURED", "UNKNOWN", "UNSET"}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -40,8 +41,48 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _safe_artifact_path(root: Path, relative: str) -> tuple[Path | None, str | None]:
+    rel = Path(relative)
+    if rel.is_absolute() or "\\\\" in relative or not relative or any(
+        part in {".", ".."} for part in rel.parts
+    ):
+        return None, f"artifact path is not a normalized safe relative path: {relative}"
+    candidate = root / rel
+    current = root
+    for part in rel.parts:
+        current = current / part
+        if current.is_symlink():
+            return None, f"artifact path contains a symbolic link: {relative}"
+    resolved_root = root.resolve()
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError:
+        return None, f"artifact path escapes bundle root: {relative}"
+    return resolved, None
+
+
+def _environment_errors(bundle: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    identity = bundle["source_identity"]
+    if identity["commit"] == "0" * 40 or identity["upstream_commit"] == "0" * 40:
+        errors.append("source_identity contains a placeholder all-zero commit")
+    environment = bundle["environment"]
+    for key, value in environment.items():
+        if isinstance(value, str) and value in PLACEHOLDERS:
+            errors.append(f"environment.{key} is a placeholder: {value!r}")
+    for key in ("dependency_lock_sha256",):
+        if environment[key] == "0" * 64:
+            errors.append(f"environment.{key} is a placeholder all-zero digest")
+    if environment["oci_image_digest"] == "sha256:" + "0" * 64:
+        errors.append("environment.oci_image_digest is a placeholder all-zero digest")
+    return errors
+
+
 def validate_bundle(
-    bundle: dict[str, Any], schema: dict[str, Any], root: Path | None = None
+    bundle: dict[str, Any],
+    schema: dict[str, Any],
+    root: Path | None = None,
 ) -> list[str]:
     errors = _check_schema_contract(schema)
     errors.extend(_schema_errors(bundle, schema, "$bundle"))
@@ -67,6 +108,10 @@ def validate_bundle(
             )
         revisions[key] = event["resource_revision"]
 
+    attempt_tokens = {event["attempt_token"] for event in trace}
+    if len(attempt_tokens) > 1:
+        errors.append("event_trace contains multiple attempt_token values for one bundle")
+
     for barrier in bundle["harness"]["barriers"]:
         if len(barrier["arrivals"]) > barrier["participants"]:
             errors.append(f"barrier {barrier['barrier_id']}: arrivals exceed participants")
@@ -76,56 +121,111 @@ def validate_bundle(
             )
 
     paths: set[str] = set()
-    roles: set[str] = set()
+    roles: dict[str, dict[str, Any]] = {}
     for artifact in bundle["artifacts"]:
-        path = artifact["path"]
-        if path.startswith("/") or "\\" in path or ".." in Path(path).parts:
-            errors.append(f"artifact path is not a safe relative path: {path}")
-            continue
-        if path in paths:
-            errors.append(f"duplicate artifact path: {path}")
-        paths.add(path)
-        roles.add(artifact["role"])
+        relative = artifact["path"]
+        if relative in paths:
+            errors.append(f"duplicate artifact path: {relative}")
+        paths.add(relative)
+        if artifact["role"] in roles:
+            errors.append(f"duplicate artifact role: {artifact['role']}")
+        roles[artifact["role"]] = artifact
         if not SHA256_RE.fullmatch(artifact["sha256"]):
-            errors.append(f"artifact {path}: invalid SHA-256")
-            continue
+            errors.append(f"artifact {relative}: invalid SHA-256")
         if root is not None:
-            candidate = (root / path).resolve()
-            try:
-                candidate.relative_to(root.resolve())
-            except ValueError:
-                errors.append(f"artifact path escapes bundle root: {path}")
+            candidate, path_error = _safe_artifact_path(root, relative)
+            if path_error:
+                errors.append(path_error)
                 continue
+            assert candidate is not None
             if not candidate.is_file():
-                errors.append(f"artifact file is missing: {path}")
-            else:
-                digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
-                if digest != artifact["sha256"]:
-                    errors.append(f"artifact hash mismatch: {path}")
+                errors.append(f"artifact file is missing: {relative}")
+                continue
+            data = candidate.read_bytes()
+            if len(data) != artifact["size_bytes"]:
+                errors.append(
+                    f"artifact size mismatch: {relative} "
+                    f"(declared {artifact['size_bytes']}, actual {len(data)})"
+                )
+            digest = hashlib.sha256(data).hexdigest()
+            if digest != artifact["sha256"]:
+                errors.append(f"artifact hash mismatch: {relative}")
 
     status = bundle["execution_status"]
     assertions = bundle["assertions"]
     if status == "BLOCKED" and not bundle.get("blockers"):
         errors.append("BLOCKED bundle must contain blockers")
+    if status in {"NOT_RUN", "BLOCKED"} and assertions and any(
+        item["result"] != "NOT_EVALUATED" for item in assertions
+    ):
+        errors.append(f"{status} bundle cannot contain evaluated assertions")
     if status == "RUN_PASS":
-        missing_roles = REQUIRED_PASS_ROLES - roles
+        missing_roles = REQUIRED_PASS_ROLES - set(roles)
         if missing_roles:
             errors.append(f"RUN_PASS missing artifact roles: {sorted(missing_roles)}")
         if not assertions or any(item["result"] != "PASS" for item in assertions):
             errors.append("RUN_PASS requires at least one assertion and every assertion PASS")
         if not trace or not bundle["resource_snapshots"]:
             errors.append("RUN_PASS requires non-empty event_trace and resource_snapshots")
-        if any(value == "NOT_CAPTURED" for value in bundle["environment"].values()):
-            errors.append("RUN_PASS environment contains NOT_CAPTURED values")
+        errors.extend(_environment_errors(bundle))
+        if any(
+            any(token in str(snapshot[field]).upper() for token in ("UNKNOWN", "RESIDUAL"))
+            for snapshot in bundle["resource_snapshots"]
+            for field in (
+                "owner",
+                "lifecycle_state",
+                "native_handle_state",
+                "worker_state",
+                "remote_session_state",
+            )
+        ):
+            errors.append("RUN_PASS contains UNKNOWN/RESIDUAL resource state")
+        if "failure" in {snapshot["phase"] for snapshot in bundle["resource_snapshots"]}:
+            errors.append("RUN_PASS cannot contain a failure-phase resource snapshot")
     if status == "RUN_FAIL":
         if not assertions or not any(item["result"] == "FAIL" for item in assertions):
             errors.append("RUN_FAIL requires at least one FAIL assertion")
         if "test_log" not in roles:
             errors.append("RUN_FAIL requires a test_log artifact")
-    if status in {"NOT_RUN", "BLOCKED"} and assertions and any(
-        item["result"] != "NOT_EVALUATED" for item in assertions
-    ):
-        errors.append(f"{status} bundle cannot contain evaluated assertions")
+        if not trace:
+            errors.append("RUN_FAIL requires a non-empty event_trace")
+
+    if root is not None:
+        for role, expected in (
+            ("environment_manifest", {
+                "bundle_id": bundle["bundle_id"],
+                "test_id": bundle["test_id"],
+                "attempt": bundle["attempt"],
+                "source_identity": bundle["source_identity"],
+                "environment": bundle["environment"],
+            }),
+            ("event_trace", {
+                "bundle_id": bundle["bundle_id"],
+                "test_id": bundle["test_id"],
+                "attempt": bundle["attempt"],
+                "events": bundle["event_trace"],
+            }),
+            ("state_snapshot", {
+                "bundle_id": bundle["bundle_id"],
+                "test_id": bundle["test_id"],
+                "attempt": bundle["attempt"],
+                "snapshots": bundle["resource_snapshots"],
+            }),
+        ):
+            artifact = roles.get(role)
+            if artifact is None:
+                continue
+            candidate, path_error = _safe_artifact_path(root, artifact["path"])
+            if path_error or candidate is None or not candidate.is_file():
+                continue
+            try:
+                actual = json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                errors.append(f"{role} artifact is not readable JSON: {exc}")
+                continue
+            if actual != expected:
+                errors.append(f"{role} artifact does not match bundle inline fields")
+
     return errors
 
 
@@ -159,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             args.report.parent.mkdir(parents=True, exist_ok=True)
             args.report.write_text(
-                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                json.dumps(result, ensure_ascii=False, indent=2) + "\\n",
                 encoding="utf-8",
             )
         except OSError as exc:
