@@ -188,6 +188,25 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
 
 
 
+def test_export_include_parser_preserves_escaped_semicolons_and_quotes(tmp_path):
+    build = fixture(tmp_path)
+    prefix = tmp_path / "prefix"
+    export = prefix / "lib/cmake/staubli/staubliTargets.cmake"
+    export.parent.mkdir(parents=True)
+    export.write_text(
+        'set_target_properties(staubli::core PROPERTIES\n'
+        '  INTERFACE_INCLUDE_DIRECTORIES "include\\;with\\;semicolons;include/with\\"quote")\n',
+        encoding="utf-8",
+    )
+
+    result = collect(build, True, "Debug", None, prefix)
+
+    assert result["exported_target_include_directories"] == [
+        "include;with;semicolons",
+        'include/with"quote',
+    ]
+
+
 def test_unknown_dependency_target_id_fails_closed(tmp_path):
     build = fixture(tmp_path)
     reply = build / ".cmake/api/v1/reply"
