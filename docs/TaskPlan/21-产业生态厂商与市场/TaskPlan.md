@@ -5905,3 +5905,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **风险分级修正：** realtime_tools有公共头文件直接依赖证据，列为优先实测导出风险。Boost.System当前为实现侧使用且链接未声明PUBLIC，不能仅因未导出就认定下游target缺陷；package.xml缺失仍属构建依赖元数据问题。backward_ros仅确认CMake find_package，暂不推断其必须导出。asio_SOURCE_DIR定义来源继续单独待查。
 - **状态：** 代码和静态合同测试已提交，等待普通CI复验；ROS Jazzy真实OFF/ON build/install、公共头文件consumer、gtest和证据包仍NOT_RUN。固定上游未修改；TODO-EXT-001未授权；A1.1保持BLOCKED。
 - **下一步：** 先检查新增提交触发的CI及全部失败步骤；随后必须由有仓库write权限的用户手动触发专用ROS Jazzy workflow，优先观察公共头文件consumer是否因realtime_tools导出缺失而失败。
+
+### 2026-11-11｜§9.3.324 SERVO-907 Boost.Asio 依赖与 asio_SOURCE_DIR 核查
+
+- 固定上游源码实际包含`<boost/asio.hpp>`并使用`boost::asio`/`boost::system`；CMake执行`find_package(Boost REQUIRED COMPONENTS system)`并链接`Boost::system`。
+- 固定上游CMake额外添加`${asio_SOURCE_DIR}/asio/include`，但固定commit全仓搜索未找到变量定义、FetchContent声明或`find_package(asio)`；当前workflow也未传入该变量。该变量在当前入口下无已知来源，可能形成`/asio/include`无效PUBLIC include路径；真实构建前仅列为静态风险，不宣称已导致失败。
+- 知识库侧已移除不匹配源码依赖的`libasio-dev`安装项及`/usr/include/asio.hpp`强制检查；保留Boost.System安装和预检。新增静态合同测试防止回归。
+- 代码提交：构建脚本`9d0ff8dfb92d95d493d1d0b10f57cf19f82e8a3b`；workflow`f9d818586206f7ebc2b0dc338d667d2589d4672e`；测试`ab7631a17640aba6c37e6d12e092f496dc2bab32`。
+- `package.xml`未声明Boost/backward_ros而workflow显式安装，仍属上游依赖元数据待核实；不修改固定上游，不猜测rosdep key。
+- 真实ROS Jazzy OFF/ON build/install、consumer、gtest、证据manifest与SHA-256仍`NOT_RUN`；A1.1保持`BLOCKED`，`TODO-EXT-001`未授权。
