@@ -4990,3 +4990,9 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 将OFF/ON诊断工具安装检查统一为安装清单路径basename精确匹配；新增负向测试：移除真实诊断工具并加入相似名称条目时，validator必须FAIL。
 - 本次修改仅约束知识库侧静态证据校验，不改变固定上游源码，不代表真实ROS Jazzy安装验证。
 - 当前SERVO-907仍BLOCKED / NOT_RUN；真实OFF/ON colcon build/install、install-space consumer、gtest及证据包SHA-256仍须由专用workflow运行取得。
+
+
+### v11.24 CI失败记录与修复
+
+- 测试提交`acbc305`触发CI #42983459966，其中Python 3.11的Ruff因新增`pathlib.Path`导入顺序错误失败；pytest尚未运行，失败不是业务断言或validator逻辑失败。
+- 已按Ruff要求将标准库导入按字母顺序排列，修复提交`8c80c2d`；以修复提交及其后续CI结果作为当前验证依据，保留原失败run记录。
