@@ -304,3 +304,63 @@ def test_malformed_compile_definition_fails_closed(tmp_path):
     else:
         raise AssertionError("malformed compile definition must fail")
 
+def test_duplicate_configuration_names_fail_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    model = json.loads((reply / "codemodel-v2.json").read_text(encoding="utf-8"))
+    model["configurations"].append(
+        {"name": "Debug", "targets": []}
+    )
+    put(reply / "codemodel-v2.json", model)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "duplicate configuration names" in str(exc)
+    else:
+        raise AssertionError("duplicate configuration names must fail")
+
+
+def test_missing_configuration_name_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    model = json.loads((reply / "codemodel-v2.json").read_text(encoding="utf-8"))
+    del model["configurations"][0]["name"]
+    put(reply / "codemodel-v2.json", model)
+
+    try:
+        collect(build, False, None, None)
+    except ValueError as exc:
+        assert "requires a string name" in str(exc)
+    else:
+        raise AssertionError("missing configuration name must fail")
+
+
+def test_unknown_target_type_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    core["type"] = "SHARED_LIBARY"
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "recognized CMake target type" in str(exc)
+    else:
+        raise AssertionError("unknown target types must fail")
+
+
+def test_missing_target_type_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    del core["type"]
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "recognized CMake target type" in str(exc)
+    else:
+        raise AssertionError("missing target types must fail")
