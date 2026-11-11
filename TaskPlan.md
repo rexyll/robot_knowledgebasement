@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.10  
+> 版本：v11.11  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；consumer实际调用FrameHeader::serialize非内联符号的加强已由CI #3646–#3651全部SUCCESS复验。随后新增OFF/ON consumer安装产物运行步骤；CI #3656因两条测试断言超长而Ruff失败，已在0f415e6修复，CI #3657五个job全部SUCCESS。新增运行步骤尚待专用ROS Jazzy workflow动态验证；普通CI不代表ROS/C++验收。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；consumer实际调用FrameHeader::serialize非内联符号的加强已由CI #3646–#3651全部SUCCESS复验。随后新增OFF/ON consumer安装产物运行步骤；CI #3656因两条测试断言超长而Ruff失败，已在0f415e6修复，CI #3657五个job全部SUCCESS。新增运行步骤尚待专用ROS Jazzy workflow动态验证；普通CI不代表ROS/C++验收。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。证据manifest完整性校验已加强，缺少必需OFF/ON快照、验证报告或环境指纹，以及重复artifact路径均会被拒绝；CI #3661五个job全部SUCCESS。A1.1保持BLOCKED，TODO-EXT-001未授权。
 
 ---
 
@@ -4855,3 +4855,14 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **验收边界：** 两次普通CI只覆盖知识库Python/静态合同/OSV/SBOM，不代表ROS/C++验收。真实OFF/ON colcon build/install、consumer、gtest、证据包与SHA-256仍`NOT_RUN`。
 - **下一步：** 用户在[ROS Jazzy workflow](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)手动运行`main`。获得运行记录后，继续分析真实构建与导出依赖问题。固定上游未修改，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
 
+
+
+## 2026-11-11｜证据 manifest 完整性验证补强
+
+- 复核发现旧版manifest verifier只验证清单中已列出的文件及其size/SHA-256；若manifest被人为删除某个必需条目，剩余条目仍可能全部校验成功。
+- 已要求manifest必须包含OFF快照、ON快照、SERVO-906验证报告和环境指纹四类必需证据；命令日志仍为workflow调用时附加的可选记录。
+- 增加重复artifact路径拒绝规则，并对manifest遗漏必需条目返回FAIL；新增对应回归测试。
+- 提交：`ed5bd7d7dc3f1aee628b0f98b6bf2b74f0b3b1b4`。
+- CI #3661 / Run ID `42964535212`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- 该CI验证知识库Python测试与静态检查，不执行ROS Jazzy/C++构建。OFF/ON colcon build/install、consumer实际运行、gtest、证据包生成及SHA-256真实workflow仍NOT_RUN。
+- 固定上游未修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。

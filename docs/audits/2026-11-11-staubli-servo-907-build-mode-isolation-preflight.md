@@ -168,3 +168,28 @@ target_link_libraries(
 CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**没有执行**专用ROS Jazzy容器workflow。因此OFF/ON真实colcon build/install、consumer实际运行、上游gtest、证据包及SHA-256校验仍为`NOT_RUN`。新增consumer运行步骤尚未在ROS Jazzy容器中动态执行，必须等专用workflow结果确认。
 
 固定上游未修改；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
+
+
+## 13. Evidence manifest 完整性缺口修复与 CI #3661
+
+### 13.1 发现
+
+原 `verify_manifest()` 对manifest列出的每个文件执行路径边界、文件存在、size和SHA-256检查，但没有验证manifest是否包含全部必需证据。攻击性或误操作导致的manifest条目删除，可能让一个不完整的证据包仅凭剩余文件全部匹配而返回PASS。
+
+### 13.2 修复
+
+- 必需条目集合固定为：`artifacts/build-testing-off.json`、`artifacts/build-testing-on.json`、`artifacts/servo-906-validation-report.json`、`environment-fingerprint.json`。
+- `commands.log`仅在调用方提供命令日志时加入，因此不列入所有包都必须具备的集合。
+- manifest遗漏任一必需条目时增加MISSING检查并返回FAIL。
+- 拒绝重复artifact路径，避免重复记录掩盖清单结构异常。
+- 新增两项回归测试：删除manifest中的必需ON快照条目应失败；重复artifact路径应抛出验证错误。
+
+提交：`ed5bd7d7dc3f1aee628b0f98b6bf2b74f0b3b1b4`。
+
+### 13.3 CI结果及边界
+
+- CI #3661 / Run ID `42964535212`：SUCCESS；Python 3.10、3.11、3.12、OSV、SBOM五个job全部成功。
+- 新测试文件和打包器无超过100字符的新增行；Ruff通过。
+- 该CI不运行ROS Jazzy容器，也不执行C++ build/install或consumer程序。
+- 真实OFF/ON colcon build/install、consumer运行、gtest、证据包生成及SHA-256验证仍为NOT_RUN。
+- 固定上游未修改；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。

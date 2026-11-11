@@ -5883,3 +5883,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 修复提交`0f415e6ec7675954a14265971236e3d400bfc456`；CI #3657 / Run ID `42963282701`：SUCCESS，Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
 - 真实ROS Jazzy workflow仍未运行；OFF/ON colcon build/install、consumer运行、gtest、证据包及SHA-256仍NOT_RUN。新增consumer执行步骤必须通过专用workflow动态验证后才可记为验收通过。
 - 固定上游未修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
+
+
+### §9.3.324 补充｜证据 manifest 必需条目完整性与 CI #3661
+
+- **缺陷：** 旧版验证器只核对manifest中已列出的文件及其size/SHA-256；若manifest漏列某个必需证据，剩余条目仍可能全部PASS。
+- **修复：** 强制manifest列出OFF快照、ON快照、SERVO-906验证报告、环境指纹；命令日志可选。新增重复artifact路径拒绝逻辑。遗漏必需条目返回FAIL，不再只校验剩余条目。
+- **回归测试：** 新增manifest遗漏必需artifact和重复artifact路径两类测试。
+- **提交：** `ed5bd7d7dc3f1aee628b0f98b6bf2b74f0b3b1b4`。
+- **CI #3661 / Run ID `42964535212`：** SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- **验收边界：** CI #3661仅验证Python测试、lint和供应链检查；真实ROS Jazzy OFF/ON colcon build/install、consumer运行、gtest、manifest真实证据包及SHA-256仍NOT_RUN。
+- 固定上游未修改；无上游PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。
