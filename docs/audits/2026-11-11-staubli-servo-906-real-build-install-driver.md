@@ -104,3 +104,29 @@
 - 最终测试修复提交：`962b4194d832c281b019aa164ca9d86e90e23cd1`。
 - 普通CI Run `43032966478`（该提交）completed/success；Python 3.10/3.11/3.12测试、Lint、Stäubli lifecycle/test-catalog/runtime evidence静态验证、SBOM、OSV五个Job及全部步骤均SUCCESS。
 - 结论边界：普通CI回归已闭环；它不改变Run #5/#6的真实ROS Jazzy失败结论。consumer已不再预先定义Boost target，后续专项运行将重新暴露上游Boost导出缺口；无效 `/asio/include` 仍是确定性阻塞项。
+
+
+## 8. 专用workflow Run #7：Ubuntu apt镜像DNS故障与依赖索引重试修复（2026-11-11）
+
+### Run #7失败证据
+
+- Run ID：`43033695957`；提交：`324e387d74fecab496b63baad9c07e92e302bdbd`；结果：`failure`。
+- 失败步骤：`Install explicit upstream CMake dependencies and build tools`。在固定上游checkout之前失败，后续checkout、rosdep和build/install矩阵均SKIPPED。
+- 日志显示ROS仓库索引下载成功，但Ubuntu Noble的`archive.ubuntu.com`和`security.ubuntu.com`多次DNS解析失败；`apt-get update`虽打印部分索引失败警告，仍返回成功，后续apt install因`ros-jazzy-backward-ros`依赖`libdw-dev`无候选版本而失败（exit 100）。
+- 因此Run #7不是上游源码构建或ASIO/Boost导出验证失败；该run没有产生新的上游安装导出结论。
+
+### 已实施的知识库侧修复
+
+- 新增`scripts/retry_apt_update.sh`：最多5轮刷新，启用APT Acquire retries和HTTP(S)超时；每轮刷新后通过`apt-cache policy`检查调用方指定的全部关键包是否有Candidate，只有索引满足依赖才返回成功。APT更新命令非零或部分镜像失败时继续重试；耗尽重试仍缺包则明确失败，绝不带着不完整索引进入安装。
+- 专项workflow的显式工具安装前，检查`git`、`libboost-system-dev`、`libdw-dev`、colcon、rosdep及`ros-jazzy-backward-ros`候选包；rosdep安装前再次刷新并检查`libdw-dev`。
+- 新增静态回归测试，验证两处调用、候选包门控、重试参数和bash语法；同步调整原先依赖直接`apt-get update`文本的顺序测试。
+- 相关提交：`aaede3be13f052836dcf1babeb4e55a409c990c1`（重试脚本）、`b25200410b1f25511e7350c1bdd3e759e4b3b2d2`（workflow集成）、`d8b995b0d69325f27baa527ef43dc52c80493257`（确保非零update也可重试）、`817e0d0b02116566611e14841c7581cc7a6293e6`（回归测试）、`fd4b2d71ac4f0eee2d876659b832f157926201a9`（更新旧apt顺序断言）。
+- 普通CI中间提交曾因旧断言仍寻找`apt-get update`而失败（Run `43034337272`），后续提交修正了断言。最终提交对应Run `43034476816`在审计写入时仍运行，待后续读取所有Job结果。
+- 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改。该修复只处理CI环境的APT索引完整性与瞬时DNS故障，不改变上游依赖关系，也不绕过ASIO/Boost consumer检查。
+
+### 下一步与验收边界
+
+- 先确认普通CI Run `43034476816`所有Job通过；若失败，按日志继续修复。
+- 随后用户需在最新main手动重新触发专用workflow。Run #7不能rerun旧SHA替代新提交验证。
+- 新一轮若成功完成依赖安装，应继续检查真实OFF/ON构建、安装空间consumer、ASIO/Boost导出错误、七份gtest XML及manifest/SHA-256。
+- SERVO-906/907仍BLOCKED；A1.1仍BLOCKED；`TODO-EXT-001`未授权。
