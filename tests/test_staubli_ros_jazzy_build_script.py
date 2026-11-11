@@ -292,3 +292,31 @@ def test_install_consumer_does_not_mask_unexported_boost_dependency():
     assert "installed CMake package consumer configure/build failed" in content
     assert "if run_logged colcon --log-base" in content
     assert 'run_logged colcon --log-base "${LOG_ROOT}/colcon-on" test' in content
+
+
+def test_manual_ros_workflow_retries_apt_and_checks_libdw_candidate():
+    workflow = (
+        Path(__file__).parents[1]
+        / ".github"
+        / "workflows"
+        / "staubli-ros-jazzy-build.yml"
+    ).read_text(encoding="utf-8")
+    retry_script = (
+        Path(__file__).parents[1] / "scripts" / "retry_apt_update.sh"
+    )
+    retry_content = retry_script.read_text(encoding="utf-8")
+    assert workflow.count("bash scripts/retry_apt_update.sh") == 2
+    assert "libdw-dev" in workflow
+    assert "Acquire::Retries=3" in retry_content
+    assert "APT_UPDATE_MAX_ATTEMPTS" in retry_content
+    assert "apt-cache policy" in retry_content
+    assert '"${candidate}" == "(none)"' in retry_content
+    assert "APT_REQUIRED_PACKAGE_INDEXES_READY" in retry_content
+    assert "APT_REQUIRED_PACKAGE_INDEXES_INCOMPLETE" in retry_content
+    result = subprocess.run(
+        ["bash", "-n", str(retry_script)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
