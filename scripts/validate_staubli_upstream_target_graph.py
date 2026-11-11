@@ -147,6 +147,12 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             DIAGNOSTIC_TARGET in targets,
             f"{DIAGNOSTIC_TARGET} is an always-defined diagnostic executable, not a gtest target",
         )
+        diagnostic = targets.get(DIAGNOSTIC_TARGET)
+        check(
+            f"DIAGNOSTIC-TYPE-{label}",
+            diagnostic is not None and diagnostic.get("type") == "EXECUTABLE",
+            f"{DIAGNOSTIC_TARGET} must remain an EXECUTABLE in BUILD_TESTING={label}",
+        )
 
     production_closure = transitive_closure(on_targets, PRODUCTION_TARGETS)
     leaked_dependencies = sorted(
