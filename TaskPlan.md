@@ -4780,3 +4780,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 对近期11条失败run复核确认，它们对应前文已登记的SERVO-906测试文件Ruff I001/E501回归，不是新增独立根因；失败run仍保留原始failure，修复后的#3599及#3614/#3615验证通过。
 - 最新main HEAD为`a78f010e8f13ab2faf8ea5dc2d6f669f901e8f02`。最近可见运行记录仍未发现SERVO-907手动workflow运行；真实ROS Jazzy双配置colcon build/install、gtest和install-space consumer继续NOT_RUN。普通CI成功不改变此验收边界。
 - **下一步：** 用户手动触发`.github/workflows/staubli-ros-jazzy-build.yml`，获取真实容器运行与证据artifact；未获得真实结果前不设置required门禁。
+
+
+### 2026-11-11｜CI #3616–#3617 最终复验补记
+
+- CI #3616 / Run ID `42957337473`（根TaskPlan记录提交）与CI #3617 / Run ID `42957347550`（章节TaskPlan记录提交）均SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM jobs全部成功。
+- 本轮近期失败run复核仍指向已归档的SERVO-906 Ruff I001/E501代码质量回归；修复后成功run已覆盖，历史失败记录保持原始failure。
+- SERVO-907手动ROS Jazzy workflow在最新可见运行列表中仍未出现独立运行记录。真实双配置colcon build/install、gtest和install-space consumer继续NOT_RUN；不得以知识库Python CI成功替代。
+- **下一节点：** 等待用户手动触发SERVO-907 workflow，审阅完整job日志与evidence artifact；若触发失败，按实际失败点修复知识库侧脚本或记录固定上游阻断。
