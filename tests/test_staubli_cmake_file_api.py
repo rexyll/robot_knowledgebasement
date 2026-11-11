@@ -447,3 +447,23 @@ def test_relative_install_manifest_entry_fails_closed(tmp_path):
         assert "non-absolute paths" in str(exc)
     else:
         raise AssertionError("relative install manifest entries must fail")
+
+
+def test_export_symlink_cannot_escape_install_prefix(tmp_path):
+    build = fixture(tmp_path)
+    prefix = tmp_path / "prefix"
+    targets = prefix / "lib/cmake/staubli/staubliTargets.cmake"
+    targets.parent.mkdir(parents=True)
+    outside = tmp_path / "outsideTargets.cmake"
+    outside.write_text(
+        "add_library(staubli::hidden SHARED IMPORTED)\\n",
+        encoding="utf-8",
+    )
+    targets.symlink_to(outside)
+
+    try:
+        collect(build, True, "Debug", None, prefix)
+    except ValueError as exc:
+        assert "escapes install prefix" in str(exc)
+    else:
+        raise AssertionError("export symlink escape must fail closed")
