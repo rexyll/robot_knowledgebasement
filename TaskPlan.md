@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.15  
+> 版本：v11.16  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮静态代码审查基线为`50c8e6fedd23560e136d70f53cdbd22a38b9cfe9`（其后仅提交本计划状态同步）；普通CI #3707–#3709的Python 3.10/3.11/3.12、OSV、SBOM五个job均SUCCESS，#3709 pytest 126 passed、Ruff通过。CI只验证知识库Python/静态合同与供应链检查，不代表ROS/C++动态验收。专用ROS Jazzy `workflow_dispatch`尚无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。静态审查已补强isolated install导出扫描并由CI #3703验证；仍待真实验证的重点包括公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`，以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径。不得把这些静态风险写成已复现故障。固定上游commit为`bd658e2d266e315d2ee35f985fb352ea88306b79`且保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮静态审查基线为`50c8e6fedd23560e136d70f53cdbd22a38b9cfe9`；随后提交证据打包器失败关闭修复`a7e63f0`及回归测试`3cdd35e`、fixture换行修正`7a16d14`，上述新提交的CI结果尚未取得；普通CI #3707–#3709的Python 3.10/3.11/3.12、OSV、SBOM五个job均SUCCESS，#3709 pytest 126 passed、Ruff通过。CI只验证知识库Python/静态合同与供应链检查，不代表ROS/C++动态验收。专用ROS Jazzy `workflow_dispatch`尚无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。静态审查已补强isolated install导出扫描并由CI #3703验证；仍待真实验证的重点包括公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`，以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径。不得把这些静态风险写成已复现故障。固定上游commit为`bd658e2d266e315d2ee35f985fb352ea88306b79`且保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
 
 ---
 
