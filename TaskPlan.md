@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.20  
+> 版本：v11.21  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`仍无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径仍是待真实构建验证的风险，不是已复现故障。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`仍无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径仍是待真实构建验证的风险，不是已复现故障。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；本轮新增target graph类型合同：固定上游两项生产库均须在OFF/ON codemodel中呈现为`SHARED_LIBRARY`，不再仅检查target名称存在；新增负向测试覆盖误变为`STATIC_LIBRARY`。validator提交`3526c4d`的CI #42978151314五个jobs全部SUCCESS；测试提交`0f333a4`的CI #42978180872五个jobs全部SUCCESS。A1.1保持BLOCKED，`TODO-EXT-001`未授权。
 
 ---
 
@@ -4973,3 +4973,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 测试提交`6806cd87857d31e3c579a6bb79b9c7d1b5b3339f`与夹具修正`b77e86cb5d01a52a3511fe0abbf5d14d8a961bec`的CI #42976622959、#42976665301曾因期望列表顺序与collector的`sorted(set(...))`结果不一致而失败；依据三种Python版本的Actions日志确认131 passed、1 failed，失败仅在该新增断言。
 - 已将期望顺序调整为collector实际定义的字典序，提交`9ce154c6c76f434ff7785b54644d4fa539803aad`；CI #42976802732 completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。
 - 该测试只验证知识库采集器对合成ament导出文件的解析，不构成上游真实install导出结果；专用ROS Jazzy workflow仍无`workflow_dispatch`运行。SERVO-907继续BLOCKED / NOT_RUN；固定上游commit不变，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+
+
+### 2026-11-11｜v11.21 补充：生产 target 类型合同
+
+- 静态复核发现 target graph validator此前仅验证两项生产库 target 名称存在，未验证其 CMake target type；若上游误将共享库改为静态库，当前名称/导出检查可能仍通过，不能充分保护下游共享库链接和插件依赖预期。
+- 固定上游 `CMakeLists.txt` 明确以 `add_library(... SHARED ...)` 创建 `staubli_robot_driver` 与 `staubli_robot_driver_hardware_interface`，故在 OFF/ON 两份 CMake File API 快照中均要求其 `type=SHARED_LIBRARY`。
+- validator实现提交 `3526c4db4436df43378d25de93c1eeaa281d8a67`；CI #42978151314 completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。
+- 新增负向测试提交 `0f333a4ffc5338b8854309b0edf7ac305a8795fe`，将硬件接口生产target类型篡改为`STATIC_LIBRARY`并断言validator失败；CI #42978180872 completed/success，五个jobs全部SUCCESS。
+- 该项仅强化合成快照的静态合同验证，不证明真实上游configure/build/install已生成相同类型，也不构成ROS Jazzy动态验收。专用`workflow_dispatch`仍未运行；SERVO-907保持NOT_RUN/BLOCKED。固定上游commit不变，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
