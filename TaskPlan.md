@@ -4758,3 +4758,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - CI #3609 / Run ID `42955846988`：SUCCESS；Python 3.10/3.11/3.12各112 passed；Ruff、OSV、SBOM均成功。
 - SERVO-906新增脚本合同测试、ROS Jazzy workflow digest/commit断言及bash -n静态语法检查已纳入并通过Python CI。
 - 该CI不执行ROS Jazzy容器，不得当作Stäubli真实C++构建或install consumer通过。
+
+
+### 2026-11-11｜CI #3611 最终复验补记
+
+- main HEAD：`184de16cd974460a17787d3e804add373537a51b`；GitHub Actions Run ID `42955926260`。
+- Python 3.10/3.11/3.12测试矩阵、Lint、OSV审计与SBOM作业均SUCCESS；该run没有执行独立的ROS Jazzy手动workflow。
+- **验收边界：** 这是知识库Python/静态工具链验证，不代表ROS Jazzy colcon build/install、gtest或install-space consumer通过。SERVO-907仍等待手动workflow真实执行。
