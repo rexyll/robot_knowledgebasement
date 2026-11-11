@@ -5695,3 +5695,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **CI修正：** 中间CI发现Ruff行宽和负向测试断言与Schema实际约束不一致，均已修正；最终CI #3477完整通过。
 - **边界：** 本轮只验收知识库数据、Schema子集、双向映射与Python CI；Fake executor/barrier运行、Stäubli C++/ROS/ABI/plugin/TSan/ASan、VAL3/CS9、SIL/HIL/FAT/SAT及实机仍NOT_RUN。未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED；§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.315 / SERVO-898：定义确定性Fake Harness接口与统一Runtime Evidence Bundle schema（clock/barrier/executor/fault injector、event trace、state snapshot、environment identity、artifact hashing），形成可供未来测试实现消费的接口规格；不触碰上游driver，不执行或伪造runtime PASS。
+
+
+### §9.3.315｜SERVO-898：确定性 Fake Harness 接口与 Runtime Evidence Bundle 设计
+
+- **审计报告：** [确定性 Fake Harness 接口与 Runtime Evidence Bundle 设计](../../audits/2026-11-11-staubli-socket-v2-deterministic-fake-harness-runtime-evidence-bundle-design.md)。
+- **Harness接口规格：** 定义 FakeClock（单调逻辑时间、显式推进）、Barrier/Latch（participant登记与手动release）、DeterministicExecutor（inline/queued、accept/reject/cancel/shutdown）及不可变FaultScript（按事件/attempt/generation确定性触发）。禁止以sleep或随机延迟控制竞态。
+- **事件与快照：** 规定Event Trace的sequence/logical_time/thread/component/event/generation/revision/attempt_token字段；Resource Snapshot覆盖唯一owner、native handle、callback/handler计数、worker与remote session状态。UNKNOWN和RESIDUAL必须显式保留。
+- **Evidence Bundle：** 新增`docs/schemas/staubli-runtime-evidence-bundle.schema.json`和固定NOT_RUN示例；环境身份包含源码/上游commit、OS/kernel/架构/compiler/build/ROS、依赖锁SHA-256及OCI digest；artifact记录role/path/size/media type/SHA-256。
+- **验证与CI：** 新增专用validator、8项负向/正向/CLI测试，并在Python 3.10/3.11/3.12 CI矩阵中加入校验与报告归档。Validator针对当前Schema关键词子集，不宣称通用完整Draft 2020-12兼容。
+- **执行状态：** 示例固定NOT_RUN；RACE-01–16与EXEC-01–04仍全部NOT_RUN。Schema/validator/Python CI仅验证证据格式与静态策略，不代表Fake Harness或Stäubli运行时PASS。
+- **限制：** 未实现C++ FakeClock/Barrier/Executor/FaultInjector或Evidence Collector；未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`仍未授权，A1.1保持BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
+- **下一节点：** §9.3.316 / SERVO-899：为Evidence Bundle Validator补齐artifact实际文件hash校验、环境身份/状态机一致性与跨工件关联规则；建立可复现的正向RUN_PASS/RUN_FAIL样例（仅合成fixture，不冒充Stäubli执行结果），并继续保持真实运行状态独立。
