@@ -71,3 +71,12 @@ SERVO-901 Fake harness validator默认使用 `staubli_socket_core`、`staubli_dr
 本节点仅完成知识库侧采集器修复与validator实现。没有真实上游ROS Jazzy构建证据；合成fixture通过不能被标记为真实target graph PASS。固定上游未修改、未创建/应用/合并上游PR；TODO-EXT-001未授权，A1.1保持BLOCKED。
 
 下一步：SERVO-906，核对ROS Jazzy环境依赖闭包和目标包构建入口，扩展双配置脚本为真正的build/install采集流程，再决定是否接入独立手动触发workflow。
+
+
+## 5. SERVO-905 后续复核：安装态 include 证据不得为空
+
+- 对照固定上游 commit 的 `staubli_robot_driver/CMakeLists.txt`，确认两个生产共享库均通过 `target_include_directories(... PUBLIC ... $<INSTALL_INTERFACE:include>)` 声明安装态公共头文件目录；同时 `install(TARGETS ... INCLUDES DESTINATION include)` 也声明安装 include 前缀。
+- 发现 validator 仅要求快照存在 `exported_target_include_directories` 字段，空数组仍会通过该部分检查。若 collector 漏采两个生产库的导出 include 属性，合成快照仍可能被错误接受。
+- validator 现要求 OFF/ON 快照的导出 include 列表至少包含一个末级目录名为 `include` 的安装路径（例如 `${_IMPORT_PREFIX}/include`），并将其作为独立检查项；空列表及仅包含其他路径均不能满足该检查。
+- 新增负向测试，同时清空 OFF/ON 两份快照的 include 列表，要求两种配置均报告失败；正常合成快照改用 `${_IMPORT_PREFIX}/include` 作为安装态路径。
+- 这是知识库侧静态快照合同加固，不能证明真实 CMake 安装导出已生成该路径。必须由 ROS Jazzy OFF/ON configure/build/install 和真实 install-space consumer 继续验证。固定上游源码未修改；SERVO-907仍 BLOCKED / NOT_RUN，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
