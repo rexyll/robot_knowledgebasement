@@ -143,3 +143,43 @@ runtime_evidence_bundle:
     - all_assertions_pass
     - immutable_source_and_environment_identity
   not_run_example_is_not_execution_evidence: true
+
+  evidence_origin:
+    required: true
+    values: [synthetic_fixture, observed_execution]
+    synthetic_fixture:
+      report_scope: SYNTHETIC_FIXTURE_ONLY_NOT_RUNTIME_EVIDENCE
+      must_never_be_claimed_as_runtime_acceptance: true
+    observed_execution:
+      requires_bundle_root: true
+      note: provenance declaration is not a cryptographic signature
+  artifact_verification:
+    verify_actual_byte_length: true
+    verify_actual_sha256: true
+    reject_duplicate_roles: true
+    reject_absolute_paths: true
+    reject_dot_and_dotdot_segments: true
+    reject_symlinks: true
+    require_resolved_path_inside_bundle_root: true
+  cross_artifact_identity:
+    require_matching_bundle_id_test_id_attempt:
+      - environment_manifest
+      - event_trace
+      - state_snapshot
+    compare_inline_environment_trace_snapshot: exact_json_value_equality
+  execution_state_policy:
+    RUN_PASS:
+      require_before_and_after_snapshots: true
+      reject_failure_snapshot: true
+      reject_unknown_or_residual_resource_state: true
+      require_all_assertions_pass: true
+    RUN_FAIL:
+      require_before_and_failure_snapshots: true
+      require_at_least_one_fail_assertion: true
+      preserve_unknown_or_residual_state: true
+    NOT_RUN:
+      allow_empty_evidence: true
+      reject_evaluated_assertions: true
+    BLOCKED:
+      require_blockers: true
+      reject_evaluated_assertions: true
