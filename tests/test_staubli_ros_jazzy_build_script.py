@@ -37,6 +37,10 @@ def test_build_matrix_runs_install_space_consumer_in_both_modes():
     assert "for mode in OFF ON; do" in content
     assert "find_package(staubli_robot_driver REQUIRED)" in content
     assert "colcon test-result" in content
+    assert "unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH" in content
+    assert "unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH" in content
+    assert 'source "${install_base}/setup.bash"' in content
+    assert "Run each consumer in a clean ROS environment" in content
 
 
 def test_build_matrix_shell_syntax_is_valid():
