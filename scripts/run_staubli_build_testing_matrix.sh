@@ -15,11 +15,11 @@ LOG_ROOT="${LOG_ROOT:-${OUTPUT_DIR}/logs}"
 EVIDENCE_DIR="${EVIDENCE_DIR:-${OUTPUT_DIR}/evidence}"
 CONSUMER_ROOT="${CONSUMER_ROOT:-${OUTPUT_DIR}/consumer}"
 CONSUMER_FAILURES_FILE="${OUTPUT_DIR}/install-consumer-findings.txt"
-: > "${CONSUMER_FAILURES_FILE}"
 
 SOURCE_DIR="$(cd "${SOURCE_DIR}" && pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "${OUTPUT_DIR}" "${BUILD_ROOT}" "${INSTALL_ROOT}" "${LOG_ROOT}"
+: > "${CONSUMER_FAILURES_FILE}"
 
 fail() {
   printf 'SERVO-906 ERROR: %s\\n' "$*" >&2
