@@ -5666,3 +5666,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收状态：** Schema、manifest、CI policy为SPECIFIED；本轮manifest静态一致性检查为STATIC_REVIEWED；独立validator、自动化checker、CI、C++/ROS/插件/硬件运行测试均NOT_RUN；A1.1仍BLOCKED。
 - **限制：** 未修改固定上游、未创建/应用/合并上游PR；未实现自动validator/CI checker；未运行JSON Schema validator、CMake/colcon/gtest、故障注入、TSan/ASan、plugin load/unload、clean Jazzy/install consumer/ABI、VAL3/CS9、SIL/HIL、FAT/SAT或实机测试；`TODO-EXT-001`仍未授权。§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.313 / SERVO-896：定义独立manifest validator与CI最小实现规格（JSON Schema validator、cross-reference/owner/evidence policy checks、负向fixture与CI退出码）；先在知识库侧实现并自测，不触碰上游driver。
+
+
+### §9.3.313｜SERVO-896：Lifecycle Manifest Validator、负向测试与CI自动化验收
+
+- **审计报告：** [Stäubli SocketV2 Lifecycle Manifest Validator 与 CI 自动化验收](../../audits/2026-11-11-staubli-socket-v2-manifest-validator-ci-integration.md)。
+- **实现：** 新增`scripts/validate_staubli_lifecycle_manifest.py`，仅使用Python标准库；新增`tests/test_staubli_lifecycle_manifest_validator.py`；在`.github/workflows/ci.yml`的Python 3.10/3.11/3.12矩阵接入自动校验与JSON报告工件归档。
+- **Schema/Manifest增强：** Schema新增必需`resource_key`与`ownership_phase`；28条Manifest记录全部补齐资源分组键。按`resource_key + ownership_phase`检查唯一Owner/Coordinator组合；RACE-01–16与EXEC-01–04共20个基础引用必须完整存在；所有test_refs必须解析。F07/PLUG-L07采用RESIDUAL_TRANSFERRED阶段。
+- **Policy覆盖：** Schema当前使用的Draft 2020-12关键词子集校验、稳定ID/重复ID/悬空引用、复合角色拒绝、Owner/Coordinator分组一致性、Status/required evidence、PRESENT URI存在性与路径边界、运行证据SHA-256、NOT_RUN/BLOCKED约束。退出码0=通过、1=Schema/Policy失败、2=输入/JSON/报告I/O失败。新增测试覆盖正向、负向、CLI三类退出码。
+- **Schema边界：** 该工具是对仓库当前Schema所用关键词子集的专用校验器，不是通用完整Draft 2020-12实现；遇到未支持Schema关键词时拒绝通过，要求同步扩展实现和测试。
+- **CI结果：** GitHub Actions CI #3462 / Run ID `42936950000` / head `458db41519cde057f2c158d5e96b6b0587eba439` SUCCESS。Python 3.10/3.11/3.12各自均为Manifest 28 records/20 references PASS、Ruff PASS、Pytest 58 passed；OSV与SBOM作业成功；三个Python版本的验证JSON报告已归档。[运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42936950000)。
+- **首轮问题闭环：** 初次CI发现PLUG-L06将worker coordinator表示成“外部LifecycleThread/CleanupCoordinator”复合角色；fail-closed按预期拒绝，修正为唯一`CleanupCoordinator`后再次通过。
+- **验收状态：** Validator/negative tests/CI接入为IMPLEMENTED并CI_PASS；Manifest、Schema子集、Policy和Python矩阵验收通过。通用JSON Schema完整兼容、外部URI真实性/签名、Stäubli C++/ROS/ABI/plugin/HIL/SIL/VAL3/CS9/实机均未由本节点验证；全部保持NOT_RUN或BLOCKED。
+- **限制：** 未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权；A1.1仍BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
+- **下一节点：** §9.3.314 / SERVO-897：建立机器可读RACE/EXEC Test Case Catalog，为20个稳定引用补齐title、scenario、preconditions、stimulus、expected assertions、test harness、execution state和evidence contract，并验证Manifest引用与测试目录双向完整性；不触碰上游driver。
