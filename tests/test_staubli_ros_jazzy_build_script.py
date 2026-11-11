@@ -77,6 +77,15 @@ def test_build_matrix_shell_syntax_is_valid():
     assert result.returncode == 0, result.stderr
 
 
+
+def test_colcon_global_log_base_precedes_each_verb():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert 'run_logged colcon --log-base "${log_base}" build' in content
+    assert 'run_logged colcon --log-base "${CONSUMER_ROOT}/logs-${lower}" build' in content
+    assert 'run_logged colcon --log-base "${LOG_ROOT}/colcon-on" test' in content
+    assert 'colcon build \\\n    --base-paths' not in content
+    assert 'colcon test \\\n  --base-paths' not in content
+
 def test_manual_ros_workflow_refreshes_apt_indexes_before_rosdep_install():
     workflow = (
         Path(__file__).parents[1]
