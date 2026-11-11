@@ -364,3 +364,69 @@ def test_missing_target_type_fails_closed(tmp_path):
         assert "recognized CMake target type" in str(exc)
     else:
         raise AssertionError("missing target types must fail")
+
+
+def test_index_reply_must_be_object(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    put(reply / "index-001.json", {"reply": []})
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "index.reply must be an object" in str(exc)
+    else:
+        raise AssertionError("malformed index.reply must fail")
+
+
+def test_codemodel_json_file_cannot_escape_reply_directory(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    put(
+        reply / "index-001.json",
+        {"reply": {"codemodel-v2": {"jsonFile": "../../outside.json"}}},
+    )
+    put(tmp_path / "outside.json", {"configurations": []})
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "escapes the CMake File API reply directory" in str(exc)
+    else:
+        raise AssertionError("codemodel path traversal must fail")
+
+
+def test_target_json_file_cannot_escape_reply_directory(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    model = json.loads((reply / "codemodel-v2.json").read_text(encoding="utf-8"))
+    model["configurations"][0]["targets"][0]["jsonFile"] = "../../outside.json"
+    put(reply / "codemodel-v2.json", model)
+    put(tmp_path / "outside.json", {"id": "core-id", "name": "staubli_socket_core", "type": "SHARED_LIBRARY"})
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "escapes the CMake File API reply directory" in str(exc)
+    else:
+        raise AssertionError("target path traversal must fail")
+
+
+def test_reply_symlink_cannot_escape_reply_directory(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    outside = tmp_path / "outside.json"
+    put(outside, {"configurations": []})
+    link = reply / "outside-link.json"
+    link.symlink_to(outside)
+
+    put(
+        reply / "index-001.json",
+        {"reply": {"codemodel-v2": {"jsonFile": link.name}}},
+    )
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "escapes the CMake File API reply directory" in str(exc)
+    else:
+        raise AssertionError("reply symlink escape must fail")
