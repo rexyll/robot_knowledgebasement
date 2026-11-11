@@ -253,3 +253,14 @@ def test_export_collector_finds_isolated_colcon_install_layout(tmp_path):
         "/isolated/include"
     ]
 
+
+
+def test_ros_setup_is_sourced_without_nounset_and_strict_mode_is_restored():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert "source_ros_environment()" in content
+    assert "set +u" in content
+    assert "set -u" in content
+    assert 'source_ros_environment "${ROS_SETUP}"' in content
+    assert 'source_ros_environment "${install_base}/setup.bash"' in content
+    assert 'source "${ROS_SETUP}"' not in content
+    assert 'source "${install_base}/setup.bash"' not in content
