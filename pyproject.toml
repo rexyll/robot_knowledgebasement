@@ -38,7 +38,7 @@ testpaths = [
   "tests",
   "knowledge/projects/reference-desktop-manipulator/software/tests",
 ]
-pythonpath = ["knowledge/projects/reference-desktop-manipulator/software"]
+pythonpath = [".", "knowledge/projects/reference-desktop-manipulator/software"]
 addopts = "-ra"
 
 [tool.ruff]
