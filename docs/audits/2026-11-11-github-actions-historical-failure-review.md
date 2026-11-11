@@ -132,7 +132,7 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 下一节点恢复§9.3.321 / SERVO-904：审阅现有GitHub Actions workflow，设计真实ROS Jazzy/CMake双配置证据采集的最小CI接入方案；真实外部构建/consumer/plugin/ABI/HIL状态继续保持NOT_RUN，除非实际运行并取得证据。
 
 
-### 2.9 SERVO-906新增测试文件的Ruff导入排序回归
+### 2.11 SERVO-906新增测试文件的Ruff导入排序回归
 
 - 代表运行：[CI #3587](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42955299858)、[CI #3597](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42955621883)。
 - 2026-11-11新增 `tests/test_staubli_ros_jazzy_build_script.py` 时，标准库导入块排序/空行格式与仓库Ruff/isort规则不一致，导致CI #3587–#3593、#3595–#3597共10条push触发run的Lint步骤失败；Python 3.10/3.11/3.12均在Lint处停止，pytest未执行。OSV与SBOM job保持成功。
@@ -140,7 +140,7 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - 修复：调整导入顺序与空行，后续CI运行用于验证。10条历史失败run保留原始failure，不改写为成功；这些run属于同一导入排序缺陷的重复触发，不代表10个独立缺陷。
 
 
-### 2.10 ROS Jazzy workflow测试断言行宽回归
+### 2.12 ROS Jazzy workflow测试断言行宽回归
 
 - 运行：[CI #3598](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42955635997)。
 - 新增手动ROS Jazzy workflow的测试中，完整镜像digest字符串直接写入单行断言，触发Ruff E501；三个Python版本均在Lint阶段失败，OSV/SBOM成功。
