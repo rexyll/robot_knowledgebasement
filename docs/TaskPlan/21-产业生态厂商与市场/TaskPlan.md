@@ -5960,3 +5960,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 固定上游公共头文件直接包含realtime_tools头，而`ament_export_dependencies()`遗漏realtime_tools，继续作为最高优先级真实consumer待验证风险；不在consumer侧补充find_package或手工include路径，不修改固定上游。
 - 上游README将驱动描述为prototype，并说明2025年11月POC后开发暂停；不得把静态审查或普通CI描述成工业级/量产就绪证明。
 - 当前状态：普通CI历史失败已关闭；SERVO-907真实ROS验收仍BLOCKED，等待有仓库write权限的用户手动触发专用workflow。固定上游未修改、无上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+
+
+### §9.3.324 补充｜CI #3707–#3709文档提交复验（2026-11-11）
+
+- 文档同步提交触发的#3707（42969519707）、#3708（42969528779）、#3709（42969535678）全部SUCCESS；每个run的Python 3.10/3.11/3.12、OSV、SBOM五个job均成功。
+- #3709 Python 3.10日志确认Ruff通过、pytest 126 passed；生命周期manifest校验28 records / 20 references PASS；STS3215只读寄存器审计26条白名单与62个寄存器声明匹配PASS。
+- 已复核矩阵脚本、collector、validator、证据打包脚本及固定上游CMake；未发现有证据支持立即追加修改的知识库侧缺陷。仍以真实ROS Jazzy OFF/ON build/install与install-space consumer验证为准。
+- 普通CI相关artifact和SBOM已生成，但不是ROS构建证据。专用workflow仍无workflow_dispatch运行；colcon、consumer、gtest、导出快照和SHA-256 evidence仍NOT_RUN。A1.1保持BLOCKED；TODO-EXT-001未授权；固定上游未修改。
