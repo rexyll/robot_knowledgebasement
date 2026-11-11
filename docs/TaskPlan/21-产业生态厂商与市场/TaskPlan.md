@@ -5977,3 +5977,9 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - validator提交：`d8dea9ac1df3a508a0753d810d1c360db5a37492`；测试提交：`11a0d52ef0815b59e47f353b8c0347a2f246a647`。提交已写入main；本轮普通CI结果尚未取得可核验的Actions job日志，故不得标记为CI通过。
 - 该修正只收紧知识库静态快照validator，不代表真实ament导出或ROS Jazzy下游consumer已验证。固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - 下一步：检查本轮两个提交的普通CI；随后由有仓库Actions write权限的用户手动触发专用ROS Jazzy workflow，执行OFF/ON colcon build/install、install-space consumer编译/链接/运行、gtest和证据manifest/SHA-256验证。不得以静态CI替代该动态验收。
+
+### 2026-11-11｜§9.3.328 SERVO-907：未知非测试导出target负向覆盖
+
+- 继续复核上一节点收紧后的精确导出集合合同。原有两项新增测试覆盖错误namespace与未限定名称；为防止将任意额外的非gtest imported target 混入导出集合而不被专门测试，新增 `staubli_robot_driver::unreviewed_helper` 负向用例，要求validator拒绝任何不属于固定两项生产库的额外导出target。
+- 测试提交 `907c3794880bb38102a2a9ec3976e9a01bd82dd8` 已写入main。当前已确认GitHub CI workflow在push到main时配置为触发，但可用Actions读取接口的commit workflow runs仅返回pull_request触发的run；combined commit status亦为空，且当前连接器未暴露按branch列出push workflow runs/check-runs的读取接口。因此本轮不能据此断言CI未运行，也不能确认成功/失败；状态标记为CI_RESULT_UNVERIFIED，后续需从GitHub Actions页面或具备check-runs读取能力的连接器核验。
+- 未发现可用的workflow_dispatch执行接口；不尝试伪造run id或以PR过滤结果为空推断没有push CI。普通CI检查和真实ROS Jazzy动态验收仍分开管理。SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改。
