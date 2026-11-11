@@ -5923,3 +5923,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 - 实现提交补记：collector`71e59c4`/`5648092`；validator`0d5fa7f`/`d0d03d6`；静态合同测试`44f1564`/`2a21c4c`。当前尚无新CI结果或ROS Jazzy动态证据。
+
+
+### §9.3.324 补充｜安装导出采集器行为验证与快照强制性
+
+- 将安装导出`INTERFACE_INCLUDE_DIRECTORIES`采集提取为独立函数，并新增临时安装前缀行为测试，实际覆盖CMake分号分隔的include属性解析。
+- validator现要求OFF/ON快照显式提供`exported_target_include_directories`；缺失字段时中止验证并要求重新采集，不再将旧快照默认为空数组，从而避免绕过`/asio/include`风险检查。
+- 依赖补充核查：固定上游源码检索确认Boost.Asio用于实现侧私有头；未发现`backward_ros` API/header调用，但CMake仍`find_package(backward_ros REQUIRED)`，package.xml未声明Boost/backward_ros。两项仍为依赖元数据待核实，不修改上游、不猜测rosdep key。
+- 提交：collector helper`84549734e255f6b640565d8e1fe282e8943fafe0`；行为测试`14ed24307d634c09ddd6ab5d880eaab4e32a4beb`；validator快照字段强制`dec8e76fe389ab277325f6c5d5abb6b4054777c8`；静态合同测试`f4785e9462f87ee54b38107fcd7ceae95182e18a`。
+- 最新普通CI结果尚无可确认记录；本轮未运行pytest/Ruff/shellcheck，也未运行ROS Jazzy动态矩阵。真实OFF/ON colcon build/install、install-space consumer编译/运行、gtest、manifest与SHA-256仍`NOT_RUN`。
+- 固定上游commit保持`bd658e2d266e315d2ee35f985fb352ea88306b79`；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
