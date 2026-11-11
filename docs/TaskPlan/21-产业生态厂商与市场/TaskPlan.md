@@ -5894,3 +5894,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **CI #3661 / Run ID `42964535212`：** SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
 - **验收边界：** CI #3661仅验证Python测试、lint和供应链检查；真实ROS Jazzy OFF/ON colcon build/install、consumer运行、gtest、manifest真实证据包及SHA-256仍NOT_RUN。
 - 固定上游未修改；无上游PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。
+
+
+### §9.3.324 补充｜公共头文件 realtime_tools 依赖导出覆盖
+
+- **静态证据：** 固定上游已安装公共头文件 `real_time_socket_subscriber.hpp` 直接包含 `realtime_tools/realtime_thread_safe_box.hpp`；生产目标的`DEPENDENCIES`包含realtime_tools，但`ament_export_dependencies()`遗漏它。package.xml虽声明`<depend>realtime_tools</depend>`，仍需验证下游CMake导出是否完整。
+- **测试缺口：** 既有consumer仅包含`protocol.hpp`，没有编译依赖realtime_tools的公共头文件，不能覆盖该依赖导出路径。
+- **补强：** consumer fixture现增加`#include "staubli_robot_driver/real_time_socket_subscriber.hpp"`，不显式find_package或手工添加realtime_tools include目录；静态合同测试同步要求该include。
+- **提交：** 脚本`1ff335332f37185d2d52f8cfcf7917aeca0e8eb4`；测试`dfd9af37452c90ef559159325abe69b7feb518d0`；审计报告追加第14节，提交`10b13ed458a6c20ab9b6d64457590efe1e555c94`。
+- **风险分级修正：** realtime_tools有公共头文件直接依赖证据，列为优先实测导出风险。Boost.System当前为实现侧使用且链接未声明PUBLIC，不能仅因未导出就认定下游target缺陷；package.xml缺失仍属构建依赖元数据问题。backward_ros仅确认CMake find_package，暂不推断其必须导出。asio_SOURCE_DIR定义来源继续单独待查。
+- **状态：** 代码和静态合同测试已提交，等待普通CI复验；ROS Jazzy真实OFF/ON build/install、公共头文件consumer、gtest和证据包仍NOT_RUN。固定上游未修改；TODO-EXT-001未授权；A1.1保持BLOCKED。
+- **下一步：** 先检查新增提交触发的CI及全部失败步骤；随后必须由有仓库write权限的用户手动触发专用ROS Jazzy workflow，优先观察公共头文件consumer是否因realtime_tools导出缺失而失败。
