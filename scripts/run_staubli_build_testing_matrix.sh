@@ -42,8 +42,6 @@ source "${ROS_SETUP}"
 [[ "${ROS_DISTRO:-}" == "jazzy" ]] || fail "sourced ROS environment is not Jazzy"
 ros2 pkg prefix backward_ros >/dev/null 2>&1 || fail "backward_ros is not discoverable in the sourced ROS environment"
 dpkg-query -W -f='${db:Status-Status}' libboost-system-dev 2>/dev/null | grep -qx installed || fail "libboost-system-dev is not installed"
-dpkg-query -W -f='${db:Status-Status}' libasio-dev 2>/dev/null | grep -qx installed || fail "libasio-dev is not installed"
-[[ -f /usr/include/asio.hpp ]] || fail "standalone Asio header /usr/include/asio.hpp is missing"
 rosdep check --from-paths "${SOURCE_DIR}" --ignore-src --rosdistro jazzy
 
 command_log="${LOG_ROOT}/servo-906-build-install.log"
