@@ -126,7 +126,7 @@ def package_evidence(
     inputs = [
         (build_off, artifact_dir / "build-testing-off.json"),
         (build_on, artifact_dir / "build-testing-on.json"),
-        (validator_report, artifact_dir / "servo-901-validation-report.json"),
+        (validator_report, artifact_dir / "servo-906-validation-report.json"),
     ]
     if command_log:
         inputs.append((command_log, artifact_dir / "commands.log"))
