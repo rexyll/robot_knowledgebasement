@@ -111,6 +111,7 @@ CMAKE
   cat > "${consumer_src}/main.cpp" <<'CPP'
 #include <cstdint>
 
+#include "staubli_robot_driver/real_time_socket_subscriber.hpp"
 #include "staubli_robot_driver/communication/protocol.hpp"
 
 int main()
