@@ -95,3 +95,12 @@
   2. `Boost::system`出现在生产库的导出链接接口，但上游没有通过 `ament_export_dependencies(Boost)` 或等效配置确保下游target存在；Run #5的consumer直接失败，Run #6曾被测试夹具预先find_package掩盖，现已撤销该掩盖。
 - 不能通过只改consumer夹具让该包通过。若要使上游安装包真正可消费，需要上游修复CMake依赖/导出合同；但本项目明确禁止修改固定上游或未经授权创建上游PR。
 - SERVO-906与SERVO-907继续BLOCKED；完整gtest七项报告、consumer编译链接运行、manifest/SHA-256动态验收均未通过。A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+
+## 7. Consumer夹具回归测试修复与普通CI闭环
+
+- 移除Boost预查找后，普通CI先后暴露了测试合同未同步（Run `43032513964`）以及断言错误地扫描注释文本（Run `43032558011`、`43032661039`、`43032712680`、`43032785783`）。上述失败均为Python静态测试断言问题，不是ROS Jazzy构建失败；SBOM/OSV jobs均成功。
+- 首轮测试仍断言旧的 `find_package(Boost)` 存在；更新后测试又因脚本注释中出现 `Boost::system` 字样而误判。已将断言收窄为只检查consumer CMake命令行是否执行 `find_package(Boost...)`，不扫描注释。
+- 最终测试修复提交：`962b4194d832c281b019aa164ca9d86e90e23cd1`。
+- 普通CI Run `43032966478`（该提交）completed/success；Python 3.10/3.11/3.12测试、Lint、Stäubli lifecycle/test-catalog/runtime evidence静态验证、SBOM、OSV五个Job及全部步骤均SUCCESS。
+- 结论边界：普通CI回归已闭环；它不改变Run #5/#6的真实ROS Jazzy失败结论。consumer已不再预先定义Boost target，后续专项运行将重新暴露上游Boost导出缺口；无效 `/asio/include` 仍是确定性阻塞项。
