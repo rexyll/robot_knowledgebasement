@@ -4,6 +4,16 @@ from pathlib import Path
 SCRIPT = Path(__file__).parents[1] / "scripts" / "run_staubli_build_testing_matrix.sh"
 
 
+def test_evidence_packager_uses_servo_906_report_name():
+    packager = (
+        Path(__file__).parents[1]
+        / "scripts"
+        / "package_staubli_build_evidence.py"
+    ).read_text(encoding="utf-8")
+    assert 'artifact_dir / "servo-906-validation-report.json"' in packager
+    assert 'artifact_dir / "servo-901-validation-report.json"' not in packager
+
+
 def test_build_matrix_uses_fixed_upstream_validator_and_real_build_install():
     content = SCRIPT.read_text(encoding="utf-8")
     assert "validate_staubli_upstream_target_graph.py" in content
