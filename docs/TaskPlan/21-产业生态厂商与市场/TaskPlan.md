@@ -5799,3 +5799,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 | 2026-11-11 | CI #3614–#3615最终复验 | Run ID `42956657257`与`42956663448`均SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM jobs全部成功。复核近期11条失败run，确认属于已登记的SERVO-906 Ruff I001/E501回归，修复后#3599及#3614/#3615通过。 | 历史失败记录保持原始failure，不改写；当前main HEAD `a78f010e8f13ab2faf8ea5dc2d6f669f901e8f02`。SERVO-907手动workflow仍未见运行记录，真实ROS Jazzy build/install/gtest/consumer继续NOT_RUN；等待用户手动触发后验收。 |
 
 | 2026-11-11 | CI #3616–#3617最终复验 | Run ID `42957337473`与`42957347550`均SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM jobs全部成功。近期失败run复核仍为已登记的SERVO-906 Ruff I001/E501回归，修复后成功run验证通过。 | 历史失败run保留原始failure；SERVO-907手动ROS Jazzy workflow仍未见独立运行，真实双配置build/install/gtest/consumer继续NOT_RUN，等待用户触发。 |
+
+
+### §9.3.324 补充｜SERVO-907 双配置 consumer 环境隔离预检
+
+- **审计报告：** [SERVO-907 ROS Jazzy 双配置 install-space consumer 隔离预检](../../audits/2026-11-11-staubli-servo-907-build-mode-isolation-preflight.md)。
+- **静态发现：** 原SERVO-906脚本在父Shell中连续source OFF/ON安装空间，可能让前一配置的AMENT/CMake/Python/动态库搜索路径残留，降低双配置consumer独立性。
+- **修复提交：** `e03ed8a3e862354f0bf6693daadbfd3b2dc20f9d`将每个consumer构建放入独立子Shell，清理相关前缀变量后重新source基础ROS Jazzy和当前模式install setup；`44068f6b470781f6e2b26b821153e46830741a69`增加对应合同测试。
+- **状态：** 脚本修复与静态回归测试已提交；Bash/Python CI待复验。真实ROS Jazzy OFF/ON build/install、consumer、gtest仍NOT_RUN，SERVO-907手动workflow尚未触发。
+- **边界：** 未修改固定Stäubli上游，未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。
+- **下一步：** 检查CI结果；由用户手动触发ROS Jazzy workflow，取得真实日志与证据包后再更新验收状态。
