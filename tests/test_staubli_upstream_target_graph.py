@@ -216,6 +216,28 @@ def test_export_set_must_contain_both_production_libraries(tmp_path):
     assert any("EXPORT-PRODUCTION-TARGETS-ON" in error for error in report["errors"])
 
 
+def test_production_exports_must_use_exact_package_namespace(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    data["exported_targets"] = [
+        f"unrelated_package::{name}" for name in PRODUCTION_TARGETS
+    ]
+    on.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any("EXPORT-PRODUCTION-TARGETS-ON" in error for error in report["errors"])
+
+
+def test_production_exports_must_not_be_unqualified(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(off.read_text())
+    data["exported_targets"] = list(PRODUCTION_TARGETS)
+    off.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any("EXPORT-PRODUCTION-TARGETS-OFF" in error for error in report["errors"])
+
+
 def test_snapshot_testing_flags_must_match_configuration(tmp_path):
     off, on = valid_pair(tmp_path)
     data = json.loads(off.read_text())
