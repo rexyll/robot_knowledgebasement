@@ -460,7 +460,8 @@
       "enum": [
         "synthetic_fixture",
         "observed_execution"
-      ]
+      ],
+      "description": "Declares provenance. synthetic_fixture is test-only and never runtime evidence; observed_execution is an asserted origin, not a cryptographic signature."
     }
   }
 }
