@@ -4921,3 +4921,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 已统一导出文件发现函数，覆盖merged install和一级package-prefix isolated install，并新增isolated目录结构行为测试。提交6bf1fa5、99242ab。
 - CI #3703（Run ID 42968810375）全部job SUCCESS；Python 3.10/3.11/3.12均Ruff通过、pytest 126 passed；OSV和SBOM成功。
 - 该修复仍需专用ROS Jazzy workflow真实验证；OFF/ON colcon build/install、consumer、gtest和证据包SHA-256仍NOT_RUN。A1.1保持BLOCKED；TODO-EXT-001未授权；固定上游未修改。
+
+
+### 2026-11-11｜v11.13 补充：普通CI #3704–#3706全部复验成功，SERVO-907等待真实ROS验收
+
+- 复核main最新普通CI：#3704（Run ID 42968933020）、#3705（42968943114）、#3706（42968965060）全部SUCCESS；#3706的Python 3.10/3.11/3.12、OSV和SBOM五个job全部成功。此前#3686–#3697的代码/测试问题已在后续提交中修复，历史失败run保留，不重写状态。
+- 再次查询Actions最近100条记录，专用Stäubli ROS Jazzy workflow没有workflow_dispatch运行。不能把普通Python CI成功当作ROS/C++构建通过。
+- 固定上游公共头文件依赖realtime_tools，但ament_export_dependencies()遗漏该依赖；优先通过install-space consumer动态验证。上游README仍将驱动描述为prototype，并说明POC后开发暂停，不视为工业级/量产就绪。
+- 当前任务节点：SERVO-907真实ROS Jazzy OFF/ON build/install、consumer、gtest及证据包验证（BLOCKED / NOT_RUN）。下一步需由有仓库write权限的用户在Actions页面手动运行专用workflow，随后依据日志和artifact继续修复。
+- 固定上游commit保持bd658e2d266e315d2ee35f985fb352ea88306b79；未修改上游、未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
