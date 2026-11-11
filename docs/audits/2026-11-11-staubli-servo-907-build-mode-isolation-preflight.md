@@ -264,3 +264,26 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 
 
 实现提交：collector`71e59c4`、`5648092`；validator`0d5fa7f`、`d0d03d6`；静态合同测试`44f1564`、`2a21c4c`。尚未取得这些提交的CI结果，动态ROS Jazzy矩阵仍未执行。
+
+
+## 17. 安装导出采集器行为测试与快照证据强制性（2026-11-11）
+
+### 17.1 实现复核与补强
+
+- 将安装导出 include 路径扫描提取为可单独调用的`collect_exported_target_include_directories()`，扫描安装前缀下`lib/cmake`与`share`中的`*Targets.cmake`、`*Export.cmake`，读取`INTERFACE_INCLUDE_DIRECTORIES`并拆分分号列表。
+- 新增行为回归测试：在临时安装前缀中构造真实格式的`INTERFACE_INCLUDE_DIRECTORIES`属性，断言collector能同时提取`${_IMPORT_PREFIX}/include`和`/asio/include`。这比仅断言源文件包含某些字符串更直接地覆盖路径提取行为。
+- 修正validator的证据缺口：此前`exported_target_include_directories`字段缺失时默认空数组，会使旧快照绕过新增检查。现要求OFF/ON快照必须显式包含该字段；缺失时中止验证并提示重新采集，不能静默判定PASS。
+- 静态合同测试增加断言，确保缺失字段不会被默认空数组放行。
+- collector helper提交：`84549734e255f6b640565d8e1fe282e8943fafe0`；行为测试提交：`14ed24307d634c09ddd6ab5d880eaab4e32a4beb`；测试格式/换行修正：`9dcfddedd394b4deaf06d80c836ea483b07e87be`、`196e32a2ba7f858b3bbf2818d4ec7c65f0159a84`；validator要求字段提交：`dec8e76fe389ab277325f6c5d5abb6b4054777c8`；静态测试提交：`f4785e9462f87ee54b38107fcd7ceae95182e18a`。
+
+### 17.2 依赖元数据补充核查
+
+- 固定上游`udp_socket_impl.hpp`检索到`<boost/asio.hpp>`及`boost::asio`使用；检索范围内没有找到`backward::`、`Backward::`、`backward.hpp`或`backward_ros::`源码引用。
+- 固定上游`CMakeLists.txt`仍执行`find_package(backward_ros REQUIRED)`，但没有证据表明其被链接到生产目标或被公开头文件使用。故当前仅列为未解释的CMake构建依赖查找，不升级为下游传递依赖缺陷。
+- Boost依赖通过实现私有头`udp_socket_impl.hpp`使用，当前证据不支持将Boost头路径认定为公共API依赖；但`package.xml`未声明Boost和backward_ros，而workflow显式安装会掩盖manifest可复现性问题。仍需在干净rosdep/colcon环境中验证，且不猜测rosdep key、不修改固定上游。
+
+### 17.3 验收边界
+
+- 当前GitHub main最新已确认提交为`f4785e9462f87ee54b38107fcd7ceae95182e18a`。其combined status为空，PR触发workflow查询也为空；这两项均不能证明push workflow成功或未运行，故普通CI结果仍标记为待确认。
+- 本轮只检查并提交静态代码/测试；没有在本地执行pytest、Ruff或shellcheck，也没有执行ROS Jazzy容器构建。真实OFF/ON colcon build/install、安装空间consumer编译与运行、gtest、证据包及SHA-256仍为`NOT_RUN`。
+- 固定上游commit不变；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
