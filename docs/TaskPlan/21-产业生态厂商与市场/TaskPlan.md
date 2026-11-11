@@ -5680,3 +5680,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收状态：** Validator/negative tests/CI接入为IMPLEMENTED并CI_PASS；Manifest、Schema子集、Policy和Python矩阵验收通过。通用JSON Schema完整兼容、外部URI真实性/签名、Stäubli C++/ROS/ABI/plugin/HIL/SIL/VAL3/CS9/实机均未由本节点验证；全部保持NOT_RUN或BLOCKED。
 - **限制：** 未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`仍未授权；A1.1仍BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
 - **下一节点：** §9.3.314 / SERVO-897：建立机器可读RACE/EXEC Test Case Catalog，为20个稳定引用补齐title、scenario、preconditions、stimulus、expected assertions、test harness、execution state和evidence contract，并验证Manifest引用与测试目录双向完整性；不触碰上游driver。
+
+
+### §9.3.314｜SERVO-897：机器可读RACE/EXEC Test Case Catalog与Manifest双向追踪
+
+- **审计报告：** [Stäubli SocketV2 RACE/EXEC Test Case Catalog 与双向追踪验收](../../audits/2026-11-11-staubli-socket-v2-race-exec-test-case-catalog.md)。
+- **Catalog：** 新增`docs/audits/2026-11-11-staubli-socket-v2-race-exec-test-case-catalog-v1.json`，包含RACE-01–RACE-16、EXEC-01–EXEC-04共20项稳定用例。每项具备title、scenario、preconditions、stimulus、expected_assertions、test_harness、manifest_record_ids、execution_state、evidence_contract和source_audit。
+- **Schema：** 新增`docs/schemas/staubli-race-exec-test-case-catalog.schema.json`，Draft 2020-12声明，严格约束当前目录使用的关键词子集；execution_state使用const固定为NOT_RUN。
+- **双向Validator：** 新增`scripts/validate_staubli_test_case_catalog.py`，校验Manifest/Catalog reference catalog集合相同、20个稳定ID完整唯一、Manifest每条test_refs均可解析、Catalog每项至少映射一个record、正反向record集合完全相等；缺失/悬空/重复/不一致均fail closed。
+- **Manifest映射补齐：** 将此前未被记录引用的RACE-01、RACE-04、RACE-08、RACE-10、RACE-12和EXEC-02关联到相关F/PLUG记录；20项用例现在全部具有至少一条Manifest反向记录。LOCK-01/LOCK-02继续作为SERVO-881补充项，不擅自扩充既有20项稳定引用集合。
+- **Evidence合同：** 每项要求test_log、environment_manifest、artifact_hash、state_snapshot、event_trace；SHA-256；捕获commit/build环境、test ID/attempt token、resource generation/revision、前后状态和owner保留/清理结果。所有20项执行状态仍NOT_RUN。
+- **测试：** 新增`tests/test_staubli_test_case_catalog.py`，覆盖正向双向映射、缺case、引用/映射不一致、非法ID、执行状态升级、reference set差异和CLI报告/退出码。
+- **CI结果：** GitHub Actions CI #3477 / Run ID `42938097270` / head `299ead52fcf6b84ad307ede18e2e4fc0a9c6b9fd` SUCCESS。Python 3.10/3.11/3.12每个版本均Manifest 28 records/20 refs PASS、Catalog 28 records/20 cases/20 refs PASS（all NOT_RUN）、Ruff PASS、Pytest 67 passed；OSV与SBOM作业成功；验证JSON报告已按版本归档。[运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42938097270)。
+- **CI修正：** 中间CI发现Ruff行宽和负向测试断言与Schema实际约束不一致，均已修正；最终CI #3477完整通过。
+- **边界：** 本轮只验收知识库数据、Schema子集、双向映射与Python CI；Fake executor/barrier运行、Stäubli C++/ROS/ABI/plugin/TSan/ASan、VAL3/CS9、SIL/HIL/FAT/SAT及实机仍NOT_RUN。未修改固定上游、未创建/应用/合并PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED；§9.3.281–§9.3.294历史同步缺口继续透明保留。
+- **下一节点：** §9.3.315 / SERVO-898：定义确定性Fake Harness接口与统一Runtime Evidence Bundle schema（clock/barrier/executor/fault injector、event trace、state snapshot、environment identity、artifact hashing），形成可供未来测试实现消费的接口规格；不触碰上游driver，不执行或伪造runtime PASS。
