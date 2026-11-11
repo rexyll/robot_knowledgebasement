@@ -4913,3 +4913,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 已修复静态合同测试与快照fixture，并增加/asio/include拒绝和缺失证据字段拒绝回归测试。提交2f7601e、a04999e。
 - CI #3698（Run ID 42968264032）全部job SUCCESS；Python 3.10/3.11/3.12均Ruff通过、pytest 125 passed；OSV审计与SBOM成功。
 - 该结果仅为普通Python CI，不替代ROS Jazzy OFF/ON colcon构建、安装空间consumer、gtest和证据包SHA-256。上述动态验收仍NOT_RUN；A1.1保持BLOCKED；TODO-EXT-001未授权；固定上游未修改。
+
+
+### 2026-11-11｜v11.13 补充：isolated install 导出扫描覆盖
+
+- 检查专用矩阵发现colcon默认isolated install的CMake导出位于install-base/<package>/share/<package>/cmake，而collector此前只扫描install-base根目录下share/lib/cmake，可能漏采集。
+- 已统一导出文件发现函数，覆盖merged install和一级package-prefix isolated install，并新增isolated目录结构行为测试。提交6bf1fa5、99242ab。
+- CI #3703（Run ID 42968810375）全部job SUCCESS；Python 3.10/3.11/3.12均Ruff通过、pytest 126 passed；OSV和SBOM成功。
+- 该修复仍需专用ROS Jazzy workflow真实验证；OFF/ON colcon build/install、consumer、gtest和证据包SHA-256仍NOT_RUN。A1.1保持BLOCKED；TODO-EXT-001未授权；固定上游未修改。
