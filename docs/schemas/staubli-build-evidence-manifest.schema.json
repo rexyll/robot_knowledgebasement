@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stäubli build evidence manifest",
+  "type": "object",
+  "required": ["schema_version", "evidence_package", "created_at_utc", "artifacts", "integrity"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "evidence_package": {"const": "staubli-build-testing-matrix"},
+    "created_at_utc": {"type": "string", "minLength": 1},
+    "command": {"type": "array", "items": {"type": "string"}},
+    "integrity": {"const": "sha256"},
+    "verification_policy": {"type": "string"},
+    "artifacts": {"type": "array", "minItems": 1, "items": {
+      "type": "object", "required": ["path", "size_bytes", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+      "additionalProperties": false}}
+  },
+  "additionalProperties": false
+}
