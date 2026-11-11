@@ -5780,3 +5780,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 | 2026-11-11 | §9.3.322 / SERVO-905 | 修复CMake File API collector对Ament导出文件的漏采：ament_export_targets实际生成`*Export.cmake`，collector原先只扫描`*Targets.cmake`；现已同时扫描两种文件并新增fixture。新增固定上游实际target graph validator，核验两个生产库、七个gtest目标、OFF/ON隔离、生产/plugin依赖闭包、install/export边界和诊断程序安装。新增审计报告docs/audits/2026-11-11-staubli-servo-905-target-graph-and-ament-export-validation.md。 | 知识库工具与合成测试已实现；CI #3578/#3579通过。真实ROS Jazzy快照、build/install、consumer、C++/plugin/ABI/sanitizer/HIL仍NOT_RUN。未修改上游。下一节点§9.3.323 / SERVO-906。 |
+
+
+| 2026-11-11 | §9.3.323 / SERVO-906 | 复核固定上游Dockerfile与package.xml/CMake依赖差异；更新scripts/run_staubli_build_testing_matrix.sh，要求固定上游commit/clean checkout，执行ROS Jazzy colcon BUILD_TESTING OFF/ON build/install、CMake File API采集、双配置install-space consumer、ON配置gtest、固定上游target graph validator及SHA-256证据包。新增tests/test_staubli_ros_jazzy_build_script.py和审计报告docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md。 | 驱动脚本已实现但未在ROS Jazzy环境执行；真实build/install/gtest/consumer均NOT_RUN。未修改上游，A1.1保持BLOCKED。下一节点§9.3.324 / SERVO-907：核实ROS镜像digest和依赖包来源，执行双配置脚本。 |
