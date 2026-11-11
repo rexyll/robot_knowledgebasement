@@ -136,6 +136,16 @@ def validate_bundle(
     roles: dict[str, dict[str, Any]] = {}
     for artifact in bundle["artifacts"]:
         relative = artifact["path"]
+        path_parts = relative.split("/")
+        if (
+            Path(relative).is_absolute()
+            or "\\" in relative
+            or not relative
+            or any(part in {"", ".", ".."} for part in path_parts)
+        ):
+            errors.append(
+                f"artifact path is not a safe relative path: {relative}"
+            )
         if relative in paths:
             errors.append(f"duplicate artifact path: {relative}")
         paths.add(relative)
@@ -165,6 +175,12 @@ def validate_bundle(
 
     status = bundle["execution_status"]
     assertions = bundle["assertions"]
+    if status in {"RUN_PASS", "RUN_FAIL"} and root is None:
+        errors.append(
+            f"{status} requires --bundle-root for byte-level artifact verification"
+        )
+    if status in {"RUN_PASS", "RUN_FAIL"}:
+        errors.extend(_environment_errors(bundle))
     if status == "BLOCKED" and not bundle.get("blockers"):
         errors.append("BLOCKED bundle must contain blockers")
     if status in {"NOT_RUN", "BLOCKED"} and assertions and any(
@@ -186,7 +202,6 @@ def validate_bundle(
         phases = {snapshot["phase"] for snapshot in bundle["resource_snapshots"]}
         if not {"before", "after"}.issubset(phases):
             errors.append("RUN_PASS requires before and after resource snapshots")
-        errors.extend(_environment_errors(bundle))
         if any(
             any(
                 token in str(snapshot[field]).upper()
