@@ -1,0 +1,475 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-knowledgebasement.local/schemas/staubli-runtime-evidence-bundle.schema.json",
+  "title": "Stäubli Runtime Evidence Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "test_id",
+    "attempt",
+    "execution_status",
+    "source_identity",
+    "environment",
+    "harness",
+    "event_trace",
+    "resource_snapshots",
+    "artifacts",
+    "assertions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "bundle_id": {
+      "type": "string",
+      "pattern": "^SERVO-[0-9]{3,}-[A-Za-z0-9._-]+$"
+    },
+    "test_id": {
+      "type": "string",
+      "pattern": "^(RACE-(0[1-9]|1[0-6])|EXEC-0[1-4])$"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "execution_status": {
+      "enum": [
+        "NOT_RUN",
+        "BLOCKED",
+        "RUN_PASS",
+        "RUN_FAIL"
+      ]
+    },
+    "source_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "upstream_repository",
+        "upstream_commit"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "upstream_repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstream_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "architecture",
+        "kernel",
+        "compiler",
+        "build_type",
+        "ros_distro",
+        "dependency_lock_sha256",
+        "oci_image_digest"
+      ],
+      "properties": {
+        "os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "architecture": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kernel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compiler": {
+          "type": "string",
+          "minLength": 1
+        },
+        "build_type": {
+          "type": "string",
+          "enum": [
+            "Debug",
+            "Release",
+            "RelWithDebInfo",
+            "MinSizeRel"
+          ]
+        },
+        "ros_distro": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependency_lock_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "oci_image_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clock",
+        "barriers",
+        "executor",
+        "fault_injections"
+      ],
+      "properties": {
+        "clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "initial_time_ns",
+            "ticks"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "fake_monotonic",
+                "steady_clock"
+              ]
+            },
+            "initial_time_ns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ticks": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "barriers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "barrier_id",
+              "participants",
+              "released",
+              "arrivals"
+            ],
+            "properties": {
+              "barrier_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "participants": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "released": {
+                "type": "boolean"
+              },
+              "arrivals": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        "executor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "accepted",
+            "rejected",
+            "cancelled",
+            "completed",
+            "shutdown_state"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "deterministic_inline",
+                "deterministic_queued",
+                "production_executor"
+              ]
+            },
+            "accepted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rejected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cancelled": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "completed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "shutdown_state": {
+              "enum": [
+                "RUNNING",
+                "QUIESCING",
+                "STOPPED",
+                "NOT_REACHED"
+              ]
+            }
+          }
+        },
+        "fault_injections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fault_id",
+              "target",
+              "trigger",
+              "outcome"
+            ],
+            "properties": {
+              "fault_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "trigger": {
+                "type": "string",
+                "minLength": 1
+              },
+              "outcome": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "event_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sequence",
+          "logical_time_ns",
+          "thread_id",
+          "component",
+          "event",
+          "resource_generation",
+          "resource_revision",
+          "attempt_token"
+        ],
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "logical_time_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "thread_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "component": {
+            "type": "string",
+            "minLength": 1
+          },
+          "event": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resource_generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resource_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempt_token": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "resource_snapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "phase",
+          "resource_id",
+          "generation",
+          "revision",
+          "owner",
+          "lifecycle_state",
+          "native_handle_state",
+          "active_callbacks",
+          "pending_handlers",
+          "worker_state",
+          "remote_session_state"
+        ],
+        "properties": {
+          "phase": {
+            "enum": [
+              "before",
+              "after",
+              "failure",
+              "reconcile"
+            ]
+          },
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lifecycle_state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "native_handle_state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "active_callbacks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pending_handlers": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "worker_state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "remote_session_state": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "path",
+          "sha256",
+          "size_bytes",
+          "media_type"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "test_log",
+              "environment_manifest",
+              "event_trace",
+              "state_snapshot",
+              "core_dump",
+              "sanitizer_report",
+              "build_log",
+              "other"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "assertion_id",
+          "result",
+          "detail"
+        ],
+        "properties": {
+          "assertion_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NOT_EVALUATED"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
