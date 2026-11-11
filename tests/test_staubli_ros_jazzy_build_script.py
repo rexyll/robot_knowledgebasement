@@ -92,5 +92,11 @@ def test_install_consumer_calls_an_out_of_line_library_symbol():
 
 def test_install_consumer_binary_is_executed_in_both_modes():
     content = SCRIPT.read_text(encoding="utf-8")
-    assert 'run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"' in content
-    assert content.index('run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"') < content.index('INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s')
+    consumer_command = (
+        'run_logged "${CONSUMER_ROOT}/install-${lower}/lib/'
+        "staubli_install_consumer/staubli_install_consumer"
+    )
+    assert consumer_command in content
+    assert content.index(consumer_command) < content.index(
+        "INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s"
+    )
