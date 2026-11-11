@@ -181,3 +181,12 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - 逐个读取三次run的Job和每个Job的步骤：每次均有Python 3.10/3.11/3.12测试Job、CycloneDX SBOM Job、OSV审计Job，全部SUCCESS，所有步骤SUCCESS，无失败步骤。测试Job中的Lint、Test、Stäubli lifecycle traceability、RACE/EXEC双向追踪、Runtime Evidence Bundle、wheel/sdist构建及STS3215元数据验证均成功。
 - 复查main push运行列表中#3803–#3809：7次连续运行全部completed/success，未发现新的失败run。#3795–#3802仍保留历史failure，其共同根因已由#3803修复并验证。
 - 本节只关闭本批Python CI失败；不代表ROS Jazzy手动workflow已运行，也不代表SERVO-907动态验收通过。固定上游不变，A1.1仍BLOCKED，`TODO-EXT-001`未授权。
+
+
+### 2.16 CI #3810–#3812：后续三次文档提交的Job、步骤与工件复验（2026-11-11）
+
+- 三次main push运行均已完成：#3810 / Run `43006777912`（审计报告提交 `61ad009`）、#3811 / Run `43006785943`（第21章提交 `5c740b0`）、#3812 / Run `43006791890`（根计划提交 `cff79df`）。三者均为completed/success。
+- 逐个读取三个run的全部Job及Job步骤：Python 3.10/3.11/3.12测试、CycloneDX SBOM、OSV审计共五个Job全部SUCCESS，所有步骤均为success或skipped，无failure/incomplete步骤。
+- 逐个读取三次run的artifact清单：均成功归档Python SBOM、OSV报告，以及三个Python版本对应的Stäubli lifecycle、test-catalog、Runtime Evidence Bundle验证报告；工件均未过期。该批artifact属于Python静态验证/供应链证据，不是ROS/C++构建证据。
+- 对应提交后的main连续push运行#3803–#3812全部completed/success；本轮没有发现新普通CI失败。历史失败记录继续保留原始状态。
+- 专用 `.github/workflows/staubli-ros-jazzy-build.yml` 仍只声明 `workflow_dispatch`。当前连接器提供的GitHub Actions读取能力为GET-only，未提供workflow_dispatch写入/触发动作；因此本轮未触发该workflow，也未伪造运行结果。真实OFF/ON colcon build/install、install-space consumer、gtest、证据manifest与SHA-256仍NOT_RUN，SERVO-907继续BLOCKED。
