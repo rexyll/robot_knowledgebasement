@@ -93,6 +93,13 @@ def collect(
     configurations = model.get("configurations")
     if not isinstance(configurations, list) or not configurations:
         raise ValueError("codemodel has no configurations")
+    configuration_names = []
+    for item in configurations:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            raise ValueError("each codemodel configuration requires a string name")
+        configuration_names.append(item["name"])
+    if len(configuration_names) != len(set(configuration_names)):
+        raise ValueError("codemodel contains duplicate configuration names")
 
     selected = next(
         (
@@ -119,12 +126,28 @@ def collect(
         reference_name = item.get("name")
         target_id = target.get("id")
         name = target.get("name")
+        target_type = target.get("type")
         if not isinstance(reference_id, str) or not isinstance(
             reference_name, str
         ):
             raise ValueError("codemodel target reference requires string id and name")
         if not isinstance(target_id, str) or not isinstance(name, str):
             raise ValueError("target JSON requires string id and name")
+        allowed_target_types = {
+            "EXECUTABLE",
+            "STATIC_LIBRARY",
+            "SHARED_LIBRARY",
+            "MODULE_LIBRARY",
+            "OBJECT_LIBRARY",
+            "INTERFACE_LIBRARY",
+            "UNKNOWN_LIBRARY",
+            "UTILITY",
+        }
+        if target_type not in allowed_target_types:
+            raise ValueError(
+                f"{name}.type must be a recognized CMake target type, "
+                f"got {target_type!r}"
+            )
         if target_id != reference_id:
             raise ValueError(
                 f"target id mismatch for {reference_name}: "
