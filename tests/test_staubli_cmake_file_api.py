@@ -449,6 +449,23 @@ def test_relative_install_manifest_entry_fails_closed(tmp_path):
         raise AssertionError("relative install manifest entries must fail")
 
 
+def test_non_utf8_export_file_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    prefix = tmp_path / "prefix"
+    targets = prefix / "lib/cmake/staubli/staubliTargets.cmake"
+    targets.parent.mkdir(parents=True)
+    targets.write_bytes(
+        b"add_library(staubli::core SHARED IMPORTED)\\n\\xff"
+    )
+
+    try:
+        collect(build, True, "Debug", None, prefix)
+    except ValueError as exc:
+        assert "not valid UTF-8" in str(exc)
+    else:
+        raise AssertionError("non-UTF-8 CMake exports must fail closed")
+
+
 def test_export_symlink_cannot_escape_install_prefix(tmp_path):
     build = fixture(tmp_path)
     prefix = tmp_path / "prefix"
