@@ -6055,3 +6055,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - Run #5/#6均不是验收通过。SERVO-906/907继续BLOCKED；七项gtest结果、consumer build/run及完整evidence manifest/SHA-256仍未通过动态验收。A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - 专项审计已追加至 `docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §6。
 - **当前任务节点：§9.3.336之后，先核验两个普通CI最终结果；随后基于修复后的main重新运行ROS Jazzy专项workflow，确认两个导出缺陷仍被真实consumer暴露且无测试夹具掩盖。**
+
+
+### 2026-11-11｜§9.3.337 CI-HIST-007：consumer Boost导出缺陷测试夹具回归修复
+
+- 移除consumer预先`find_package(Boost)`后，普通CI连续暴露了旧断言未同步和新断言扫描注释文本两个测试问题。Run `43032513964`失败于旧断言仍要求Boost预查找；Run `43032558011`、`43032661039`、`43032712680`、`43032785783`均因断言将consumer注释中的`Boost::system`误当成CMake命令而失败。各run的SBOM/OSV jobs成功。
+- 将测试改为只检查consumer CMake命令行，不允许`find_package(Boost...)`，不扫描普通注释文本。修复提交`962b4194d832c281b019aa164ca9d86e90e23cd1`。
+- CI Run `43032966478` completed/success：Python 3.10/3.11/3.12、Lint、Stäubli lifecycle/test-catalog/runtime evidence静态校验、SBOM、OSV五个Job及所有步骤全部SUCCESS。
+- 这闭环的是知识库侧普通CI回归，不代表ROS Jazzy专项验收通过。Run #5/#6的上游导出缺陷仍存在；后续consumer测试不再预先创建Boost target，真实专项运行将继续检测Boost缺失和`/asio/include`错误。
+- 专项审计同步见`docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §7。固定上游commit不变；SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- **当前任务节点：§9.3.337之后，基于最新main手动重跑专用ROS Jazzy workflow，验证无预先Boost查找的consumer是否同时报告两项真实导出缺陷。**
