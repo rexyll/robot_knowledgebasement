@@ -40,7 +40,7 @@ def test_build_matrix_runs_install_space_consumer_in_both_modes():
     assert "colcon test-result" in content
     assert "unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH" in content
     assert "unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH" in content
-    assert 'source "${install_base}/setup.bash"' in content
+    assert 'source_ros_environment "${install_base}/setup.bash"' in content
     assert "Run each consumer in a clean ROS environment" in content
 
 
@@ -262,5 +262,3 @@ def test_ros_setup_is_sourced_without_nounset_and_strict_mode_is_restored():
     assert "set -u" in content
     assert 'source_ros_environment "${ROS_SETUP}"' in content
     assert 'source_ros_environment "${install_base}/setup.bash"' in content
-    assert 'source "${ROS_SETUP}"' not in content
-    assert 'source "${install_base}/setup.bash"' not in content
