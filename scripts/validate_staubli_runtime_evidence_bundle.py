@@ -14,9 +14,16 @@ from validate_staubli_lifecycle_manifest import _check_schema_contract, _schema_
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SCHEMA = ROOT / "docs/schemas/staubli-runtime-evidence-bundle.schema.json"
-DEFAULT_EXAMPLE = ROOT / "docs/audits/2026-11-11-staubli-runtime-evidence-bundle-example-NOT_RUN.json"
+DEFAULT_EXAMPLE = ROOT / (
+    "docs/audits/2026-11-11-staubli-runtime-evidence-bundle-example-NOT_RUN.json"
+)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-REQUIRED_PASS_ROLES = {"test_log", "environment_manifest", "event_trace", "state_snapshot"}
+REQUIRED_PASS_ROLES = {
+    "test_log",
+    "environment_manifest",
+    "event_trace",
+    "state_snapshot",
+}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -25,13 +32,17 @@ def load_json(path: Path) -> dict[str, Any]:
     except OSError as exc:
         raise RuntimeError(f"cannot read {path}: {exc}") from exc
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"invalid JSON in {path}:{exc.lineno}:{exc.colno}: {exc.msg}") from exc
+        raise RuntimeError(
+            f"invalid JSON in {path}:{exc.lineno}:{exc.colno}: {exc.msg}"
+        ) from exc
     if not isinstance(value, dict):
         raise RuntimeError(f"top-level JSON value must be an object: {path}")
     return value
 
 
-def validate_bundle(bundle: dict[str, Any], schema: dict[str, Any], root: Path | None = None) -> list[str]:
+def validate_bundle(
+    bundle: dict[str, Any], schema: dict[str, Any], root: Path | None = None
+) -> list[str]:
     errors = _check_schema_contract(schema)
     errors.extend(_schema_errors(bundle, schema, "$bundle"))
     if errors:
@@ -42,21 +53,27 @@ def validate_bundle(bundle: dict[str, Any], schema: dict[str, Any], root: Path |
     revisions: dict[tuple[str, int], int] = {}
     for index, event in enumerate(trace):
         if event["sequence"] != index:
-            errors.append(f"event_trace[{index}].sequence: expected contiguous sequence {index}")
+            errors.append(
+                f"event_trace[{index}].sequence: expected contiguous sequence {index}"
+            )
         if event["logical_time_ns"] < previous_time:
             errors.append(f"event_trace[{index}].logical_time_ns: time moved backwards")
         previous_time = event["logical_time_ns"]
         key = (event["component"], event["resource_generation"])
         previous_revision = revisions.get(key, -1)
         if event["resource_revision"] < previous_revision:
-            errors.append(f"event_trace[{index}].resource_revision: revision moved backwards")
+            errors.append(
+                f"event_trace[{index}].resource_revision: revision moved backwards"
+            )
         revisions[key] = event["resource_revision"]
 
     for barrier in bundle["harness"]["barriers"]:
         if len(barrier["arrivals"]) > barrier["participants"]:
             errors.append(f"barrier {barrier['barrier_id']}: arrivals exceed participants")
         if barrier["released"] and len(barrier["arrivals"]) != barrier["participants"]:
-            errors.append(f"barrier {barrier['barrier_id']}: released before all participants arrived")
+            errors.append(
+                f"barrier {barrier['barrier_id']}: released before all participants arrived"
+            )
 
     paths: set[str] = set()
     roles: set[str] = set()
@@ -91,8 +108,9 @@ def validate_bundle(bundle: dict[str, Any], schema: dict[str, Any], root: Path |
     if status == "BLOCKED" and not bundle.get("blockers"):
         errors.append("BLOCKED bundle must contain blockers")
     if status == "RUN_PASS":
-        if not REQUIRED_PASS_ROLES.issubset(roles):
-            errors.append(f"RUN_PASS missing artifact roles: {sorted(REQUIRED_PASS_ROLES - roles)}")
+        missing_roles = REQUIRED_PASS_ROLES - roles
+        if missing_roles:
+            errors.append(f"RUN_PASS missing artifact roles: {sorted(missing_roles)}")
         if not assertions or any(item["result"] != "PASS" for item in assertions):
             errors.append("RUN_PASS requires at least one assertion and every assertion PASS")
         if not trace or not bundle["resource_snapshots"]:
@@ -140,9 +158,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.report:
         try:
             args.report.parent.mkdir(parents=True, exist_ok=True)
-            args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+            args.report.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
         except OSError as exc:
-            print(f"Evidence bundle validator error: cannot write report: {exc}", file=sys.stderr)
+            print(
+                f"Evidence bundle validator error: cannot write report: {exc}",
+                file=sys.stderr,
+            )
             return 2
     if errors:
         print(f"Stäubli Runtime Evidence Bundle validation FAIL: {len(errors)} finding(s).")
