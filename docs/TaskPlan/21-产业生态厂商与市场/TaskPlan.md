@@ -5942,3 +5942,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 修复提交：测试合同2f7601e68951f1be5c6b0922de32cb5841abc91a；target graph fixture/回归a04999e1d398e732262a0dd6d83603e0d075fa40。
 - CI #3698 / Run ID 42968264032 SUCCESS：OSV、SBOM、Python 3.10/3.11/3.12全部成功；三个版本Ruff均通过，pytest均为125 passed。#3697仍失败的历史记录保留。
 - 普通CI通过不代表ROS Jazzy动态构建通过。OFF/ON colcon build/install、install-space consumer、gtest、证据包SHA-256仍NOT_RUN；A1.1保持BLOCKED，TODO-EXT-001未授权，上游固定commit不变。
+
+
+### §9.3.324 补充｜colcon isolated install 导出扫描
+
+- 复核发现colcon默认isolated install将包导出文件放在install-base/<package>/share/<package>/cmake，旧collector只扫描安装根目录的share/lib/cmake，可能漏采集真实导出。
+- 新增find_export_files()同时覆盖merged install和一级package-prefix isolated install，并让导出target扫描、INTERFACE_INCLUDE_DIRECTORIES扫描共用该发现函数。
+- 新增isolated install目录结构行为测试。提交：实现6bf1fa5146b7ceb32aead67b2706608637fde11b；测试99242ab4fa9d8a6c68f9734c3d36a3aa5a03b60f。
+- CI #3703 / Run ID 42968810375 SUCCESS：Python 3.10/3.11/3.12、OSV、SBOM全部通过；三个版本Ruff通过、pytest各126 passed。
+- 真实ROS Jazzy OFF/ON colcon build/install、consumer、gtest及证据包SHA-256仍NOT_RUN；专用workflow尚未有workflow_dispatch运行。A1.1保持BLOCKED；TODO-EXT-001未授权；固定上游不变。
