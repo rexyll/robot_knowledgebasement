@@ -5792,3 +5792,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 | 2026-11-11 | CI #3611 最终复验补记 | GitHub Actions Run ID `42955926260`，main HEAD `184de16cd974460a17787d3e804add373537a51b`；Python 3.10/3.11/3.12矩阵、Lint、OSV、SBOM作业均SUCCESS。 | 仅验证知识库Python/静态工具链；没有执行SERVO-907独立ROS Jazzy手动workflow。真实colcon build/install、gtest、install-space consumer仍NOT_RUN。 |
+
+
+| 2026-11-11 | CI #3613 最终复验 | main HEAD `e8329d56b439f44ab4bf13eee2bd9f0723d6df5c`；Run ID `42956329860`；Python 3.10/3.11/3.12、Lint、OSV、SBOM均SUCCESS。 | 最新运行记录中尚未发现SERVO-907独立手动workflow运行；真实ROS Jazzy build/install/gtest/install-space consumer继续NOT_RUN。 |
