@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.13  
+> 版本：v11.14  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；consumer实际调用FrameHeader::serialize非内联符号的加强已由CI #3646–#3651全部SUCCESS复验。随后新增OFF/ON consumer安装产物运行步骤；CI #3656因两条测试断言超长而Ruff失败，已在0f415e6修复，CI #3657五个job全部SUCCESS。新增运行步骤尚待专用ROS Jazzy workflow动态验证；普通CI不代表ROS/C++验收。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。证据manifest完整性校验已加强，缺少必需OFF/ON快照、验证报告或环境指纹，以及重复artifact路径均会被拒绝；CI #3661五个job全部SUCCESS。最新静态复核确认realtime_tools被已安装公共头文件直接包含但未列入ament_export_dependencies；install-space consumer已补入该公共头文件以暴露真实导出依赖问题。Boost/backward_ros风险已按公开/私有依赖证据重新分级，不将静态怀疑写成已复现故障。新增脚本与测试提交后等待CI复验。最新增加CMake install export的INTERFACE_INCLUDE_DIRECTORIES采集和validator检查，用于真实构建时拦截未定义asio_SOURCE_DIR可能生成的/asio/include路径；该检查尚未在ROS Jazzy环境执行。A1.1保持BLOCKED，TODO-EXT-001未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。main HEAD为`50c8e6fedd23560e136d70f53cdbd22a38b9cfe9`；普通CI #3707–#3709的Python 3.10/3.11/3.12、OSV、SBOM五个job均SUCCESS，#3709 pytest 126 passed、Ruff通过。CI只验证知识库Python/静态合同与供应链检查，不代表ROS/C++动态验收。专用ROS Jazzy `workflow_dispatch`尚无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。静态审查已补强isolated install导出扫描并由CI #3703验证；仍待真实验证的重点包括公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`，以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径。不得把这些静态风险写成已复现故障。固定上游commit为`bd658e2d266e315d2ee35f985fb352ea88306b79`且保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
 
 ---
 
