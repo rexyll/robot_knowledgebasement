@@ -402,7 +402,10 @@ def test_target_json_file_cannot_escape_reply_directory(tmp_path):
     model = json.loads((reply / "codemodel-v2.json").read_text(encoding="utf-8"))
     model["configurations"][0]["targets"][0]["jsonFile"] = "../../outside.json"
     put(reply / "codemodel-v2.json", model)
-    put(tmp_path / "outside.json", {"id": "core-id", "name": "staubli_socket_core", "type": "SHARED_LIBRARY"})
+    put(
+        tmp_path / "outside.json",
+        {"id": "core-id", "name": "staubli_socket_core", "type": "SHARED_LIBRARY"},
+    )
 
     try:
         collect(build, False, "Debug", None)
