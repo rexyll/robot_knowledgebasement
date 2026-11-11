@@ -109,8 +109,16 @@ install(TARGETS staubli_install_consumer DESTINATION lib/${PROJECT_NAME})
 ament_package()
 CMAKE
   cat > "${consumer_src}/main.cpp" <<'CPP'
+#include <cstdint>
+
 #include "staubli_robot_driver/communication/protocol.hpp"
-int main() { return 0; }
+
+int main()
+{
+  staubli_robot_driver::FrameHeader header;
+  std::uint8_t buffer[staubli_robot_driver::FrameHeader::get_serialized_size()]{};
+  return header.serialize(buffer, sizeof(buffer)) ? 0 : 1;
+}
 CPP
 
   # Run each consumer in a clean ROS environment. Sourcing a second overlay
