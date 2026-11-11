@@ -66,11 +66,19 @@ def find_export_files(export_root: Path) -> list[Path]:
     return export_files
 
 
+def read_export_file(path: Path) -> str:
+    """Read a CMake export without silently replacing undecodable bytes."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"CMake export file is not valid UTF-8: {path}") from exc
+
+
 def collect_exported_target_include_directories(export_root: Path) -> list[str]:
     """Read interface include paths from installed CMake export files."""
     include_directories = set()
     for path in find_export_files(export_root):
-        content = path.read_text(encoding="utf-8", errors="replace")
+        content = read_export_file(path)
         for value in re.findall(
             r'INTERFACE_INCLUDE_DIRECTORIES\s+"([^"]*)"', content
         ):
@@ -289,7 +297,7 @@ def collect(
             re.IGNORECASE,
         )
         for resolved in find_export_files(prefix):
-            content = resolved.read_text(encoding="utf-8", errors="replace")
+            content = read_export_file(resolved)
             names = pattern.findall(content)
             if names:
                 exported_targets.extend(names)
