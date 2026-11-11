@@ -73,9 +73,16 @@ def test_codemodel_targets_dependencies_and_compile_metadata(tmp_path):
     result = collect(fixture(tmp_path), False, "Debug", None)
 
     assert result["build_testing"] is False
-    assert result["targets"][1]["dependencies"] == ["staubli_socket_core"]
-    assert result["targets"][0]["include_directories"] == ["/opt/ros/include"]
-    assert result["targets"][0]["compile_definitions"] == ["CORE_BUILD=1"]
+    targets = {item["name"]: item for item in result["targets"]}
+    assert targets["staubli_driver_plugin"]["dependencies"] == [
+        "staubli_socket_core"
+    ]
+    assert targets["staubli_socket_core"]["include_directories"] == [
+        "/opt/ros/include"
+    ]
+    assert targets["staubli_socket_core"]["compile_definitions"] == [
+        "CORE_BUILD=1"
+    ]
     assert result["install_entries"] == ["/tmp/install/lib/libstaubli.so"]
 
 
