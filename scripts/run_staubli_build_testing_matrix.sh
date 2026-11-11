@@ -89,11 +89,10 @@ for mode in OFF ON; do
   mkdir -p "${package_build}/.cmake/api/v1/query"
   : > "${package_build}/.cmake/api/v1/query/codemodel-v2"
 
-  run_logged colcon build \
+  run_logged colcon --log-base "${log_base}" build \
     --base-paths "${SOURCE_DIR}" \
     --build-base "${build_base}" \
     --install-base "${install_base}" \
-    --log-base "${log_base}" \
     --event-handlers console_direct+ \
     --cmake-args "-DBUILD_TESTING=${mode}" -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
@@ -154,22 +153,20 @@ CPP
     unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH
     source_ros_environment "${ROS_SETUP}"
     source_ros_environment "${install_base}/setup.bash"
-    run_logged colcon build \
+    run_logged colcon --log-base "${CONSUMER_ROOT}/logs-${lower}" build \
       --base-paths "${consumer_src}" \
       --build-base "${CONSUMER_ROOT}/build-${lower}" \
       --install-base "${CONSUMER_ROOT}/install-${lower}" \
-      --log-base "${CONSUMER_ROOT}/logs-${lower}" \
       --event-handlers console_direct+
     run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"
     printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
   )
 done
 
-run_logged colcon test \
+run_logged colcon --log-base "${LOG_ROOT}/colcon-on" test \
   --base-paths "${SOURCE_DIR}" \
   --build-base "${BUILD_ROOT}/build-testing-on" \
   --install-base "${INSTALL_ROOT}/build-testing-on" \
-  --log-base "${LOG_ROOT}/colcon-on" \
   --packages-select staubli_robot_driver \
   --event-handlers console_direct+
 run_logged colcon test-result --test-result-base "${BUILD_ROOT}/build-testing-on" --verbose
