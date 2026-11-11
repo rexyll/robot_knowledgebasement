@@ -89,6 +89,9 @@ def validate_bundle(
     if errors:
         return errors
 
+    if bundle["attempt"] < 1:
+        errors.append("attempt must be a positive integer")
+
     trace = bundle["event_trace"]
     previous_time = -1
     revisions: dict[tuple[str, int], int] = {}
@@ -167,6 +170,9 @@ def validate_bundle(
             errors.append("RUN_PASS requires at least one assertion and every assertion PASS")
         if not trace or not bundle["resource_snapshots"]:
             errors.append("RUN_PASS requires non-empty event_trace and resource_snapshots")
+        phases = {snapshot["phase"] for snapshot in bundle["resource_snapshots"]}
+        if not {"before", "after"}.issubset(phases):
+            errors.append("RUN_PASS requires before and after resource snapshots")
         errors.extend(_environment_errors(bundle))
         if any(
             any(token in str(snapshot[field]).upper() for token in ("UNKNOWN", "RESIDUAL"))
@@ -189,6 +195,9 @@ def validate_bundle(
             errors.append("RUN_FAIL requires a test_log artifact")
         if not trace:
             errors.append("RUN_FAIL requires a non-empty event_trace")
+        phases = {snapshot["phase"] for snapshot in bundle["resource_snapshots"]}
+        if not {"before", "failure"}.issubset(phases):
+            errors.append("RUN_FAIL requires before and failure resource snapshots")
 
     if root is not None:
         for role, expected in (
@@ -250,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         "bundle_id": bundle.get("bundle_id"),
         "test_id": bundle.get("test_id"),
         "execution_status": bundle.get("execution_status"),
+        "evidence_origin": bundle.get("evidence_origin"),
         "artifact_count": len(bundle.get("artifacts", [])),
         "trace_event_count": len(bundle.get("event_trace", [])),
         "error_count": len(errors),
@@ -259,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             args.report.parent.mkdir(parents=True, exist_ok=True)
             args.report.write_text(
-                json.dumps(result, ensure_ascii=False, indent=2) + "\\n",
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
         except OSError as exc:
