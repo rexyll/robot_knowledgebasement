@@ -8,7 +8,7 @@
 
 ## 1. 审查范围与统计
 
-GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclusion过滤后，2026-11-03至2026-11-11期间共确认167条失败运行记录。逐条索引见[历史失败run CSV](github-actions-failure-run-index-2026-11-03-to-11-11.csv)。按失败运行创建日期统计：
+GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclusion过滤后，2026-11-03至2026-11-11期间共确认171条失败运行记录。逐条索引见[历史失败run CSV](github-actions-failure-run-index-2026-11-03-to-11-11.csv)。按失败运行创建日期统计：
 
 | 日期 | 失败运行数 |
 | --- | ---: |
@@ -17,8 +17,8 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 | 2026-11-05 | 1 |
 | 2026-11-08 | 5 |
 | 2026-11-09 | 5 |
-| 2026-11-11 | 68 |
-| **合计** | **167** |
+| 2026-11-11 | 72 |
+| **合计** | **171** |
 
 这些是workflow run次数，不等于164个独立缺陷。连续小提交会重复触发同一故障。所有失败run均纳入历史索引，并按日期、失败job/step及代表性日志聚类。历史run是不可变审计记录，不会因后续修复而被改写为成功；修复效果以当前main的新运行结果判定。
 
@@ -88,6 +88,13 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - 代表运行：[CI #220](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41644398759)和[CI #1](https://github.com/rexyll/robot_knowledgebasement/actions/runs/41584650043)。
 - 早期测试使用浮点精确相等比较，因二进制浮点表示差异失败；早期Ruff也报告collections/typing导入排序问题。
 - 修复状态：浮点断言改用pytest.approx；导入问题在后续提交修正。当前三版本pytest和Ruff均通过。
+
+### 2.11 本轮新增 target-validator/fixture 的 Ruff 回归
+
+- 运行：[CI #3574](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42954009005)、[#3575](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42954098089)、[#3576](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42954101038)、[#3577](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42954139354)。
+- 原因：新增 ament export fixture 与 upstream target graph validator 后，Ruff E501 检出测试字符串及validator limitations文案超出100字符；三个Python版本的Lint步骤均因此失败，pytest未启动。
+- 修复：提交 `0a7359c` 拆分测试fixture字符串；提交 `f00c383` 拆分validator文案。CI #3578 / Run ID 42954198499 SUCCESS，确认格式门禁恢复。
+- 影响：仅本轮新增知识库Python代码的Lint阻断，不涉及上游driver运行行为；四条失败run已加入逐条CSV索引，历史记录保持failure，不改写。
 
 ## 3. 本轮修复提交
 
