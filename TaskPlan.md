@@ -4846,3 +4846,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **当前状态：** SERVO-907静态脚本隔离修复、直接链接Ament导出target的consumer改进已提交；本轮常规CI无新增失败需要修复。固定上游未修改，未创建/应用/合并上游PR，`TODO-EXT-001`未授权，A1.1保持BLOCKED。
 - **下一步：** 手动运行[Stäubli ROS Jazzy build/install workflow](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)，完成后检查OFF/ON构建、consumer、gtest日志与SHA-256证据包。未获得真实运行证据前，不更新ROS验收状态或设置required门禁。
 
+### 2026-11-11｜v11.07 SERVO-907 CI #3640–#3641 复验完成
+
+- CI #3640 / Run ID `42961639340`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功，无失败步骤。
+- CI #3641 / Run ID `42961648789`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功，无失败步骤。
+- 已复核`.github/workflows/staubli-ros-jazzy-build.yml`存在于main，触发器为`workflow_dispatch`，镜像digest和上游commit固定；最近Actions运行记录中仍没有该专用workflow的运行实例。
+- GitHub官方手动运行流程要求操作者具备仓库write权限，并在Actions页面选择workflow与`main`后点击Run workflow。当前可用GitHub集成没有workflow dispatch写动作，不能代替用户触发。
+- **验收边界：** 两次普通CI只覆盖知识库Python/静态合同/OSV/SBOM，不代表ROS/C++验收。真实OFF/ON colcon build/install、consumer、gtest、证据包与SHA-256仍`NOT_RUN`。
+- **下一步：** 用户在[ROS Jazzy workflow](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)手动运行`main`。获得运行记录后，继续分析真实构建与导出依赖问题。固定上游未修改，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
+
