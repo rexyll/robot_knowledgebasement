@@ -4747,6 +4747,14 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 ### 2026-11-11｜v11.01 SERVO-907与历史失败统计更新
 
-- ROS Jazzy手动workflow已创建并固定容器digest；当前CI #3599、#3600–#3603成功，验证知识库Python/静态合同测试，不代表真实ROS build。
+- ROS Jazzy手动workflow已创建并固定容器digest；当前CI #3609 SUCCESS；Python 3.10/3.11/3.12各112项pytest通过，Ruff、OSV、SBOM均通过，验证知识库Python/静态合同测试，不代表真实ROS build。
 - 历史失败run总数已更新为182（11/11为83），其中SERVO-906新增11条run已加入逐条CSV索引并按I001/E501两个根因归并。
 - 下一步：手动触发 `.github/workflows/staubli-ros-jazzy-build.yml`，检查artifact与真实ROS构建日志，再决定是否设置required门禁。
+
+
+### 2026-11-11｜CI #3609 最终复验
+
+- main HEAD：`1ca72b439bd7742e2aca8bebdd6b402c65077157`。
+- CI #3609 / Run ID `42955846988`：SUCCESS；Python 3.10/3.11/3.12各112 passed；Ruff、OSV、SBOM均成功。
+- SERVO-906新增脚本合同测试、ROS Jazzy workflow digest/commit断言及bash -n静态语法检查已纳入并通过Python CI。
+- 该CI不执行ROS Jazzy容器，不得当作Stäubli真实C++构建或install consumer通过。
