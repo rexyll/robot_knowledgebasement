@@ -210,7 +210,6 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             for value in exported_includes
             if value == "/asio/include"
             or "${asio_SOURCE_DIR}" in value
-            or value.rstrip("/").endswith("/asio/include")
         )
         check(
             f"EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-{label}",
