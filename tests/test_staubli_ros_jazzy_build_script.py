@@ -1,3 +1,4 @@
+import importlib.util
 import subprocess
 from pathlib import Path
 
@@ -71,7 +72,7 @@ def test_manual_ros_workflow_pins_image_and_upstream_source():
     assert "bash scripts/run_staubli_build_testing_matrix.sh" in workflow
     assert "staubli-ros-jazzy-build-install-evidence" in workflow
 
- 
+
 def test_install_consumer_links_exported_target_directly():
     content = SCRIPT.read_text(encoding="utf-8")
     assert (
@@ -148,3 +149,36 @@ def test_export_collector_captures_installed_include_directories():
     assert "exported_target_include_directories" in collector
     assert "INTERFACE_INCLUDE_DIRECTORIES" in collector
     assert "asio_SOURCE_DIR" in collector
+
+def test_export_collector_reads_installed_interface_include_directories(tmp_path):
+    collector_path = (
+        Path(__file__).parents[1]
+        / "scripts"
+        / "collect_staubli_cmake_file_api.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "staubli_cmake_file_api_collector", collector_path
+    )
+    collector = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(collector)
+
+    export_file = (
+        tmp_path
+        / "lib"
+        / "cmake"
+        / "staubli_robot_driver"
+        / "staubli_robot_driverTargets.cmake"
+    )
+    export_file.parent.mkdir(parents=True)
+    export_file.write_text(
+        'set_target_properties(staubli_robot_driver::staubli_robot_driver '
+        'PROPERTIES INTERFACE_INCLUDE_DIRECTORIES '
+        '"${_IMPORT_PREFIX}/include;/asio/include")\\n',
+        encoding="utf-8",
+    )
+
+    assert collector.collect_exported_target_include_directories(tmp_path) == [
+        "${_IMPORT_PREFIX}/include",
+        "/asio/include",
+    ]
+
