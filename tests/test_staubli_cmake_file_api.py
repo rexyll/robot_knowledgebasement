@@ -41,3 +41,28 @@ def test_missing_configuration_fails_closed(tmp_path):
     try: collect(fixture(tmp_path),False,"Release",None)
     except ValueError as exc: assert "configuration 'Release' not found" in str(exc)
     else: raise AssertionError("missing configuration must fail")
+
+
+def test_export_root_scans_only_imported_targets_under_cmake_exports(tmp_path):
+    build=fixture(tmp_path)
+    prefix=tmp_path/"prefix"
+    targets=prefix/"lib/cmake/staubli/staubliTargets.cmake"
+    targets.parent.mkdir(parents=True)
+    targets.write_text("add_library(staubli::core SHARED IMPORTED)\nadd_executable(staubli::tool IMPORTED)\n",encoding="utf-8")
+    unrelated=prefix/"share/docs/Targets.cmake"
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_text("add_library(not_exported SHARED IMPORTED)\n",encoding="utf-8")
+    result=collect(build,True,"Debug",None,prefix)
+    assert result["exported_targets"]==["staubli::core","staubli::tool"]
+    assert len(result["exported_target_sources"])==1
+
+def test_export_file_and_root_are_mutually_exclusive(tmp_path):
+    build=fixture(tmp_path)
+    exports=tmp_path/"exports.txt"
+    exports.write_text("staubli::core\n",encoding="utf-8")
+    try:
+        collect(build,True,"Debug",exports,tmp_path)
+    except ValueError as exc:
+        assert "use only one" in str(exc)
+    else:
+        raise AssertionError("ambiguous export inputs must fail")
