@@ -154,3 +154,12 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - `backward_ros`：ROS Index显示Jazzy发行版包含backward_ros 1.0.8；来源：[ROS Index backward_ros](https://index.ros.org/r/backward_ros/)。
 - Ubuntu Noble包：`libboost-system-dev` 与 `libasio-dev` 均有Noble发行包记录；来源：[libboost-system-dev](https://packages.ubuntu.com/noble/libboost-system-dev)、[libasio-dev](https://packages.ubuntu.com/noble/libasio-dev)。
 - 状态：workflow已提交但尚未触发。镜像digest和包来源已核对；apt/rosdep实时解析、colcon双配置build/install、gtest和consumer仍待手动运行产出真实证据。
+
+
+### 2.13 后续SERVO-907 target-export测试合同冲突（2026-11-11复核）
+
+- 复核代表失败run日志：CI #3587 / Run ID `42955299858`的Python 3.10/3.11/3.12三个Lint job均因Ruff `I001`失败，Test step被跳过；OSV与SBOM jobs成功。CI #3598 / Run ID `42955635997`的三个Python Lint job均因Ruff `E501`（105 > 100）失败，OSV与SBOM成功。两项均是此前已修复并在后续CI中复验的格式回归，历史failure不改写。
+- CI #3559 / Run ID `42951705050`三个Python Test job均因 `tests/test_staubli_cmake_file_api.py:76`断言依赖collector target排序位置而失败（97 passed, 1 failed）；修复为按稳定target name映射。CI #3558 / Run ID `42951576750`因pytest导入路径导致三个模块 `ModuleNotFoundError: No module named 'scripts'`，修复pytest pythonpath及fail-fast策略。CI #3560 / Run ID `42951823527`五个jobs全部成功，三个Python版本各98 passed。
+- CI #3611 / Run ID `42955926260`已通过Actions jobs接口复核：`test (3.10)`、`test (3.11)`、`test (3.12)`、`Generate Python runtime and development SBOMs`、`Audit locked Python dependencies against OSV`五个jobs均completed/success；所有job步骤均success。
+- 后续target-export namespace精确性修复发现旧测试 `test_gtest_name_substrings_do_not_count_as_installed_or_exported`要求未知非gtest target通过，与生产导出集合严格等于两个namespaced库的合同冲突。已将其改为验证整体应因未知导出失败、但不误报gtest泄漏。修复提交 `987b769cd18dd38e1c44f241a21bc9d4a0e24f08`。
+- 当前连接器对commit workflow runs的读取仅返回pull_request事件；main push触发run不能由该接口列出，combined status为空。因此提交 `987b769`及文档提交的CI状态保持CI_RESULT_UNVERIFIED。必须从GitHub Actions页面或具备push run/check-run查询能力的接口核验后，才能宣布修复后的CI通过。不要重跑旧SHA的历史失败run来代替当前HEAD验证。
