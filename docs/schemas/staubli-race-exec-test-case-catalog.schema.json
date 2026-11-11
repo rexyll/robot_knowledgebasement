@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rexyll.github.io/robot_knowledgebasement/schemas/staubli-race-exec-test-case-catalog.schema.json",
+  "title": "Stäubli SocketV2 RACE/EXEC Test Case Catalog",
+  "description": "Machine-readable design-time catalog for the 20 stable RACE/EXEC references. Catalog validation does not execute tests or establish runtime safety.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "catalog_id",
+    "project",
+    "upstream_baseline",
+    "status_semantics",
+    "reference_catalog",
+    "test_cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "catalog_id": {
+      "const": "staubli_socket_v2_race_exec_test_cases"
+    },
+    "project": {
+      "const": "staubli_socket_v2_lifecycle"
+    },
+    "upstream_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "ICube-Robotics/staubli_driver_ros2"
+        },
+        "commit": {
+          "const": "bd658e2d266e315d2ee35f985fb352ea88306b79"
+        }
+      }
+    },
+    "status_semantics": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reference_catalog": {
+      "type": "array",
+      "minItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(RACE-(0[1-9]|1[0-6])|EXEC-0[1-4])$"
+      }
+    },
+    "test_cases": {
+      "type": "array",
+      "minItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "test_id",
+          "title",
+          "category",
+          "scenario",
+          "preconditions",
+          "stimulus",
+          "expected_assertions",
+          "test_harness",
+          "manifest_record_ids",
+          "execution_state",
+          "evidence_contract",
+          "source_audit"
+        ],
+        "properties": {
+          "test_id": {
+            "type": "string",
+            "pattern": "^(RACE-(0[1-9]|1[0-6])|EXEC-0[1-4])$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1
+          },
+          "preconditions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "stimulus": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "expected_assertions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "test_harness": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "description",
+              "synchronization",
+              "clock",
+              "fault_injection"
+            ],
+            "properties": {
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "synchronization": {
+                "type": "string",
+                "minLength": 1
+              },
+              "clock": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fault_injection": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "manifest_record_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(F(0[1-9]|1[0-6])|PLUG-L(0[1-9]|1[0-2]))$"
+            }
+          },
+          "execution_state": {
+            "const": "NOT_RUN"
+          },
+          "evidence_contract": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "required_artifacts",
+              "hash_algorithm",
+              "must_capture",
+              "pass_rule",
+              "not_run_rule"
+            ],
+            "properties": {
+              "required_artifacts": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "hash_algorithm": {
+                "const": "SHA-256"
+              },
+              "must_capture": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "pass_rule": {
+                "type": "string",
+                "minLength": 1
+              },
+              "not_run_rule": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "source_audit": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
