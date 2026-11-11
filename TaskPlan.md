@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.19  
+> 版本：v11.20  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮静态审查基线为`50c8e6fedd23560e136d70f53cdbd22a38b9cfe9`；随后提交证据打包器失败关闭修复`a7e63f0`及回归测试`3cdd35e`、fixture换行修正`7a16d14`，以及本次计划同步提交`a26a70c`均已取得普通CI成功结果：#42974916332、#42974957121、#42975000263分别对应a7e63f0、7a16d14、a26a70c，三个run各自Python 3.10/3.11/3.12、OSV、SBOM五个job全部SUCCESS；中间测试提交3cdd35e对应#42974929336，三个Python测试job曾失败，后续fixture修正提交的三个版本测试均通过。CI只验证知识库Python/静态合同与供应链检查，不代表ROS/C++动态验收。专用ROS Jazzy `workflow_dispatch`尚无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。静态审查已补强isolated install导出扫描并由CI #3703验证；仍待真实验证的重点包括公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`，以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径。不得把这些静态风险写成已复现故障。固定上游commit为`bd658e2d266e315d2ee35f985fb352ea88306b79`且保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`仍无运行记录；OFF/ON真实colcon build/install、双配置install-space consumer编译/链接/运行、gtest、安装导出快照、validator及SHA-256 evidence仍为NOT_RUN。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及未定义来源的`asio_SOURCE_DIR`可能产生`/asio/include`导出路径仍是待真实构建验证的风险，不是已复现故障。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
 
 ---
 
@@ -4965,3 +4965,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 对照固定上游头文件确认`real_time_socket_subscriber.hpp`直接包含`realtime_tools/realtime_thread_safe_box.hpp`，而上游`ament_export_dependencies()`未导出`realtime_tools`。当前矩阵的install-space consumer包含该公共头文件并仅依赖驱动包，设计意图是通过真实编译验证依赖是否正确传递；不能仅凭静态审查断言consumer必然失败，等待真实ROS Jazzy运行结果。
 - 专用workflow仍为手动`workflow_dispatch`，Actions历史未见此事件运行；当前GitHub连接可读取Actions但没有workflow-dispatch写入动作，故本轮不能代替有权限的仓库用户触发该动态矩阵。
 - SERVO-907仍BLOCKED / NOT_RUN；OFF/ON colcon build/install、consumer、gtest、导出快照、validator和SHA-256证据均未取得。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`只读；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+
+### 2026-11-11｜v11.20 补充：CMake 导出 include 路径采集行为测试闭环
+
+- 为ament导出文件行为测试补充`INTERFACE_INCLUDE_DIRECTORIES`分号分隔与多路径采集断言，覆盖安装导出路径采集函数的排序结果；测试夹具采用真实换行，避免用字面反斜杠+n模拟CMake文件。
+- 测试提交`6806cd87857d31e3c579a6bb79b9c7d1b5b3339f`与夹具修正`b77e86cb5d01a52a3511fe0abbf5d14d8a961bec`的CI #42976622959、#42976665301曾因期望列表顺序与collector的`sorted(set(...))`结果不一致而失败；依据三种Python版本的Actions日志确认131 passed、1 failed，失败仅在该新增断言。
+- 已将期望顺序调整为collector实际定义的字典序，提交`9ce154c6c76f434ff7785b54644d4fa539803aad`；CI #42976802732 completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。
+- 该测试只验证知识库采集器对合成ament导出文件的解析，不构成上游真实install导出结果；专用ROS Jazzy workflow仍无`workflow_dispatch`运行。SERVO-907继续BLOCKED / NOT_RUN；固定上游commit不变，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
