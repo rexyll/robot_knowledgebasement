@@ -219,6 +219,9 @@ def test_duplicate_cmake_target_ids_fail_closed(tmp_path):
     plugin = json.loads((reply / "plugin.json").read_text(encoding="utf-8"))
     plugin["id"] = "core-id"
     put(reply / "plugin.json", plugin)
+    model = json.loads((reply / "codemodel-v2.json").read_text(encoding="utf-8"))
+    model["configurations"][0]["targets"][1]["id"] = "core-id"
+    put(reply / "codemodel-v2.json", model)
 
     try:
         collect(build, False, "Debug", None)
