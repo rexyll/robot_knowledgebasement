@@ -5747,4 +5747,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 ### §9.3.320｜SERVO-903：确定性构建环境与证据封装
 
-- [2026-11-11 Stäubli 确定性构建环境与证据封装](../audits/2026-11-11-staubli-socket-v2-servo-903-build-evidence-package.md)：增加限定安装前缀的 imported export target 扫描与来源记录；新增环境指纹采集、UNKNOWN字段策略、双配置快照/validator报告归档、SHA-256 manifest及verify校验；新增合成测试覆盖环境未知值、正常校验、篡改、缺失和路径穿越。测试尚待CI确认，真实ROS Jazzy configure、install-space consumer、C++/plugin/ABI/sanitizer/HIL均NOT_RUN。A1.1保持BLOCKED；下一节点§9.3.321 / SERVO-904。
+- [2026-11-11 Stäubli 确定性构建环境与证据封装](../audits/2026-11-11-staubli-socket-v2-servo-903-build-evidence-package.md)：增加限定安装前缀的 imported export target 扫描与来源记录；新增环境指纹采集、UNKNOWN字段策略、双配置快照/validator报告归档、SHA-256 manifest及verify校验；新增合成测试覆盖环境未知值、正常校验、篡改、缺失和路径穿越；GitHub Actions CI #3560已通过，Python 3.10/3.11/3.12各98项测试、Ruff、OSV与SBOM均成功。真实ROS Jazzy configure、install-space consumer、C++/plugin/ABI/sanitizer/HIL均NOT_RUN。A1.1保持BLOCKED；下一节点§9.3.321 / SERVO-904。
+
+
+---
+
+### CI-HIST-001｜GitHub Actions 历史失败记录审查与修复
+
+- **审计报告：** [GitHub Actions历史失败记录审查与修复验收](../../audits/2026-11-11-github-actions-historical-failure-review.md)。
+- **历史记录：** 2026-11-03至2026-11-11共盘点164条失败run；这些记录包含重复提交触发，并非164个独立缺陷。主要类别包括Ruff 113项、pytest导入路径/target顺序断言、Python 3.10下载HTTP 504、Artifact上传ECONNRESET、uv.lock与locked模式不一致、OSV安全发现、源码SHA校验shell变量引用、早期浮点精度/导入排序问题。
+- **代码修复：** 对6个Stäubli Python工具/测试文件执行规范化格式修复；修正pytest仓库根pythonpath；关闭matrix fail-fast以确保各Python版本独立完成；测试按target name断言，不依赖collector排序索引。
+- **CI验收：** GitHub Actions CI #3560 / Run ID 42951823527 SUCCESS。Python 3.10、3.11、3.12各98 passed，Ruff均通过；OSV与SBOM job均成功。历史run保持原始failure记录，不改写。
+- **外部故障：** 2026-11-08/09的Python 3.10发行包下载HTTP 504及2026-11-05的Artifact Finalize ECONNRESET属于外部服务/网络故障；当前matrix及SBOM归档均已成功。
+- **状态边界：** Node.js 20 deprecation warning仍为非阻断维护项；本轮CI不代表真实ROS Jazzy/CMake/C++/plugin/ABI/HIL验收。未修改固定上游，TODO-EXT-001未授权，A1.1保持BLOCKED，RACE/EXEC真实运行仍NOT_RUN。
+- **节点状态：** CI-HIST-001已完成。后续恢复§9.3.321 / SERVO-904：审阅现有workflow并确定真实ROS Jazzy/CMake双配置证据采集的最小CI接入方式。
