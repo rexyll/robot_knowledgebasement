@@ -47,7 +47,37 @@ def collect(build_dir: Path, build_testing: bool, configuration: str|None, expor
                         "include_directories":sorted(includes),"compile_definitions":sorted(defines)})
     manifest=build_dir/"install_manifest.txt"
     install=[x.strip() for x in manifest.read_text(encoding="utf-8").splitlines() if x.strip()] if manifest.exists() else []
-    if exports_file and export_root:\n        raise ValueError("use only one of --exported-targets-file and --export-root")\n    exports=[]\n    export_sources=[]\n    if exports_file:\n        exports=[x.strip() for x in exports_file.read_text(encoding="utf-8").splitlines() if x.strip() and not x.lstrip().startswith("#")]\n        export_sources=[str(exports_file.resolve())]\n    if export_root:\n        prefix=export_root.resolve()\n        if not prefix.is_dir(): raise FileNotFoundError(f"export root is not a directory: {prefix}")\n        import re\n        pattern=re.compile(r"add_(?:library|executable)\\s*\\(\\s*([A-Za-z0-9_.:+-]+)\\s+(?:(?:UNKNOWN|STATIC|SHARED|MODULE|INTERFACE)\\s+)?IMPORTED\\b",re.IGNORECASE)\n        candidates=list((prefix/"lib"/"cmake").rglob("*Targets.cmake")) if (prefix/"lib"/"cmake").exists() else []\n        share=prefix/"share"\n        if share.exists(): candidates.extend(share.rglob("*Targets.cmake"))\n        for path in sorted(set(candidates)):\n            resolved=path.resolve()\n            if not resolved.is_relative_to(prefix): continue\n            if not (("lib" in resolved.relative_to(prefix).parts and "cmake" in resolved.relative_to(prefix).parts) or ("share" in resolved.relative_to(prefix).parts and "cmake" in resolved.relative_to(prefix).parts)): continue\n            content=resolved.read_text(encoding="utf-8",errors="replace")\n            names=pattern.findall(content)\n            if names:\n                exports.extend(names); export_sources.append(str(resolved))\n    exports=sorted(set(exports))\n    return {"schema_version":"1.0.0","configuration_id":str(selected.get("name") or build_dir.name),
+    if exports_file and export_root:
+        raise ValueError("use only one of --exported-targets-file and --export-root")
+    exports=[]
+    export_sources=[]
+    if exports_file:
+        exports=[x.strip() for x in exports_file.read_text(encoding="utf-8").splitlines() if x.strip() and not x.lstrip().startswith("#")]
+        export_sources=[str(exports_file.resolve())]
+    if export_root:
+        prefix=export_root.resolve()
+        if not prefix.is_dir():
+            raise FileNotFoundError(f"export root is not a directory: {prefix}")
+        import re
+        pattern=re.compile(r"add_(?:library|executable)\s*\(\s*([A-Za-z0-9_.:+-]+)\s+(?:(?:UNKNOWN|STATIC|SHARED|MODULE|INTERFACE)\s+)?IMPORTED\b",re.IGNORECASE)
+        candidates=list((prefix/"lib"/"cmake").rglob("*Targets.cmake")) if (prefix/"lib"/"cmake").exists() else []
+        share=prefix/"share"
+        if share.exists():
+            candidates.extend(share.rglob("*Targets.cmake"))
+        for path in sorted(set(candidates)):
+            resolved=path.resolve()
+            if not resolved.is_relative_to(prefix):
+                continue
+            relative=resolved.relative_to(prefix)
+            if not (("lib" in relative.parts and "cmake" in relative.parts) or ("share" in relative.parts and "cmake" in relative.parts)):
+                continue
+            content=resolved.read_text(encoding="utf-8",errors="replace")
+            names=pattern.findall(content)
+            if names:
+                exports.extend(names)
+                export_sources.append(str(resolved))
+    exports=sorted(set(exports))
+    return {"schema_version":"1.0.0","configuration_id":str(selected.get("name") or build_dir.name),
             "build_testing":build_testing,"build_directory":str(build_dir.resolve()),"cmake_file_api_index":indexes[-1].name,
             "targets":sorted(targets,key=lambda x:x["name"]),"install_entries":sorted(set(install)),
             "exported_targets":sorted(set(exports)),"exported_target_sources":sorted(set(export_sources)),"collection_scope":"cmake_file_api_codemodel_v2",
