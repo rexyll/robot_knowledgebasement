@@ -4896,3 +4896,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - collector提交`71e59c4`并修正正则提交`5648092`：从安装导出CMake文件提取`INTERFACE_INCLUDE_DIRECTORIES`，写入OFF/ON快照。
 - validator提交`0d5fa7f`并收紧判定提交`d0d03d6`：对精确`/asio/include`和未展开`${asio_SOURCE_DIR}`做失败检查，避免将任意合法目录误报。
 - 静态合同测试提交`44f1564`和`2a21c4c`。上述均为静态实现提交，尚无新CI结果；真实ROS Jazzy构建仍待专用workflow运行。
+
+
+### 2026-11-11｜v11.13 补充：安装导出采集器行为测试与快照强制校验
+
+- 将安装导出`INTERFACE_INCLUDE_DIRECTORIES`采集提取为独立函数，并新增临时安装前缀行为测试，实际验证分号分隔属性的路径提取。
+- validator不再把缺失的`exported_target_include_directories`字段默认为空数组；OFF/ON任一快照缺失该字段时均要求重新采集并中止验证，防止旧快照静默绕过`/asio/include`风险检查。
+- 补充检索确认Boost.Asio使用位于实现侧私有头；固定上游虽`find_package(backward_ros REQUIRED)`，但源码检索未发现backward_ros API/header引用，仍只列为依赖元数据待核实项。
+- 相关提交：collector helper`84549734e255f6b640565d8e1fe282e8943fafe0`；行为测试`14ed24307d634c09ddd6ab5d880eaab4e32a4beb`；validator强制快照字段`dec8e76fe389ab277325f6c5d5abb6b4054777c8`；静态测试`f4785e9462f87ee54b38107fcd7ceae95182e18a`。
+- 最新提交尚无可确认CI结果；本轮未执行本地pytest/Ruff或ROS Jazzy动态矩阵。真实OFF/ON build/install、consumer、gtest和证据包仍`NOT_RUN`。A1.1保持`BLOCKED`；`TODO-EXT-001`未授权；固定上游不变。
