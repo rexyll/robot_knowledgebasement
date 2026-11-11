@@ -226,3 +226,78 @@ def test_duplicate_cmake_target_ids_fail_closed(tmp_path):
         assert "duplicate CMake target id" in str(exc)
     else:
         raise AssertionError("duplicate target IDs must fail")
+
+def test_target_json_id_must_match_codemodel_reference(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    core["id"] = "different-core-id"
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "target id mismatch" in str(exc)
+    else:
+        raise AssertionError("target JSON ID mismatch must fail")
+
+
+def test_target_json_name_must_match_codemodel_reference(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    core["name"] = "different_core_name"
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "target name mismatch" in str(exc)
+    else:
+        raise AssertionError("target JSON name mismatch must fail")
+
+
+def test_malformed_compile_groups_fail_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    core["compileGroups"] = {"includes": []}
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "compileGroups must be an array" in str(exc)
+    else:
+        raise AssertionError("malformed compileGroups must fail")
+
+
+def test_malformed_compile_include_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    core["compileGroups"][0]["includes"] = [{"not_path": "/opt/ros/include"}]
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "includes contains an invalid entry" in str(exc)
+    else:
+        raise AssertionError("malformed compile include must fail")
+
+
+def test_malformed_compile_definition_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    core = json.loads((reply / "core.json").read_text(encoding="utf-8"))
+    core["compileGroups"][0]["defines"] = [{"not_define": "CORE_BUILD=1"}]
+    put(reply / "core.json", core)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "defines contains an invalid entry" in str(exc)
+    else:
+        raise AssertionError("malformed compile definition must fail")
+
