@@ -134,3 +134,13 @@ def test_verify_rejects_path_traversal(tmp_path):
 
     with pytest.raises(ValueError, match="escapes"):
         verify_manifest(manifest)
+
+def test_package_refuses_invalid_validator_json(tmp_path):
+    off, on, report = make_inputs(tmp_path)
+    report.write_text("{invalid json\\n", encoding="utf-8")
+    output = tmp_path / "evidence"
+
+    with pytest.raises(json.JSONDecodeError):
+        package_evidence(output, off, on, report)
+
+    assert not output.exists()
