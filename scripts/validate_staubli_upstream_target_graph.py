@@ -141,6 +141,14 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             f"{name} must exist when BUILD_TESTING=ON",
         )
 
+    for name in GTEST_TARGETS:
+        target = on_targets.get(name)
+        check(
+            f"GTEST-TYPE-ON-{name}",
+            target is not None and target.get("type") == "EXECUTABLE",
+            f"{name} must be an EXECUTABLE when BUILD_TESTING=ON",
+        )
+
     for label, targets in (("OFF", off_targets), ("ON", on_targets)):
         check(
             f"DIAGNOSTIC-TARGET-{label}",
@@ -192,7 +200,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         leaked_install = sorted(
             name
             for name in GTEST_TARGETS
-            if any(name in entry for entry in install_entries)
+            if any(Path(entry).name == name for entry in install_entries)
         )
         check(
             f"INSTALL-EXCLUDES-GTEST-{label}",
@@ -238,11 +246,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             "standalone Asio path: "
             + (", ".join(unresolved_asio_paths) or "none"),
         )
-        leaked_exports = sorted(
-            name
-            for name in GTEST_TARGETS
-            if any(name in exported for exported in exports)
-        )
+        leaked_exports = sorted(name for name in GTEST_TARGETS if name in export_names)
         check(
             f"EXPORT-PRODUCTION-TARGETS-{label}",
             not missing_exports,
