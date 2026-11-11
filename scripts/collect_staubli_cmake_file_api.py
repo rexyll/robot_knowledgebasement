@@ -133,6 +133,7 @@ def collect(
         )
 
     exported_targets = []
+    exported_target_include_directories = []
     export_sources = []
     if exports_file:
         exported_targets = [
@@ -174,6 +175,15 @@ def collect(
             if names:
                 exported_targets.extend(names)
                 export_sources.append(str(resolved))
+            # CMake install exports encode transitive include paths in this
+            # property. Preserve them so validation can detect stale absolute
+            # paths such as an undefined ${asio_SOURCE_DIR} expansion.
+            for value in re.findall(
+                r'INTERFACE_INCLUDE_DIRECTORIES\\s+"([^"]*)"', content
+            ):
+                exported_target_include_directories.extend(
+                    item for item in value.split(";") if item
+                )
 
     return {
         "schema_version": "1.0.0",
@@ -184,6 +194,9 @@ def collect(
         "targets": sorted(targets, key=lambda item: item["name"]),
         "install_entries": sorted(set(install_entries)),
         "exported_targets": sorted(set(exported_targets)),
+        "exported_target_include_directories": sorted(
+            set(exported_target_include_directories)
+        ),
         "exported_target_sources": sorted(set(export_sources)),
         "collection_scope": "cmake_file_api_codemodel_v2",
         "limitations": [
