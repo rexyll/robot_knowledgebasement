@@ -8,7 +8,8 @@
     "build_testing",
     "targets",
     "install_entries",
-    "exported_targets"
+    "exported_targets",
+    "exported_target_include_directories"
   ],
   "properties": {
     "schema_version": {
@@ -86,6 +87,12 @@
       }
     },
     "exported_targets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exported_target_include_directories": {
       "type": "array",
       "items": {
         "type": "string"
