@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
 from argparse import Namespace
+from pathlib import Path
 
 from scripts.validate_staubli_upstream_target_graph import (
     DIAGNOSTIC_TARGET,
