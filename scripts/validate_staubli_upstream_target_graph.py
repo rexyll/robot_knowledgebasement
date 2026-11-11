@@ -231,9 +231,19 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         "errors": errors,
         "limitations": [
             "A normalized CMake File API snapshot does not prove C++ runtime behavior.",
-            "Install manifest and imported target scanning do not replace an install-space consumer build.",
-            "Plugin load/unload, ABI, sanitizer, ROS runtime, VAL3, CS9, HIL and real-robot tests are outside this validator.",
-            "The diagnostic executable test_receive_robot_state is intentionally installed by the fixed upstream CMakeLists.txt and is not classified as an ament gtest target.",
+            (
+                "Install manifest and imported target scanning do not replace an "
+                "install-space consumer build."
+            ),
+            (
+                "Plugin load/unload, ABI, sanitizer, ROS runtime, VAL3, CS9, HIL "
+                "and real-robot tests are outside this validator."
+            ),
+            (
+                "The diagnostic executable test_receive_robot_state is "
+                "intentionally installed by the fixed upstream CMakeLists.txt "
+                "and is not classified as an ament gtest target."
+            ),
         ],
     }
 
