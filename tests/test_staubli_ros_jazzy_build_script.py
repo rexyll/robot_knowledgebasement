@@ -70,3 +70,14 @@ def test_manual_ros_workflow_pins_image_and_upstream_source():
     assert "ros-jazzy-backward-ros" in workflow
     assert "bash scripts/run_staubli_build_testing_matrix.sh" in workflow
     assert "staubli-ros-jazzy-build-install-evidence" in workflow
+
+ 
+def test_install_consumer_links_exported_target_directly():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert (
+        "target_link_libraries(staubli_install_consumer PRIVATE "
+        "staubli_robot_driver::staubli_robot_driver)"
+    ) in content
+    assert (
+        "ament_target_dependencies(staubli_install_consumer staubli_robot_driver)"
+    ) not in content
