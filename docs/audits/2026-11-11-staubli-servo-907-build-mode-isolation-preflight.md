@@ -227,3 +227,30 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 ### 14.4 验收边界
 
 上述代码与静态合同测试已提交知识库`main`，但尚未取得这些提交对应的CI结果。真实ROS Jazzy OFF/ON colcon build/install、公共头文件consumer编译/运行、gtest和manifest真实证据包仍为`NOT_RUN`。本次不修改固定上游，不创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
+
+## 15. Boost.Asio 与未定义 asio_SOURCE_DIR 静态核查（2026-11-11）
+
+### 15.1 源码依赖证据
+
+固定上游 `staubli_robot_driver/src/communication/udp_socket_impl.hpp` 使用 `#include <boost/asio.hpp>`，并通过 `boost::asio`、`boost::system::error_code` 实现 UDP socket。`CMakeLists.txt` 对应执行 `find_package(Boost REQUIRED COMPONENTS system)` 并链接 `Boost::system`。本轮仓库代码搜索未发现对 standalone Asio 的 `#include <asio.hpp>` 或其他直接使用。
+
+### 15.2 可疑 CMake include 路径
+
+同一固定上游 `CMakeLists.txt` 却额外向生产库的 PUBLIC include directories 添加 `${asio_SOURCE_DIR}/asio/include`。对固定commit全仓搜索仅找到这一处引用；未找到 `FetchContent_Declare(asio)`、`find_package(asio)` 或其他变量赋值。当前知识库workflow也未向CMake传入 `asio_SOURCE_DIR`。因此在当前执行入口下，该变量没有已知定义来源，空变量展开后形成 `/asio/include` 这一可疑PUBLIC include路径。
+
+这项静态证据说明该路径与实际 `Boost.Asio` include 不一致，且 standalone Asio 的系统包并非当前源码已证实的直接依赖；但在真实ROS Jazzy CMake configure/build前，不把它夸大为已复现的编译阻断。它可能只是无效/遗留的PUBLIC include目录，也可能在导出的INTERFACE_INCLUDE_DIRECTORIES中污染下游consumer。真实影响须由OFF/ON build快照和install-space consumer结果确定。
+
+### 15.3 知识库侧构建环境清理
+
+- 从专用workflow移除未被固定上游源码使用的 `libasio-dev` 安装项。
+- 从构建矩阵脚本移除对 `libasio-dev` 和 `/usr/include/asio.hpp` 的强制检查；保留 `libboost-system-dev` 检查，因为源码明确使用 Boost.Asio 且CMake要求 Boost.System。
+- 新增静态合同测试，确保workflow不再把 standalone Asio 当作必需依赖，同时保留 Boost.System。
+- 以上只清理知识库构建入口，不修改固定上游CMake，也不擅自改写上游package.xml。
+
+### 15.4 其他依赖元数据
+
+`package.xml`未声明 `Boost` 和 `backward_ros`，但CMake分别执行 `find_package(Boost REQUIRED COMPONENTS system)` 与 `find_package(backward_ros REQUIRED)`。当前workflow显式安装对应系统/ROS包，因而可能使CI环境掩盖上游manifest依赖缺口。源码检索确认Boost.Asio用于私有实现头；backward_ros当前仍只有CMake查找证据，未证实其需要导出给下游。两项均保留为上游构建依赖元数据待核实，不擅自推定其rosdep key或修改上游。
+
+### 15.5 当前验收边界
+
+本次只调整知识库workflow/script/test，并增加静态审计证据。新提交对应普通CI尚待复验；真实ROS Jazzy OFF/ON build/install、PUBLIC include path导出内容、consumer编译/运行、gtest和SHA-256 evidence仍为`NOT_RUN`。固定上游commit不变；无上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
