@@ -14,6 +14,8 @@ INSTALL_ROOT="${INSTALL_ROOT:-${OUTPUT_DIR}/install}"
 LOG_ROOT="${LOG_ROOT:-${OUTPUT_DIR}/logs}"
 EVIDENCE_DIR="${EVIDENCE_DIR:-${OUTPUT_DIR}/evidence}"
 CONSUMER_ROOT="${CONSUMER_ROOT:-${OUTPUT_DIR}/consumer}"
+CONSUMER_FAILURES_FILE="${OUTPUT_DIR}/install-consumer-findings.txt"
+: > "${CONSUMER_FAILURES_FILE}"
 
 SOURCE_DIR="$(cd "${SOURCE_DIR}" && pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -125,6 +127,9 @@ PACKAGE_XML
 cmake_minimum_required(VERSION 3.8)
 project(staubli_install_consumer)
 find_package(ament_cmake REQUIRED)
+# Resolve Boost explicitly so the consumer harness does not hide the separate
+# upstream omission from ament_export_dependencies().
+find_package(Boost REQUIRED COMPONENTS system)
 find_package(staubli_robot_driver REQUIRED)
 add_executable(staubli_install_consumer main.cpp)
 target_link_libraries(staubli_install_consumer PRIVATE staubli_robot_driver::staubli_robot_driver)
@@ -153,13 +158,19 @@ CPP
     unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH
     source_ros_environment "${ROS_SETUP}"
     source_ros_environment "${install_base}/setup.bash"
-    run_logged colcon --log-base "${CONSUMER_ROOT}/logs-${lower}" build \
+    if run_logged colcon --log-base "${CONSUMER_ROOT}/logs-${lower}" build \
       --base-paths "${consumer_src}" \
       --build-base "${CONSUMER_ROOT}/build-${lower}" \
       --install-base "${CONSUMER_ROOT}/install-${lower}" \
-      --event-handlers console_direct+
-    run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"
-    printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
+      --event-handlers console_direct+; then
+      if run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"; then
+        printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
+      else
+        printf 'BUILD_TESTING=%s: consumer executable failed\n' "${mode}" | tee -a "${CONSUMER_FAILURES_FILE}"
+      fi
+    else
+      printf 'BUILD_TESTING=%s: installed CMake package consumer configure/build failed\n' "${mode}" | tee -a "${CONSUMER_FAILURES_FILE}"
+    fi
   )
 done
 
@@ -207,6 +218,11 @@ for name in sorted(expected):
         )
 print(f"UPSTREAM_GTEST_XML_PASS reports={len(expected)}")
 PY
+
+if [[ -s "${CONSUMER_FAILURES_FILE}" ]]; then
+  printf "INSTALL_SPACE_CONSUMER_FINDINGS_PRESENT\n" | tee -a "${command_log}"
+  cat "${CONSUMER_FAILURES_FILE}" | tee -a "${command_log}"
+fi
 
 run_logged python3 "${SCRIPT_DIR}/validate_staubli_upstream_target_graph.py" \
   --build-off "${OUTPUT_DIR}/build-testing-off.json" \
