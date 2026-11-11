@@ -4735,3 +4735,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **新增历史失败：** SERVO-906测试文件的Ruff导入排序回归导致CI #3587–#3593、#3595–#3597共10条失败run；三版本matrix均在Lint失败，OSV/SBOM成功，pytest未执行。
 - **修复方向：** 调整导入顺序与空行；后续main CI运行验证。历史run保持failure，不改写。
 - **统计：** 2026-11-03至2026-11-11失败run由171更新为181；11月11日由72更新为82。新增10条已加入CSV逐条索引，均归并为同一个Ruff I001导入排序问题，不视为10个独立缺陷。
+
+
+### 2026-11-11｜SERVO-907运行环境锁定与CI-HIST-001统计补正
+
+- **ROS镜像：** 核实OSRF `osrf/ros:jazzy-desktop-full` 的linux/amd64 manifest digest为 `sha256:ae7ad3ac243da1dfd8bd402a2fa08e149ffbf7a385013bd8ef798d0800accdc8`（Ubuntu 24.04/Noble）；ROS Index列有Jazzy backward_ros 1.0.8；Ubuntu Noble提供libboost-system-dev与libasio-dev。
+- **Workflow：** 新增手动触发 `.github/workflows/staubli-ros-jazzy-build.yml`，固定容器digest、固定上游commit，显式安装CMake缺失依赖，执行SERVO-906双配置build/install/consumer/gtest和证据归档。workflow尚未触发，真实ROS构建仍NOT_RUN。
+- **CI失败统计：** 新增10条Ruff I001导入排序run（#3587–#3593、#3595–#3597）和1条Ruff E501行宽run（#3598）；I001通过格式调整修复，E501通过拆分digest字符串修复。#3599 SUCCESS；历史run保持failure不改写。
+- **统计纠正：** 2026-11-03至2026-11-11共182条失败run，11/11为83条；新增11条均已纳入CSV索引，其中10条归并为一个I001问题、1条为E501问题。
