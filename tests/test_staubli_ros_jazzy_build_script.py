@@ -37,3 +37,18 @@ def test_build_matrix_shell_syntax_is_valid():
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_manual_ros_workflow_pins_image_and_upstream_source():
+    workflow = (
+        Path(__file__).parents[1]
+        / ".github"
+        / "workflows"
+        / "staubli-ros-jazzy-build.yml"
+    ).read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in workflow
+    assert "osrf/ros@sha256:ae7ad3ac243da1dfd8bd402a2fa08e149ffbf7a385013bd8ef798d0800accdc8" in workflow
+    assert "bd658e2d266e315d2ee35f985fb352ea88306b79" in workflow
+    assert "ros-jazzy-backward-ros" in workflow
+    assert "bash scripts/run_staubli_build_testing_matrix.sh" in workflow
+    assert "staubli-ros-jazzy-build-install-evidence" in workflow
