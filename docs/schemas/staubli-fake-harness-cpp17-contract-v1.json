@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0.0",
+  "node": "SERVO-900",
+  "scope": "knowledge_base_specification_only",
+  "language_standard": "C++17",
+  "implementation_present": false,
+  "production_targets": [
+    "staubli_socket_core",
+    "staubli_driver_plugin"
+  ],
+  "test_only_targets": [
+    "staubli_socket_test_support",
+    "staubli_socket_unit_tests"
+  ],
+  "target_isolation": {
+    "test_support_exists_only_when_BUILD_TESTING": true,
+    "production_link_closure_must_exclude": [
+      "staubli_socket_test_support",
+      "FakeClock",
+      "DeterministicBarrier",
+      "DeterministicLatch",
+      "DeterministicExecutor",
+      "FaultInjector",
+      "FaultScript"
+    ],
+    "install_test_support": false,
+    "export_test_support": false,
+    "plugin_may_link_test_support": false,
+    "global_test_compile_definitions_forbidden": true
+  },
+  "interfaces": {
+    "FakeClock": {
+      "monotonic": true,
+      "advance_non_negative_only": true,
+      "overflow_fails_closed": true,
+      "wall_clock_sleep_forbidden": true
+    },
+    "DeterministicBarrier": {
+      "unique_participant_ids": true,
+      "release_requires_all_arrivals": true,
+      "cancel_is_terminal": true,
+      "wall_clock_ordering_forbidden": true
+    },
+    "DeterministicLatch": {
+      "unique_participant_ids": true,
+      "cancel_is_terminal": true,
+      "wall_clock_ordering_forbidden": true
+    },
+    "DeterministicExecutor": {
+      "bounded_queue": true,
+      "reject_after_shutdown": true,
+      "duplicate_task_id_rejected": true,
+      "cancel_queued_only": true,
+      "shutdown_requires_queued_and_running_zero": true,
+      "detach_forbidden": true
+    },
+    "FaultInjector": {
+      "immutable_rules": true,
+      "deterministic_matching": true,
+      "duplicate_fault_id_rejected": true,
+      "conflicting_rules_rejected": true,
+      "resource_release_forbidden": true
+    }
+  },
+  "acceptance": [
+    {
+      "id": "TARGET-ISO-01",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "TARGET-ISO-02",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "TARGET-ISO-03",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "TARGET-ISO-04",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "CLOCK-01",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "BARRIER-01",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "BARRIER-02",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EXEC-API-01",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EXEC-API-02",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EXEC-API-03",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "FAULT-01",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "TRACE-01",
+      "specification_status": "SPECIFIED",
+      "compile_status": "NOT_RUN",
+      "runtime_status": "NOT_RUN"
+    }
+  ],
+  "next_node": "§9.3.318 / SERVO-901"
+}
