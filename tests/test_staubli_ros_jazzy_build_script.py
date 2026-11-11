@@ -150,6 +150,7 @@ def test_export_collector_captures_installed_include_directories():
     assert "INTERFACE_INCLUDE_DIRECTORIES" in collector
     assert "asio_SOURCE_DIR" in collector
 
+
 def test_export_collector_reads_installed_interface_include_directories(tmp_path):
     collector_path = (
         Path(__file__).parents[1]
