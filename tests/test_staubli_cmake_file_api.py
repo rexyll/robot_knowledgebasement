@@ -456,7 +456,7 @@ def test_export_symlink_cannot_escape_install_prefix(tmp_path):
     targets.parent.mkdir(parents=True)
     outside = tmp_path / "outsideTargets.cmake"
     outside.write_text(
-        "add_library(staubli::hidden SHARED IMPORTED)\\n",
+        "add_library(staubli::hidden SHARED IMPORTED)\n",
         encoding="utf-8",
     )
     targets.symlink_to(outside)
