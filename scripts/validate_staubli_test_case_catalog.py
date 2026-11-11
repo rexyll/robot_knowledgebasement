@@ -108,7 +108,10 @@ def validate_catalog(
             )
         catalog_reverse[test_id] = set(declared)
         for record_id in declared:
-            if record_id in manifest_records and test_id not in manifest_records[record_id]["test_refs"]:
+            if (
+                record_id in manifest_records
+                and test_id not in manifest_records[record_id]["test_refs"]
+            ):
                 errors.append(
                     f"cross_reference: catalog {test_id} names {record_id}, "
                     "but manifest record does not reference the test"
@@ -181,7 +184,10 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
             )
         except OSError as exc:
-            print(f"Catalog validator error: cannot write report {args.report}: {exc}", file=sys.stderr)
+            print(
+                f"Catalog validator error: cannot write report {args.report}: {exc}",
+                file=sys.stderr,
+            )
             return 2
     if errors:
         print(f"Stäubli RACE/EXEC catalog validation FAIL: {len(errors)} finding(s).")
