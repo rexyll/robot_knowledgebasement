@@ -113,15 +113,22 @@ CMAKE
 int main() { return 0; }
 CPP
 
-  source "${install_base}/setup.bash"
-  run_logged colcon build \
-    --base-paths "${consumer_src}" \
-    --build-base "${CONSUMER_ROOT}/build-${lower}" \
-    --install-base "${CONSUMER_ROOT}/install-${lower}" \
-    --log-base "${CONSUMER_ROOT}/logs-${lower}" \
-    --event-handlers console_direct+
-  printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
-  source "${ROS_SETUP}"
+  # Run each consumer in a clean ROS environment. Sourcing a second overlay
+  # into the parent shell would retain the first mode in AMENT/CMAKE prefixes
+  # and could let OFF/ON consumer checks resolve against the wrong install tree.
+  (
+    unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH
+    unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH
+    source "${ROS_SETUP}"
+    source "${install_base}/setup.bash"
+    run_logged colcon build \
+      --base-paths "${consumer_src}" \
+      --build-base "${CONSUMER_ROOT}/build-${lower}" \
+      --install-base "${CONSUMER_ROOT}/install-${lower}" \
+      --log-base "${CONSUMER_ROOT}/logs-${lower}" \
+      --event-handlers console_direct+
+    printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
+  )
 done
 
 run_logged colcon test \
