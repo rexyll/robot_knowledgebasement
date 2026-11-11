@@ -25,7 +25,7 @@ def snapshot(
         "install_entries": install_entries,
         "exported_targets": exported_targets,
         "exported_target_include_directories": (
-            []
+            ["${_IMPORT_PREFIX}/include"]
             if exported_target_include_directories is None
             else exported_target_include_directories
         ),
@@ -253,3 +253,22 @@ def test_missing_export_include_evidence_is_rejected(tmp_path):
         assert "exported_target_include_directories is required" in str(exc)
     else:
         raise AssertionError("missing export include evidence must be rejected")
+
+
+def test_empty_export_include_evidence_is_rejected(tmp_path):
+    off, on = valid_pair(tmp_path)
+    for path in (off, on):
+        data = json.loads(path.read_text())
+        data["exported_target_include_directories"] = []
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any(
+        "EXPORT-INSTALL-INCLUDE-DIRECTORY-OFF" in error
+        for error in report["errors"]
+    )
+    assert any(
+        "EXPORT-INSTALL-INCLUDE-DIRECTORY-ON" in error
+        for error in report["errors"]
+    )
