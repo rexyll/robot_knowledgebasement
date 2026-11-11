@@ -5828,3 +5828,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **workflow状态：** 最近Actions列表没有SERVO-907的workflow_dispatch运行。CI #3622及后续普通CI只覆盖Python/静态合同测试；真实ROS Jazzy OFF/ON build/install、consumer、gtest仍NOT_RUN。
 - **处置边界：** 不修改固定上游，不在consumer侧补依赖以掩盖上游导出问题；若真实consumer失败，先留存完整CMake日志与安装导出文件，再提出上游修复建议。TODO-EXT-001未授权，A1.1保持BLOCKED。
 - **下一步：** 用户手动触发SERVO-907 ROS Jazzy workflow，首先核对两套install-space consumer的依赖发现与链接结果，再检查gtest和SHA-256证据包。
+
+
+### §9.3.324 补充｜Consumer 显式链接 Ament 导出 target
+
+- **改进：** 双配置consumer不再仅通过`ament_target_dependencies()`间接消费Stäubli包，改为直接链接`staubli_robot_driver::staubli_robot_driver`。这使测试直接覆盖`ament_export_targets(export_staubli_robot_driver HAS_LIBRARY_TARGET)`产生的namespaced imported target及其传递链接接口。
+- **静态合同：** `tests/test_staubli_ros_jazzy_build_script.py`新增断言，要求直接链接导出target且禁止旧的间接写法。
+- **提交：** `ed422168d8669eb683281c80101b6e60ade61f36`（脚本）、`22fc89228c9533bc9adfc91e442b05ee324b3cc7`（测试）、`ca3fbed2e81546789e3dd7e61cb5aa4cb7b4489c`（审计报告）。
+- **依据：** ROS 2官方ament_cmake文档说明`ament_export_targets`用于导出CMake targets供下游通过`target_link_libraries(client PRIVATE package::target)`链接；`ament_export_dependencies`负责传递依赖发现。
+- **状态：** 修改已提交，静态合同测试待CI复验；真实ROS Jazzy OFF/ON build/install/consumer/gtest仍NOT_RUN。该改动不修改固定上游，不在consumer端补Boost依赖以掩盖导出问题。
+- **下一步：** 复核本轮Python CI；真实运行仍需用户手动触发SERVO-907 workflow。
