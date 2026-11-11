@@ -74,17 +74,57 @@ def read_export_file(path: Path) -> str:
         raise ValueError(f"CMake export file is not valid UTF-8: {path}") from exc
 
 
+def split_cmake_list(value: str) -> list[str]:
+    """Split a CMake list while honoring escaped separators and quoted escapes."""
+    items = []
+    current = []
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if char == "\\" and index + 1 < len(value):
+            escaped = value[index + 1]
+            if escaped == "\r" and index + 2 < len(value) and value[index + 2] == "\n":
+                index += 3
+                continue
+            if escaped == "\n":
+                index += 2
+                continue
+            if escaped == "t":
+                current.append("\t")
+            elif escaped == "r":
+                current.append("\r")
+            elif escaped == "n":
+                current.append("\n")
+            elif not escaped.isalnum() or escaped == "_":
+                current.append(escaped)
+            else:
+                current.extend((char, escaped))
+            index += 2
+            continue
+        if char == ";":
+            item = "".join(current)
+            if item:
+                items.append(item)
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    item = "".join(current)
+    if item:
+        items.append(item)
+    return items
+
+
 def collect_exported_target_include_directories(export_root: Path) -> list[str]:
     """Read interface include paths from installed CMake export files."""
     include_directories = set()
+    property_pattern = re.compile(
+        r'INTERFACE_INCLUDE_DIRECTORIES\s+"((?:\\[\s\S]|[^"\\])*)"'
+    )
     for path in find_export_files(export_root):
         content = read_export_file(path)
-        for value in re.findall(
-            r'INTERFACE_INCLUDE_DIRECTORIES\s+"([^"]*)"', content
-        ):
-            include_directories.update(
-                item for item in value.split(";") if item
-            )
+        for value in property_pattern.findall(content):
+            include_directories.update(split_cmake_list(value))
     return sorted(include_directories)
 
 
