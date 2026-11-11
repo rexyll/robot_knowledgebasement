@@ -108,6 +108,7 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "EXEC-02",
         "RACE-02",
         "RACE-05",
         "RACE-14"
@@ -225,9 +226,11 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "EXEC-01",
+        "RACE-08",
         "RACE-09",
-        "RACE-14",
-        "EXEC-01"
+        "RACE-10",
+        "RACE-14"
       ],
       "resource_key": "core_worker_generation",
       "ownership_phase": "RESIDUAL_TRANSFERRED"
@@ -255,6 +258,7 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "RACE-01",
         "RACE-07",
         "RACE-15"
       ],
@@ -314,6 +318,7 @@
       "test_refs": [
         "RACE-02",
         "RACE-07",
+        "RACE-08",
         "RACE-16"
       ],
       "resource_key": "driver_channel_pair",
@@ -342,6 +347,7 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "RACE-01",
         "RACE-07",
         "RACE-15"
       ],
@@ -371,8 +377,11 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "EXEC-02",
+        "EXEC-03",
         "RACE-06",
-        "EXEC-03"
+        "RACE-08",
+        "RACE-12"
       ],
       "resource_key": "driver_lifecycle_generation",
       "ownership_phase": "ACTIVE"
@@ -455,6 +464,7 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "RACE-04",
         "RACE-15"
       ],
       "resource_key": "socket_core_generation",
@@ -510,8 +520,9 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
-        "RACE-13",
-        "EXEC-03"
+        "EXEC-03",
+        "RACE-12",
+        "RACE-13"
       ],
       "resource_key": "plugin_dso_generation",
       "ownership_phase": "ACTIVE"
@@ -679,8 +690,9 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "EXEC-01",
         "RACE-09",
-        "EXEC-01"
+        "RACE-10"
       ],
       "resource_key": "core_worker_generation",
       "ownership_phase": "RESIDUAL_TRANSFERRED"
@@ -707,6 +719,7 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "RACE-01",
         "RACE-07",
         "RACE-15"
       ],
@@ -823,9 +836,10 @@
       ],
       "status": "SPECIFIED",
       "test_refs": [
+        "EXEC-03",
         "RACE-03",
-        "RACE-07",
-        "EXEC-03"
+        "RACE-04",
+        "RACE-07"
       ],
       "resource_key": "driver_lifecycle_generation",
       "ownership_phase": "ACTIVE"
