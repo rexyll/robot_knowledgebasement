@@ -193,3 +193,37 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 - 该CI不运行ROS Jazzy容器，也不执行C++ build/install或consumer程序。
 - 真实OFF/ON colcon build/install、consumer运行、gtest、证据包生成及SHA-256验证仍为NOT_RUN。
 - 固定上游未修改；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。
+
+
+## 14. Public-header dependency export coverage补强（2026-11-11）
+
+### 14.1 固定上游静态证据
+
+在固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79` 中进一步核对：
+
+- 已安装公共头文件 `include/staubli_robot_driver/real_time_socket_subscriber.hpp` 明确包含 `<realtime_tools/realtime_thread_safe_box.hpp>`，并在类成员中使用 `realtime_tools::RealtimeThreadSafeBox<MessageType>`。
+- 该包的 `CMakeLists.txt` 将 `realtime_tools` 放入生产目标 `DEPENDENCIES`，并通过 `ament_target_dependencies()` 配置构建目标。
+- 同一文件的 `ament_export_dependencies()` 清单遗漏 `realtime_tools`。
+- `package.xml` 已声明 `<depend>realtime_tools</depend>`，但这不能替代CMake config对下游导出依赖的声明。
+
+因此，realtime_tools不是仅供实现文件使用的私有依赖，而是公开安装头文件的直接依赖。此前consumer只包含`protocol.hpp`，没有覆盖这个公共头文件，不能充分验证该导出路径。
+
+### 14.2 Consumer fixture补强
+
+- 更新 `scripts/run_staubli_build_testing_matrix.sh` 生成的consumer `main.cpp`，新增包含 `staubli_robot_driver/real_time_socket_subscriber.hpp`；继续调用非内联 `FrameHeader::serialize`，同时覆盖共享库链接与公共头文件依赖。
+- 新增静态合同测试，要求consumer fixture包含该公共头文件。
+- 脚本提交：`1ff335332f37185d2d52f8cfcf7917aeca0e8eb4`。
+- 测试提交：`dfd9af37452c90ef559159325abe69b7feb518d0`。
+
+该consumer不显式`find_package(realtime_tools)`，也不手工添加其include目录，避免掩盖被测包的导出缺口。若真实ROS Jazzy install-space consumer因此无法编译，应保存完整CMake/编译日志和导出文件，归类为上游Ament依赖导出问题；不得在知识库侧修改固定上游。
+
+### 14.3 依赖风险分级修正
+
+- **realtime_tools：** 已有明确公共头文件依赖证据，且Ament导出清单遗漏；列为高优先级待真实consumer验证项。
+- **Boost.System：** 当前仅在上游实现源/私有实现头中使用，CMake的`target_link_libraries()`未显式指定PUBLIC/INTERFACE范围；不能仅凭`ament_export_dependencies()`未列Boost就断言它必然是下游导出target缺陷。但`package.xml`未声明Boost构建依赖，仍需核实干净rosdep环境的依赖可复现性；当前workflow通过apt显式安装，不能替代包元数据正确性。
+- **backward_ros：** 固定CMake中可见`find_package(backward_ros REQUIRED)`，但本次检索未发现其在已检索源文件中的公开头文件或导出target使用。暂列为构建依赖元数据待核实项，不将其直接认定为下游传递导出缺陷；`package.xml`未声明该依赖。
+- **asio_SOURCE_DIR：** CMake仍使用该变量构造include路径；当前静态检索未发现变量定义来源。保留为独立构建配置待验证项，不与Ament export问题混为一谈。
+
+### 14.4 验收边界
+
+上述代码与静态合同测试已提交知识库`main`，但尚未取得这些提交对应的CI结果。真实ROS Jazzy OFF/ON colcon build/install、公共头文件consumer编译/运行、gtest和manifest真实证据包仍为`NOT_RUN`。本次不修改固定上游，不创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
