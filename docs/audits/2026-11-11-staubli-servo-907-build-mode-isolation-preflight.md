@@ -325,3 +325,33 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 - 实现提交6bf1fa5146b7ceb32aead67b2706608637fde11b；行为测试提交99242ab4fa9d8a6c68f9734c3d36a3aa5a03b60f。
 - CI #3702（Run ID 42968762503）在实现提交上SUCCESS；CI #3703（Run ID 42968810375）在行为测试提交上SUCCESS，Python 3.10/3.11/3.12、OSV、SBOM全部成功；三个版本Ruff均通过，pytest均为126 passed。
 - 这修复了静态确认的采集器布局覆盖缺口，但不是ROS Jazzy真实构建结果。仍需手动触发专用workflow确认真实install tree、导出文件、consumer与gtest；当前workflow_dispatch运行数为0。固定上游commit不变，未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+
+
+## 20. CI #3704–#3706复验与下一阶段阻塞项（2026-11-11）
+
+### 20.1 普通CI最终状态
+
+- 当前main HEAD（本节更新前）：`843e18595dacdc77527b87004ea88b443c9ec651`。
+- CI #3704 / Run ID `42968933020`（审计报告提交）：SUCCESS。
+- CI #3705 / Run ID `42968943114`（第21章TaskPlan提交）：SUCCESS。
+- CI #3706 / Run ID `42968965060`（根TaskPlan提交）：SUCCESS。
+- #3706五个job全部完成且成功：Python 3.10、3.11、3.12测试，OSV依赖审计，SBOM生成。此结果确认普通CI无遗留失败；不代表ROS Jazzy/C++构建成功。
+
+### 20.2 专用workflow与上游风险状态
+
+- 再次查询Actions最近100条运行记录，未发现Stäubli ROS Jazzy专用workflow的`workflow_dispatch`运行。
+- 当前静态复核确认固定上游公共头文件`real_time_socket_subscriber.hpp`包含`realtime_tools/realtime_thread_safe_box.hpp`，而`ament_export_dependencies()`遗漏`realtime_tools`。这仍是高优先级真实consumer验证风险，不是已复现的动态失败。
+- 固定上游README说明该驱动面向ROS 2 Jazzy/Ubuntu 24.04及CS9控制器，但项目仍处于prototype状态，且README称自2025年11月POC后开发暂停。故即使CI通过，也不能将其描述为工业级或量产就绪驱动。来源：上游项目README（https://github.com/ICube-Robotics/staubli_driver_ros2）。
+
+### 20.3 真实验收仍未执行
+
+以下项目全部保持`NOT_RUN`：
+- ROS Jazzy固定镜像中的`BUILD_TESTING=OFF/ON`真实colcon build/install；
+- OFF/ON两套install-space consumer编译、链接和运行；
+- 上游gtest及测试结果；
+- 安装导出target/include快照、validator报告；
+- evidence manifest生成及SHA-256验证。
+
+下一步仍是由具备仓库write权限的用户在Actions页面手动触发专用workflow；取得真实日志和artifact后，优先判断`realtime_tools`公共头文件依赖导出是否阻断consumer，再决定是否提交知识库侧修正或形成上游修复建议。
+
+固定上游commit保持`bd658e2d266e315d2ee35f985fb352ea88306b79`；未修改上游、未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
