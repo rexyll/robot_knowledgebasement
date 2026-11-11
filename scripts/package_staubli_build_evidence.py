@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Capture a Stäubli build environment and package hash-verifiable evidence."""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import hashlib

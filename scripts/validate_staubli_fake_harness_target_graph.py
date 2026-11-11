@@ -4,7 +4,7 @@
 This validator consumes normalized snapshots exported by a separate CMake File API
 collector. It does not claim to compile C++ or inspect a live build tree itself.
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import json
