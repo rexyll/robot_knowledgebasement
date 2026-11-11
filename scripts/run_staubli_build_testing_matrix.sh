@@ -142,7 +142,7 @@ CPP
   (
     unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH
     unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH
-    source "${ROS_SETUP}"
+    source_ros_environment "${ROS_SETUP}"
     source_ros_environment "${install_base}/setup.bash"
     run_logged colcon build \
       --base-paths "${consumer_src}" \
