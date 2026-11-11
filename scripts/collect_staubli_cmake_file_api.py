@@ -179,7 +179,7 @@ def collect(
             # property. Preserve them so validation can detect stale absolute
             # paths such as an undefined ${asio_SOURCE_DIR} expansion.
             for value in re.findall(
-                r'INTERFACE_INCLUDE_DIRECTORIES\\s+"([^"]*)"', content
+                r'INTERFACE_INCLUDE_DIRECTORIES\s+"([^"]*)"', content
             ):
                 exported_target_include_directories.extend(
                     item for item in value.split(";") if item
