@@ -13,6 +13,9 @@ stable_ids:
 ownership:
   group_key: [resource_key, ownership_phase]
   group_assignment_consistency: exactly_one_owner_and_one_coordinator_per_group
+  reject_compound_role_strings: true
+  evidence_coverage:
+    every_required_evidence_item_must_be_PRESENT: true
   ownership_phases: [ACTIVE, RESIDUAL_TRANSFERRED, PROCESS_RETAINED]
   resource_owner_cardinality: exactly_one_per_resource_generation
   reconcile_coordinator_cardinality: exactly_one_per_resource_generation
@@ -52,6 +55,9 @@ statuses:
     - local_socket_closed_is_not_remote_session_acked
     - quarantine_handoff_is_not_plugin_unload_safe
 cross_references:
+  required_reference_ids:
+    - RACE-01..RACE-16
+    - EXEC-01..EXEC-04
   all_test_refs_must_resolve_in_reference_catalog: true
   duplicate_record_ids: error
   duplicate_reference_ids: error
