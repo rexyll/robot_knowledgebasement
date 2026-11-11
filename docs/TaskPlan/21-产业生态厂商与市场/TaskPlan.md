@@ -5789,3 +5789,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 | 2026-11-11 | §9.3.324 / SERVO-907与CI-HIST-001 | 核实ROS Jazzy desktop-full linux/amd64镜像digest及Noble依赖包来源；新增手动workflow .github/workflows/staubli-ros-jazzy-build.yml，固定镜像digest/上游commit，显式安装backward_ros、Boost.System、Asio并运行SERVO-906脚本。另记录#3587–#3593、#3595–#3598共11条新失败run（10条Ruff I001、1条E501），修复后CI #3599 SUCCESS。 | Workflow已提交但尚未触发；真实ROS Jazzy build/install/gtest/consumer仍NOT_RUN。历史失败run更新为182（11/11为83），CSV索引已补齐。 |
 
 | 2026-11-11 | CI #3609 最终复验 | main HEAD 1ca72b439bd7742e2aca8bebdd6b402c65077157；CI #3609 SUCCESS，Python 3.10/3.11/3.12各112 passed，Ruff、OSV、SBOM成功；SERVO-906脚本合同、workflow固定digest/commit断言和bash -n静态检查通过。 | 仅知识库Python/静态合同验证；ROS Jazzy容器workflow未触发，真实C++ build/install/gtest/consumer仍NOT_RUN。 |
+
+
+| 2026-11-11 | CI #3611 最终复验补记 | GitHub Actions Run ID `42955926260`，main HEAD `184de16cd974460a17787d3e804add373537a51b`；Python 3.10/3.11/3.12矩阵、Lint、OSV、SBOM作业均SUCCESS。 | 仅验证知识库Python/静态工具链；没有执行SERVO-907独立ROS Jazzy手动workflow。真实colcon build/install、gtest、install-space consumer仍NOT_RUN。 |
