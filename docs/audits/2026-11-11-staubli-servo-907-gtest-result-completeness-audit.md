@@ -60,3 +60,8 @@
 - 固定上游 commit：保持不变，未修改、未创建上游 PR。
 
 下一步应从 GitHub Actions 页面在 `main` 上手动运行专用 workflow，并首先检查 apt/rosdep 阶段是否通过；若进入矩阵，再核对 OFF/ON build/install、consumer、七份 gtest XML、validator 与 evidence manifest。若报告目录与预期不符，应按真实日志修正知识库脚本后重新运行。
+
+
+## 5. 审计文档与计划同步提交的 CI
+
+本审计记录提交 `909673d54bf46c8466f68f78ccdc297555bcf5eb` 对应 Run `43012296237`；第21章同步提交 `abb643c75827fbd2a8dae54feafb3b62a719ee6b` 对应 Run `43012304340`；根计划同步提交 `68a177c0a20aca707fe0ce83e49e7ee60dd3711b` 对应 Run `43012312051`。三次运行均 completed/success，各自五个Job（Python 3.10/3.11/3.12、SBOM、OSV）全部SUCCESS。
