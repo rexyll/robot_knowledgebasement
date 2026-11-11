@@ -17,33 +17,51 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def collect_exported_target_include_directories(export_root: Path) -> list[str]:
-    """Read interface include paths from installed CMake export files."""
+def find_export_files(export_root: Path) -> list[Path]:
+    """Find CMake exports in merged or one-package-per-prefix install layouts."""
     prefix = export_root.resolve()
     if not prefix.is_dir():
         raise FileNotFoundError(f"export root is not a directory: {prefix}")
 
-    include_directories = set()
-    for root in (prefix / "lib" / "cmake", prefix / "share"):
-        if not root.exists():
+    search_roots = [prefix / "lib" / "cmake", prefix / "share"]
+    search_roots.extend(
+        child / relative
+        for child in prefix.iterdir()
+        if child.is_dir()
+        for relative in (Path("lib") / "cmake", Path("share"))
+    )
+
+    candidates = set()
+    for root in search_roots:
+        if not root.is_dir():
             continue
         for pattern_name in ("*Targets.cmake", "*Export.cmake"):
-            for path in root.rglob(pattern_name):
-                resolved = path.resolve()
-                if not resolved.is_relative_to(prefix):
-                    continue
-                relative = resolved.relative_to(prefix)
-                in_lib_cmake = "lib" in relative.parts and "cmake" in relative.parts
-                in_share_cmake = "share" in relative.parts and "cmake" in relative.parts
-                if not (in_lib_cmake or in_share_cmake):
-                    continue
-                content = resolved.read_text(encoding="utf-8", errors="replace")
-                for value in re.findall(
-                    r'INTERFACE_INCLUDE_DIRECTORIES\s+"([^"]*)"', content
-                ):
-                    include_directories.update(
-                        item for item in value.split(";") if item
-                    )
+            candidates.update(root.rglob(pattern_name))
+
+    export_files = []
+    for path in sorted(candidates):
+        resolved = path.resolve()
+        if not resolved.is_relative_to(prefix):
+            continue
+        relative = resolved.relative_to(prefix)
+        in_lib_cmake = "lib" in relative.parts and "cmake" in relative.parts
+        in_share_cmake = "share" in relative.parts and "cmake" in relative.parts
+        if in_lib_cmake or in_share_cmake:
+            export_files.append(resolved)
+    return export_files
+
+
+def collect_exported_target_include_directories(export_root: Path) -> list[str]:
+    """Read interface include paths from installed CMake export files."""
+    include_directories = set()
+    for path in find_export_files(export_root):
+        content = path.read_text(encoding="utf-8", errors="replace")
+        for value in re.findall(
+            r'INTERFACE_INCLUDE_DIRECTORIES\s+"([^"]*)"', content
+        ):
+            include_directories.update(
+                item for item in value.split(";") if item
+            )
     return sorted(include_directories)
 
 
@@ -183,23 +201,7 @@ def collect(
             r"(?:(?:UNKNOWN|STATIC|SHARED|MODULE|INTERFACE)\s+)?IMPORTED\b",
             re.IGNORECASE,
         )
-        cmake_dirs = [prefix / "lib" / "cmake", prefix / "share"]
-        candidates = []
-        for root in cmake_dirs:
-            if not root.exists():
-                continue
-            for pattern_name in ("*Targets.cmake", "*Export.cmake"):
-                candidates.extend(root.rglob(pattern_name))
-
-        for path in sorted(set(candidates)):
-            resolved = path.resolve()
-            if not resolved.is_relative_to(prefix):
-                continue
-            relative = resolved.relative_to(prefix)
-            in_lib_cmake = "lib" in relative.parts and "cmake" in relative.parts
-            in_share_cmake = "share" in relative.parts and "cmake" in relative.parts
-            if not (in_lib_cmake or in_share_cmake):
-                continue
+        for resolved in find_export_files(prefix):
             content = resolved.read_text(encoding="utf-8", errors="replace")
             names = pattern.findall(content)
             if names:
