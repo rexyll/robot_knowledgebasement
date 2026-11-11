@@ -130,6 +130,14 @@ def package_evidence(
     source_dir: Path | None = None,
     command_log: Path | None = None,
 ) -> dict[str, Any]:
+    report = json.loads(validator_report.read_text(encoding="utf-8"))
+    if not isinstance(report, dict):
+        raise ValueError("validator report must be a JSON object")
+    if report.get("execution_status") != "PASS":
+        raise ValueError(
+            "refusing to package evidence unless validator execution_status is PASS"
+        )
+
     output = output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     artifact_dir = output / "artifacts"
