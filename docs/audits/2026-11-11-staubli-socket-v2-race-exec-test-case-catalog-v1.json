@@ -50,7 +50,11 @@
         "clock": "Fake monotonic clock where time is relevant.",
         "fault_injection": "Explicit test hook; no production fault injection assumed."
       },
-      "manifest_record_ids": [],
+      "manifest_record_ids": [
+        "F08",
+        "F11",
+        "PLUG-L08"
+      ],
       "execution_state": "NOT_RUN",
       "evidence_contract": {
         "required_artifacts": [
@@ -190,7 +194,10 @@
         "clock": "Fake monotonic clock where time is relevant.",
         "fault_injection": "Explicit test hook; no production fault injection assumed."
       },
-      "manifest_record_ids": [],
+      "manifest_record_ids": [
+        "F15",
+        "PLUG-L12"
+      ],
       "execution_state": "NOT_RUN",
       "evidence_contract": {
         "required_artifacts": [
@@ -381,7 +388,11 @@
         "clock": "Fake monotonic clock where time is relevant.",
         "fault_injection": "Explicit test hook; no production fault injection assumed."
       },
-      "manifest_record_ids": [],
+      "manifest_record_ids": [
+        "F07",
+        "F10",
+        "F12"
+      ],
       "execution_state": "NOT_RUN",
       "evidence_contract": {
         "required_artifacts": [
@@ -475,7 +486,10 @@
         "clock": "Fake monotonic clock where time is relevant.",
         "fault_injection": "Explicit test hook; no production fault injection assumed."
       },
-      "manifest_record_ids": [],
+      "manifest_record_ids": [
+        "F07",
+        "PLUG-L07"
+      ],
       "execution_state": "NOT_RUN",
       "evidence_contract": {
         "required_artifacts": [
@@ -567,7 +581,10 @@
         "clock": "Fake monotonic clock where time is relevant.",
         "fault_injection": "Explicit test hook; no production fault injection assumed."
       },
-      "manifest_record_ids": [],
+      "manifest_record_ids": [
+        "F12",
+        "PLUG-L01"
+      ],
       "execution_state": "NOT_RUN",
       "evidence_contract": {
         "required_artifacts": [
@@ -858,7 +875,10 @@
         "clock": "Fake monotonic clock where time is relevant.",
         "fault_injection": "Explicit test hook; no production fault injection assumed."
       },
-      "manifest_record_ids": [],
+      "manifest_record_ids": [
+        "F03",
+        "F12"
+      ],
       "execution_state": "NOT_RUN",
       "evidence_contract": {
         "required_artifacts": [
