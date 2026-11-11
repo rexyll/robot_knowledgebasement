@@ -149,7 +149,7 @@ def test_export_collector_captures_installed_include_directories():
     ).read_text(encoding="utf-8")
     assert "exported_target_include_directories" in collector
     assert "INTERFACE_INCLUDE_DIRECTORIES" in collector
-    assert "asio_SOURCE_DIR" in collector
+    assert "collect_exported_target_include_directories(prefix)" in collector
 
 
 def test_export_collector_reads_installed_interface_include_directories(tmp_path):
