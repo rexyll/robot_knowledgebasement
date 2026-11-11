@@ -107,3 +107,17 @@ def test_install_consumer_binary_is_executed_in_both_modes():
     assert content.index(consumer_command) < content.index(
         "INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s"
     )
+
+
+def test_build_matrix_does_not_require_unused_standalone_asio():
+    content = SCRIPT.read_text(encoding="utf-8")
+    workflow = (
+        Path(__file__).parents[1]
+        / ".github"
+        / "workflows"
+        / "staubli-ros-jazzy-build.yml"
+    ).read_text(encoding="utf-8")
+    assert "libboost-system-dev" in workflow
+    assert "libasio-dev" not in workflow
+    assert "libasio-dev" not in content
+    assert "/usr/include/asio.hpp" not in content
