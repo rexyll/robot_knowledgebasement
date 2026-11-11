@@ -152,11 +152,13 @@ def collect(
             r"(?:(?:UNKNOWN|STATIC|SHARED|MODULE|INTERFACE)\s+)?IMPORTED\b",
             re.IGNORECASE,
         )
-        cmake_dir = prefix / "lib" / "cmake"
-        candidates = list(cmake_dir.rglob("*Targets.cmake")) if cmake_dir.exists() else []
-        share_dir = prefix / "share"
-        if share_dir.exists():
-            candidates.extend(share_dir.rglob("*Targets.cmake"))
+        cmake_dirs = [prefix / "lib" / "cmake", prefix / "share"]
+        candidates = []
+        for root in cmake_dirs:
+            if not root.exists():
+                continue
+            for pattern_name in ("*Targets.cmake", "*Export.cmake"):
+                candidates.extend(root.rglob(pattern_name))
 
         for path in sorted(set(candidates)):
             resolved = path.resolve()
