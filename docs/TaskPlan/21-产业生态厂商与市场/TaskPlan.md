@@ -5743,3 +5743,8 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 ### §9.3.319｜SERVO-902：CMake File API Collector 与双配置快照采集
 
 - [2026-11-11 Stäubli CMake File API Collector 与双配置快照采集](../audits/2026-11-11-staubli-socket-v2-servo-902-cmake-file-api-collector.md)：新增codemodel-v2采集器、BUILD_TESTING=OFF/ON独立目录configure脚本、合成reply fixture测试和快照Schema。采集target/依赖/include/definitions/install manifest；exported targets通过显式清单输入，不作推断。当前fixture测试待CI确认；真实ROS Jazzy双配置、install/export、C++/plugin/ABI/sanitizer/HIL均NOT_RUN。A1.1保持BLOCKED。下一节点§9.3.320 / SERVO-903。
+
+
+### §9.3.320｜SERVO-903：确定性构建环境与证据封装
+
+- [2026-11-11 Stäubli 确定性构建环境与证据封装](../audits/2026-11-11-staubli-socket-v2-servo-903-build-evidence-package.md)：增加限定安装前缀的 imported export target 扫描与来源记录；新增环境指纹采集、UNKNOWN字段策略、双配置快照/validator报告归档、SHA-256 manifest及verify校验；新增合成测试覆盖环境未知值、正常校验、篡改、缺失和路径穿越。测试尚待CI确认，真实ROS Jazzy configure、install-space consumer、C++/plugin/ABI/sanitizer/HIL均NOT_RUN。A1.1保持BLOCKED；下一节点§9.3.321 / SERVO-904。
