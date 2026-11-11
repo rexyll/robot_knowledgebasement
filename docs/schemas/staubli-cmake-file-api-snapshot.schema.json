@@ -1,20 +1,101 @@
 {
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "title":"Stäubli normalized CMake File API snapshot",
-  "type":"object",
-  "required":["schema_version","configuration_id","build_testing","targets","install_entries","exported_targets"],
-  "properties":{
-    "schema_version":{"const":"1.0.0"},
-    "configuration_id":{"type":"string","minLength":1},
-    "build_testing":{"type":"boolean"},
-    "build_directory":{"type":"string"},
-    "cmake_file_api_index":{"type":"string"},
-    "collection_scope":{"const":"cmake_file_api_codemodel_v2"},
-    "targets":{"type":"array","items":{"type":"object","required":["name","type","dependencies","include_directories","compile_definitions"],
-      "properties":{"name":{"type":"string"},"type":{"type":"string"},"dependencies":{"type":"array","items":{"type":"string"}},
-      "include_directories":{"type":"array","items":{"type":"string"}},"compile_definitions":{"type":"array","items":{"type":"string"}}}}},
-    "install_entries":{"type":"array","items":{"type":"string"}},
-    "exported_targets":{"type":"array","items":{"type":"string"}},
-    "exported_target_sources":{"type":"array","items":{"type":"string"}}
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stäubli normalized CMake File API snapshot",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "configuration_id",
+    "build_testing",
+    "targets",
+    "install_entries",
+    "exported_targets"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "configuration_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "build_testing": {
+      "type": "boolean"
+    },
+    "build_directory": {
+      "type": "string"
+    },
+    "cmake_file_api_index": {
+      "type": "string"
+    },
+    "collection_scope": {
+      "const": "cmake_file_api_codemodel_v2"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "dependencies",
+          "include_directories",
+          "compile_definitions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXECUTABLE",
+              "STATIC_LIBRARY",
+              "SHARED_LIBRARY",
+              "MODULE_LIBRARY",
+              "OBJECT_LIBRARY",
+              "INTERFACE_LIBRARY",
+              "UNKNOWN_LIBRARY",
+              "UTILITY"
+            ]
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "include_directories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "compile_definitions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "install_entries": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exported_targets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exported_target_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }
