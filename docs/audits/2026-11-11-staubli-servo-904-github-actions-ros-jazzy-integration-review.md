@@ -37,6 +37,16 @@ CI #3560（Run ID 42951823527）及 #3561（Run ID 42952280106）成功，但二
 - SERVO-903 的 `--export-root` 仅扫描指定安装前缀下的已安装 Targets.cmake；当前双配置脚本没有建立安装前缀，也没有执行 install，因此无法单靠现有脚本获得真实导出 target 证据。
 - 现有 collector 的 codemodel 快照与 validator 可以用于目标图静态门禁，但不能替代 C++ 编译、gtest、下游 install-space consumer 或 plugin load/unload。
 
+
+### 3.1 SERVO-901 validator 默认 target 与固定上游不匹配
+
+进一步核对 `scripts/validate_staubli_fake_harness_target_graph.py`：
+- 默认 production targets 是 `staubli_socket_core`、`staubli_driver_plugin`；默认 test targets 是 `staubli_socket_test_support`、`staubli_socket_unit_tests`；默认 plugin target 是 `staubli_driver_plugin`。
+- 固定上游 `staubli_robot_driver/CMakeLists.txt` 实际定义的生产库为 `staubli_robot_driver`、`staubli_robot_driver_hardware_interface`；测试目标为 `test_primitives_serialization`、`test_message_serialization`、`test_sockets`、`test_rt_socket_interface`、`test_robot_driver`、`test_mock_robot_server`、`test_staubli_hardware_interface`。
+- 固定上游没有 `staubli_socket_core`、`staubli_driver_plugin`、`staubli_socket_test_support` 或 `staubli_socket_unit_tests` 这些 target。当前 validator 默认参数因此不能直接用于固定上游快照；即使传入 target overrides，Fake harness 隔离检查也不能被解释为上游现有代码已经实现 Fake harness。
+- 固定上游的 pluginlib 导出对应硬件接口库 `staubli_robot_driver_hardware_interface`。另有 `test_receive_robot_state` 在 BUILD_TESTING 条件之外定义并安装，名称含 test 但它不是 Fake test-support target，不能仅凭名称将其误判为单元测试泄漏。
+- **接入决策：** 将“固定上游真实 target graph/安装导出审计”与“未来 Fake harness 目标隔离合同”拆成两套验收配置。当前固定上游只能按其实际 target 名称建立 baseline；Fake harness validator 继续作为未来架构合同，不得在未修改上游且未授权 TODO-EXT-001 时宣称通过。
+
 ## 4. 最小 CI 接入方案（设计，不表示已执行）
 
 建议将真实 ROS 验证作为独立的手动触发 workflow（workflow_dispatch），与快速 Python CI 分离，避免每次文档提交都承担 ROS 环境安装成本。环境和命令必须显式固定并归档：
