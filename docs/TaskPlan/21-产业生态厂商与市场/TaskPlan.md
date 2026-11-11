@@ -5863,3 +5863,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 修正提交：脚本`bd3f26b4a4afdfcf6dcd83b140d8e2ce2ca4ce98`，数组长度修正`013c71fc1f9f7fc1f163bc6b10c78536cd29e565`，静态合同测试`e86865ac0d6c101de537866a6a1e74bbcd306a68`。
 - 普通CI #3643–#3645均不执行ROS/C++构建；上述新提交触发的CI需要继续复核。真实OFF/ON colcon build/install、双配置consumer、gtest及证据包仍NOT_RUN。
 - 固定上游未修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
+
+
+### §9.3.324 补充｜consumer 符号调用加强后的 CI #3646–#3651 复验
+
+- CI #3646 / Run ID `42962553186`、#3647 / Run ID `42962559047`、#3648 / Run ID `42962578756`、#3649 / Run ID `42962631093`、#3650 / Run ID `42962639114`、#3651 / Run ID `42962648302`均SUCCESS。
+- 六次run的Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功，无失败步骤。
+- 已复验consumer调用固定上游`FrameHeader::serialize`非内联函数的脚本改动及其静态合同测试通过常规CI；这不是ROS/C++ build/install/consumer的真实运行证据。
+- 专用ROS Jazzy workflow仍未触发；OFF/ON colcon build/install、consumer、gtest、artifact及SHA-256仍NOT_RUN。
+- 固定上游不修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
