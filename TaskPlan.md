@@ -4788,3 +4788,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 本轮近期失败run复核仍指向已归档的SERVO-906 Ruff I001/E501代码质量回归；修复后成功run已覆盖，历史失败记录保持原始failure。
 - SERVO-907手动ROS Jazzy workflow在最新可见运行列表中仍未出现独立运行记录。真实双配置colcon build/install、gtest和install-space consumer继续NOT_RUN；不得以知识库Python CI成功替代。
 - **下一节点：** 等待用户手动触发SERVO-907 workflow，审阅完整job日志与evidence artifact；若触发失败，按实际失败点修复知识库侧脚本或记录固定上游阻断。
+
+### 2026-11-11｜SERVO-906 下游依赖导出风险与 CI #3620–#3621 复验
+
+- SERVO-906证据包中的validator报告文件名已从错误的SERVO-901更正为SERVO-906，并新增回归测试；提交`d8478f6`、`8d63b0d`。
+- 固定上游CMake将`Boost::system`链接到生产库，但`ament_export_dependencies()`未导出Boost。根据ROS 2 ament官方文档，此为下游依赖发现/导入风险，需由真实install-space consumer build判定；不以静态推断宣称失败，也不通过consumer额外find_package(Boost)掩盖风险。
+- CI #3620 / Run ID `42958035088`、CI #3621 / Run ID `42958041757`均SUCCESS，Python 3.10/3.11/3.12、OSV、SBOM全部成功。仅覆盖知识库Python/静态测试。
+- SERVO-906仍`IMPLEMENTED_NOT_EXECUTED`；SERVO-907独立手动workflow尚无运行记录；真实ROS Jazzy双配置build/install/gtest/consumer仍`NOT_RUN`。固定上游未修改，未创建/应用/合并上游PR，TODO-EXT-001未授权，A1.1保持BLOCKED。
+- **下一节点：** 等待手动触发SERVO-907；取得真实运行日志与artifact后，按实际结果处理上游依赖导出或脚本问题，不设置未经真实验收的required门禁。
