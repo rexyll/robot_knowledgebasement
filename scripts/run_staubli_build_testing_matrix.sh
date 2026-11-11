@@ -20,8 +20,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "${OUTPUT_DIR}" "${BUILD_ROOT}" "${INSTALL_ROOT}" "${LOG_ROOT}"
 
 fail() {
-  printf 'SERVO-906 ERROR: %s\n' "$*" >&2
+  printf 'SERVO-906 ERROR: %s\\n' "$*" >&2
   exit 2
+}
+
+# ROS setup scripts may read optional variables before initializing them.
+# Keep errexit/pipefail, but temporarily disable nounset only while sourcing
+# ROS-provided environment hooks; restore strict mode immediately afterwards.
+source_ros_environment() {
+  local setup_file="$1"
+  local source_status=0
+  set +u
+  if source "${setup_file}"; then
+    source_status=0
+  else
+    source_status=$?
+  fi
+  set -u
+  return "${source_status}"
 }
 
 [[ "${ROS_DISTRO}" == "jazzy" ]] || fail "ROS_DISTRO must be jazzy, got ${ROS_DISTRO}"
@@ -38,7 +54,7 @@ actual_commit="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
 [[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] || fail "upstream checkout must be clean"
 
 # package.xml omits these CMake-level dependencies; check them explicitly.
-source "${ROS_SETUP}"
+source_ros_environment "${ROS_SETUP}"
 [[ "${ROS_DISTRO:-}" == "jazzy" ]] || fail "sourced ROS environment is not Jazzy"
 ros2 pkg prefix backward_ros >/dev/null 2>&1 || fail "backward_ros is not discoverable in the sourced ROS environment"
 dpkg-query -W -f='${db:Status-Status}' libboost-system-dev 2>/dev/null | grep -qx installed || fail "libboost-system-dev is not installed"
@@ -127,7 +143,7 @@ CPP
     unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH
     unset PYTHONPATH LD_LIBRARY_PATH ROS_PACKAGE_PATH
     source "${ROS_SETUP}"
-    source "${install_base}/setup.bash"
+    source_ros_environment "${install_base}/setup.bash"
     run_logged colcon build \
       --base-paths "${consumer_src}" \
       --build-base "${CONSUMER_ROOT}/build-${lower}" \
