@@ -5733,3 +5733,8 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **验收矩阵：** TARGET-ISO-01–04、CLOCK-01、BARRIER-01–02、EXEC-API-01–03、FAULT-01、TRACE-01均为SPECIFIED；C++ header自包含编译、BUILD_TESTING双配置、production dependency closure、install/export consumer、gtest、TSan/ASan全部NOT_RUN。
 - **重要边界：** 本轮没有新增C++源文件、真实CMake target或gtest实现；接口草案不是可编译实现。未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED；RACE-01–16与EXEC-01–04仍NOT_RUN；§9.3.281–§9.3.294历史同步缺口继续透明保留。
 - **下一节点：** §9.3.318 / SERVO-901：建立Fake Harness header草案独立编译与target-graph静态验收设计，覆盖header自包含、BUILD_TESTING双配置、test-only install/export泄漏和production dependency closure报告；仅知识库侧工作，不触碰上游driver。
+
+
+### §9.3.318｜SERVO-901：Fake Harness Header 与 Target Graph 静态验收设计
+
+- [2026-11-11 Stäubli Fake Harness Header 与 Target Graph 静态验收设计](../audits/2026-11-11-staubli-socket-v2-servo-901-fake-harness-target-graph-validation.md)：新增归一化CMake双配置快照Schema、target graph validator与正反向测试；检查BUILD_TESTING=OFF/ON下test-only target边界、production依赖传递闭包、install manifest、exported targets及plugin依赖闭包零Fake泄漏。当前validator仅消费外部collector快照，collector未实现；真实CMake双配置、header自包含编译、install/ament export和plugin运行均NOT_RUN。未修改上游或应用PR，A1.1保持BLOCKED。下一节点§9.3.319 / SERVO-902。
