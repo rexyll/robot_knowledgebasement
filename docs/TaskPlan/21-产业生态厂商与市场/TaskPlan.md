@@ -6029,3 +6029,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 已在知识库main修复：提交 `eb1021a868129a7b6338414514a4d943390ce839` 保留apt索引，并在rosdep update后执行apt-get update；提交 `4e22b6a1f7d916786c12c2eecdf751995e31b511` 增加workflow回归测试，防止索引被清理或漏刷新。
 - 修复后的普通CI #3819 / Run `43009801401` 与 #3820 / Run `43009831428`均五个Job成功；#3820全部步骤成功且11个artifact归档正常。此为知识库Python CI/静态测试证据，不代表ROS容器apt/rosdep和C++构建已通过。
 - 下一步：在修复后的main HEAD重新手动运行专用ROS Jazzy workflow，确认apt/rosdep依赖安装后继续BUILD_TESTING=OFF/ON build/install、两个install-space consumer编译链接运行、gtest及manifest/SHA-256。当前连接器不能触发workflow_dispatch，因此仍待用户从Actions页面触发。SERVO-907继续BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
+
+
+### 2026-11-11｜§9.3.335 SERVO-907：七项上游 gtest XML 结果完整性门禁
+
+- 复核矩阵脚本中 `colcon test-result --verbose` 的失败语义后，发现其只能检查已生成的测试结果，尚不能单独证明固定上游七个 gtest suite 均实际产生了报告。为防止 suite 未执行/报告缺失形成假绿，在结果检查后新增 XML inventory gate：精确要求七个固定上游 `*.gtest.xml` 报告全部存在、无额外报告，且每份 XML 的 tests 至少为1、failures/errors均为0。
+- 七个报告名称与固定上游 `staubli_robot_driver/CMakeLists.txt` 中的七个 `ament_add_gtest` target 对应。新增静态回归测试 `test_build_matrix_requires_all_upstream_gtest_xml_reports_to_pass`。
+- 实现提交 `c7bfb3577ccb72843d6132c5c8a21f6b7950bb7d`；测试提交 `8ce497cafcd65f86d4622da08b964417acb30e30`。Actions Run `43011935479`、`43011938140` 均 completed/success，各自五个Job全部SUCCESS（Python 3.10/3.11/3.12、SBOM、OSV）。
+- 该结果证明知识库脚本静态合同与普通CI通过，不证明真实 ROS 环境已生成这些XML。必须由专用workflow验证实际报告路径、suite执行数量和结果。专用workflow最新运行仍是修复前失败的 `43008853603`；修复后的apt/rosdep依赖引导尚未通过专用workflow复验，OFF/ON colcon build/install、consumer、gtest、validator和SHA-256 evidence仍NOT_RUN。
+- 专项审计记录：`docs/audits/2026-11-11-staubli-servo-907-gtest-result-completeness-audit.md`。SERVO-907继续BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
+- 下一步：由有Actions写权限的用户在main手动触发专用ROS Jazzy workflow；若实际gtest报告路径与脚本预期不一致，先基于artifact/log修正门禁，再重跑动态验收。
