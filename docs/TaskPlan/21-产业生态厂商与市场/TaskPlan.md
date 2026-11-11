@@ -6020,3 +6020,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 三次run均归档SBOM、OSV报告及三个Python版本的Stäubli lifecycle/test-catalog/Runtime Evidence Bundle静态验证报告，工件未过期。
 - #3803–#3815连续13次main push全部成功。详细记录见历史Actions审计报告§2.17。
 - 专用ROS Jazzy workflow仍未触发；当前连接器无workflow_dispatch写入能力。真实OFF/ON colcon build/install、install-space consumer、gtest、manifest/SHA-256仍NOT_RUN。固定上游commit保持只读；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+
+### 2026-11-11｜§9.3.334 SERVO-907：修复ROS Jazzy依赖安装阶段apt索引清理问题
+
+- 首次手动运行专用workflow #1 / Run `43008853603`失败。逐步日志确认容器初始化、知识库工具checkout、显式依赖安装和固定上游commit checkout成功；失败发生在 `Resolve declared ROS dependencies`，rosdep规则更新成功，但apt无法定位多个ROS Jazzy依赖及部分Ubuntu工具包。
+- 根因定位为workflow前置apt安装步骤在安装结束后执行 `apt-get clean` 并删除 `/var/lib/apt/lists/*`，后续rosdep安装阶段未刷新apt索引。故该失败属于知识库CI环境引导错误，不是上游源码编译失败。后续build/install、install-space consumer、gtest、证据manifest/SHA-256均skipped/NOT_RUN。
+- 已在知识库main修复：提交 `eb1021a868129a7b6338414514a4d943390ce839` 保留apt索引，并在rosdep update后执行apt-get update；提交 `4e22b6a1f7d916786c12c2eecdf751995e31b511` 增加workflow回归测试，防止索引被清理或漏刷新。
+- 修复后的普通CI #3819 / Run `43009801401` 与 #3820 / Run `43009831428`均五个Job成功；#3820全部步骤成功且11个artifact归档正常。此为知识库Python CI/静态测试证据，不代表ROS容器apt/rosdep和C++构建已通过。
+- 下一步：在修复后的main HEAD重新手动运行专用ROS Jazzy workflow，确认apt/rosdep依赖安装后继续BUILD_TESTING=OFF/ON build/install、两个install-space consumer编译链接运行、gtest及manifest/SHA-256。当前连接器不能触发workflow_dispatch，因此仍待用户从Actions页面触发。SERVO-907继续BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
