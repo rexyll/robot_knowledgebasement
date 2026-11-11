@@ -43,5 +43,6 @@
   "assertions": [],
   "blockers": [
     "Example template only; no runtime execution has occurred."
-  ]
+  ],
+  "evidence_origin": "synthetic_fixture"
 }
