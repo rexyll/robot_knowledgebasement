@@ -55,3 +55,11 @@
 ## 4. 安全边界
 
 仅修改知识库 main；不修改、分叉写回或提交固定上游；不创建/应用/合并上游 PR。TODO-EXT-001 未授权，A1.1 保持 BLOCKED。脚本要求固定 commit 与 clean checkout，拒绝对来源不明或被修改的上游源码生成证据。
+
+## 5. SERVO-906 后续静态复核（2026-11-11）
+
+- **证据包命名修正：** `scripts/package_staubli_build_evidence.py` 原先将本节点validator报告归档为 `servo-901-validation-report.json`，已修正为 `servo-906-validation-report.json`；新增回归测试防止编号漂移。提交：`d8478f6`、`8d63b0d`。
+- **下游依赖导出风险：** 固定上游 `CMakeLists.txt` 将 `Boost::system` 链接到 `staubli_robot_driver`，但 `ament_export_dependencies()` 未导出 Boost。ROS 2 ament 官方文档说明该宏用于向下游导出依赖，使consumer无需自行再次find_package。该缺口因此列为待真实验证的install-space集成风险；当前consumer未主动find_package(Boost)，不会用测试配置掩盖上游导出问题。依据：[ROS 2 ament CMake documentation](https://github.com/ros2/ros2_documentation/blob/rolling/source/Developer-Tools/Build/Ament-CMake-Documentation.rst)。
+- **不可夸大的结论：** 该静态证据不能单独证明consumer必然失败；必须由固定digest ROS Jazzy workflow的实际consumer build确定。未修改固定上游。
+- **CI复验：** CI #3620 / Run ID `42958035088` 与 CI #3621 / Run ID `42958041757` 均SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM全部成功。仅验证知识库Python/静态测试，不代表ROS/C++ build/install/gtest/consumer通过。
+- **当前状态：** SERVO-906 `IMPLEMENTED_NOT_EXECUTED`；SERVO-907仍未发现独立workflow run；真实ROS Jazzy验收继续 `NOT_RUN`。
