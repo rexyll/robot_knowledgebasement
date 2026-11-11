@@ -56,7 +56,17 @@ actual_commit="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
 # package.xml omits these CMake-level dependencies; check them explicitly.
 source_ros_environment "${ROS_SETUP}"
 [[ "${ROS_DISTRO:-}" == "jazzy" ]] || fail "sourced ROS environment is not Jazzy"
-cmake --find-package -DNAME=backward_ros -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST >/dev/null 2>&1 || fail "backward_ros CMake package config is not discoverable in the sourced ROS environment"
+# Validate the exact CMake find_package() operation used by the pinned upstream.
+# --find-package mode does not exercise a normal configure context, so use a
+# tiny standalone project with the same required lookup instead.
+dependency_probe_dir="${OUTPUT_DIR}/backward-ros-cmake-probe"
+mkdir -p "${dependency_probe_dir}"
+cat > "${dependency_probe_dir}/CMakeLists.txt" <<'CMAKE'
+cmake_minimum_required(VERSION 3.8)
+project(backward_ros_dependency_probe LANGUAGES CXX)
+find_package(backward_ros REQUIRED)
+CMAKE
+cmake -S "${dependency_probe_dir}" -B "${dependency_probe_dir}/build" || fail "backward_ros CMake package config is not discoverable in the sourced ROS environment"
 dpkg-query -W -f='${db:Status-Status}' libboost-system-dev 2>/dev/null | grep -qx installed || fail "libboost-system-dev is not installed"
 rosdep check --from-paths "${SOURCE_DIR}" --ignore-src --rosdistro jazzy
 
