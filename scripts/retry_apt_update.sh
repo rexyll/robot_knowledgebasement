@@ -13,11 +13,13 @@ fi
 
 for attempt in $(seq 1 "${max_attempts}"); do
   echo "APT_INDEX_REFRESH_ATTEMPT ${attempt}/${max_attempts}"
-  apt-get \
+  if ! apt-get \
     -o Acquire::Retries=3 \
     -o Acquire::http::Timeout=30 \
     -o Acquire::https::Timeout=30 \
-    update
+    update; then
+    echo "APT_UPDATE_COMMAND_FAILED: will inspect required package indexes and retry" >&2
+  fi
 
   missing=()
   for package in "$@"; do
