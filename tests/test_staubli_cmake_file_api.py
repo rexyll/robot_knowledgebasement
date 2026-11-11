@@ -122,7 +122,8 @@ def test_export_root_scans_only_imported_targets_under_cmake_exports(tmp_path):
     targets.parent.mkdir(parents=True)
     targets.write_text(
         "add_library(staubli::core SHARED IMPORTED)\n"
-        "add_executable(staubli::tool IMPORTED)\n",
+        "add_executable(staubli::tool IMPORTED)\n"
+        "add_library(staubli::objects OBJECT IMPORTED)\n",
         encoding="utf-8",
     )
     unrelated = prefix / "share/docs/Targets.cmake"
@@ -134,7 +135,11 @@ def test_export_root_scans_only_imported_targets_under_cmake_exports(tmp_path):
 
     result = collect(build, True, "Debug", None, prefix)
 
-    assert result["exported_targets"] == ["staubli::core", "staubli::tool"]
+    assert result["exported_targets"] == [
+        "staubli::core",
+        "staubli::objects",
+        "staubli::tool",
+    ]
     assert len(result["exported_target_sources"]) == 1
 
 
