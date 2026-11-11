@@ -8,7 +8,7 @@
 
 ## 1. 审查范围与统计
 
-GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclusion过滤后，2026-11-03至2026-11-11期间共确认171条失败运行记录。逐条索引见[历史失败run CSV](github-actions-failure-run-index-2026-11-03-to-11-11.csv)。按失败运行创建日期统计：
+GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclusion过滤后，2026-11-03至2026-11-11期间共确认181条失败运行记录。逐条索引见[历史失败run CSV](github-actions-failure-run-index-2026-11-03-to-11-11.csv)。按失败运行创建日期统计：
 
 | 日期 | 失败运行数 |
 | --- | ---: |
@@ -17,8 +17,8 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 | 2026-11-05 | 1 |
 | 2026-11-08 | 5 |
 | 2026-11-09 | 5 |
-| 2026-11-11 | 72 |
-| **合计** | **171** |
+| 2026-11-11 | 82 |
+| **合计** | **181** |
 
 这些是workflow run次数，不等于164个独立缺陷。连续小提交会重复触发同一故障。所有失败run均纳入历史索引，并按日期、失败job/step及代表性日志聚类。历史run是不可变审计记录，不会因后续修复而被改写为成功；修复效果以当前main的新运行结果判定。
 
@@ -130,3 +130,11 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 **CI-HIST-001状态：COMPLETED。**
 
 下一节点恢复§9.3.321 / SERVO-904：审阅现有GitHub Actions workflow，设计真实ROS Jazzy/CMake双配置证据采集的最小CI接入方案；真实外部构建/consumer/plugin/ABI/HIL状态继续保持NOT_RUN，除非实际运行并取得证据。
+
+
+### 2.9 SERVO-906新增测试文件的Ruff导入排序回归
+
+- 代表运行：[CI #3587](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42955299858)、[CI #3597](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42955621883)。
+- 2026-11-11新增 `tests/test_staubli_ros_jazzy_build_script.py` 时，标准库导入块排序/空行格式与仓库Ruff/isort规则不一致，导致CI #3587–#3593、#3595–#3597共10条push触发run的Lint步骤失败；Python 3.10/3.11/3.12均在Lint处停止，pytest未执行。OSV与SBOM job保持成功。
+- 影响：仅知识库新增测试文件的Lint门禁失败，不涉及固定上游Stäubli C++代码，也没有真实ROS构建执行。
+- 修复：调整导入顺序与空行，后续CI运行用于验证。10条历史失败run保留原始failure，不改写为成功；这些run属于同一导入排序缺陷的重复触发，不代表10个独立缺陷。
