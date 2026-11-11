@@ -211,6 +211,32 @@ def test_export_target_scan_ignores_comment_and_literal_examples(tmp_path):
     assert result["exported_targets"] == ["staubli::actual"]
 
 
+def test_export_include_parser_ignores_comments_and_bracket_literals(tmp_path):
+    build = fixture(tmp_path)
+    prefix = tmp_path / "prefix"
+    export = prefix / "lib/cmake/staubli/staubliTargets.cmake"
+    export.parent.mkdir(parents=True)
+    export.write_text(
+        '# INTERFACE_INCLUDE_DIRECTORIES "/comment/include"\n'
+        "#[=[\n"
+        'INTERFACE_INCLUDE_DIRECTORIES "/bracket-comment/include"\n'
+        "]=]\n"
+        "set(description [=[\n"
+        'INTERFACE_INCLUDE_DIRECTORIES "/bracket-argument/include"\n'
+        "]=])\n"
+        'set(description "INTERFACE_INCLUDE_DIRECTORIES \\"/quoted-literal/include\\"")\n'
+        'set_target_properties(staubli::core PROPERTIES '
+        'INTERFACE_INCLUDE_DIRECTORIES "$<INSTALL_INTERFACE:include>")\n',
+        encoding="utf-8",
+    )
+
+    result = collect(build, True, "Debug", None, prefix)
+
+    assert result["exported_target_include_directories"] == [
+        "$<INSTALL_INTERFACE:include>"
+    ]
+
+
 def test_export_include_parser_preserves_escaped_semicolons_and_quotes(tmp_path):
     build = fixture(tmp_path)
     prefix = tmp_path / "prefix"
