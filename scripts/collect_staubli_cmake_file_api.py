@@ -17,6 +17,36 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def collect_exported_target_include_directories(export_root: Path) -> list[str]:
+    """Read interface include paths from installed CMake export files."""
+    prefix = export_root.resolve()
+    if not prefix.is_dir():
+        raise FileNotFoundError(f"export root is not a directory: {prefix}")
+
+    include_directories = set()
+    for root in (prefix / "lib" / "cmake", prefix / "share"):
+        if not root.exists():
+            continue
+        for pattern_name in ("*Targets.cmake", "*Export.cmake"):
+            for path in root.rglob(pattern_name):
+                resolved = path.resolve()
+                if not resolved.is_relative_to(prefix):
+                    continue
+                relative = resolved.relative_to(prefix)
+                in_lib_cmake = "lib" in relative.parts and "cmake" in relative.parts
+                in_share_cmake = "share" in relative.parts and "cmake" in relative.parts
+                if not (in_lib_cmake or in_share_cmake):
+                    continue
+                content = resolved.read_text(encoding="utf-8", errors="replace")
+                for value in re.findall(
+                    r'INTERFACE_INCLUDE_DIRECTORIES\s+"([^"]*)"', content
+                ):
+                    include_directories.update(
+                        item for item in value.split(";") if item
+                    )
+    return sorted(include_directories)
+
+
 def collect(
     build_dir: Path,
     build_testing: bool,
