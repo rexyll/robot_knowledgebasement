@@ -293,7 +293,7 @@ def collect(
 
         pattern = re.compile(
             r"add_(?:library|executable)\s*\(\s*([A-Za-z0-9_.:+-]+)\s+"
-            r"(?:(?:UNKNOWN|STATIC|SHARED|MODULE|INTERFACE)\s+)?IMPORTED\b",
+            r"(?:(?:UNKNOWN|STATIC|SHARED|MODULE|OBJECT|INTERFACE)\s+)?IMPORTED\b",
             re.IGNORECASE,
         )
         for resolved in find_export_files(prefix):
