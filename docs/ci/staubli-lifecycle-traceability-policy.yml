@@ -119,3 +119,27 @@ validator:
     2: input_output_or_json_parse_error
   report_format: JSON
   runtime_dependencies: python_standard_library_only
+
+runtime_evidence_bundle:
+  schema: docs/schemas/staubli-runtime-evidence-bundle.schema.json
+  example_not_run: docs/audits/2026-11-11-staubli-runtime-evidence-bundle-example-NOT_RUN.json
+  validator: scripts/validate_staubli_runtime_evidence_bundle.py
+  trace_order:
+    sequence: contiguous_zero_based
+    logical_time_ns: monotonic_non_decreasing
+    resource_revision: monotonic_per_component_and_generation
+  barrier:
+    released_requires_all_participants: true
+  artifact_integrity:
+    algorithm: SHA-256
+    paths: relative_to_bundle_root
+    reject_path_traversal: true
+    reject_duplicate_paths: true
+  run_pass_requires:
+    - test_log
+    - environment_manifest
+    - event_trace
+    - state_snapshot
+    - all_assertions_pass
+    - immutable_source_and_environment_identity
+  not_run_example_is_not_execution_evidence: true
