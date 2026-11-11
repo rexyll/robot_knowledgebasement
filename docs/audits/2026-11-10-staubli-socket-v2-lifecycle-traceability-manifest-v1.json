@@ -53,7 +53,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F02",
@@ -79,7 +81,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F03",
@@ -107,7 +111,9 @@
         "RACE-02",
         "RACE-05",
         "RACE-14"
-      ]
+      ],
+      "resource_key": "core_async_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F04",
@@ -134,14 +140,16 @@
       "test_refs": [
         "RACE-13",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "subscriber_callback_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F05",
       "event": "callback抛异常",
       "resource": "callback lease与worker",
       "resource_owner": "CoreControlBlock",
-      "reconcile_coordinator": "CallbackTrampoline/CleanupCoordinator",
+      "reconcile_coordinator": "CleanupCoordinator",
       "failure_states": [
         "CALLBACK_EXCEPTION",
         "THREAD_RESIDUAL"
@@ -161,14 +169,16 @@
       "test_refs": [
         "RACE-11",
         "EXEC-04"
-      ]
+      ],
+      "resource_key": "core_worker_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F06",
       "event": "worker self-stop",
       "resource": "worker thread",
       "resource_owner": "CoreControlBlock",
-      "reconcile_coordinator": "外部LifecycleThread/CleanupCoordinator",
+      "reconcile_coordinator": "CleanupCoordinator",
       "failure_states": [
         "SELF_JOIN_REJECTED",
         "THREAD_RESIDUAL"
@@ -188,7 +198,9 @@
       "test_refs": [
         "RACE-11",
         "EXEC-04"
-      ]
+      ],
+      "resource_key": "core_worker_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F07",
@@ -216,7 +228,9 @@
         "RACE-09",
         "RACE-14",
         "EXEC-01"
-      ]
+      ],
+      "resource_key": "core_worker_generation",
+      "ownership_phase": "RESIDUAL_TRANSFERRED"
     },
     {
       "id": "F08",
@@ -243,7 +257,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F09",
@@ -270,7 +286,9 @@
       "test_refs": [
         "RACE-09",
         "EXEC-04"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F10",
@@ -297,7 +315,9 @@
         "RACE-02",
         "RACE-07",
         "RACE-16"
-      ]
+      ],
+      "resource_key": "driver_channel_pair",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F11",
@@ -324,7 +344,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F12",
@@ -351,7 +373,9 @@
       "test_refs": [
         "RACE-06",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "driver_lifecycle_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F13",
@@ -377,7 +401,9 @@
       "test_refs": [
         "RACE-13",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "plugin_dso_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F14",
@@ -403,14 +429,16 @@
       "test_refs": [
         "RACE-03",
         "RACE-16"
-      ]
+      ],
+      "resource_key": "mock_server_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F15",
       "event": "native handle复用/重复close",
       "resource": "平台native handle与generation",
       "resource_owner": "CoreControlBlock",
-      "reconcile_coordinator": "PlatformNativeSocketAdapter",
+      "reconcile_coordinator": "CleanupCoordinator",
       "failure_states": [
         "HANDLE_IDENTITY_UNKNOWN"
       ],
@@ -428,7 +456,9 @@
       "status": "SPECIFIED",
       "test_refs": [
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "F16",
@@ -454,7 +484,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-09"
-      ]
+      ],
+      "resource_key": "remote_protocol_session",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L01",
@@ -480,7 +512,9 @@
       "test_refs": [
         "RACE-13",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "plugin_dso_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L02",
@@ -506,7 +540,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L03",
@@ -533,7 +569,9 @@
       "test_refs": [
         "RACE-09",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "remote_protocol_session",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L04",
@@ -558,7 +596,9 @@
       "status": "SPECIFIED",
       "test_refs": [
         "RACE-13"
-      ]
+      ],
+      "resource_key": "plugin_dso_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L05",
@@ -585,7 +625,9 @@
       "test_refs": [
         "RACE-02",
         "RACE-13"
-      ]
+      ],
+      "resource_key": "core_async_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L06",
@@ -611,7 +653,9 @@
       "test_refs": [
         "RACE-11",
         "EXEC-04"
-      ]
+      ],
+      "resource_key": "core_worker_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L07",
@@ -637,7 +681,9 @@
       "test_refs": [
         "RACE-09",
         "EXEC-01"
-      ]
+      ],
+      "resource_key": "core_worker_generation",
+      "ownership_phase": "RESIDUAL_TRANSFERRED"
     },
     {
       "id": "PLUG-L08",
@@ -663,7 +709,9 @@
       "test_refs": [
         "RACE-07",
         "RACE-15"
-      ]
+      ],
+      "resource_key": "socket_core_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L09",
@@ -689,7 +737,9 @@
       "test_refs": [
         "RACE-13",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "plugin_dso_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L10",
@@ -717,7 +767,9 @@
         "RACE-13",
         "RACE-14",
         "EXEC-04"
-      ]
+      ],
+      "resource_key": "plugin_dso_generation",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L11",
@@ -744,7 +796,9 @@
         "RACE-02",
         "RACE-07",
         "RACE-16"
-      ]
+      ],
+      "resource_key": "driver_channel_pair",
+      "ownership_phase": "ACTIVE"
     },
     {
       "id": "PLUG-L12",
@@ -772,7 +826,9 @@
         "RACE-03",
         "RACE-07",
         "EXEC-03"
-      ]
+      ],
+      "resource_key": "driver_lifecycle_generation",
+      "ownership_phase": "ACTIVE"
     }
   ]
 }
