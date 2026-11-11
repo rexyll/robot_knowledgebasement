@@ -5872,3 +5872,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 已复验consumer调用固定上游`FrameHeader::serialize`非内联函数的脚本改动及其静态合同测试通过常规CI；这不是ROS/C++ build/install/consumer的真实运行证据。
 - 专用ROS Jazzy workflow仍未触发；OFF/ON colcon build/install、consumer、gtest、artifact及SHA-256仍NOT_RUN。
 - 固定上游不修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
+
+
+### §9.3.324 补充｜install-space consumer 运行检查与 CI #3655–#3657
+
+- 新增OFF/ON两种模式下直接执行安装空间consumer二进制的步骤，验证动态库加载及`FrameHeader::serialize`运行结果；该程序只进行内存序列化，不连接机器人或网络。
+- 脚本提交`8384fd19176a32f7aa0411da64df474979f2a0e6`；静态合同测试提交`a6b720c7565a15cbdcfd0402ebde6d79636d80a4`。
+- CI #3655 / Run ID `42963172585`：SUCCESS，五个job全部成功。
+- CI #3656 / Run ID `42963178378`：FAILURE，三个Python版本的Ruff均因两条新增断言超长而失败；OSV与SBOM成功。已检查日志并修复。
+- 修复提交`0f415e6ec7675954a14265971236e3d400bfc456`；CI #3657 / Run ID `42963282701`：SUCCESS，Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- 真实ROS Jazzy workflow仍未运行；OFF/ON colcon build/install、consumer运行、gtest、证据包及SHA-256仍NOT_RUN。新增consumer执行步骤必须通过专用workflow动态验证后才可记为验收通过。
+- 固定上游未修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
