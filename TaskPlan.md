@@ -4889,3 +4889,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 - collector新增从安装导出 `*Targets.cmake` / `*Export.cmake` 中采集 `INTERFACE_INCLUDE_DIRECTORIES`；validator在OFF/ON两种构建快照中检查是否出现未解析的 `${asio_SOURCE_DIR}`、`/asio/include` 或以 `/asio/include` 结尾的目录。
 - 该检查把此前静态识别的CMake路径风险纳入真实安装导出证据，不修改固定上游源码。collector、validator、静态合同测试均已提交main；仍须通过CI及真实ROS Jazzy workflow验证。
+
+
+### 2026-11-11｜v11.13 更新：安装导出 include 路径检查实现
+
+- collector提交`71e59c4`并修正正则提交`5648092`：从安装导出CMake文件提取`INTERFACE_INCLUDE_DIRECTORIES`，写入OFF/ON快照。
+- validator提交`0d5fa7f`并收紧判定提交`d0d03d6`：对精确`/asio/include`和未展开`${asio_SOURCE_DIR}`做失败检查，避免将任意合法目录误报。
+- 静态合同测试提交`44f1564`和`2a21c4c`。上述均为静态实现提交，尚无新CI结果；真实ROS Jazzy构建仍待专用workflow运行。
