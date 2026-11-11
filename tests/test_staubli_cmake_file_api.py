@@ -177,6 +177,6 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
     ]
     assert result["exported_target_sources"] == [str(export.resolve())]
     assert result["exported_target_include_directories"] == [
-        "$<INSTALL_INTERFACE:include>",
         "$<INSTALL_INTERFACE:include/staubli>",
+        "$<INSTALL_INTERFACE:include>",
     ]
