@@ -6065,3 +6065,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 这闭环的是知识库侧普通CI回归，不代表ROS Jazzy专项验收通过。Run #5/#6的上游导出缺陷仍存在；后续consumer测试不再预先创建Boost target，真实专项运行将继续检测Boost缺失和`/asio/include`错误。
 - 专项审计同步见`docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §7。固定上游commit不变；SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - **当前任务节点：§9.3.337之后，基于最新main手动重跑专用ROS Jazzy workflow，验证无预先Boost查找的consumer是否同时报告两项真实导出缺陷。**
+
+
+### 2026-11-11｜§9.3.338 SERVO-906/907：Run #7 apt索引DNS故障修复
+
+- 专项Run #7 `43033695957`（SHA `324e387d74fecab496b63baad9c07e92e302bdbd`）在显式依赖安装阶段失败；Ubuntu Noble的archive/security镜像DNS解析失败，apt-get update仅下载到ROS仓库索引且仍返回成功，导致`libdw-dev`无候选版本，`ros-jazzy-backward-ros`安装失败。固定上游checkout及后续构建步骤均SKIPPED。
+- 新增`scripts/retry_apt_update.sh`：最多5轮APT刷新、Acquire retries/timeout、逐包Candidate检查；非零update或部分索引故障均继续重试，耗尽后明确失败，不允许不完整索引进入安装。
+- workflow显式依赖安装前检查git、Boost、libdw、colcon、rosdep及backward_ros候选；rosdep install前再次刷新并验证libdw候选。
+- 新增回归测试并同步旧APT顺序测试合同。修复提交：`aaede3be`、`b2520041`、`d8b995b0`、`817e0d0b`、`fd4b2d71`。Run `43034476816`（最终提交）在记录时仍运行，需读取最终状态。
+- 此问题属于CI容器外部Ubuntu镜像DNS/索引可用性，不是固定上游源码构建失败；本修复不修改上游、不绕过ASIO/Boost consumer验收。
+- 审计详见`docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §8。SERVO-906/907继续BLOCKED；A1.1 BLOCKED；`TODO-EXT-001`未授权。
+- **当前任务节点：§9.3.338之后，先确认普通CI Run `43034476816`通过，再由用户在最新main重新手动触发ROS Jazzy专项workflow。**
