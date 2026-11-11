@@ -5854,3 +5854,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 真实ROS Jazzy OFF/ON build/install、双配置install-space consumer、gtest、artifact及SHA-256仍`NOT_RUN`；常规CI成功不改变该状态。
 - **下一步：** 用户手动触发专用workflow；收到run ID后检查日志、失败点及证据artifact。固定上游不修改，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
 
+
+
+### §9.3.324 补充｜CI #3643–#3645 复核与 consumer 实际库符号调用
+
+- CI #3643 / Run ID `42962209018`、#3644 / Run ID `42962218477`、#3645 / Run ID `42962228904`均SUCCESS；每个run的Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- 进一步发现consumer此前只包含上游头文件而没有引用共享库的非内联符号，可能无法充分验证实际链接解析。现依据固定上游公开接口，将consumer改为调用`FrameHeader::serialize(uint8_t*, size_t) const`，使用协议固定8字节缓冲区；该函数在上游`protocol.cpp`中定义。
+- 修正提交：脚本`bd3f26b4a4afdfcf6dcd83b140d8e2ce2ca4ce98`，数组长度修正`013c71fc1f9f7fc1f163bc6b10c78536cd29e565`，静态合同测试`e86865ac0d6c101de537866a6a1e74bbcd306a68`。
+- 普通CI #3643–#3645均不执行ROS/C++构建；上述新提交触发的CI需要继续复核。真实OFF/ON colcon build/install、双配置consumer、gtest及证据包仍NOT_RUN。
+- 固定上游未修改，未创建/应用/合并上游PR；`TODO-EXT-001`未授权，A1.1保持BLOCKED。
