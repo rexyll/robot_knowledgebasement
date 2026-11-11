@@ -174,7 +174,7 @@ def test_export_collector_reads_installed_interface_include_directories(tmp_path
     export_file.write_text(
         'set_target_properties(staubli_robot_driver::staubli_robot_driver '
         'PROPERTIES INTERFACE_INCLUDE_DIRECTORIES '
-        '"${_IMPORT_PREFIX}/include;/asio/include")\\n',
+        '"${_IMPORT_PREFIX}/include;/asio/include")\n',
         encoding="utf-8",
     )
 
