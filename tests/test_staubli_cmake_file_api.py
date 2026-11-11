@@ -188,7 +188,7 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
 
 
 
-def test_export_target_scan_ignores_comment_examples(tmp_path):
+def test_export_target_scan_ignores_comment_and_literal_examples(tmp_path):
     build = fixture(tmp_path)
     prefix = tmp_path / "prefix"
     export = prefix / "lib/cmake/staubli/staubliTargets.cmake"
@@ -198,6 +198,10 @@ def test_export_target_scan_ignores_comment_examples(tmp_path):
         "#[=[\n"
         "add_library(staubli::bracket_comment SHARED IMPORTED)\n"
         "]=]\n"
+        "set(description [=[\n"
+        "add_library(staubli::bracket_argument SHARED IMPORTED)\n"
+        "]=])\n"
+        'set(description "add_library(staubli::quoted SHARED IMPORTED)")\n'
         "add_library(staubli::actual SHARED IMPORTED)\n",
         encoding="utf-8",
     )
