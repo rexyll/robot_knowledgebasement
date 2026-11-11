@@ -43,3 +43,25 @@ ROS setup 脚本会扩展而非重置环境前缀。父进程因此可能保留�
 本次发现并修复的是测试驱动脚本的双配置环境隔离风险。修复提交与静态合同测试不构成真实 ROS 构建通过证据。必须在固定 ROS Jazzy 镜像中触发 `workflow_dispatch`，检查两个配置各自的 build/install/consumer 日志与证据包，才能更新运行状态。
 
 未修改固定 Stäubli 上游；未创建、应用或合并上游 PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。不得将本报告中的静态修复描述为ROS构建、gtest、plugin、ABI、sanitizer、HIL或实机验收通过。
+
+ 
+## 5. 追加静态复核：Ament 导出依赖闭包待实测
+
+对固定上游 `staubli_robot_driver/CMakeLists.txt` 与 `package.xml` 再次逐项比对，确认：
+
+- CMake 的生产目标通过 `target_link_libraries(${PROJECT_NAME} Boost::system)` 显式链接 `Boost::system`。
+- CMake 对生产目标和硬件接口目标调用 `ament_target_dependencies(... ${DEPENDENCIES})`；`DEPENDENCIES` 包含 `realtime_tools`。
+- CMake 还执行 `find_package(backward_ros REQUIRED)`。
+- 但末尾的 `ament_export_dependencies(...)` 清单没有列出 `Boost`、`backward_ros` 或 `realtime_tools`；package.xml 也没有声明 Boost/backward_ros 对应依赖（此前SERVO-905/906已记录该类依赖元数据缺口）。
+
+这构成 install-space 下游导入/链接的**待验证风险**：导出的 imported target 可能引用未被下游自动发现的依赖目标或 include/link 元数据。它尚不是已复现失败；最终判定必须以固定ROS Jazzy镜像中的 OFF/ON install-space consumer build及其完整CMake错误日志为准。当前consumer fixture通过 `find_package(staubli_robot_driver REQUIRED)` 并包含上游公开头文件，原则上应保留真实依赖暴露路径，不应在consumer侧额外调用 `find_package(Boost)` 来掩盖上游导出缺口。
+
+**处理决策：** 不修改固定上游；不在知识库中伪造上游修复。若真实consumer失败，先保存最小失败日志与导出文件证据，再归类为上游包元数据/导出缺陷，并按授权边界提出修复建议。若consumer通过，也只关闭该具体导入路径风险，不推导出所有依赖导出均完备。
+
+## 6. 当前执行状态复核
+
+- main HEAD复核：`17fad6eb2d8007e4b4629ebe47cb58a0f9ad005e`。
+- ROS Jazzy手动workflow检查：最近workflow runs列表中没有该workflow的 `workflow_dispatch` 运行；仅有常规Python CI push runs。
+- CI #3622（Run ID `42958783662`）及其后续TaskPlan提交触发的常规CI均为SUCCESS；不代表ROS/C++构建。
+- OFF/ON真实colcon build/install、install-space consumer、gtest仍为`NOT_RUN`。
+- A1.1继续`BLOCKED`；`TODO-EXT-001`未授权；固定上游不修改。
