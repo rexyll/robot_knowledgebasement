@@ -5704,6 +5704,20 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **事件与快照：** 规定Event Trace的sequence/logical_time/thread/component/event/generation/revision/attempt_token字段；Resource Snapshot覆盖唯一owner、native handle、callback/handler计数、worker与remote session状态。UNKNOWN和RESIDUAL必须显式保留。
 - **Evidence Bundle：** 新增`docs/schemas/staubli-runtime-evidence-bundle.schema.json`和固定NOT_RUN示例；环境身份包含源码/上游commit、OS/kernel/架构/compiler/build/ROS、依赖锁SHA-256及OCI digest；artifact记录role/path/size/media type/SHA-256。
 - **验证与CI：** 新增专用validator、8项负向/正向/CLI测试，并在Python 3.10/3.11/3.12 CI矩阵中加入校验与报告归档。Validator针对当前Schema关键词子集，不宣称通用完整Draft 2020-12兼容。
-- **CI实测：** GitHub Actions CI #3495 / Run ID `42943442957` / head `8c5e772c948662b3ac987b0c2d3dca03d78f3883` SUCCESS。Python 3.10/3.11/3.12各自Evidence Bundle validator PASS、Ruff PASS、Pytest 75 passed；Manifest/Catalog校验均PASS，OSV与SBOM作业成功，验证报告按Python版本归档。[运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42943442957)。\n- **执行状态：** 示例固定NOT_RUN；RACE-01–16与EXEC-01–04仍全部NOT_RUN。Schema/validator/Python CI仅验证证据格式与静态策略，不代表Fake Harness或Stäubli运行时PASS。
+- **CI实测：** GitHub Actions CI #3495 / Run ID `42943442957` / head `8c5e772c948662b3ac987b0c2d3dca03d78f3883` SUCCESS。Python 3.10/3.11/3.12各自Evidence Bundle validator PASS、Ruff PASS、Pytest 75 passed；Manifest/Catalog校验均PASS，OSV与SBOM作业成功，验证报告按Python版本归档。[运行记录](https://github.com/rexyll/robot_knowledgebasement/actions/runs/42943442957)。
+- **执行状态：** 示例固定NOT_RUN；RACE-01–16与EXEC-01–04仍全部NOT_RUN。Schema/validator/Python CI仅验证证据格式与静态策略，不代表Fake Harness或Stäubli运行时PASS。
 - **限制：** 未实现C++ FakeClock/Barrier/Executor/FaultInjector或Evidence Collector；未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`仍未授权，A1.1保持BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
 - **下一节点：** §9.3.316 / SERVO-899：为Evidence Bundle Validator补齐artifact实际文件hash校验、环境身份/状态机一致性与跨工件关联规则；建立可复现的正向RUN_PASS/RUN_FAIL样例（仅合成fixture，不冒充Stäubli执行结果），并继续保持真实运行状态独立。
+
+
+### §9.3.316｜SERVO-899：Runtime Evidence Bundle 深度完整性校验
+
+- **审计报告：** [Runtime Evidence Bundle 深度完整性校验](../../audits/2026-11-11-staubli-socket-v2-runtime-evidence-bundle-integrity-validation.md)。
+- **来源标识：** Evidence Bundle Schema新增必需`evidence_origin`，区分`synthetic_fixture`与`observed_execution`。Validator JSON报告和CLI明确标记合成fixture为`SYNTHETIC_FIXTURE_ONLY_NOT_RUNTIME_EVIDENCE`，防止将合成RUN_PASS/RUN_FAIL误作真实Stäubli验收。
+- **工件完整性：** RUN_PASS/RUN_FAIL必须提供`--bundle-root`；逐文件核验实际字节数和SHA-256，拒绝重复role/path、绝对路径、空/点/点点路径段、反斜线、符号链接和bundle root逃逸。
+- **环境与状态门禁：** 拒绝全零commit/digest及NOT_CAPTURED/UNKNOWN/UNSET环境占位；RUN_PASS要求before/after快照、所有断言PASS、四类必需工件且无failure/UNKNOWN/RESIDUAL；RUN_FAIL要求FAIL断言、test log、trace及before/failure快照并保留失败残留。
+- **跨工件关联：** environment_manifest、event_trace、state_snapshot均绑定bundle_id/test_id/attempt，并与bundle内联source/environment/trace/snapshot做精确JSON值比对。
+- **合成测试：** 测试辅助构造器在临时目录中可重复生成完整合成RUN_PASS/RUN_FAIL四工件样例及真实fixture字节hash；负向覆盖hash/size篡改、跨工件身份错配、占位环境、路径穿越、symlink、trace/barrier和状态门禁。合成样例不写入真实运行证据目录、不连接Stäubli设备。
+- **验收边界：** 本节点Schema/Validator/pytest/CI只验证证据格式与策略，不证明执行记录真实；`observed_execution`仍是来源声明，不是密码学签名。Fake/C++/ROS/Plugin/TSan/ASan/HIL和RACE/EXEC实际执行继续NOT_RUN。
+- **限制：** 未修改固定上游、未创建/应用/合并上游PR；`TODO-EXT-001`仍未授权，A1.1保持BLOCKED；§9.3.281–§9.3.294历史TaskPlan同步缺口继续透明保留。
+- **下一节点：** §9.3.317 / SERVO-900：定义C++17 test-only Fake Harness target边界、生产target零依赖约束与FakeClock/Barrier/DeterministicExecutor最小header/API草案；仅知识库侧规格，不触碰上游driver，不执行未授权A1.1。
