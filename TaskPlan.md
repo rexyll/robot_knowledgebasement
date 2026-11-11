@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.03  
+> 版本：v11.04  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复并加入静态合同测试；CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。此CI仅验证知识库Python/静态测试，不代表ROS/C++构建验收。SERVO-907独立手动ROS Jazzy workflow仍待触发；真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险，不宣称已复现失败。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
 
 ---
 
@@ -4816,3 +4816,14 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 检查到GitHub Actions提示checkout/setup-python/upload-artifact当前固定SHA对应的action仍声明Node.js 20，runner正强制Node.js 24执行。此为维护性弃用警告，本次作业成功；记录为独立维护事项，不影响本次测试结果，不在未经版本与SHA核验前盲目升级固定action。
 - **验证边界：** CI #3622只证明知识库Python/静态合同测试及OSV/SBOM作业成功；SERVO-907手动ROS Jazzy workflow尚未执行，真实OFF/ON colcon build/install、install-space consumer、gtest仍NOT_RUN。
 - **下一步：** 等待用户手动触发SERVO-907工作流并审查日志与artifact；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+
+
+### 2026-11-11｜v11.04 SERVO-907 Ament 导出依赖静态复核
+
+- **复核对象：** 固定上游 `ICube-Robotics/staubli_driver_ros2@bd658e2d266e315d2ee35f985fb352ea88306b79` 的 `staubli_robot_driver/CMakeLists.txt` 与 `package.xml`。
+- **新增待验证风险：** CMake显式链接`Boost::system`、`find_package(backward_ros REQUIRED)`，并将`realtime_tools`纳入生产目标ament依赖；但`ament_export_dependencies()`未列出Boost、backward_ros、realtime_tools，package.xml也未声明Boost/backward_ros依赖。可能影响下游install-space导入/链接，尚未由真实consumer复现。
+- **验证原则：** 通过现有真实consumer fixture的`find_package(staubli_robot_driver REQUIRED)`和公开头文件编译判定；不得在consumer侧额外find_package(Boost)掩盖上游导出缺口。若失败，保存CMake错误和导出文件证据，归类上游包元数据/导出风险；不擅自修改固定上游。
+- **审计记录：** `docs/audits/2026-11-11-staubli-servo-907-build-mode-isolation-preflight.md`已追加第5、6节，记录导出依赖风险与当前workflow状态。
+- **运行状态：** 最近workflow runs列表未见SERVO-907的workflow_dispatch运行；常规CI #3622及后续TaskPlan提交CI成功不代表ROS/C++验收。OFF/ON真实build/install、consumer、gtest仍NOT_RUN。
+- **边界：** 固定上游未修改；未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+- **下一步：** 用户手动触发`.github/workflows/staubli-ros-jazzy-build.yml`后，优先检查OFF/ON consumer导入与链接日志，再核对gtest及证据包SHA-256。
