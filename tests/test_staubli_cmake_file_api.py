@@ -188,6 +188,25 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
 
 
 
+def test_export_target_scan_ignores_comment_examples(tmp_path):
+    build = fixture(tmp_path)
+    prefix = tmp_path / "prefix"
+    export = prefix / "lib/cmake/staubli/staubliTargets.cmake"
+    export.parent.mkdir(parents=True)
+    export.write_text(
+        "# add_library(staubli::line_comment SHARED IMPORTED)\n"
+        "#[=[\n"
+        "add_library(staubli::bracket_comment SHARED IMPORTED)\n"
+        "]=]\n"
+        "add_library(staubli::actual SHARED IMPORTED)\n",
+        encoding="utf-8",
+    )
+
+    result = collect(build, True, "Debug", None, prefix)
+
+    assert result["exported_targets"] == ["staubli::actual"]
+
+
 def test_export_include_parser_preserves_escaped_semicolons_and_quotes(tmp_path):
     build = fixture(tmp_path)
     prefix = tmp_path / "prefix"
