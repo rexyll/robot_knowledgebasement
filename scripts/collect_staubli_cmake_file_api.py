@@ -332,7 +332,7 @@ def collect(
             raise FileNotFoundError(f"export root is not a directory: {prefix}")
 
         pattern = re.compile(
-            r"add_(?:library|executable)\s*\(\s*([A-Za-z0-9_.:+-]+)\s+"
+            r"(?m)^[ \t]*add_(?:library|executable)\s*\(\s*([A-Za-z0-9_.:+-]+)\s+"
             r"(?:(?:UNKNOWN|STATIC|SHARED|MODULE|OBJECT|INTERFACE)\s+)?IMPORTED\b",
             re.IGNORECASE,
         )
