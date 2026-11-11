@@ -55,7 +55,7 @@ def test_package_refuses_failed_validator_report(tmp_path):
     with pytest.raises(ValueError, match="execution_status is PASS"):
         package_evidence(output, off, on, report)
 
-    assert not (output / "evidence_manifest.json").exists()
+    assert not output.exists()
 
 
 def test_verify_detects_tampered_artifact(tmp_path):
@@ -141,6 +141,25 @@ def test_package_refuses_invalid_validator_json(tmp_path):
     output = tmp_path / "evidence"
 
     with pytest.raises(json.JSONDecodeError):
+        package_evidence(output, off, on, report)
+
+    assert not output.exists()
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        None,
+        {"status": "PASS"},
+        {"execution_status": "PASS "},
+    ],
+)
+def test_package_refuses_non_pass_validator_report_shapes(tmp_path, payload):
+    off, on, report = make_inputs(tmp_path)
+    report.write_text(json.dumps(payload), encoding="utf-8")
+    output = tmp_path / "evidence"
+
+    with pytest.raises(ValueError):
         package_evidence(output, off, on, report)
 
     assert not output.exists()
