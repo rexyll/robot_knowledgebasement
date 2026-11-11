@@ -9,13 +9,25 @@ from scripts.validate_staubli_upstream_target_graph import (
 )
 
 
-def snapshot(configuration_id, build_testing, targets, install_entries, exported_targets):
+def snapshot(
+    configuration_id,
+    build_testing,
+    targets,
+    install_entries,
+    exported_targets,
+    exported_target_include_directories=None,
+):
     return {
         "configuration_id": configuration_id,
         "build_testing": build_testing,
         "targets": targets,
         "install_entries": install_entries,
         "exported_targets": exported_targets,
+        "exported_target_include_directories": (
+            []
+            if exported_target_include_directories is None
+            else exported_target_include_directories
+        ),
     }
 
 
@@ -141,3 +153,32 @@ def test_snapshot_testing_flags_must_match_configuration(tmp_path):
     report = validate(args(off, on))
     assert report["execution_status"] == "FAIL"
     assert any("CONFIG-BUILD-TESTING-OFF" in error for error in report["errors"])
+
+
+def test_unresolved_asio_export_include_path_fails(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(off.read_text())
+    data["exported_target_include_directories"] = [
+        "${_IMPORT_PREFIX}/include",
+        "/asio/include",
+    ]
+    off.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any(
+        "EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-OFF" in error
+        for error in report["errors"]
+    )
+
+
+def test_missing_export_include_evidence_is_rejected(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    del data["exported_target_include_directories"]
+    on.write_text(json.dumps(data), encoding="utf-8")
+    try:
+        validate(args(off, on))
+    except ValueError as exc:
+        assert "exported_target_include_directories is required" in str(exc)
+    else:
+        raise AssertionError("missing export include evidence must be rejected")
