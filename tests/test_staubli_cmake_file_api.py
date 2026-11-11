@@ -180,3 +180,49 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
         "$<INSTALL_INTERFACE:include/staubli>",
         "$<INSTALL_INTERFACE:include>",
     ]
+
+
+
+def test_unknown_dependency_target_id_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    plugin = json.loads((reply / "plugin.json").read_text(encoding="utf-8"))
+    plugin["dependencies"] = [{"id": "missing-target-id"}]
+    put(reply / "plugin.json", plugin)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "references unknown target id" in str(exc)
+    else:
+        raise AssertionError("unknown dependency target IDs must fail")
+
+
+def test_malformed_dependency_reference_fails_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    plugin = json.loads((reply / "plugin.json").read_text(encoding="utf-8"))
+    plugin["dependencies"] = [{"name": "staubli_socket_core"}]
+    put(reply / "plugin.json", plugin)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "invalid target reference" in str(exc)
+    else:
+        raise AssertionError("malformed dependency references must fail")
+
+
+def test_duplicate_cmake_target_ids_fail_closed(tmp_path):
+    build = fixture(tmp_path)
+    reply = build / ".cmake/api/v1/reply"
+    plugin = json.loads((reply / "plugin.json").read_text(encoding="utf-8"))
+    plugin["id"] = "core-id"
+    put(reply / "plugin.json", plugin)
+
+    try:
+        collect(build, False, "Debug", None)
+    except ValueError as exc:
+        assert "duplicate CMake target id" in str(exc)
+    else:
+        raise AssertionError("duplicate target IDs must fail")
