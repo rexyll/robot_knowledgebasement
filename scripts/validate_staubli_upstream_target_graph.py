@@ -120,6 +120,15 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             f"{name} must exist when BUILD_TESTING=ON",
         )
 
+    for label, targets in (("OFF", off_targets), ("ON", on_targets)):
+        for name in PRODUCTION_TARGETS:
+            target = targets.get(name)
+            check(
+                f"PRODUCTION-TYPE-{label}-{name}",
+                target is not None and target.get("type") == "SHARED_LIBRARY",
+                f"{name} must be a SHARED_LIBRARY in BUILD_TESTING={label}",
+            )
+
     for name in GTEST_TARGETS:
         check(
             f"GTEST-ABSENT-OFF-{name}",
