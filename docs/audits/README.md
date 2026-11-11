@@ -485,3 +485,8 @@
 ### §9.3.302｜SERVO-885：SocketV2 source-to-test coverage gap、teardown failure-path matrix与最小验证切片
 
 - [2026-11-10 Stäubli SocketV2 source-to-test coverage gap、teardown failure-path matrix与最小验证切片](2026-11-10-staubli-socket-v2-source-to-test-coverage-teardown-failure-matrix-minimal-slices.md)：固定上游commit测试映射覆盖CMake、UDP socket loopback、RT subscriber/interface、RobotDriver、HardwareInterface/plugin及MockRobotServer测试。确认正常收发/connect/disconnect/reconnect/double start-stop/lifecycle基础路径已有测试；close失败注入、native状态核验、callback并发销毁/异常、self-join/timeout、双通道partial teardown、ROS cleanup/shutdown/error失败矩阵及plugin unload竞态均无覆盖。定义F01–F16故障矩阵和Slice A–F最小验证顺序。静态映射已完成；FAIL-MATRIX与SLICE-ORDER为SPECIFIED；RUN-01至RUN-08全部NOT_RUN，未修改上游。
+
+
+### §9.3.315｜SERVO-898：确定性 Fake Harness 与 Runtime Evidence Bundle
+
+- [2026-11-11 Stäubli SocketV2 确定性 Fake Harness 接口与 Runtime Evidence Bundle 设计](2026-11-11-staubli-socket-v2-deterministic-fake-harness-runtime-evidence-bundle-design.md)：定义FakeClock、Barrier/Latch、DeterministicExecutor、FaultScript、Event Trace、Resource Snapshot、环境身份和SHA-256工件契约；新增Runtime Evidence Bundle Schema与NOT_RUN示例、专用fail-closed validator及CI报告归档。Fake/C++/ROS运行测试仍NOT_RUN，未修改上游或应用PR；A1.1仍BLOCKED。下一节点§9.3.316 / SERVO-899。
