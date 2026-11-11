@@ -489,4 +489,4 @@
 
 ### §9.3.315｜SERVO-898：确定性 Fake Harness 与 Runtime Evidence Bundle
 
-- [2026-11-11 Stäubli SocketV2 确定性 Fake Harness 接口与 Runtime Evidence Bundle 设计](2026-11-11-staubli-socket-v2-deterministic-fake-harness-runtime-evidence-bundle-design.md)：定义FakeClock、Barrier/Latch、DeterministicExecutor、FaultScript、Event Trace、Resource Snapshot、环境身份和SHA-256工件契约；新增Runtime Evidence Bundle Schema与NOT_RUN示例、专用fail-closed validator及CI报告归档。Fake/C++/ROS运行测试仍NOT_RUN，未修改上游或应用PR；A1.1仍BLOCKED。下一节点§9.3.316 / SERVO-899。
+- [2026-11-11 Stäubli SocketV2 确定性 Fake Harness 接口与 Runtime Evidence Bundle 设计](2026-11-11-staubli-socket-v2-deterministic-fake-harness-runtime-evidence-bundle-design.md)：定义FakeClock、Barrier/Latch、DeterministicExecutor、FaultScript、Event Trace、Resource Snapshot、环境身份和SHA-256工件契约；新增Runtime Evidence Bundle Schema与NOT_RUN示例、专用fail-closed validator及CI报告归档。CI #3495在Python 3.10/3.11/3.12通过，Ruff通过，每个版本75项pytest通过；这只验证Schema/validator与知识库Python测试，Fake/C++/ROS运行测试仍NOT_RUN。未修改上游或应用PR；A1.1仍BLOCKED。下一节点§9.3.316 / SERVO-899。
