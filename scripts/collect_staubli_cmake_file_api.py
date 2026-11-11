@@ -115,10 +115,26 @@ def collect(
         if not isinstance(item, dict) or not isinstance(item.get("jsonFile"), str):
             raise ValueError("invalid target reference")
         target = read_json(reply / item["jsonFile"])
-        target_id = target.get("id", item.get("id"))
-        name = target.get("name", item.get("name"))
+        reference_id = item.get("id")
+        reference_name = item.get("name")
+        target_id = target.get("id")
+        name = target.get("name")
+        if not isinstance(reference_id, str) or not isinstance(
+            reference_name, str
+        ):
+            raise ValueError("codemodel target reference requires string id and name")
         if not isinstance(target_id, str) or not isinstance(name, str):
-            raise ValueError("target requires string id and name")
+            raise ValueError("target JSON requires string id and name")
+        if target_id != reference_id:
+            raise ValueError(
+                f"target id mismatch for {reference_name}: "
+                f"reference={reference_id!r}, target={target_id!r}"
+            )
+        if name != reference_name:
+            raise ValueError(
+                f"target name mismatch for {reference_id}: "
+                f"reference={reference_name!r}, target={name!r}"
+            )
         if target_id in target_ids:
             raise ValueError(f"duplicate CMake target id: {target_id}")
         target_ids[target_id] = name
@@ -144,21 +160,36 @@ def collect(
             dependency_ids.append(dependency_id)
         dependency_names = sorted({target_ids[item] for item in dependency_ids})
 
+        compile_groups = target.get("compileGroups", [])
+        if not isinstance(compile_groups, list):
+            raise ValueError(f"{name}.compileGroups must be an array")
         includes = set()
         definitions = set()
-        for group in target.get("compileGroups", []):
+        for group in compile_groups:
             if not isinstance(group, dict):
-                continue
-            includes.update(
-                item["path"]
-                for item in group.get("includes", [])
-                if isinstance(item, dict) and isinstance(item.get("path"), str)
-            )
-            definitions.update(
-                item["define"]
-                for item in group.get("defines", [])
-                if isinstance(item, dict) and isinstance(item.get("define"), str)
-            )
+                raise ValueError(f"{name}.compileGroups contains an invalid group")
+            group_includes = group.get("includes", [])
+            if not isinstance(group_includes, list):
+                raise ValueError(f"{name}.compileGroups.includes must be an array")
+            for include in group_includes:
+                if not isinstance(include, dict) or not isinstance(
+                    include.get("path"), str
+                ):
+                    raise ValueError(
+                        f"{name}.compileGroups.includes contains an invalid entry"
+                    )
+                includes.add(include["path"])
+            group_defines = group.get("defines", [])
+            if not isinstance(group_defines, list):
+                raise ValueError(f"{name}.compileGroups.defines must be an array")
+            for define in group_defines:
+                if not isinstance(define, dict) or not isinstance(
+                    define.get("define"), str
+                ):
+                    raise ValueError(
+                        f"{name}.compileGroups.defines contains an invalid entry"
+                    )
+                definitions.add(define["define"])
 
         targets.append(
             {
