@@ -30,6 +30,16 @@ ENV_ALLOWLIST = (
 )
 
 
+REQUIRED_ARTIFACT_PATHS = frozenset(
+    {
+        "artifacts/build-testing-off.json",
+        "artifacts/build-testing-on.json",
+        "artifacts/servo-906-validation-report.json",
+        "environment-fingerprint.json",
+    }
+)
+
+
 def command_version(argv: list[str]) -> str:
     try:
         result = subprocess.run(
@@ -160,8 +170,9 @@ def package_evidence(
         "artifacts": records,
         "integrity": "sha256",
         "verification_policy": (
-            "Every listed artifact must exist under this package root and "
-            "match its recorded size and SHA-256."
+            "All required OFF/ON snapshots, validator report and environment "
+            "fingerprint must be listed; every listed artifact must exist "
+            "under this package root and match its recorded size and SHA-256."
         ),
     }
     (output / "evidence_manifest.json").write_text(
@@ -186,6 +197,27 @@ def verify_manifest(manifest_path: Path) -> dict[str, Any]:
 
     checks = []
     errors = []
+    artifact_paths = [
+        item.get("path")
+        for item in artifacts
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    ]
+    if len(artifact_paths) != len(artifacts):
+        raise ValueError("each artifact requires a relative path")
+    if len(set(artifact_paths)) != len(artifact_paths):
+        raise ValueError("evidence manifest contains duplicate artifact paths")
+
+    missing_required = sorted(REQUIRED_ARTIFACT_PATHS - set(artifact_paths))
+    for required_path in missing_required:
+        checks.append(
+            {
+                "path": required_path,
+                "status": "MISSING",
+                "detail": "required artifact is not listed in the manifest",
+            }
+        )
+        errors.append(required_path + ": required artifact is not listed in the manifest")
+
     for item in artifacts:
         if not isinstance(item, dict) or not isinstance(item.get("path"), str):
             raise ValueError("each artifact requires a relative path")

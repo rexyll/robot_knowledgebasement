@@ -72,6 +72,41 @@ def test_verify_fails_when_artifact_missing(tmp_path):
     assert any("does not exist" in error for error in result["errors"])
 
 
+def test_verify_fails_when_manifest_omits_required_artifact(tmp_path):
+    off, on, report = make_inputs(tmp_path)
+    output = tmp_path / "evidence"
+    package_evidence(output, off, on, report)
+
+    manifest_path = output / "evidence_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifacts"] = [
+        item
+        for item in manifest["artifacts"]
+        if item["path"] != "artifacts/build-testing-on.json"
+    ]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = verify_manifest(manifest_path)
+    assert result["execution_status"] == "FAIL"
+    assert any(
+        "required artifact is not listed" in error for error in result["errors"]
+    )
+
+
+def test_verify_rejects_duplicate_artifact_paths(tmp_path):
+    off, on, report = make_inputs(tmp_path)
+    output = tmp_path / "evidence"
+    package_evidence(output, off, on, report)
+
+    manifest_path = output / "evidence_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifacts"].append(manifest["artifacts"][0])
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate"):
+        verify_manifest(manifest_path)
+
+
 def test_verify_rejects_path_traversal(tmp_path):
     manifest = tmp_path / "evidence_manifest.json"
     payload = {
