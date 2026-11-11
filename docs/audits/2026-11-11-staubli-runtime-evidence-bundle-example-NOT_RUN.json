@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0.0",
+  "bundle_id": "SERVO-898-example-NOT_RUN",
+  "test_id": "RACE-01",
+  "attempt": 1,
+  "execution_status": "NOT_RUN",
+  "source_identity": {
+    "repository": "rexyll/robot_knowledgebasement",
+    "commit": "0000000000000000000000000000000000000000",
+    "upstream_repository": "ICube-Robotics/staubli_driver_ros2",
+    "upstream_commit": "bd658e2d266e315d2ee35f985fb352ea88306b79"
+  },
+  "environment": {
+    "os": "NOT_CAPTURED",
+    "architecture": "NOT_CAPTURED",
+    "kernel": "NOT_CAPTURED",
+    "compiler": "NOT_CAPTURED",
+    "build_type": "Debug",
+    "ros_distro": "NOT_CAPTURED",
+    "dependency_lock_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "oci_image_digest": "sha256:000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "harness": {
+    "clock": {
+      "mode": "fake_monotonic",
+      "initial_time_ns": 0,
+      "ticks": 0
+    },
+    "barriers": [],
+    "executor": {
+      "mode": "deterministic_queued",
+      "accepted": 0,
+      "rejected": 0,
+      "cancelled": 0,
+      "completed": 0,
+      "shutdown_state": "NOT_REACHED"
+    },
+    "fault_injections": []
+  },
+  "event_trace": [],
+  "resource_snapshots": [],
+  "artifacts": [],
+  "assertions": [],
+  "blockers": [
+    "Example template only; no runtime execution has occurred."
+  ]
+}
