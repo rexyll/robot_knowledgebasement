@@ -355,3 +355,13 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 下一步仍是由具备仓库write权限的用户在Actions页面手动触发专用workflow；取得真实日志和artifact后，优先判断`realtime_tools`公共头文件依赖导出是否阻断consumer，再决定是否提交知识库侧修正或形成上游修复建议。
 
 固定上游commit保持`bd658e2d266e315d2ee35f985fb352ea88306b79`；未修改上游、未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
+
+
+## 21. 文档同步提交后的CI #3707–#3709复验（2026-11-11）
+
+- 文档同步提交触发的push runs #3707（Run ID 42969519707）、#3708（42969528779）、#3709（42969535678）均已完成，三个run的五个job全部SUCCESS：Python 3.10/3.11/3.12、OSV依赖审计、SBOM。
+- #3709 Python 3.10 job日志确认Ruff All checks passed!，pytest 126 passed in 0.91s；Stäubli生命周期manifest校验PASS（28 records、20 references），只读寄存器审计PASS（26条白名单与62个STS3215寄存器声明匹配）。
+- #3709生成并上传Python CI相关验证artifact及SBOM；这些artifact不是ROS Jazzy build/install证据，不能替代专用workflow结果。
+- 本轮重新审查矩阵脚本、collector、validator、evidence packager和固定上游CMakeLists。未发现足以支持立即修改的新增知识库侧缺陷；关键风险仍需真实OFF/ON构建及consumer来定性。上游CMake仍遗漏ament_export_dependencies(realtime_tools)，且asio_SOURCE_DIR/asio/include的来源未在固定commit中找到。
+- 专用ROS Jazzy workflow仍无workflow_dispatch运行；真实colcon build/install、consumer、gtest、安装导出快照和SHA-256 evidence继续NOT_RUN。普通CI历史失败修复闭环；SERVO-907动态验收保持BLOCKED。
+- 固定上游commit不变；未修改上游、未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
