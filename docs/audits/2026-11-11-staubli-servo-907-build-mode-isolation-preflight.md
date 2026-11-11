@@ -284,6 +284,6 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 
 ### 17.3 验收边界
 
-- 当前GitHub main最新已确认提交为`f4785e9462f87ee54b38107fcd7ceae95182e18a`。其combined status为空，PR触发workflow查询也为空；这两项均不能证明push workflow成功或未运行，故普通CI结果仍标记为待确认。
+- 本轮代码/静态测试提交基线为`f4785e9462f87ee54b38107fcd7ceae95182e18a`；随后审计报告、根TaskPlan和第21章TaskPlan同步提交分别为`fb15cfe18477cc98a381a7afc4d33787869972f4`、`45339859829eb463fe0bd2868ec8e706decd4fb6`、`42885783138d511d25118dc52d08982a0554ea37`。代码基线的combined status为空，PR触发workflow查询也为空；这两项均不能证明push workflow成功或未运行，故普通CI结果仍标记为待确认。
 - 本轮只检查并提交静态代码/测试；没有在本地执行pytest、Ruff或shellcheck，也没有执行ROS Jazzy容器构建。真实OFF/ON colcon build/install、安装空间consumer编译与运行、gtest、证据包及SHA-256仍为`NOT_RUN`。
 - 固定上游commit不变；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
