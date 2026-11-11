@@ -10,7 +10,7 @@ def read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value,dict): raise ValueError(f"{path}: expected JSON object")
     return value
 
-def collect(build_dir: Path, build_testing: bool, configuration: str|None, exports_file: Path|None) -> dict[str,Any]:
+def collect(build_dir: Path, build_testing: bool, configuration: str|None, exports_file: Path|None, export_root: Path|None = None) -> dict[str,Any]:
     reply=build_dir/".cmake/api/v1/reply"
     indexes=sorted(reply.glob("index-*.json"),key=lambda p:p.stat().st_mtime_ns)
     if not indexes and (reply/"index.json").exists(): indexes=[reply/"index.json"]
@@ -47,23 +47,20 @@ def collect(build_dir: Path, build_testing: bool, configuration: str|None, expor
                         "include_directories":sorted(includes),"compile_definitions":sorted(defines)})
     manifest=build_dir/"install_manifest.txt"
     install=[x.strip() for x in manifest.read_text(encoding="utf-8").splitlines() if x.strip()] if manifest.exists() else []
-    exports=[]
-    if exports_file:
-        exports=[x.strip() for x in exports_file.read_text(encoding="utf-8").splitlines() if x.strip() and not x.lstrip().startswith("#")]
-    return {"schema_version":"1.0.0","configuration_id":str(selected.get("name") or build_dir.name),
+    if exports_file and export_root:\n        raise ValueError("use only one of --exported-targets-file and --export-root")\n    exports=[]\n    export_sources=[]\n    if exports_file:\n        exports=[x.strip() for x in exports_file.read_text(encoding="utf-8").splitlines() if x.strip() and not x.lstrip().startswith("#")]\n        export_sources=[str(exports_file.resolve())]\n    if export_root:\n        prefix=export_root.resolve()\n        if not prefix.is_dir(): raise FileNotFoundError(f"export root is not a directory: {prefix}")\n        import re\n        pattern=re.compile(r"add_(?:library|executable)\\s*\\(\\s*([A-Za-z0-9_.:+-]+)\\s+(?:(?:UNKNOWN|STATIC|SHARED|MODULE|INTERFACE)\\s+)?IMPORTED\\b",re.IGNORECASE)\n        candidates=list((prefix/"lib"/"cmake").rglob("*Targets.cmake")) if (prefix/"lib"/"cmake").exists() else []\n        share=prefix/"share"\n        if share.exists(): candidates.extend(share.rglob("*Targets.cmake"))\n        for path in sorted(set(candidates)):\n            resolved=path.resolve()\n            if not resolved.is_relative_to(prefix): continue\n            if not (("lib" in resolved.relative_to(prefix).parts and "cmake" in resolved.relative_to(prefix).parts) or ("share" in resolved.relative_to(prefix).parts and "cmake" in resolved.relative_to(prefix).parts)): continue\n            content=resolved.read_text(encoding="utf-8",errors="replace")\n            names=pattern.findall(content)\n            if names:\n                exports.extend(names); export_sources.append(str(resolved))\n    exports=sorted(set(exports))\n    return {"schema_version":"1.0.0","configuration_id":str(selected.get("name") or build_dir.name),
             "build_testing":build_testing,"build_directory":str(build_dir.resolve()),"cmake_file_api_index":indexes[-1].name,
             "targets":sorted(targets,key=lambda x:x["name"]),"install_entries":sorted(set(install)),
-            "exported_targets":sorted(set(exports)),"collection_scope":"cmake_file_api_codemodel_v2",
-            "limitations":["Exported targets require an explicit export-list input; codemodel-v2 does not provide a portable installed-export manifest.",
+            "exported_targets":sorted(set(exports)),"exported_target_sources":sorted(set(export_sources)),"collection_scope":"cmake_file_api_codemodel_v2",
+            "limitations":["Exported targets come from an explicit list or constrained imported-target scan under the supplied install prefix; this is not a substitute for a downstream consumer test.",
                            "Missing install_manifest.txt yields an empty list and is not proof that install was executed."]}
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--build-dir",type=Path,required=True); p.add_argument("--build-testing",choices=("ON","OFF"),required=True)
-    p.add_argument("--configuration"); p.add_argument("--exported-targets-file",type=Path); p.add_argument("--output",type=Path,required=True)
+    p.add_argument("--configuration"); p.add_argument("--exported-targets-file",type=Path); p.add_argument("--export-root",type=Path); p.add_argument("--output",type=Path,required=True)
     a=p.parse_args()
     try:
-        result=collect(a.build_dir,a.build_testing=="ON",a.configuration,a.exported_targets_file)
+        result=collect(a.build_dir,a.build_testing=="ON",a.configuration,a.exported_targets_file,a.export_root)
         encoded=json.dumps(result,indent=2,ensure_ascii=False)+"\n"; a.output.parent.mkdir(parents=True,exist_ok=True)
         a.output.write_text(encoded,encoding="utf-8"); print(encoded,end=""); return 0
     except (OSError,ValueError,json.JSONDecodeError) as exc:
