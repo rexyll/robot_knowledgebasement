@@ -4930,3 +4930,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 固定上游公共头文件依赖realtime_tools，但ament_export_dependencies()遗漏该依赖；优先通过install-space consumer动态验证。上游README仍将驱动描述为prototype，并说明POC后开发暂停，不视为工业级/量产就绪。
 - 当前任务节点：SERVO-907真实ROS Jazzy OFF/ON build/install、consumer、gtest及证据包验证（BLOCKED / NOT_RUN）。下一步需由有仓库write权限的用户在Actions页面手动运行专用workflow，随后依据日志和artifact继续修复。
 - 固定上游commit保持bd658e2d266e315d2ee35f985fb352ea88306b79；未修改上游、未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
+
+
+### 2026-11-11｜v11.13 补充：CI #3707–#3709全部通过，静态复核无新增可确认修复项
+
+- 文档同步push runs #3707（42969519707）、#3708（42969528779）、#3709（42969535678）全部SUCCESS；每个run的Python 3.10/3.11/3.12、OSV和SBOM五个job全部成功。
+- #3709 Python 3.10日志：Ruff All checks passed，pytest 126 passed；Stäubli生命周期manifest校验28条记录/20个引用PASS；STS3215只读寄存器审计26条白名单与62个寄存器声明匹配PASS。
+- 已再次静态复核ROS Jazzy矩阵脚本、CMake File API collector、target graph validator、证据打包器及固定上游CMakeLists；没有新增足以支持立即修改的知识库侧缺陷。关键问题仍必须由真实ROS Jazzy构建和install-space consumer证实。
+- 当前普通CI历史失败已闭环；专用ROS Jazzy workflow仍无workflow_dispatch运行。真实OFF/ON colcon build/install、consumer、gtest、导出快照与SHA-256证据仍NOT_RUN。当前任务节点保持SERVO-907动态验收（BLOCKED）。
+- 固定上游commit bd658e2d266e315d2ee35f985fb352ea88306b79未修改；未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
