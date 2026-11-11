@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.04  
+> 版本：v11.05  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险，不宣称已复现失败。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现改为直接链接ament导出target staubli_robot_driver::staubli_robot_driver，静态合同测试同步加强。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
 
 ---
 
@@ -4827,3 +4827,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - **运行状态：** 最近workflow runs列表未见SERVO-907的workflow_dispatch运行；常规CI #3622及后续TaskPlan提交CI成功不代表ROS/C++验收。OFF/ON真实build/install、consumer、gtest仍NOT_RUN。
 - **边界：** 固定上游未修改；未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
 - **下一步：** 用户手动触发`.github/workflows/staubli-ros-jazzy-build.yml`后，优先检查OFF/ON consumer导入与链接日志，再核对gtest及证据包SHA-256。
+
+
+### 2026-11-11｜v11.05 SERVO-907 Consumer 显式链接导出 target
+
+- **发现与改进：** 为避免consumer仅通过`ament_target_dependencies()`间接消费包而未明确覆盖现代CMake导出target，现将consumer改为直接链接`staubli_robot_driver::staubli_robot_driver`。该方式依据ROS 2官方ament_cmake导出target使用方式。
+- **提交：** 构建矩阵脚本`ed422168d8669eb683281c80101b6e60ade61f36`；静态合同测试`22fc89228c9533bc9adfc91e442b05ee324b3cc7`；审计报告`ca3fbed2e81546789e3dd7e61cb5aa4cb7b4489c`。
+- **验证意义：** 真实consumer将直接解析并链接上游导出的namespaced target及其传递链接接口，更有机会暴露Boost::system等导出依赖缺失；不得在consumer侧补find_package(Boost)掩盖上游问题。
+- **状态：** 修改已提交，静态合同测试待CI复验；真实ROS Jazzy双配置build/install、consumer、gtest仍NOT_RUN。SERVO-907手动workflow尚未触发。
+- **边界：** 固定上游未修改，未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
