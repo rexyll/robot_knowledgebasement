@@ -198,6 +198,27 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError(f"{label}.exported_targets must be an array of strings")
         export_names = normalized_exports(exports)
         missing_exports = sorted(set(PRODUCTION_TARGETS) - export_names)
+        exported_includes = snapshot.get("exported_target_include_directories", [])
+        if not isinstance(exported_includes, list) or any(
+            not isinstance(value, str) for value in exported_includes
+        ):
+            raise ValueError(
+                f"{label}.exported_target_include_directories must be an array of strings"
+            )
+        unresolved_asio_paths = sorted(
+            value
+            for value in exported_includes
+            if value == "/asio/include"
+            or "${asio_SOURCE_DIR}" in value
+            or value.rstrip("/").endswith("/asio/include")
+        )
+        check(
+            f"EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-{label}",
+            not unresolved_asio_paths,
+            "exported target include directories must not contain the unresolved "
+            "standalone Asio path: "
+            + (", ".join(unresolved_asio_paths) or "none"),
+        )
         leaked_exports = sorted(
             name
             for name in GTEST_TARGETS
