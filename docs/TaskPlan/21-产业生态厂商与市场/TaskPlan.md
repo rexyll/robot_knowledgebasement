@@ -6013,3 +6013,10 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 逐个读取artifact清单，确认SBOM、OSV报告及三个Python版本的lifecycle/test-catalog/Runtime Evidence Bundle验证报告均已归档且未过期。以上工件是Python静态/供应链验证产物，不是ROS Jazzy C++构建证据。
 - 检查#3803–#3812连续10次main push，全部completed/success；未发现新的普通CI失败。审计报告已补充§2.16。
 - ROS Jazzy workflow仍需workflow_dispatch；当前连接器只有Actions GET读取能力，无触发写入动作，因此没有擅自声称已执行。真实OFF/ON colcon build/install、consumer、gtest、manifest/SHA-256仍NOT_RUN。固定上游commit保持只读；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+### 2026-11-11｜§9.3.333 CI-HIST-006：#3813–#3815文档提交CI闭环
+
+- #3813 / Run `43007378346`、#3814 / `43007387076`、#3815 / `43007394986`均completed/success；逐个核验全部Job和步骤，Python 3.10/3.11/3.12、SBOM、OSV五个Job全部成功。
+- 三次run均归档SBOM、OSV报告及三个Python版本的Stäubli lifecycle/test-catalog/Runtime Evidence Bundle静态验证报告，工件未过期。
+- #3803–#3815连续13次main push全部成功。详细记录见历史Actions审计报告§2.17。
+- 专用ROS Jazzy workflow仍未触发；当前连接器无workflow_dispatch写入能力。真实OFF/ON colcon build/install、install-space consumer、gtest、manifest/SHA-256仍NOT_RUN。固定上游commit保持只读；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
