@@ -104,7 +104,7 @@ project(staubli_install_consumer)
 find_package(ament_cmake REQUIRED)
 find_package(staubli_robot_driver REQUIRED)
 add_executable(staubli_install_consumer main.cpp)
-ament_target_dependencies(staubli_install_consumer staubli_robot_driver)
+target_link_libraries(staubli_install_consumer PRIVATE staubli_robot_driver::staubli_robot_driver)
 install(TARGETS staubli_install_consumer DESTINATION lib/${PROJECT_NAME})
 ament_package()
 CMAKE
