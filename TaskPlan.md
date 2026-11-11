@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.08  
+> 版本：v11.09  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；最新consumer加强提交等待CI复验。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
+> 当前状态：执行中；当前主章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.324 / SERVO-907：OFF/ON install-space consumer环境隔离风险已修复，CI #3622（Run ID 42958783662）Python 3.10/3.11/3.12各113 passed，Ruff、OSV、SBOM均SUCCESS。追加静态复核发现上游ament_export_dependencies未列Boost、backward_ros、realtime_tools，列为待真实consumer验证的导出依赖风险；consumer现直接链接ament导出target，并通过调用固定上游FrameHeader::serialize非内联符号加强链接解析验证；静态合同测试同步加强。CI #3643–#3645均SUCCESS；consumer实际调用FrameHeader::serialize非内联符号的加强已由CI #3646–#3651全部SUCCESS复验（每次五个job全部成功）；该结果仍不代表ROS Jazzy/C++构建验收。常规CI不代表ROS/C++构建验收；SERVO-907独立手动ROS Jazzy workflow尚无workflow_dispatch运行。真实双配置colcon build/install、consumer与gtest均NOT_RUN。A1.1保持BLOCKED，TODO-EXT-001未授权。
 
 ---
 
