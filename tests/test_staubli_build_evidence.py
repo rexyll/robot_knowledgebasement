@@ -47,6 +47,17 @@ def test_package_and_verify_sha256(tmp_path):
     assert result["checked_artifact_count"] == 4
 
 
+def test_package_refuses_failed_validator_report(tmp_path):
+    off, on, report = make_inputs(tmp_path)
+    report.write_text('{"execution_status":"FAIL"}\\n', encoding="utf-8")
+    output = tmp_path / "evidence"
+
+    with pytest.raises(ValueError, match="execution_status is PASS"):
+        package_evidence(output, off, on, report)
+
+    assert not (output / "evidence_manifest.json").exists()
+
+
 def test_verify_detects_tampered_artifact(tmp_path):
     off, on, report = make_inputs(tmp_path)
     output = tmp_path / "evidence"
