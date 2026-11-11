@@ -455,7 +455,7 @@ def test_non_utf8_export_file_fails_closed(tmp_path):
     targets = prefix / "lib/cmake/staubli/staubliTargets.cmake"
     targets.parent.mkdir(parents=True)
     targets.write_bytes(
-        b"add_library(staubli::core SHARED IMPORTED)\\n\\xff"
+        b"add_library(staubli::core SHARED IMPORTED)\n\xff"
     )
 
     try:
