@@ -5920,3 +5920,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 - CMake File API collector新增采集安装导出target的`INTERFACE_INCLUDE_DIRECTORIES`，target graph validator在OFF/ON快照中拒绝精确`/asio/include`及未展开的`${asio_SOURCE_DIR}`。
 - 已增加静态合同测试。真实安装导出检查仍需ROS Jazzy workflow运行；不据此将上游路径问题标为已修复。
+
+
+- 实现提交补记：collector`71e59c4`/`5648092`；validator`0d5fa7f`/`d0d03d6`；静态合同测试`44f1564`/`2a21c4c`。当前尚无新CI结果或ROS Jazzy动态证据。
