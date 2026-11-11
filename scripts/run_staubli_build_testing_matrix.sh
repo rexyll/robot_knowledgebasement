@@ -74,6 +74,7 @@ for mode in OFF ON; do
     --cmake-args "-DBUILD_TESTING=${mode}" -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
   [[ -s "${package_build}/install_manifest.txt" ]] || fail "install_manifest.txt missing/empty for BUILD_TESTING=${mode}"
+  grep -Fxq "BUILD_TESTING:BOOL=${mode}" "${package_build}/CMakeCache.txt" || fail "CMakeCache BUILD_TESTING does not match ${mode}"
   [[ -f "${install_base}/setup.bash" ]] || fail "colcon install setup missing for BUILD_TESTING=${mode}"
 
   run_logged python3 "${SCRIPT_DIR}/collect_staubli_cmake_file_api.py" \
