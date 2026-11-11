@@ -1,0 +1,43 @@
+import json
+from pathlib import Path
+from scripts.collect_staubli_cmake_file_api import collect
+
+def put(path: Path, data):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    path.write_text(json.dumps(data),encoding="utf-8")
+
+def fixture(tmp_path):
+    build=tmp_path/"build"; reply=build/".cmake/api/v1/reply"
+    put(reply/"index-001.json",{"reply":{"codemodel-v2":{"jsonFile":"codemodel-v2.json"}}})
+    put(reply/"codemodel-v2.json",{"configurations":[{"name":"Debug","targets":[
+        {"id":"core-id","name":"staubli_socket_core","jsonFile":"core.json"},
+        {"id":"plugin-id","name":"staubli_driver_plugin","jsonFile":"plugin.json"}]}]})
+    put(reply/"core.json",{"id":"core-id","name":"staubli_socket_core","type":"SHARED_LIBRARY","dependencies":[],
+        "compileGroups":[{"includes":[{"path":"/opt/ros/include"}],"defines":[{"define":"CORE_BUILD=1"}]}]})
+    put(reply/"plugin.json",{"id":"plugin-id","name":"staubli_driver_plugin","type":"MODULE_LIBRARY",
+        "dependencies":[{"id":"core-id"}],"compileGroups":[]})
+    (build/"install_manifest.txt").write_text("/tmp/install/lib/libstaubli.so\n")
+    return build
+
+def test_codemodel_targets_dependencies_and_compile_metadata(tmp_path):
+    result=collect(fixture(tmp_path),False,"Debug",None)
+    assert result["build_testing"] is False
+    assert result["targets"][1]["dependencies"]==["staubli_socket_core"]
+    assert result["targets"][0]["include_directories"]==["/opt/ros/include"]
+    assert result["targets"][0]["compile_definitions"]==["CORE_BUILD=1"]
+    assert result["install_entries"]==["/tmp/install/lib/libstaubli.so"]
+
+def test_exported_targets_are_explicit_input(tmp_path):
+    export=tmp_path/"exports.txt"; export.write_text("staubli_socket_core\nstaubli_driver_plugin\n")
+    result=collect(fixture(tmp_path),True,"Debug",export)
+    assert result["exported_targets"]==["staubli_driver_plugin","staubli_socket_core"]
+
+def test_missing_file_api_index_fails_closed(tmp_path):
+    try: collect(tmp_path/"empty",False,None,None)
+    except FileNotFoundError as exc: assert "no CMake File API index" in str(exc)
+    else: raise AssertionError("missing index must fail")
+
+def test_missing_configuration_fails_closed(tmp_path):
+    try: collect(fixture(tmp_path),False,"Release",None)
+    except ValueError as exc: assert "configuration 'Release' not found" in str(exc)
+    else: raise AssertionError("missing configuration must fail")
