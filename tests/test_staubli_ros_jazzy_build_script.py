@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 
@@ -27,3 +28,13 @@ def test_build_matrix_runs_install_space_consumer_in_both_modes():
     assert "for mode in OFF ON; do" in content
     assert "find_package(staubli_robot_driver REQUIRED)" in content
     assert "colcon test-result" in content
+
+
+def test_build_matrix_shell_syntax_is_valid():
+    result = subprocess.run(
+        ["bash", "-n", str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
