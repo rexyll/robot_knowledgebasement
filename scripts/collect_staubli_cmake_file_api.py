@@ -244,15 +244,21 @@ def collect(
         )
 
     manifest = build_dir / "install_manifest.txt"
-    install_entries = (
-        [
+    install_entries = []
+    if manifest.exists():
+        install_entries = [
             line.strip()
             for line in manifest.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
-        if manifest.exists()
-        else []
-    )
+        relative_entries = [
+            entry for entry in install_entries if not Path(entry).is_absolute()
+        ]
+        if relative_entries:
+            raise ValueError(
+                "install_manifest.txt contains non-absolute paths: "
+                + ", ".join(relative_entries)
+            )
 
     if exports_file and export_root:
         raise ValueError(
