@@ -155,6 +155,14 @@ def validate_manifest(
         return errors
 
     reference_set = set(manifest["reference_catalog"])
+    expected_references = {
+        *(f"RACE-{number:02d}" for number in range(1, 17)),
+        *(f"EXEC-{number:02d}" for number in range(1, 5)),
+    }
+    for missing_reference in sorted(expected_references - reference_set):
+        errors.append(
+            f"reference_catalog: required test reference is missing: {missing_reference}"
+        )
     records = manifest["records"]
     seen_ids: set[str] = set()
     ownership_groups: dict[tuple[str, str], set[tuple[str, str]]] = defaultdict(set)
@@ -180,6 +188,12 @@ def validate_manifest(
             errors.append(f"{location}.resource_owner: owner must not be blank")
         if not coordinator:
             errors.append(f"{location}.reconcile_coordinator: coordinator must not be blank")
+        if "/" in owner:
+            errors.append(f"{location}.resource_owner: composite owner role is ambiguous")
+        if "/" in coordinator:
+            errors.append(
+                f"{location}.reconcile_coordinator: composite coordinator role is ambiguous"
+            )
         group_key = (record["resource_key"], record["ownership_phase"])
         ownership_groups[group_key].add((owner, coordinator))
 
@@ -220,6 +234,13 @@ def validate_manifest(
                 item["state"] == "PRESENT" for item in evidence_by_kind.get(kind, [])
             ):
                 errors.append(f"{location}.evidence: status {status} requires PRESENT {kind}")
+        for kind in required_in_record:
+            if not any(
+                item["state"] == "PRESENT" for item in evidence_by_kind.get(kind, [])
+            ):
+                errors.append(
+                    f"{location}.evidence: required_evidence item {kind} is not PRESENT"
+                )
 
         if status in {"RUN_PASS", "RUN_FAIL"}:
             if not record["test_refs"]:
