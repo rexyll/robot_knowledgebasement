@@ -15,16 +15,26 @@ import validate_staubli_test_case_catalog as validator  # noqa: E402
 @pytest.fixture
 def inputs() -> tuple[dict, dict, dict, dict]:
     manifest = json.loads(
-        (ROOT / "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-traceability-manifest-v1.json").read_text(encoding="utf-8")
+        (
+            ROOT
+            / "docs/audits/2026-11-10-staubli-socket-v2-lifecycle-traceability-manifest-v1.json"
+        ).read_text(encoding="utf-8")
     )
     manifest_schema = json.loads(
-        (ROOT / "docs/schemas/staubli-lifecycle-traceability.schema.json").read_text(encoding="utf-8")
+        (ROOT / "docs/schemas/staubli-lifecycle-traceability.schema.json").read_text(
+            encoding="utf-8"
+        )
     )
     catalog = json.loads(
-        (ROOT / "docs/audits/2026-11-11-staubli-socket-v2-race-exec-test-case-catalog-v1.json").read_text(encoding="utf-8")
+        (
+            ROOT
+            / "docs/audits/2026-11-11-staubli-socket-v2-race-exec-test-case-catalog-v1.json"
+        ).read_text(encoding="utf-8")
     )
     catalog_schema = json.loads(
-        (ROOT / "docs/schemas/staubli-race-exec-test-case-catalog.schema.json").read_text(encoding="utf-8")
+        (ROOT / "docs/schemas/staubli-race-exec-test-case-catalog.schema.json").read_text(
+            encoding="utf-8"
+        )
     )
     return manifest, manifest_schema, catalog, catalog_schema
 
