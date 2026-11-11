@@ -287,3 +287,31 @@ CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**�
 - 本轮代码/静态测试提交基线为`f4785e9462f87ee54b38107fcd7ceae95182e18a`；随后审计报告、根TaskPlan和第21章TaskPlan同步提交分别为`fb15cfe18477cc98a381a7afc4d33787869972f4`、`45339859829eb463fe0bd2868ec8e706decd4fb6`、`42885783138d511d25118dc52d08982a0554ea37`。代码基线的combined status为空，PR触发workflow查询也为空；这两项均不能证明push workflow成功或未运行，故普通CI结果仍标记为待确认。
 - 本轮只检查并提交静态代码/测试；没有在本地执行pytest、Ruff或shellcheck，也没有执行ROS Jazzy容器构建。真实OFF/ON colcon build/install、安装空间consumer编译与运行、gtest、证据包及SHA-256仍为`NOT_RUN`。
 - 固定上游commit不变；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
+
+
+## 18. CI #3686–#3698 失败根因、修复与复验（2026-11-11）
+
+### 18.1 失败范围与根因
+
+- GitHub Actions push run #3686–#3696（11次连续运行）均以失败结束；失败集中在Python测试矩阵，并非所有job都失败。OSV审计与SBOM作业在最新失败run #3696均成功。
+- 早期失败日志显示Ruff F821：collect()调用collect_exported_target_include_directories()，但该函数在当时提交中尚未定义，属于重构提交顺序/函数定义遗漏。
+- helper补入后，测试矩阵仍失败：一项静态测试仍要求asio_SOURCE_DIR字面量出现在collector源文件中，但该判断职责已位于validator；另有8项target graph测试快照fixture未提供新增必需字段exported_target_include_directories，validator按设计拒绝旧fixture。
+- 最新失败run #3696的lint成功，测试为9 failed / 114 passed；Python 3.10/3.11/3.12均在同一测试集合失败。这些失败不是OSV漏洞、SBOM上传、Python安装或依赖解析故障。
+
+### 18.2 修复内容
+
+- collector合同测试改为检查collect_exported_target_include_directories(prefix)被调用，不再要求实现源文件出现asio_SOURCE_DIR字面量；未解析路径判定由validator负责。
+- target graph测试snapshot fixture统一加入exported_target_include_directories字段，默认空列表；增加两项回归测试：/asio/include必须失败，缺失证据字段必须拒绝。
+- 早期helper未定义问题已由独立函数定义提交修复；本轮最终修复提交：静态合同测试2f7601e68951f1be5c6b0922de32cb5841abc91a，target graph fixtures与回归测试a04999e1d398e732262a0dd6d83603e0d075fa40。
+
+### 18.3 CI复验结果
+
+- 最终提交触发push run #3698（Run ID 42968264032），结论SUCCESS。OSV审计、SBOM及Python 3.10/3.11/3.12三个测试job全部成功。
+- 三个Python版本均报告Ruff All checks passed!，pytest均为125 passed（3.10：0.92s；3.11：1.38s；3.12：1.00s）。
+- 前一提交#3697（仅调整collector合同测试）仍失败，因为target graph fixture尚未同步；随后#3698在完整修复提交上通过。历史失败run保留，不重写为成功。
+
+### 18.4 后续验收边界
+
+- 普通CI现已在a04999e1d398e732262a0dd6d83603e0d075fa40通过；该结果只证明Python lint/tests、OSV与SBOM jobs，不代表ROS Jazzy/C++构建通过。
+- ROS Jazzy OFF/ON colcon build/install、安装空间consumer编译与运行、gtest、证据包SHA-256仍为NOT_RUN。专用workflow仍需真实workflow_dispatch运行。
+- 固定上游commit保持bd658e2d266e315d2ee35f985fb352ea88306b79；未创建/应用/合并上游PR；TODO-EXT-001未授权；A1.1保持BLOCKED。
