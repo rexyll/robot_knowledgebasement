@@ -144,3 +144,27 @@ target_link_libraries(
 - 六次普通CI均包含Python 3.10/3.11/3.12、OSV和SBOM检查，所有job及失败步骤检查均无失败。
 - 当前最新代码已包含consumer对`FrameHeader::serialize`非内联符号的调用及静态合同断言；上述普通CI成功验证了知识库测试代码，但没有执行专用ROS Jazzy workflow。
 - 专用ROS workflow仍无运行实例；真实OFF/ON colcon build/install、consumer、gtest、证据包和SHA-256仍为`NOT_RUN`。
+
+
+## 12. Install-space consumer 运行检查与 CI #3655–#3657
+
+### 12.1 Consumer 验证强度修正
+
+此前consumer在OFF/ON两种安装空间分别执行colcon build，能够验证编译和链接，但未实际启动生成的可执行文件。为补齐动态库装载及最小运行检查，现于每个模式的独立ROS环境中，在consumer构建成功后直接执行安装产物：
+
+`consumer/install-<mode>/lib/staubli_install_consumer/staubli_install_consumer`
+
+该程序调用固定上游`FrameHeader::serialize`，只执行8字节内存序列化，不连接机器人或网络。只有consumer编译、链接且程序退出码为0，脚本才会写入对应的`INSTALL_SPACE_CONSUMER_PASS`标记。
+
+- 脚本提交：`8384fd19176a32f7aa0411da64df474979f2a0e6`。
+- 新增静态合同测试提交：`a6b720c7565a15cbdcfd0402ebde6d79636d80a4`。
+- CI #3655 / Run ID `42963172585`：SUCCESS，五个job全部成功。
+- CI #3656 / Run ID `42963178378`：FAILURE，Python 3.10/3.11/3.12三个测试job均在Ruff Lint失败，原因是新增测试的两行断言超过100字符；其余OSV和SBOM job成功。失败日志已检查，未发现运行逻辑错误。
+- 修复提交：`0f415e6ec7675954a14265971236e3d400bfc456`，将断言改为分段字符串表达式。
+- CI #3657 / Run ID `42963282701`：SUCCESS，Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功，无失败步骤。
+
+### 12.2 当前验收边界
+
+CI #3657验证的是静态合同、Ruff及知识库Python/供应链检查；**没有执行**专用ROS Jazzy容器workflow。因此OFF/ON真实colcon build/install、consumer实际运行、上游gtest、证据包及SHA-256校验仍为`NOT_RUN`。新增consumer运行步骤尚未在ROS Jazzy容器中动态执行，必须等专用workflow结果确认。
+
+固定上游未修改；未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持`BLOCKED`。
