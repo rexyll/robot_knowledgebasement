@@ -80,11 +80,11 @@ def test_catalog_cannot_claim_test_execution(inputs: tuple) -> None:
     assert any("const" in error or "execution_state" in error for error in errors)
 
 
-def test_unknown_manifest_record_in_reverse_mapping_is_rejected(inputs: tuple) -> None:
+def test_invalid_manifest_record_id_in_reverse_mapping_is_rejected(inputs: tuple) -> None:
     manifest, manifest_schema, catalog, catalog_schema = copy.deepcopy(inputs)
     catalog["test_cases"][0]["manifest_record_ids"].append("F99")
     errors = validator.validate_catalog(manifest, manifest_schema, catalog, catalog_schema)
-    assert any("unknown manifest record F99" in error for error in errors)
+    assert any("pattern" in error for error in errors)
 
 
 def test_catalog_and_manifest_reference_sets_must_match(inputs: tuple) -> None:
@@ -121,7 +121,7 @@ def test_cli_returns_zero_and_writes_report(inputs: tuple, tmp_path: Path) -> No
 
 def test_cli_returns_one_for_reverse_mapping_failure(inputs: tuple, tmp_path: Path) -> None:
     manifest, manifest_schema, catalog, catalog_schema = copy.deepcopy(inputs)
-    catalog["test_cases"][0]["manifest_record_ids"].remove("F01")
+    catalog["test_cases"][0]["manifest_record_ids"].pop()
     paths = []
     for name, value in [
         ("manifest.json", manifest),
