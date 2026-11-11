@@ -95,6 +95,19 @@ def test_production_targets_must_remain_shared_libraries(tmp_path):
     )
 
 
+def test_diagnostic_utility_must_remain_executable(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    target = next(
+        item for item in data["targets"] if item["name"] == DIAGNOSTIC_TARGET
+    )
+    target["type"] = "STATIC_LIBRARY"
+    on.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any("DIAGNOSTIC-TYPE-ON" in error for error in report["errors"])
+
+
 def test_gtest_targets_must_be_absent_when_testing_off(tmp_path):
     off, on = valid_pair(tmp_path)
     data = json.loads(off.read_text())
