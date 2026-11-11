@@ -494,4 +494,4 @@
 
 ### §9.3.316｜SERVO-899：Runtime Evidence Bundle 深度完整性校验
 
-- [2026-11-11 Stäubli SocketV2 Runtime Evidence Bundle 深度完整性校验](2026-11-11-staubli-socket-v2-runtime-evidence-bundle-integrity-validation.md)：强化实际artifact字节数/SHA-256、规范相对路径/symlink防护、环境占位值拦截、RUN_PASS/RUN_FAIL快照门禁和environment/trace/snapshot跨工件身份绑定。新增必需`evidence_origin`，将合成fixture与observed execution显式区分；测试内可重复生成合成RUN_PASS/RUN_FAIL数据，CLI和JSON报告明确标记合成数据不是运行证据。真实Stäubli Fake/C++/ROS执行仍NOT_RUN；CI待本轮验收。
+- [2026-11-11 Stäubli SocketV2 Runtime Evidence Bundle 深度完整性校验](2026-11-11-staubli-socket-v2-runtime-evidence-bundle-integrity-validation.md)：强化实际artifact字节数/SHA-256、规范相对路径/symlink防护、环境占位值拦截、RUN_PASS/RUN_FAIL快照门禁和environment/trace/snapshot跨工件身份绑定。新增必需`evidence_origin`，将合成fixture与observed execution显式区分；测试内可重复生成合成RUN_PASS/RUN_FAIL数据，CLI和JSON报告明确标记合成数据不是运行证据。CI #3518在Python 3.10/3.11/3.12通过，Ruff与所有81项pytest通过，Manifest/Catalog/证据包validator、OSV和SBOM成功；真实Stäubli Fake/C++/ROS执行仍NOT_RUN。
