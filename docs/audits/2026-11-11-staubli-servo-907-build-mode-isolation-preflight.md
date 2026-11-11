@@ -65,3 +65,23 @@ ROS setup 脚本会扩展而非重置环境前缀。父进程因此可能保留�
 - CI #3622（Run ID `42958783662`）及其后续TaskPlan提交触发的常规CI均为SUCCESS；不代表ROS/C++构建。
 - OFF/ON真实colcon build/install、install-space consumer、gtest仍为`NOT_RUN`。
 - A1.1继续`BLOCKED`；`TODO-EXT-001`未授权；固定上游不修改。
+
+
+## 7. Consumer 测试加强：显式链接 Ament 导出的 CMake target
+
+复核发现，原consumer虽然执行`find_package(staubli_robot_driver REQUIRED)`，但通过`ament_target_dependencies()`间接消费包。为使测试直接覆盖固定上游的现代CMake导出接口，现将consumer改为显式链接：
+
+```cmake
+find_package(staubli_robot_driver REQUIRED)
+add_executable(staubli_install_consumer main.cpp)
+target_link_libraries(
+  staubli_install_consumer
+  PRIVATE staubli_robot_driver::staubli_robot_driver
+)
+```
+
+依据ROS 2官方ament_cmake文档，`ament_export_targets()`导出CMake targets，供下游通过`target_link_libraries(client PRIVATE package::target)`消费；`ament_export_dependencies()`负责让下游无需自行find_package库的传递依赖。来源：[ROS 2 ament_cmake documentation](https://github.com/ros2/ros2_documentation/blob/rolling/source/Developer-Tools/Build/Ament-CMake-Documentation.rst)。
+
+**改动提交：** 脚本`ed422168d8669eb683281c80101b6e60ade61f36`；静态合同测试`22fc89228c9533bc9adfc91e442b05ee324b3cc7`。新增测试要求consumer直接链接`staubli_robot_driver::staubli_robot_driver`，并禁止回退为间接ament_target_dependencies写法。
+
+此改动让真实consumer更直接地检查导出target及其传递链接接口；若导出target名称、Boost::system目标发现或其他依赖元数据不完整，预期会在真实CMake配置/链接阶段暴露。它仍未在ROS Jazzy容器中运行，故当前只能标记为IMPLEMENTED / NOT_RUN，不能宣称已验证通过。
