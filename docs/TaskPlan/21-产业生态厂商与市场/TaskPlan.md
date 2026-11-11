@@ -5983,3 +5983,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 继续复核上一节点收紧后的精确导出集合合同。原有两项新增测试覆盖错误namespace与未限定名称；为防止将任意额外的非gtest imported target 混入导出集合而不被专门测试，新增 `staubli_robot_driver::unreviewed_helper` 负向用例，要求validator拒绝任何不属于固定两项生产库的额外导出target。
 - 测试提交 `907c3794880bb38102a2a9ec3976e9a01bd82dd8` 已写入main。当前已确认GitHub CI workflow在push到main时配置为触发，但可用Actions读取接口的commit workflow runs仅返回pull_request触发的run；combined commit status亦为空，且当前连接器未暴露按branch列出push workflow runs/check-runs的读取接口。因此本轮不能据此断言CI未运行，也不能确认成功/失败；状态标记为CI_RESULT_UNVERIFIED，后续需从GitHub Actions页面或具备check-runs读取能力的连接器核验。
 - 未发现可用的workflow_dispatch执行接口；不尝试伪造run id或以PR过滤结果为空推断没有push CI。普通CI检查和真实ROS Jazzy动态验收仍分开管理。SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改。
+
+### 2026-11-11｜§9.3.329 CI-HIST-002：修复精确导出合同引入的测试断言冲突
+
+- 按用户要求回查历史Actions失败审计。已读取 `docs/audits/2026-11-11-github-actions-historical-failure-review.md` 与逐条CSV索引：2026-11-03至11-11共182条失败run，属于重复触发记录而非182个独立缺陷。既有分类包括Ruff、pytest导入路径、target顺序假设、Evidence Bundle负向测试、Python 3.10下载HTTP 504、Artifact ECONNRESET、uv.lock、OSV、SHA-256脚本变量和浮点精度；报告记录了对应修复及后续成功证据。历史失败run保持不可变。
+- 复核当前main发现上一轮精确导出集合修复与旧测试 `test_gtest_name_substrings_do_not_count_as_installed_or_exported` 断言冲突：测试把额外非gtest target要求为PASS，但validator合同已要求导出集合只能包含两个明确生产库。该测试会导致当前测试矩阵失败，是新发现的真实合同不一致。
+- 已修正为 `test_non_gtest_name_substrings_are_not_misclassified_as_gtest_leaks`：预期整体因额外导出target而FAIL，同时明确断言该target不触发 `INSTALL-EXCLUDES-GTEST` 或 `EXPORT-EXCLUDES-GTEST`。未放宽生产导出精确性，也未更改固定上游。
+- 修复提交：`987b769cd18dd38e1c44f241a21bc9d4a0e24f08`。该提交及其后的main CI状态当前无法通过已连接的Actions读取接口确认；不得标记PASS。此前可核验的CI #3611 / Run ID `42955926260`五个jobs全部SUCCESS；第21章历史记录还注明#3791/#3792各五个jobs SUCCESS，但当前未取得其run ID/job日志。
+- 结论：已修复本轮定位到的测试合同冲突；历史182条失败run按既有报告归类并有后续修复证据，历史记录不改写。当前提交的CI_RESULT_UNVERIFIED，等待Actions push run结果；不得将普通Python CI等同于ROS Jazzy动态验收。SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；上游固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改。
