@@ -5991,3 +5991,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 已修正为 `test_non_gtest_name_substrings_are_not_misclassified_as_gtest_leaks`：预期整体因额外导出target而FAIL，同时明确断言该target不触发 `INSTALL-EXCLUDES-GTEST` 或 `EXPORT-EXCLUDES-GTEST`。未放宽生产导出精确性，也未更改固定上游。
 - 修复提交：`987b769cd18dd38e1c44f241a21bc9d4a0e24f08`。该提交及其后的main CI状态当前无法通过已连接的Actions读取接口确认；不得标记PASS。此前可核验的CI #3611 / Run ID `42955926260`五个jobs全部SUCCESS；第21章历史记录还注明#3791/#3792各五个jobs SUCCESS，但当前未取得其run ID/job日志。
 - 结论：已修复本轮定位到的测试合同冲突；历史182条失败run按既有报告归类并有后续修复证据，历史记录不改写。当前提交的CI_RESULT_UNVERIFIED，等待Actions push run结果；不得将普通Python CI等同于ROS Jazzy动态验收。SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权；上游固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改。
+
+### 2026-11-11｜§9.3.330 CI-HIST-003：修复回归的Actions证据闭环
+
+- 通过通用GitHub只读fetch读取main push workflow runs、Job和步骤，纠正此前专用commit-run包装器只返回PR触发记录导致的核验盲区。
+- CI #3795–#3802（Run IDs `43004014039`、`43004018886`、`43004155139`、`43004165607`、`43004293157`、`43004583860`、`43004620881`、`43004650944`）均因同一旧测试 `test_gtest_name_substrings_do_not_count_as_installed_or_exported` 的PASS期望与精确导出集合validator冲突而失败；Python 3.10/3.11/3.12失败，SBOM与OSV成功。该批次归并为一个根因，不重复计为独立缺陷。
+- 修复提交 `987b769cd18dd38e1c44f241a21bc9d4a0e24f08` 对应CI #3803 / Run ID `43004987153`：五个Job及所有步骤均SUCCESS，包括Python 3.10/3.11/3.12、Lint、Test、Stäubli静态验证、SBOM与OSV。
+- 后续文档提交CI #3804 / Run ID `43005027551`、#3805 / Run ID `43005036547`均SUCCESS；最新审计文档提交CI #3806 / Run ID `43005115690`总体SUCCESS。修复验证闭环完成。
+- 历史失败run保持原始failure，不重写。Node.js 20弃用信息仅为warning，不是失败根因。Actions修复不代表ROS Jazzy动态验收完成；SERVO-907仍BLOCKED / NOT_RUN，A1.1仍BLOCKED，`TODO-EXT-001`未授权，上游固定commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
