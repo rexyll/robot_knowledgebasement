@@ -5777,3 +5777,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 | 2026-11-11 | SERVO905代码质量回归与CI-HIST-001更新 | 新增固定上游target graph validator及ament Export.cmake fixture后，CI #3574–#3577因Ruff E501阻断；定位为fixture与validator文案超长。提交0a7359c、f00c383拆分字符串，CI #3578 SUCCESS。四条失败run已加入逐条索引，历史总数更新为171（11/11为72）。 | 新增知识库代码Lint回归已修复；历史run保留failure。Python CI通过不代表ROS/C++/HIL验收。 |
+
+
+| 2026-11-11 | §9.3.322 / SERVO-905 | 修复CMake File API collector对Ament导出文件的漏采：ament_export_targets实际生成`*Export.cmake`，collector原先只扫描`*Targets.cmake`；现已同时扫描两种文件并新增fixture。新增固定上游实际target graph validator，核验两个生产库、七个gtest目标、OFF/ON隔离、生产/plugin依赖闭包、install/export边界和诊断程序安装。新增审计报告docs/audits/2026-11-11-staubli-servo-905-target-graph-and-ament-export-validation.md。 | 知识库工具与合成测试已实现；CI #3578/#3579通过。真实ROS Jazzy快照、build/install、consumer、C++/plugin/ABI/sanitizer/HIL仍NOT_RUN。未修改上游。下一节点§9.3.323 / SERVO-906。 |
