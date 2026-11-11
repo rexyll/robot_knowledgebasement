@@ -80,3 +80,12 @@ SERVO-901 Fake harness validator默认使用 `staubli_socket_core`、`staubli_dr
 - validator 现要求 OFF/ON 快照的导出 include 列表至少包含一个末级目录名为 `include` 的安装路径（例如 `${_IMPORT_PREFIX}/include`），并将其作为独立检查项；空列表及仅包含其他路径均不能满足该检查。
 - 新增负向测试，同时清空 OFF/ON 两份快照的 include 列表，要求两种配置均报告失败；正常合成快照改用 `${_IMPORT_PREFIX}/include` 作为安装态路径。
 - 这是知识库侧静态快照合同加固，不能证明真实 CMake 安装导出已生成该路径。必须由 ROS Jazzy OFF/ON configure/build/install 和真实 install-space consumer 继续验证。固定上游源码未修改；SERVO-907仍 BLOCKED / NOT_RUN，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+
+
+## 6. SERVO-905 后续复核：include 属性扫描屏蔽非代码文本
+
+- 发现 include 属性采集仍直接对完整导出文件做正则搜索，与已修复的 target 声明扫描不一致；注释或方括号参数中出现的 `INTERFACE_INCLUDE_DIRECTORIES "..."` 示例可能被误采集，污染 include 快照。
+- collector扩展 `mask_cmake_non_code()`，增加保留真实双引号参数的模式：扫描时屏蔽行注释、方括号注释及方括号参数，同时跳过但保留真实quoted argument。include属性正则仅对该处理后的代码文本执行，因此实际生成的双引号属性值仍可被解析。
+- 新增行为测试，混合行注释、方括号注释、方括号参数、包含转义引号的quoted文字示例及真实 `set_target_properties(... INTERFACE_INCLUDE_DIRECTORIES "...")`，断言只采集真实属性路径。
+- collector提交 `a2624a2d4cf0a0d32f722254c3552ace59968244` 对应Actions #3791，五个jobs全部SUCCESS；测试提交 `2ce56662eaa2e61ae655fde2348152399324636e` 对应Actions #3792，五个jobs全部SUCCESS。Ruff、Python 3.10/3.11/3.12 pytest、OSV与SBOM均成功。
+- 该修复只增强知识库静态CMake导出解析，不是实际ROS Jazzy configure/build/install证据。固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-907仍BLOCKED / NOT_RUN；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
