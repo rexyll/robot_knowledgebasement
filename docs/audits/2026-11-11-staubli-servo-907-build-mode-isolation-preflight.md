@@ -131,3 +131,16 @@ target_link_libraries(
 ### 10.3 验收边界
 
 本次只增强了consumer测试的链接强度，不等于真实consumer已构建或运行。新提交触发的常规CI仍需检查；真实ROS Jazzy OFF/ON build/install、consumer、gtest及证据包仍为`NOT_RUN`。固定上游未修改，未创建/应用/合并上游PR，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
+
+
+## 11. 最新提交 CI #3646–#3651 最终复核
+
+- CI #3646 / Run ID `42962553186`：SUCCESS；五个job全部成功。
+- CI #3647 / Run ID `42962559047`：SUCCESS；五个job全部成功。
+- CI #3648 / Run ID `42962578756`：SUCCESS；五个job全部成功。
+- CI #3649 / Run ID `42962631093`：SUCCESS；五个job全部成功。
+- CI #3650 / Run ID `42962639114`：SUCCESS；五个job全部成功。
+- CI #3651 / Run ID `42962648302`：SUCCESS；五个job全部成功。
+- 六次普通CI均包含Python 3.10/3.11/3.12、OSV和SBOM检查，所有job及失败步骤检查均无失败。
+- 当前最新代码已包含consumer对`FrameHeader::serialize`非内联符号的调用及静态合同断言；上述普通CI成功验证了知识库测试代码，但没有执行专用ROS Jazzy workflow。
+- 专用ROS workflow仍无运行实例；真实OFF/ON colcon build/install、consumer、gtest、证据包和SHA-256仍为`NOT_RUN`。
