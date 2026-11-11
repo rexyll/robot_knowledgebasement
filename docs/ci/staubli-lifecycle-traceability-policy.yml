@@ -1,6 +1,8 @@
 schema_version: "1.0.0"
 manifest: docs/audits/2026-11-10-staubli-socket-v2-lifecycle-traceability-manifest-v1.json
 schema: docs/schemas/staubli-lifecycle-traceability.schema.json
+test_catalog: docs/audits/2026-11-11-staubli-socket-v2-race-exec-test-case-catalog-v1.json
+test_catalog_schema: docs/schemas/staubli-race-exec-test-case-catalog.schema.json
 scope:
   upstream_repository: ICube-Robotics/staubli_driver_ros2
   upstream_commit: bd658e2d266e315d2ee35f985fb352ea88306b79
@@ -59,6 +61,10 @@ cross_references:
     - RACE-01..RACE-16
     - EXEC-01..EXEC-04
   all_test_refs_must_resolve_in_reference_catalog: true
+  manifest_catalog_bidirectional_mapping: exact_record_set_equality_per_test_id
+  catalog_ids: [RACE-01..RACE-16, EXEC-01..EXEC-04]
+  every_catalog_case_must_map_to_at_least_one_manifest_record: true
+  every_manifest_reference_must_map_to_exactly_one_catalog_case: true
   duplicate_record_ids: error
   duplicate_reference_ids: error
   dangling_refs: error
@@ -88,6 +94,10 @@ ci_policy:
 
 validator:
   entrypoint: scripts/validate_staubli_lifecycle_manifest.py
+  catalog_entrypoint: scripts/validate_staubli_test_case_catalog.py
+  catalog_schema_keyword_subset: same_as_manifest_validator
+  catalog_execution_state_default: NOT_RUN
+  catalog_execution_state_must_not_be_promoted_by_schema_or_static_ci: true
   schema_keyword_subset:
     - type
     - additionalProperties
