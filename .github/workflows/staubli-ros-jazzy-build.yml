@@ -25,7 +25,13 @@ jobs:
       - name: Install explicit upstream CMake dependencies and build tools
         shell: bash
         run: |
-          apt-get update
+          bash scripts/retry_apt_update.sh \
+            git \
+            libboost-system-dev \
+            libdw-dev \
+            python3-colcon-common-extensions \
+            python3-rosdep \
+            ros-jazzy-backward-ros
           apt-get install -y --no-install-recommends \
             git \
             libboost-system-dev \
@@ -48,7 +54,8 @@ jobs:
         run: |
           source /opt/ros/jazzy/setup.bash
           rosdep update
-          apt-get update
+          bash scripts/retry_apt_update.sh \
+            libdw-dev
           rosdep install \
             --from-paths "${RUNNER_TEMP}/staubli_driver_ros2" \
             --ignore-src -r -y --rosdistro jazzy
