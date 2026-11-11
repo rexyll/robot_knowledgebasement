@@ -162,6 +162,9 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
     export.parent.mkdir(parents=True)
     export.write_text(
         "add_library(staubli_robot_driver::staubli_robot_driver SHARED IMPORTED)\\n"
+        "set_target_properties(staubli_robot_driver::staubli_robot_driver PROPERTIES "
+        "INTERFACE_INCLUDE_DIRECTORIES \"\\$<INSTALL_INTERFACE:include>;"
+        "\\$<INSTALL_INTERFACE:include/staubli>\")\\n"
         "add_library(staubli_robot_driver::staubli_robot_driver_hardware_interface "
         "SHARED IMPORTED)\\n",
         encoding="utf-8",
@@ -174,3 +177,7 @@ def test_export_root_scans_ament_export_targets_file(tmp_path):
         "staubli_robot_driver::staubli_robot_driver_hardware_interface",
     ]
     assert result["exported_target_sources"] == [str(export.resolve())]
+    assert result["exported_target_include_directories"] == [
+        "$<INSTALL_INTERFACE:include>",
+        "$<INSTALL_INTERFACE:include/staubli>",
+    ]
