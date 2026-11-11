@@ -55,7 +55,9 @@ def find_export_files(export_root: Path) -> list[Path]:
     for path in sorted(candidates):
         resolved = path.resolve()
         if not resolved.is_relative_to(prefix):
-            continue
+            raise ValueError(
+                f"CMake export candidate escapes install prefix: {path}"
+            )
         relative = resolved.relative_to(prefix)
         in_lib_cmake = "lib" in relative.parts and "cmake" in relative.parts
         in_share_cmake = "share" in relative.parts and "cmake" in relative.parts
