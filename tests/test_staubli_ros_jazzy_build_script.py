@@ -30,7 +30,8 @@ def test_build_matrix_requires_pinned_clean_jazzy_source():
     assert "bd658e2d266e315d2ee35f985fb352ea88306b79" in content
     assert '[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]]' in content
     assert '[[ "${ROS_DISTRO}" == "jazzy" ]]' in content
-    assert "cmake --find-package -DNAME=backward_ros" in content
+    assert "find_package(backward_ros REQUIRED)" in content
+    assert "cmake -S \"${dependency_probe_dir}\" -B \"${dependency_probe_dir}/build\"" in content
     assert "ros2 pkg prefix backward_ros" not in content
 
 
