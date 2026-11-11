@@ -163,3 +163,13 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - CI #3611 / Run ID `42955926260`已通过Actions jobs接口复核：`test (3.10)`、`test (3.11)`、`test (3.12)`、`Generate Python runtime and development SBOMs`、`Audit locked Python dependencies against OSV`五个jobs均completed/success；所有job步骤均success。
 - 后续target-export namespace精确性修复发现旧测试 `test_gtest_name_substrings_do_not_count_as_installed_or_exported`要求未知非gtest target通过，与生产导出集合严格等于两个namespaced库的合同冲突。已将其改为验证整体应因未知导出失败、但不误报gtest泄漏。修复提交 `987b769cd18dd38e1c44f241a21bc9d4a0e24f08`。
 - 当前连接器对commit workflow runs的读取仅返回pull_request事件；main push触发run不能由该接口列出，combined status为空。因此提交 `987b769`及文档提交的CI状态保持CI_RESULT_UNVERIFIED。必须从GitHub Actions页面或具备push run/check-run查询能力的接口核验后，才能宣布修复后的CI通过。不要重跑旧SHA的历史失败run来代替当前HEAD验证。
+
+
+### 2.14 CI #3795–#3806：target-export测试断言冲突的完整定位与修复验证
+
+- 通过GitHub Actions workflow-runs集合接口直接查询 `main` 的push运行，纠正§2.13末尾关于无法读取push run的旧结论：当前连接器的专用commit-run包装器只返回PR事件，但通用GitHub只读fetch接口可读取 `/repos/rexyll/robot_knowledgebasement/actions/runs?branch=main`。该能力可读取run列表、Job和Job步骤；不具备workflow_dispatch触发能力。
+- CI #3795（Run `43004014039`）、#3796（`43004018886`）、#3797（`43004155139`）、#3798（`43004165607`）、#3799（`43004293157`）、#3800（`43004583860`）、#3801（`43004620881`）、#3802（`43004650944`）均失败。逐个读取代表Python job日志，均指向同一旧测试 `test_gtest_name_substrings_do_not_count_as_installed_or_exported`：断言期望 `PASS`，validator因未知生产导出target按精确集合规则返回 `FAIL`。Python 3.10/3.11/3.12均受影响；八次run不是八个独立根因。SBOM和OSV jobs均成功。
+- 修复提交 `987b769cd18dd38e1c44f241a21bc9d4a0e24f08` 对应CI #3803 / Run `43004987153`，总结果SUCCESS。已逐项读取五个Job及全部步骤：Python 3.10/3.11/3.12测试（包括Lint和Test）、SBOM生成、OSV依赖审计全部SUCCESS，无失败步骤。三个Python job中的Stäubli生命周期、RACE/EXEC双向追踪、Runtime Evidence Bundle校验、wheel/sdist构建、STS3215元数据验证均通过。
+- 后续文档提交CI #3804 / Run `43005027551`与#3805 / Run `43005036547`均SUCCESS，五个Job和所有步骤均SUCCESS。最新审计文档提交CI #3806 / Run `43005115690`的workflow结论SUCCESS。由此本轮修复及其后续文档提交均有main push CI成功证据。
+- 历史失败run保留原始failure，不重写；其根因已由修复提交和后续成功运行形成闭环。Node.js 20 deprecation提示为warning，不是本批run失败原因，也未作为本轮阻断项。
+- 本节修正§2.13末尾关于当前无法核验push run的结论：该结论在当时所用专用包装器范围内成立，但通用只读fetch接口可读取push run；以本节实际读取的GitHub Actions记录为准。
