@@ -81,3 +81,10 @@ def test_install_consumer_links_exported_target_directly():
     assert (
         "ament_target_dependencies(staubli_install_consumer staubli_robot_driver)"
     ) not in content
+
+
+def test_install_consumer_calls_an_out_of_line_library_symbol():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert '#include "staubli_robot_driver/communication/protocol.hpp"' in content
+    assert "header.serialize(buffer, sizeof(buffer))" in content
+    assert "int main() { return 0; }" not in content
