@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from argparse import Namespace
 
 from scripts.validate_staubli_upstream_target_graph import (
@@ -173,6 +174,24 @@ def test_gtest_install_or_export_leak_fails(tmp_path):
     assert report["execution_status"] == "FAIL"
     assert any("INSTALL-EXCLUDES-GTEST-ON" in error for error in report["errors"])
     assert any("EXPORT-EXCLUDES-GTEST-ON" in error for error in report["errors"])
+
+
+
+def test_diagnostic_utility_name_substring_does_not_count_as_installed(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(off.read_text())
+    data["install_entries"] = [
+        item
+        for item in data["install_entries"]
+        if Path(item).name != DIAGNOSTIC_TARGET
+    ]
+    data["install_entries"].append(
+        "lib/staubli_robot_driver/test_receive_robot_state_backup"
+    )
+    off.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any("DIAGNOSTIC-INSTALLED-OFF" in error for error in report["errors"])
 
 
 def test_diagnostic_utility_must_remain_installed(tmp_path):
