@@ -5809,3 +5809,12 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - **状态：** 脚本修复与静态回归测试已提交；Bash/Python CI待复验。真实ROS Jazzy OFF/ON build/install、consumer、gtest仍NOT_RUN，SERVO-907手动workflow尚未触发。
 - **边界：** 未修改固定Stäubli上游，未创建/应用/合并上游PR；`TODO-EXT-001`未授权；A1.1保持BLOCKED。
 - **下一步：** 检查CI结果；由用户手动触发ROS Jazzy workflow，取得真实日志与证据包后再更新验收状态。
+
+
+### §9.3.324 补充｜CI #3622 修复回归复验
+
+- Run ID：`42958783662`，触发提交：`42c408fb4f0cf1adaf16530467334796198b743d`。
+- Python 3.10/3.11/3.12均SUCCESS，各113 passed；Ruff、OSV依赖审计、Python runtime/development SBOM均SUCCESS。双配置consumer环境隔离合同测试已纳入矩阵并通过。
+- 维护性提示：checkout/setup-python/upload-artifact固定SHA对应的action声明Node.js 20，runner当前强制Node.js 24执行并产生弃用警告。本次CI成功；将其作为独立维护项，待核对兼容版本与固定SHA后再处理，不盲目升级。
+- 此CI不执行ROS Jazzy容器工作流，真实OFF/ON colcon build/install、install-space consumer和gtest仍NOT_RUN。
+- **下一步：** 等待用户手动触发SERVO-907工作流并检查完整日志与证据包；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
