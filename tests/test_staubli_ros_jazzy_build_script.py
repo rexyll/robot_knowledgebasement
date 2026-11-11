@@ -275,3 +275,13 @@ def test_ros_setup_is_sourced_without_nounset_and_strict_mode_is_restored():
     assert 'source_ros_environment "${ROS_SETUP}"' in content
     assert 'source_ros_environment "${install_base}/setup.bash"' in content
     assert 'source "${ROS_SETUP}"' not in content
+
+
+def test_install_consumer_resolves_boost_and_records_failures_without_skipping_matrix():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert "find_package(Boost REQUIRED COMPONENTS system)" in content
+    assert "CONSUMER_FAILURES_FILE" in content
+    assert "INSTALL_SPACE_CONSUMER_FINDINGS_PRESENT" in content
+    assert "installed CMake package consumer configure/build failed" in content
+    assert "if run_logged colcon --log-base" in content
+    assert 'run_logged colcon --log-base "${LOG_ROOT}/colcon-on" test' in content
