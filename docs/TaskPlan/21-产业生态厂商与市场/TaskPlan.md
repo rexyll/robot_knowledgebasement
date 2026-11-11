@@ -2376,10 +2376,10 @@ Y1-Y9全部未执行，Y10现场证据缺失。未执行ROS构建/单测、mock 
 
 #### 固定源码位置
 
-- \`staubli_hardware_interface.cpp\`（Blob SHA \`4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
-- \`staubli_hardware_interface.hpp\`（Blob SHA \`a84d0c63b15db168ea453a15571ab1494b8f9e99\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp
-- \`test_staubli_hardware_interface.cpp\`（Blob SHA \`12326353052408a7a040926328dbe7da22625553\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
-- \`test_staubli_hardware_interface.hpp\`（Blob SHA \`f474af023d35b4fd2fc2669092fc9f8bea7cdd19\`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp
+- `staubli_hardware_interface.cpp`（Blob SHA `4ae2b8c8d91857e5e32558bfcd16e2c391b9c3d0`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/src/staubli_hardware_interface.cpp
+- `staubli_hardware_interface.hpp`（Blob SHA `a84d0c63b15db168ea453a15571ab1494b8f9e99`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/include/staubli_robot_driver/staubli_hardware_interface.hpp
+- `test_staubli_hardware_interface.cpp`（Blob SHA `12326353052408a7a040926328dbe7da22625553`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.cpp
+- `test_staubli_hardware_interface.hpp`（Blob SHA `f474af023d35b4fd2fc2669092fc9f8bea7cdd19`）：https://github.com/ICube-Robotics/staubli_driver_ros2/blob/bd658e2d266e315d2ee35f985fb352ea88306b79/staubli_robot_driver/test/unit_tests/test_staubli_hardware_interface.hpp
 
 
 ### 2026-11-09｜Stäubli厂商生态审查推进记录（§9.3.186）
