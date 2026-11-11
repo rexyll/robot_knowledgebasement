@@ -233,6 +233,15 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError(
                 f"{label}.exported_target_include_directories must be an array of strings"
             )
+        install_include_paths = sorted(
+            value for value in exported_includes if Path(value).name == "include"
+        )
+        check(
+            f"EXPORT-INSTALL-INCLUDE-DIRECTORY-{label}",
+            bool(install_include_paths),
+            "exported production targets must expose the installed include directory: "
+            + (", ".join(install_include_paths) or "missing"),
+        )
         unresolved_asio_paths = sorted(
             value
             for value in exported_includes
