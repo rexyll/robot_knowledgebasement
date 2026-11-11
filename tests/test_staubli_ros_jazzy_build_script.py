@@ -184,3 +184,39 @@ def test_export_collector_reads_installed_interface_include_directories(tmp_path
         "/asio/include",
     ]
 
+
+
+def test_export_collector_finds_isolated_colcon_install_layout(tmp_path):
+    collector_path = (
+        Path(__file__).parents[1]
+        / "scripts"
+        / "collect_staubli_cmake_file_api.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "staubli_cmake_file_api_isolated_collector", collector_path
+    )
+    collector = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(collector)
+
+    export_file = (
+        tmp_path
+        / "staubli_robot_driver"
+        / "share"
+        / "staubli_robot_driver"
+        / "cmake"
+        / "staubli_robot_driverExport.cmake"
+    )
+    export_file.parent.mkdir(parents=True)
+    export_file.write_text(
+        'add_library(staubli_robot_driver::staubli_robot_driver SHARED IMPORTED)\n'
+        'set_target_properties(staubli_robot_driver::staubli_robot_driver '
+        'PROPERTIES INTERFACE_INCLUDE_DIRECTORIES '
+        '"/isolated/include")\n',
+        encoding="utf-8",
+    )
+
+    assert collector.find_export_files(tmp_path) == [export_file.resolve()]
+    assert collector.collect_exported_target_include_directories(tmp_path) == [
+        "/isolated/include"
+    ]
+
