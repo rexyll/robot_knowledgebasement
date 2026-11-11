@@ -116,7 +116,7 @@ CMAKE
 int main()
 {
   staubli_robot_driver::FrameHeader header;
-  std::uint8_t buffer[staubli_robot_driver::FrameHeader::get_serialized_size()]{};
+  std::uint8_t buffer[8]{};
   return header.serialize(buffer, sizeof(buffer)) ? 0 : 1;
 }
 CPP
