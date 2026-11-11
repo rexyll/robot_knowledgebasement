@@ -173,3 +173,11 @@ GitHub Actions workflow-runs API分页读取并在客户端按UTC日期与conclu
 - 后续文档提交CI #3804 / Run `43005027551`与#3805 / Run `43005036547`均SUCCESS，五个Job和所有步骤均SUCCESS。最新审计文档提交CI #3806 / Run `43005115690`的workflow结论SUCCESS。由此本轮修复及其后续文档提交均有main push CI成功证据。
 - 历史失败run保留原始failure，不重写；其根因已由修复提交和后续成功运行形成闭环。Node.js 20 deprecation提示为warning，不是本批run失败原因，也未作为本轮阻断项。
 - 本节修正§2.13末尾关于当前无法核验push run的结论：该结论在当时所用专用包装器范围内成立，但通用只读fetch接口可读取push run；以本节实际读取的GitHub Actions记录为准。
+
+
+### 2.15 CI #3807–#3809：修复后连续文档提交的完整CI复验（2026-11-11）
+
+- 在前一节记录时，#3807–#3809仍处于运行中；本轮重新查询Actions列表，三者均已completed/success，事件均为push，分别对应审计报告提交 `a8198f1`、第21章计划提交 `e9aa654`、根计划提交 `958aa18`。
+- 逐个读取三次run的Job和每个Job的步骤：每次均有Python 3.10/3.11/3.12测试Job、CycloneDX SBOM Job、OSV审计Job，全部SUCCESS，所有步骤SUCCESS，无失败步骤。测试Job中的Lint、Test、Stäubli lifecycle traceability、RACE/EXEC双向追踪、Runtime Evidence Bundle、wheel/sdist构建及STS3215元数据验证均成功。
+- 复查main push运行列表中#3803–#3809：7次连续运行全部completed/success，未发现新的失败run。#3795–#3802仍保留历史failure，其共同根因已由#3803修复并验证。
+- 本节只关闭本批Python CI失败；不代表ROS Jazzy手动workflow已运行，也不代表SERVO-907动态验收通过。固定上游不变，A1.1仍BLOCKED，`TODO-EXT-001`未授权。
