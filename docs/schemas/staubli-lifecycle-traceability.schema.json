@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://rexyll.github.io/robot_knowledgebasement/schemas/staubli-lifecycle-traceability.schema.json",
   "title": "Stäubli SocketV2 Lifecycle Traceability Manifest",
-  "description": "Machine-checkable design-time traceability contract. Schema validation does not prove runtime safety or test execution.",
+  "description": "Machine-checkable design-time traceability contract. Schema validation does not prove runtime safety or test execution. Each resource_key + ownership_phase group must resolve to one logical owner and one reconcile coordinator.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -64,7 +64,9 @@
           "required_evidence",
           "evidence",
           "status",
-          "test_refs"
+          "test_refs",
+          "resource_key",
+          "ownership_phase"
         ],
         "properties": {
           "id": {
@@ -176,6 +178,19 @@
           },
           "blocker": {
             "type": "string"
+          },
+          "resource_key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "minLength": 1
+          },
+          "ownership_phase": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "RESIDUAL_TRANSFERRED",
+              "PROCESS_RETAINED"
+            ]
           }
         },
         "allOf": [
