@@ -5771,3 +5771,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 | 2026-11-11 | CI-HIST-001二次核验 | 对GitHub Actions workflow-runs API分页并按UTC日期/conclusion过滤，纠正初版统计：2026-11-03至2026-11-11共167条失败run（11/03 48、11/04 40、11/05 1、11/08 5、11/09 5、11/11 68）；新增逐条CSV索引docs/audits/github-actions-failure-run-index-2026-11-03-to-11-11.csv，并修正历史失败审查报告。 | 历史记录索引已补齐；run次数不等于独立缺陷。修复后CI #3560–#3564均SUCCESS；历史失败记录不改写。 |
+
+
+| 2026-11-11 | §9.3.321 / SERVO-904补充 | 对SERVO-901 validator默认参数与固定上游CMake target进行逐项比对：validator默认staubli_socket_core/staubli_driver_plugin/staubli_socket_test_support/staubli_socket_unit_tests与上游实际staubli_robot_driver、staubli_robot_driver_hardware_interface及7个test_* gtest target不一致；test_receive_robot_state在BUILD_TESTING guard外定义并安装。审计报告已补充双合同决策：固定上游实际target baseline与未来Fake harness隔离合同分开验收。 | 静态核对完成；不得用Fake harness validator默认参数宣称固定上游通过。未修改上游，TODO-EXT-001未授权。下一节点§9.3.322 / SERVO-905。 |
