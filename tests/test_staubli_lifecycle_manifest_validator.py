@@ -54,6 +54,30 @@ def test_dangling_test_reference_is_rejected(manifest: dict, schema: dict) -> No
     assert any("dangling reference 'RACE-99'" in error for error in errors)
 
 
+def test_required_reference_catalog_is_complete(manifest: dict, schema: dict) -> None:
+    broken = copy.deepcopy(manifest)
+    broken["reference_catalog"].remove("RACE-16")
+    errors = validator.validate_manifest(broken, schema, ROOT)
+    assert any("required test reference is missing: RACE-16" in error for error in errors)
+
+
+def test_compound_coordinator_role_is_rejected(manifest: dict, schema: dict) -> None:
+    broken = copy.deepcopy(manifest)
+    broken["records"][0]["reconcile_coordinator"] = "CoordinatorA/CoordinatorB"
+    errors = validator.validate_manifest(broken, schema, ROOT)
+    assert any("composite coordinator role is ambiguous" in error for error in errors)
+
+
+def test_every_declared_required_evidence_item_must_be_present(
+    manifest: dict, schema: dict
+) -> None:
+    broken = copy.deepcopy(manifest)
+    record = broken["records"][0]
+    record["required_evidence"] = ["design_spec", "source_review"]
+    errors = validator.validate_manifest(broken, schema, ROOT)
+    assert any("required_evidence item source_review is not PRESENT" in error for error in errors)
+
+
 def test_conflicting_owner_for_same_resource_generation_is_rejected(
     manifest: dict, schema: dict
 ) -> None:
