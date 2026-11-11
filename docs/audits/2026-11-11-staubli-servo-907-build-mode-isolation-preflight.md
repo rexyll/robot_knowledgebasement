@@ -107,3 +107,27 @@ target_link_libraries(
 - **验收结论：** 常规CI #3640/#3641成功仅验证知识库Python/静态合同/OSV/SBOM；真实ROS Jazzy OFF/ON build/install、install-space consumer、gtest、artifact与SHA-256仍`NOT_RUN`。
 
 **用户触发入口：** [Stäubli ROS Jazzy build/install evidence](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)。需要有仓库write权限；选择`main`后点击`Run workflow`。真实运行完成后再审查失败日志及证据包。
+
+## 10. Consumer 链接验证加强与 CI #3643–#3645 复核
+
+### 10.1 普通 CI 复核
+
+- CI #3643 / Run ID `42962209018`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- CI #3644 / Run ID `42962218477`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- CI #3645 / Run ID `42962228904`：SUCCESS；Python 3.10/3.11/3.12、OSV、SBOM五个job全部成功。
+- 上述均为常规知识库CI，不执行ROS Jazzy/C++构建。
+
+### 10.2 新发现与修正
+
+此前install-space consumer的`main.cpp`仅包含`protocol.hpp`并立即返回0。即使CMake声明链接了`staubli_robot_driver::staubli_robot_driver`，也没有实际调用上游共享库中的非内联符号，因而不足以证明链接器完成了该库符号解析。
+
+依据固定上游commit中的`FrameHeader::serialize(uint8_t*, size_t) const`实现（定义于`src/communication/protocol.cpp`，声明于公开`protocol.hpp`），将consumer改为构造`FrameHeader`、准备8字节缓冲区并调用`header.serialize(buffer, sizeof(buffer))`。这会让链接阶段必须解析共享库中定义的函数符号，并在运行时执行一次纯内存序列化调用；不连接机器人、不发送网络数据。
+
+- 脚本提交：`bd3f26b4a4afdfcf6dcd83b140d8e2ce2ca4ce98`。
+- 随后复核发现上游`get_serialized_size()`不是constexpr，不能作为标准C++数组长度常量表达式；已改用协议明确规定的8字节固定帧头长度。
+- 修正提交：`013c71fc1f9f7fc1f163bc6b10c78536cd29e565`。
+- 静态合同测试提交：`e86865ac0d6c101de537866a6a1e74bbcd306a68`，要求consumer实际调用`header.serialize(buffer, sizeof(buffer))`，禁止保留空main。
+
+### 10.3 验收边界
+
+本次只增强了consumer测试的链接强度，不等于真实consumer已构建或运行。新提交触发的常规CI仍需检查；真实ROS Jazzy OFF/ON build/install、consumer、gtest及证据包仍为`NOT_RUN`。固定上游未修改，未创建/应用/合并上游PR，`TODO-EXT-001`未授权，A1.1保持`BLOCKED`。
