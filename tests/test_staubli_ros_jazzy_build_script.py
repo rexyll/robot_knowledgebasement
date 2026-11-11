@@ -90,6 +90,13 @@ def test_install_consumer_calls_an_out_of_line_library_symbol():
     assert "int main() { return 0; }" not in content
 
 
+def test_install_consumer_compiles_public_realtime_tools_header():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert (
+        '#include "staubli_robot_driver/real_time_socket_subscriber.hpp"'
+    ) in content
+
+
 def test_install_consumer_binary_is_executed_in_both_modes():
     content = SCRIPT.read_text(encoding="utf-8")
     consumer_command = (
