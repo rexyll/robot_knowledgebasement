@@ -43,8 +43,12 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def _safe_artifact_path(root: Path, relative: str) -> tuple[Path | None, str | None]:
     rel = Path(relative)
-    if rel.is_absolute() or "\\" in relative or not relative or any(
-        part in {".", ".."} for part in rel.parts
+    path_parts = relative.split("/")
+    if (
+        rel.is_absolute()
+        or "\\" in relative
+        or not relative
+        or any(part in {"", ".", ".."} for part in path_parts)
     ):
         return None, f"artifact path is not a normalized safe relative path: {relative}"
     candidate = root / rel
@@ -300,9 +304,15 @@ def main(argv: list[str] | None = None) -> int:
         for error in errors:
             print(f"- {error}")
         return 1
+    scope_note = (
+        " SYNTHETIC FIXTURE ONLY — NOT RUNTIME EVIDENCE."
+        if bundle.get("evidence_origin") == "synthetic_fixture"
+        else ""
+    )
     print(
         "Stäubli Runtime Evidence Bundle validation PASS: "
-        f"{result['bundle_id']} / {result['test_id']} / {result['execution_status']}."
+        f"{result['bundle_id']} / {result['test_id']} / "
+        f"{result['execution_status']}.{scope_note}"
     )
     return 0
 
