@@ -96,3 +96,14 @@ target_link_libraries(
 - **当前处理：** 无需修复本轮普通CI；继续保持固定上游未修改、未创建/应用/合并上游PR、`TODO-EXT-001`未授权、A1.1 `BLOCKED`。
 
 **下一步：** 用户需手动运行 [Stäubli ROS Jazzy build/install workflow](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)。运行完成后再依据job日志和artifact决定是否存在可修复的脚本缺陷或上游依赖导出问题。
+
+## 9. CI #3640–#3641 最终结果与手动触发条件
+
+- **CI #3640 / Run ID `42961639340`：** `completed / success`；Python 3.10、3.11、3.12、OSV、SBOM五个job均成功，无失败step。
+- **CI #3641 / Run ID `42961648789`：** `completed / success`；Python 3.10、3.11、3.12、OSV、SBOM五个job均成功，无失败step。
+- **触发提交：** #3640对应`95d139d8b953fafc6542860f476a7764b1f92f21`；#3641对应`293b849738f46996000aa4b55e383223fe2684ef`。
+- **ROS workflow定义复核：** `.github/workflows/staubli-ros-jazzy-build.yml`在main中存在，触发器为`workflow_dispatch`，固定ROS镜像digest及固定上游commit。最近Actions运行列表仍无该workflow的运行记录。
+- **权限边界：** GitHub官方文档说明手动运行要求workflow文件位于默认分支，且操作者需要仓库write权限；可在Actions页面选择workflow、分支并点击Run workflow。当前集成GitHub工具没有可用的workflow-dispatch写操作，因此本轮不能代替用户触发，也不能伪称已启动。
+- **验收结论：** 常规CI #3640/#3641成功仅验证知识库Python/静态合同/OSV/SBOM；真实ROS Jazzy OFF/ON build/install、install-space consumer、gtest、artifact与SHA-256仍`NOT_RUN`。
+
+**用户触发入口：** [Stäubli ROS Jazzy build/install evidence](https://github.com/rexyll/robot_knowledgebasement/actions/workflows/staubli-ros-jazzy-build.yml)。需要有仓库write权限；选择`main`后点击`Run workflow`。真实运行完成后再审查失败日志及证据包。
