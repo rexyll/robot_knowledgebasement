@@ -19,7 +19,7 @@ def test_build_matrix_uses_fixed_upstream_validator_and_real_build_install():
     content = SCRIPT.read_text(encoding="utf-8")
     assert "validate_staubli_upstream_target_graph.py" in content
     assert "validate_staubli_fake_harness_target_graph.py" not in content
-    assert "colcon build" in content
+    assert "colcon --log-base" in content and " build \\" in content
     assert "--install-base" in content
     assert "install_manifest.txt" in content
     assert "--export-root" in content
