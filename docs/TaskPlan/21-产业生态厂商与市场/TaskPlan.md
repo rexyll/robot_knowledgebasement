@@ -5818,3 +5818,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 维护性提示：checkout/setup-python/upload-artifact固定SHA对应的action声明Node.js 20，runner当前强制Node.js 24执行并产生弃用警告。本次CI成功；将其作为独立维护项，待核对兼容版本与固定SHA后再处理，不盲目升级。
 - 此CI不执行ROS Jazzy容器工作流，真实OFF/ON colcon build/install、install-space consumer和gtest仍NOT_RUN。
 - **下一步：** 等待用户手动触发SERVO-907工作流并检查完整日志与证据包；A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+
+
+### §9.3.324 补充｜SERVO-907 Ament 导出依赖静态复核
+
+- **固定上游证据：** `staubli_robot_driver/CMakeLists.txt`显式链接`Boost::system`、执行`find_package(backward_ros REQUIRED)`，并在生产目标依赖集合中包含`realtime_tools`；但`ament_export_dependencies()`未列出这三项，package.xml也未声明Boost/backward_ros依赖。
+- **风险判断：** 可能造成下游install-space imported target的依赖发现或链接问题；目前仅为静态风险，不能标记为已复现缺陷。真实consumer fixture需在不额外find_package(Boost)的条件下完成find_package、公开头文件编译和链接，才能判定。
+- **审计报告：** `docs/audits/2026-11-11-staubli-servo-907-build-mode-isolation-preflight.md`第5、6节已记录证据、边界和处置策略。
+- **workflow状态：** 最近Actions列表没有SERVO-907的workflow_dispatch运行。CI #3622及后续普通CI只覆盖Python/静态合同测试；真实ROS Jazzy OFF/ON build/install、consumer、gtest仍NOT_RUN。
+- **处置边界：** 不修改固定上游，不在consumer侧补依赖以掩盖上游导出问题；若真实consumer失败，先留存完整CMake日志与安装导出文件，再提出上游修复建议。TODO-EXT-001未授权，A1.1保持BLOCKED。
+- **下一步：** 用户手动触发SERVO-907 ROS Jazzy workflow，首先核对两套install-space consumer的依赖发现与链接结果，再检查gtest和SHA-256证据包。
