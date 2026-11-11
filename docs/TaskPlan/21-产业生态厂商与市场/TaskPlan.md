@@ -6042,3 +6042,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 
 - 补充 CI 复验：审计文档提交 Run `43012296237`、本章记录提交 Run `43012304340`、根计划记录提交 Run `43012312051` 均 completed/success，各自五个Job全部SUCCESS。三次均为普通Python/供应链CI，不构成ROS Jazzy动态验收。
+
+
+### 2026-11-11｜§9.3.336 SERVO-906/907：真实ROS Jazzy安装导出缺陷确认与consumer夹具纠偏
+
+- 专用workflow Run #5 / `43027974929`（SHA `5102e31ca2c51a5875b108efceb3287f2f02ce07`）在独立install-space consumer失败。日志同时报告导出target引用不存在的 `/asio/include`，以及链接接口引用未定义的 `Boost::system`。
+- 专用workflow Run #6 / `43031245835`（SHA `0fc60dfd911837bbe9e544676f0a4df3671c345e`）在OFF/ON两个模式下再次因 `/asio/include` 不存在而失败；target graph validator的 `EXPORT-EXCLUDES-UNRESOLVED-ASIO-INCLUDE-OFF/ON` 两项均FAIL。证据artifact ID：`13860064639`。
+- 深入对比Run #5与Run #6使用的consumer CMakeLists后发现，Run #6脚本预先调用 `find_package(Boost REQUIRED COMPONENTS system)`，会在加载固定上游安装包前创建 `Boost::system`，掩盖Run #5已直接暴露的Boost导出依赖缺口。这是知识库consumer测试夹具的回归，不是上游缺陷修复。
+- 已在知识库main移除consumer中的预先Boost查找：`1f698152ebfa41ef82f2efe7389cdb33e26ec851`；新增静态回归测试禁止consumer夹具自行定义Boost target：`ad6220b6e6f5cf89e1bbcba31f532928f7ef6349`。
+- 两个修复提交触发普通CI Run `43032513964`、`43032558011`，本节点记录时仍在运行，尚未取得最终job/step结论；后续需查询最终状态，不提前标记成功。
+- 固定上游CMake仍有两个真实下游安装导出缺陷：未定义的 `asio_SOURCE_DIR` 展开为无效 `/asio/include`；`Boost::system`被写入导出链接接口但未由上游导出依赖保证可用。上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；不创建伪造目录、不手工补齐consumer依赖、不修改上游源码。
+- Run #5/#6均不是验收通过。SERVO-906/907继续BLOCKED；七项gtest结果、consumer build/run及完整evidence manifest/SHA-256仍未通过动态验收。A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- 专项审计已追加至 `docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §6。
+- **当前任务节点：§9.3.336之后，先核验两个普通CI最终结果；随后基于修复后的main重新运行ROS Jazzy专项workflow，确认两个导出缺陷仍被真实consumer暴露且无测试夹具掩盖。**
