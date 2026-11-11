@@ -79,6 +79,22 @@ def test_fixed_upstream_target_matrix_passes(tmp_path):
     assert report["error_count"] == 0
 
 
+def test_production_targets_must_remain_shared_libraries(tmp_path):
+    off, on = valid_pair(tmp_path)
+    data = json.loads(on.read_text())
+    target = next(
+        item for item in data["targets"] if item["name"] == PRODUCTION_TARGETS[1]
+    )
+    target["type"] = "STATIC_LIBRARY"
+    on.write_text(json.dumps(data), encoding="utf-8")
+    report = validate(args(off, on))
+    assert report["execution_status"] == "FAIL"
+    assert any(
+        f"PRODUCTION-TYPE-ON-{PRODUCTION_TARGETS[1]}" in error
+        for error in report["errors"]
+    )
+
+
 def test_gtest_targets_must_be_absent_when_testing_off(tmp_path):
     off, on = valid_pair(tmp_path)
     data = json.loads(off.read_text())
