@@ -634,7 +634,7 @@
       "event": "callback触发stop",
       "resource": "worker与callback lease",
       "resource_owner": "CoreControlBlock",
-      "reconcile_coordinator": "外部LifecycleThread/CleanupCoordinator",
+      "reconcile_coordinator": "CleanupCoordinator",
       "failure_states": [
         "SELF_JOIN_REJECTED"
       ],
