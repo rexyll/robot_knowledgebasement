@@ -1,0 +1,72 @@
+name: Stäubli ROS Jazzy build/install evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staubli-ros-jazzy-build
+  cancel-in-progress: false
+
+jobs:
+  ros-jazzy-build-install:
+    name: Pinned ROS Jazzy build/install matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      # Docker Hub manifest digest, linux/amd64, Ubuntu 24.04 (Noble).
+      image: osrf/ros@sha256:ae7ad3ac243da1dfd8bd402a2fa08e149ffbf7a385013bd8ef798d0800accdc8
+    steps:
+      - name: Checkout knowledge-base tools
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install explicit upstream CMake dependencies and build tools
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git \
+            libasio-dev \
+            libboost-system-dev \
+            python3-colcon-common-extensions \
+            python3-rosdep \
+            ros-jazzy-backward-ros
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Checkout fixed Stäubli upstream commit
+        shell: bash
+        run: |
+          git clone https://github.com/ICube-Robotics/staubli_driver_ros2.git "${RUNNER_TEMP}/staubli_driver_ros2"
+          git -C "${RUNNER_TEMP}/staubli_driver_ros2" checkout --detach bd658e2d266e315d2ee35f985fb352ea88306b79
+          test "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" rev-parse HEAD)" = "bd658e2d266e315d2ee35f985fb352ea88306b79"
+          test -z "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" status --porcelain)"
+
+      - name: Resolve declared ROS dependencies
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          rosdep update
+          rosdep install \
+            --from-paths "${RUNNER_TEMP}/staubli_driver_ros2" \
+            --ignore-src -r -y --rosdistro jazzy
+
+      - name: Run BUILD_TESTING OFF/ON build, install, consumer and evidence matrix
+        shell: bash
+        env:
+          ROS_DISTRO: jazzy
+          SOURCE_DIR: ${{ runner.temp }}/staubli_driver_ros2
+          OUTPUT_DIR: ${{ runner.temp }}/staubli-servo-906
+          ROS_SETUP: /opt/ros/jazzy/setup.bash
+        run: bash scripts/run_staubli_build_testing_matrix.sh
+
+      - name: Archive ROS Jazzy build/install evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: staubli-ros-jazzy-build-install-evidence
+          path: ${{ runner.temp }}/staubli-servo-906/
+          if-no-files-found: warn
+          retention-days: 30
