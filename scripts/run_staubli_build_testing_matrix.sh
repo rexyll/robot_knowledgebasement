@@ -135,6 +135,7 @@ CPP
       --install-base "${CONSUMER_ROOT}/install-${lower}" \
       --log-base "${CONSUMER_ROOT}/logs-${lower}" \
       --event-handlers console_direct+
+    run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"
     printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
   )
 done
