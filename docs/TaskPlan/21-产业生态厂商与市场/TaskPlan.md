@@ -6261,3 +6261,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 跟踪上游PR #9；真实控制器/HIL/现场运动安全验收。
 
 **状态：** SERVO-906 build/install/consumer子门槛PASS；bringup/MoveIt integration仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§21。
+
+
+### §9.3.354｜新增headless mock bringup launch integration test（2026-11-12）
+
+- [x] 新增mock-only launch test，固定TX2-60L、GenericSystem、loopback IP、关闭GUI；等待ListControllers服务并断言JSB与trajectory controller active，验证六关节`/joint_states`。
+- [x] 注册`add_launch_test`并声明launch_testing依赖。
+- [ ] 检查镜像SHA `e1124f29c726a06074bf2f97d23c949a72249fcd`的CI/Format/Documentation结果；修复真实launch integration问题。
+- [ ] CI通过后更新知识库ROS Jazzy源码pin并重跑OFF/ON build/install/consumer矩阵。
+- [ ] 后续增加MoveIt headless planning及mock trajectory action/feedback测试。
+
+**状态：** 新launch integration test待CI；此前SHA `abd75ff...` build/install/consumer子门槛PASS，不能外推到新SHA。SERVO-906/907整体BLOCKED。
