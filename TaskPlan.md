@@ -5335,3 +5335,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 固定源码仍是用户镜像SHA 1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f。此次为第二次专项矩阵复验，确认build/install/consumer结果可重复；不覆盖真实控制器/HIL/现场运动安全。
 - runtime差距审查已推进至第21章§9.3.349，矩阵复验记录见§9.3.350。wait_for_robot_ready无超时，MoveIt OnProcessExit未检查returncode，spawner失败后的激活缺少门控，mock launch test仍为TODO。
 - **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.350。下一步在用户镜像中修复readiness timeout/returncode gate，新增headless mock bringup launch_testing及mock-only轨迹action测试。SERVO-906 build/install与独立consumer子门槛PASS；runtime/MoveIt子门槛及SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+### 2026-11-12｜v11.64：开始修复Stäubli mock readiness gate
+
+- 用户镜像main已提交readiness有限超时/非零退出、robot_description非空与六关节检查、joint_states QoS改为BEST_EFFORT+VOLATILE、MoveIt成功退出门控、controller spawner失败Shutdown，以及pytest依赖与正/负向测试。
+- 中间SHA 8beb536 CI SUCCESS，日志确认readiness正向pytest 1/1通过；169987322 Format和Documentation SUCCESS。最新HEAD abd75ff956b4fb07a76705abcb8fd506b2985aaa的Format/Documentation/CI仍在执行，timeout subprocess负向测试尚待最新CI结果。
+- 审计见第21章§9.3.351及专项审计§19。
+- **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.351。下一步核验镜像最新SHA CI；通过后将知识库ROS Jazzy workflow source pin更新至abd75ff并重跑OFF/ON矩阵。随后补headless mock bringup、MoveIt和mock trajectory launch integration。SERVO-906 build/install/consumer子门槛基于旧SHA仍PASS；runtime/MoveIt子门槛及SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
