@@ -6455,3 +6455,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 在验证通过前 PR #1 保持 Draft，不允许 -11、不移除断言、不更新 source pin、不合并；真实 CS9/HIL/运动命令禁止。
 
 **状态：** Format PASS；CI FAIL（MoveIt teardown SIGSEGV）；planning PASS；shutdown-before-destruction 为强候选根因但修复未验证。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.364｜当前 MoveIt main 与 ROS 2 Jazzy rclcpp 默认信号处理参数复核（2026-11-12）
+
+- [x] 当前 MoveIt main 的 move_group.cpp 仍在 executor.spin() 返回后调用 rclcpp::shutdown()，随后才析构局部 MoveGroupExe 与 Executor；Jazzy 2.12.4 与 main 顺序一致。
+- [x] ROS 2 Jazzy InitOptions.shutdown_on_signal 默认 true；rclcpp::init() 默认 SignalHandlerOptions::All 并安装默认信号处理器。
+- [x] 将实际顺序记录为 SIGINT → 默认 Context shutdown → spin 返回 → 显式 shutdown → 局部对象析构，作为当前最强根因候选。
+- [ ] 在隔离实验环境中验证禁用默认 shutdown + 同步信号等待/control thread + executor.cancel + 先析构对象后 shutdown Context 的方案；不修改/推送 MoveIt 上游。
+- [ ] 对同一 mock planning + post-shutdown 测试进行重复运行，确认所有进程正常退出后再考虑 source pin 更新。
+
+**状态：** Format PASS；CI FAIL（planning PASS、teardown SIGSEGV）；shutdown 顺序缺陷候选尚未通过实验验证；PR #1 保持 Draft。
