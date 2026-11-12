@@ -182,3 +182,25 @@
 - 建议方向：移除未定义的`${asio_SOURCE_DIR}/asio/include` PUBLIC include；确认Boost仅用于`src/communication/udp_socket_impl.hpp`后将`Boost::system`作为PRIVATE链接依赖；在package.xml声明适当Boost rosdep依赖。若上游维护者确认Boost属于公共接口，则必须采用完整导出Boost target依赖的替代方案。
 - 提案包含OFF/ON clean build/install/consumer/gtest验收门槛，并明确禁止consumer预先find_package Boost、伪造include目录或安装后改写export文件。
 - 该文件只存在于知识库仓库，**没有修改上游、没有创建上游分支或PR**。等待用户明确授权后才可向上游提交。SERVO-906/907继续BLOCKED。
+
+## 13. 用户授权后在个人 fork 实施最小修复；上游 PR 创建受集成权限限制（2026-11-12）
+
+### Fork 权限与基线
+
+- 用户明确授权向上游提交修复，并提供个人 fork：`https://github.com/rexyll/staubli_driver_ros2`。
+- GitHub连接可读取 fork 的文件与分支；fork 的 `main` HEAD 经 Git ref API核验，精确等于固定上游基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`，没有 fork-only 漂移。
+- 已在 fork 成功创建分支 `fix/install-export-boost-asio`，基于上述固定 commit。分支可写权限已通过实际创建分支及文件提交验证。
+
+### 已实施的修复提交
+
+- 提交 `679cc4dd939484eeb9c72fb12c163a2b53b407b2`：从主库 PUBLIC include directories 移除未定义的 `\${asio_SOURCE_DIR}/asio/include`，并将 `Boost::system` 链接声明改为 `PRIVATE`。
+- 提交 `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`：在 `staubli_robot_driver/package.xml` 增加 `<depend>boost</depend>`。
+- 分支 HEAD 已核验为 `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`；与固定基线比较为 ahead 2 / behind 0，只有上述两个文件被修改。重新读取分支文件确认错误ASIO路径已移除、Boost链接为PRIVATE、manifest已声明Boost。
+- fork的CI workflow在pull_request事件上运行；当前连接未提供workflow dispatch操作，因此尚无该分支的ROS Jazzy CI运行证据。不得将代码写入成功视为编译或consumer验收成功。
+
+### 上游PR权限边界与当前结论
+
+- 已尝试从 `rexyll:fix/install-export-boost-asio` 向 `ICube-Robotics/staubli_driver_ros2:main` 创建PR；GitHub返回HTTP 403 `Resource not accessible by integration`。这不影响已验证的fork写权限，但说明当前集成连接不能在上游仓库创建PR。
+- 没有创建指向fork自身main的替代PR，也没有尝试绕过权限。修复分支与两个提交均保留在用户fork，可直接从该分支向上游main发起PR。
+- **状态：** 修复已提交到用户fork；上游PR尚未创建；PR CI、OFF/ON clean build/install、独立consumer configure/build和gtest矩阵均待验证。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- 下一步：由用户在GitHub网页上从fork分支 `fix/install-export-boost-asio` 向 `ICube-Robotics/staubli_driver_ros2:main` 创建PR；PR建立后，本连接可继续检查PR状态、review意见和Actions结果，并据失败证据修复fork分支。
