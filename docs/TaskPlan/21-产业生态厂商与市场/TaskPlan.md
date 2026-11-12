@@ -6343,3 +6343,19 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 如最新镜像CI/Format通过，更新源码pin并重跑ROS Jazzy矩阵；后续补mock trajectory action/feedback与MoveIt优雅关闭检查。
 
 **状态：** build/install/consumer gate PASS（pin `9e617a9...`）；MoveIt teardown待验证；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§23。
+
+
+### §9.3.357｜MoveIt mock planning teardown 与 controller lifecycle 缺口复审（2026-11-12）
+
+- [x] 检索用户镜像 main 最新提交：`4f9a37e12038174a010a9ad1f4523807fbb1434b`；确认其为 Black 格式修复，前序提交已加入 controller-active 等待和 controller manager service 测试依赖。
+- [x] 只读检查 MoveIt mock planning launch test、MoveIt launch、robot control launch。
+- [x] 确认 mock planning test 检查 plan_only 规划成功、轨迹非空与六关节名称，但未发现 post-shutdown exit-code assertion；固定 sleep 1 秒不能证明干净退出。
+- [x] 确认 trajectory controller spawner 有失败关闭处理，但 joint_state_broadcaster spawner 没有同等失败门控；controller activation ExecuteProcess 也没有退出码处理/成功门控。
+- [x] 确认 MoveIt readiness process 已按 returncode==0 才启动 MoveIt，非零会 Shutdown。
+- [ ] 为 launch_testing 增加 post-shutdown 退出码验收，显式允许正常 SIGINT 关闭、拒绝 SIGSEGV/意外退出。
+- [ ] 为 joint_state_broadcaster spawner 与 controller activation CLI 增加失败关闭和状态确认。
+- [ ] 在用户镜像最新 SHA 上运行并核验 Format、Documentation、CI；当前 SHA `4f9a37e...` combined status 查询为空，尚无最新 CI 通过证据。
+- [ ] 最新镜像 CI 通过后更新知识库源码 pin，重跑 ROS Jazzy OFF/ON build/install、独立 consumer、gtest、validator 与 manifest。
+- [ ] 继续 mock trajectory action/feedback 验证；禁止连接真实机器人执行运动。
+
+**状态：** 旧 pin build/install/consumer 子门槛保持 PASS；当前镜像 MoveIt teardown 与 controller lifecycle 仍 BLOCKED；SERVO-906/907整体 BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见 `docs/audits/2026-11-12-staubli-moveit-mock-planning-teardown-audit.md`。
