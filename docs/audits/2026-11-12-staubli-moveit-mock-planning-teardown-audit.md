@@ -194,3 +194,12 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - CI Run `43198319123`：运行中。
 - 旧 CI Run `43197493740` 再次确认同一 move_group exit `-11`，没有新发现其他功能失败；旧 Format Run `43197493726` 的精确差异已由诊断步骤定位。
 - PR #1 保持 Draft，不合并；知识库源码 pin 保持旧 SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`。不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED，`TODO-EXT-001` 未授权。
+
+
+## 6.8 最新 head 的 Format 通过与 CI 状态（2026-11-12）
+
+- PR #1 最新 head：`01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`。
+- Format Run `43198319316` / job `131114885647` 已完成 SUCCESS。Black 25.1.0 使用仓库配置 `--line-length=99`；精确格式修复后所有 pre-commit 检查通过，formatter diagnostic step 正常完成。
+- CI Run `43198319123` / job `131114885750` 仍在运行 `ros-tooling/action-ros-ci@0.4.8`；目前不能宣称 CI 通过。
+- 最新 Format PASS 仅清除了格式门槛，不改变 MoveIt shutdown 的 runtime 验收状态。历史 head 的 CI 已两次在 move_group SIGSEGV (-11) 处失败，最新 head 仍需实测。
+- PR 保持 Draft；不更新 ROS Jazzy source pin、不合并。真实 CS9/HIL 与运动命令仍禁止。
