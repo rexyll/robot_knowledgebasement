@@ -6385,3 +6385,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] CI通过后仍需在ROS Jazzy环境验证MoveIt teardown最终退出码；当前无runtime证据。
 
 **状态更新：** PR checks从“尚未出现”更新为“CI/Format进行中”；combined status仍为空不代表失败或成功。
+
+### §9.3.359｜分析 PR 首轮失败并确认上游 teardown 阻塞（2026-11-12）
+
+- [x] 读取 CI Run `43189959860`完整日志：mock MoveIt规划测试本体成功，post-shutdown断言发现 `move_group`在 `rclcpp::Executor::~Executor()` 崩溃，退出码 `-11`；不能将其加入allowlist。
+- [x] 日志同时显示 `ros2_control_node` 的 `pal_statistics` publisher thread在ROS context失效后抛出异常，但该进程最终退出码为0。
+- [x] 对照上游MoveIt 2开放问题 [#3680](https://github.com/moveit/moveit2/issues/3680)，确认ROS Jazzy二进制MoveIt在SIGINT teardown时出现相同的 `rclcpp::Executor::~Executor()` / SIGSEGV症状；这是已知上游问题，当前尚无修复可供本仓库直接吸收。
+- [x] 对照 ros-controls/realtime_tools 开放问题 [#480](https://github.com/ros-controls/realtime_tools/issues/480)，确认Jazzy关闭时存在相同的 `context cannot be slept with because it's invalid` 后台线程症状；不能把日志噪声误判为驱动自身逻辑成功或失败。
+- [x] Format Run `43189960017`确认唯一失败为Black自动改写 `launch_robot_control.launch.py`；已提交格式修复 commit `4700b6b4dd010ac5b22459467bfcb970c2013d14`。
+- [x] PR #1说明已更新，明确记录MoveIt上游阻塞与不可白名单放行SIGSEGV。
+- [ ] 新 head SHA `4700b6b4dd010ac5b22459467bfcb970c2013d14` 的CI Run `43192150453`与Format Run `43192150570`仍在运行；完成后检查结果。
+- [ ] MoveIt上游修复或找到可验证的安全关闭路径前，teardown验收保持BLOCKED；不允许把测试改成忽略move_group退出码，也不合并PR。
+- [ ] 评估独立验证ros2_control关闭异常；不要通过关闭pal_statistics日志、忽略异常或延时sleep掩盖问题。
+
+**状态：** 规划与控制器门控修复已提交；首次ROS Jazzy CI证明规划成功，但teardown仍因上游MoveIt SIGSEGV失败。格式修复已提交待复验。知识库源码pin保持旧SHA不变；SERVO-906/907、A1.1仍BLOCKED；TODO-EXT-001未授权。
