@@ -6096,3 +6096,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 普通CI只验证静态合同与bash语法，不代表Azure镜像在ROS容器中可访问。等待基于最新main SHA手动启动ROS Jazzy Run #9，确认真实Candidate和后续构建。
 - SERVO-906/907保持BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - **当前节点：§9.3.340；等待用户在最新main手动启动ROS Jazzy Run #9。**
+
+### §9.3.341｜ROS Jazzy Run #9：Azure APT恢复，真实OFF/ON构建与gtest通过，consumer暴露上游导出缺陷
+
+- Run `43133529247`（SHA `b594fd3b20827c269d9cf460c70c2126671d8ebb`）已实际运行；APT依赖安装、固定上游commit checkout、ROS依赖解析均SUCCESS，Azure官方Ubuntu archive策略解决Run #7/#8的DNS与Candidate阻塞。
+- 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`检出且工作树干净。BUILD_TESTING=OFF/ON两种构建和安装均完成。
+- BUILD_TESTING=ON生成七份gtest XML，测试数分别6/7/7/3/5/9/9，共46项，全部failures=0/errors=0；CTest报告7/7 suites通过。
+- OFF/ON独立install-space consumer均在CMake configure阶段失败，暴露两项固定上游导出问题：①主库PUBLIC include导出`/asio/include`，来源是未定义的`${asio_SOURCE_DIR}`；代码实际include `<boost/asio.hpp>`；②导出链接接口包含`Boost::system`，但上游`ament_export_dependencies()`与package.xml均未声明Boost，consumer未预先find_package Boost时target缺失。
+- target graph validator 49项检查中47 PASS、2 FAIL（OFF/ON unresolved ASIO include）。Consumer两种配置日志均同时报告无效include目录与Boost::system target缺失。没有伪造include目录、没有预先创建Boost target、没有改写安装导出文件。
+- Evidence artifact ID `13906750810`，SHA-256 `763b18cca96e95153341f3992b7080143849a38133f7bfc4cef80aae26a0df32`；ZIP本地hash与GitHub digest匹配，包含OFF/ON快照、install manifests、consumer logs、七份gtest XML及validator JSON。
+- 运行整体FAIL，故不能把SERVO-906/907标为完成。固定上游只读；需上游维护者修复导出合同并重新跑真实consumer。建议修复方向已记入专项审计§11，用户授权前不修改上游或创建PR。
+- A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- **当前节点：§9.3.341；Run #9已完成真实build/install与测试，等待上游导出缺陷的授权处理/后续验证。**
