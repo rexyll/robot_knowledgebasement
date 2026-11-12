@@ -6128,3 +6128,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - fork CI配置监听pull_request，但目前PR尚未建立，且连接没有workflow dispatch操作，因此没有新CI或ROS Jazzy验收结果。修复分支当前是待审查候选，不代表修复已验证。
 - **验收仍待办：** 用户在GitHub网页创建fork→upstream PR；随后核对CI、OFF/ON clean build/install、独立consumer configure/build、七个gtest suites及证据artifact。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - **当前任务节点：§9.3.343；fork分支已提交修复，等待上游PR建立后继续CI和真实ROS Jazzy验证。**
+
+
+### 9.3.344｜Stäubli安装导出修复PR建立与CI门禁（2026-11-12）
+
+- [x] 用户确认上游PR已创建；核验 [ICube-Robotics/staubli_driver_ros2#9](https://github.com/ICube-Robotics/staubli_driver_ros2/pull/9) OPEN，head `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`，base为固定上游基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- [x] 核对PR只包含预期的2个commit、2个文件（CMakeLists与package.xml），没有额外文件变更。
+- [x] 读取review、inline thread和评论：目前均为空；PR未合并。
+- [ ] 等待上游维护者批准fork workflow运行：Format Run `43158192705`与CI Run `43158192776`均为`action_required`，没有jobs，commit status pending/0 checks。
+- [ ] 获批后逐job核验Format/CI结果及所有失败步骤；按证据修复fork分支。
+- [ ] 在修复分支完成ROS Jazzy OFF/ON colcon build/install、独立安装空间consumer configure/build、7份gtest XML、manifest/SHA-256验收；consumer不得预先find_package Boost。
+- [ ] 上游PR合并且专项动态验收通过后，才可解除SERVO-906/907 BLOCKED。
+
+**状态：** PR已建立但尚未执行CI、尚未合并；SERVO-906/907保持BLOCKED，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
