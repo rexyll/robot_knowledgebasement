@@ -6278,3 +6278,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 - [x] 记录首轮Black格式检查失败（Run `43176950462`），修复提交 `49d720fde6e95586026e888b583f7f68ecef9400`。
 - [ ] 修复SHA对应CI/Format/Documentation（Runs `43177314945`/`43177315000`/`43177314966`）待完成；不得将中间失败run标记为最终通过。
+
+
+### §9.3.355｜修复ROS Jazzy launch action导入错误
+
+- [x] 首轮mock launch test发现`launch.actions.LogError`在ROS Jazzy不存在；确认bringup与MoveIt launch均有此错误引用。
+- [x] 两个launch文件均改用受支持的`LogInfo`输出错误前缀，并保留`Shutdown`失败关闭路径。
+- [x] 记录失败run `43176950518`及根因：launch导入失败，控制器未进入测试阶段。
+- [ ] 检查镜像SHA `755a710b8f5348b14f2f65e47cd882200ffdc877`的CI/Format/Documentation Runs `43177972372`/`43177972439`/`43177972523`。
+- [ ] 修复SHA CI通过后继续分析controller_manager启动、controller lifecycle与joint_states实际结果。
+- [ ] CI通过后更新知识库源码pin并重跑ROS Jazzy矩阵。
+
+**状态：** LogError import缺陷已修复，待CI验证；mock bringup/MoveIt integration仍BLOCKED。详见专项审计§23。
