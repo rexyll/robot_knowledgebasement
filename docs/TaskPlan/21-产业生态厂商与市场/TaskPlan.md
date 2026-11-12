@@ -6209,3 +6209,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 跟踪上游PR #9维护者review与workflow审批，不把镜像验收等同于上游main合并。
 
 **状态：** 本节新增项是已完成的只读源码审查；所有代码修复与ROS launch测试仍未完成。build/install与独立consumer子门槛PASS，runtime/MoveIt子门槛BLOCKED；SERVO-906/907整体BLOCKED。详见专项审计§17。
+
+### §9.3.350｜第二次固定源码ROS Jazzy OFF/ON矩阵复验通过（2026-11-12）
+
+- [x] Run [43171335488](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43171335488)在知识库SHA `9e50a8a04d1e63893c3c30830a5dba7091fc7dda`完成SUCCESS，固定镜像SHA仍为`1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`。
+- [x] OFF/ON独立consumer实际运行成功；7/7 gtest suites通过；colcon 53 tests、0 failures；validator 49 checks、0 errors、全部PASS。
+- [x] 证据manifest 5项size/SHA-256核验通过；artifact ID `13922711625`，ZIP SHA-256 `0636c276135f618e8523a9487865eece113b7fca6108a50687e93dd9e6e9f1ca`。
+- [x] 同SHA普通CI Run `43171335549` SUCCESS。
+- [ ] 继续修复readiness wait无超时、MoveIt OnProcessExit无returncode gate、controller spawner失败后仍执行激活的问题。
+- [ ] 补齐headless mock bringup launch_testing与mock-only trajectory action/反馈验证。
+ 
+**状态：** build/install与独立consumer子门槛再次PASS；runtime/MoveIt子门槛BLOCKED；SERVO-906/907整体BLOCKED。详见专项审计§17、§18。
