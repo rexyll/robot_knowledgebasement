@@ -6,7 +6,7 @@ set -Eeuo pipefail
 : "${SOURCE_DIR:?Set SOURCE_DIR to the pinned staubli_driver_ros2 checkout}"
 : "${OUTPUT_DIR:?Set OUTPUT_DIR for snapshots, logs and reports}"
 
-EXPECTED_UPSTREAM_COMMIT="${EXPECTED_UPSTREAM_COMMIT:-1847c945b83cb4a111a3799b2b10b5e7cf2b9885}"
+EXPECTED_UPSTREAM_COMMIT="${EXPECTED_UPSTREAM_COMMIT:-febf8cfd89bc8b2b4004300990e39dbf78de800e}"
 ROS_DISTRO="${ROS_DISTRO:-jazzy}"
 ROS_SETUP="${ROS_SETUP:-/opt/ros/jazzy/setup.bash}"
 BUILD_ROOT="${BUILD_ROOT:-${OUTPUT_DIR}/build}"
