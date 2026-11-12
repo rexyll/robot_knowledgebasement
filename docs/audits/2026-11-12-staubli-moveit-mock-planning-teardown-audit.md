@@ -333,3 +333,27 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 3. 实验 patch 将 MoveGroupExe、Executor、Node 等局部对象置于内层作用域，在离开作用域完成析构后再调用 `rclcpp::shutdown()`。此 patch 仅为隔离实验，不是上游已批准修复。
 4. 等待 MoveIt 编译、Stäubli workspace 编译和同一 mock planning + strict teardown regression。只有规划成功且进程退出断言全部通过，才能认为此实验支持该修复方向。
 5. PR #1 继续 Draft；不放宽 SIGSEGV 断言、不更新 ROS Jazzy source pin、不合并、不修改 MoveIt/rclcpp 上游、不连接真实 CS9、不发送真实运动命令。
+
+
+## 6.16 第一轮 shutdown-order overlay 失败与受控信号等待实验（2026-11-12）
+
+### 第一轮实验结论
+
+- MoveIt Jazzy source overlay Run [43201789602](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43201789602) 完成 FAILURE，但并非编译问题：patched MoveIt 7 packages（包括 `moveit_ros_move_group`）构建成功；Stäubli workspace 5 packages 构建成功。
+- mock test 的 MoveGroup action 规划成功，日志明确输出 `Motion plan was computed successfully.`，Python test OK。teardown 时 `move_group-6` 仍以 -11 退出，严格 post-shutdown assertion 失败。
+- 第一轮只把显式 `rclcpp::shutdown()` 移到局部对象析构之后，没有禁用 rclcpp 默认 signal handler。因此 SIGINT 到达时，默认 handler 仍会先 shutdown Context；局部对象顺序调整不足以解决这一条关闭路径。
+- 这使“只调整显式 shutdown 调用位置即可修复”的假设被实验否定；但不否定 Context shutdown 与 Executor 析构生命周期竞争这一更广义方向。
+
+### 第二轮受控信号处理实验
+
+- 分支：`experiment/move-group-shutdown-order`。
+- 第二轮 workflow Run `43203818571` 当前运行中。
+- 在 main() 最早期阻塞 SIGINT、SIGTERM、SIGUSR1，随后用 `rclcpp::InitOptions.shutdown_on_signal = false` 和 `rclcpp::SignalHandlerOptions::None` 禁用 rclcpp 默认信号关闭机制。Jazzy rclcpp API 明确支持 InitOptions 的 `shutdown_on_signal` 字段及 signal-handler installation options；该模式需要保持 SIGINT/SIGTERM 由应用层显式接管。
+- 在 executor 与 MoveGroupExe 构造完成后启动专用 `sigwait` 线程。收到 SIGINT/SIGTERM 后由普通线程调用 `executor.cancel()`，使 spin 返回；随后唤醒/Join signal waiter，按依赖顺序析构 MoveGroupExe、Executor、PlanningSceneMonitor、MoveItCpp 和 Node，最后才执行 `rclcpp::shutdown()`。
+- SIGUSR1 仅用于 main 在 spin 非信号原因返回时唤醒 sigwait waiter，避免 join 永久等待；它与外部 SIGINT/SIGTERM 分开处理。
+- 此 patch 仅为隔离实验，不改 MoveIt 上游、不进入 Stäubli PR、不改变 ROS binary source pin。需先通过构建和同一 mock planning + strict teardown 测试，再评估是否成立。
+
+### 证据边界
+
+- GDB Run `43202281251` 捕获的主线程栈仍为 `librclcpp.so` → `rclcpp::Executor::~Executor()` → `main()`。frame #0 因缺少 debug symbols 尚未解析。
+- 第二轮实验目前只触发运行；不得将正在运行当作已修复。Format PASS 与 runtime teardown PASS 是不同验收项。
