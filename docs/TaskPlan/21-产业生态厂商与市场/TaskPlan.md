@@ -6296,3 +6296,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 - [x] SHA `755a710...` flake8发现MoveIt launch缺少LogInfo导入（F821）；已在SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`补充。
 - [ ] 最新SHA CI/Format/Documentation Runs `43178262257`/`43178262221`/`43178262304`待完成；launch集成仍待验证。
+
+
+#### §9.3.355补充｜mock bringup运行结果
+
+- [x] SHA `755a710...` ROS CI Run `43177972372` SUCCESS；headless mock launch test 1/1通过，整个colcon 70 tests、0 errors、0 failures、0 skipped。
+- [x] 实测GenericSystem加载/初始化成功，JSB与trajectory controller均active，六关节`/joint_states`断言通过。
+- [ ] 评估测试关闭时CLI子进程SIGINT（exit -2）和controller_manager shutdown噪声，完善优雅退出。
+- [ ] 最新SHA `5b2196f...`的CI/Format/Documentation结果完成后再固定源码pin；MoveIt实际启动与规划仍待测。
