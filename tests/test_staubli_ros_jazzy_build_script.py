@@ -325,3 +325,26 @@ def test_manual_ros_workflow_retries_apt_and_checks_libdw_candidate():
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_retry_apt_script_prefers_official_azure_ubuntu_archive_mirror():
+    retry_script = (
+        Path(__file__).parents[1] / "scripts" / "retry_apt_update.sh"
+    )
+    content = retry_script.read_text(encoding="utf-8")
+    assert "configure_ubuntu_apt_mirror()" in content
+    assert "/etc/apt/sources.list.d/*.sources" in content
+    assert "/etc/apt/sources.list.d/*.list" in content
+    assert "archive\\\\.ubuntu\\\\.com" in content
+    assert "security\\\\.ubuntu\\\\.com" in content
+    assert "azure.archive.ubuntu.com/ubuntu" in content
+    assert content.index("configure_ubuntu_apt_mirror\\n") < content.index(
+        "APT_INDEX_REFRESH_ATTEMPT"
+    )
+    result = subprocess.run(
+        ["bash", "-n", str(retry_script)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
