@@ -296,3 +296,31 @@
 5. 在实施前检查mock hardware插件来源、controller YAML、launch arguments、launch_testing依赖与节点退出/清理策略；测试只在loopback/mock模式执行，禁止自动连接192.168.0.254等默认真实机器人地址。
 
 **当前结论：** ROS Jazzy build/install与独立consumer子门槛已通过；端到端mock bringup与MoveIt launch integration尚未证明。SERVO-906/907整体仍保持BLOCKED，直到其定义的所有非硬件与硬件验收项分别有证据；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+## 17. Mock bringup与MoveIt readiness gate细节审查（2026-11-12）
+
+固定源码：`rexyll/staubli_driver_ros2_from_org`，当前main SHA `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`（本节只读审查，不修改该源码）。
+
+### 17.1 Mock模式的网络边界
+
+- `staubli_robot_description/r2c/staubli.r2c.xacro`在`use_mock_hardware=true`时加载`mock_components/GenericSystem`，不加载`staubli_robot_driver/StaubliHardwareInterface`；只有false分支才把`robot_ip`、UDP端口参数交给真实Stäubli硬件插件。
+- `launch_robot_control.launch.py`默认`use_mock_hardware=true`，但`robot_ip`默认仍为`192.168.0.254`。从当前Xacro分支可确认mock分支不会把该IP传给真实驱动插件；不过自动化测试仍应显式指定mock true，并把robot_ip覆盖为loopback/不可路由测试地址，以形成纵深防御，且在运行时检查加载的hardware plugin确为GenericSystem。
+- `controllers.yaml`定义250 Hz controller_manager、joint_state_broadcaster和6关节position command的joint_trajectory_controller；controller还请求position/velocity state interfaces。
+
+### 17.2 MoveIt readiness gate风险
+
+- `wait_for_robot_ready.py`等待transient-local `robot_description`及`joint_states`两个topic；两者都收到后正常结束，未设置超时，也未处理rclpy spin异常的显式退出策略。
+- `launch_moveit.launch.py`使用`OnProcessExit(target_action=wait_for_robot_ready, on_exit=[launch_moveit])`。事件处理器未检查进程returncode；如果等待进程异常退出，仍会执行MoveIt include。更常见的缺消息场景则会无限等待，导致launch永不完成，也没有清晰的失败结果。
+- `launch_robot_control.launch.py`在spawner进程退出后也无条件注册/触发后续状态切换命令；应检查spawner returncode，避免失败后继续执行activate命令。
+- `staubli_robot_description/test/test_launch_mocked.py`仅包含TODO注释；`staubli_bringup/test`目前只有占位文件。当前不存在可证明controller_manager与控制器生命周期就绪的launch_testing集成测试。
+
+### 17.3 修复与验收建议
+
+1. 给wait节点增加有限超时参数（默认值需明确），超时返回非零；同时校验robot_description非空、joint_states至少包含期望的6个关节名称，而非仅收到任意消息。
+2. 将MoveIt include改为仅在readiness process returncode==0时启动；非零退出应触发launch Shutdown并保留错误原因。对controller spawner也采用相同的成功退出门控。
+3. 新增headless launch_testing：显式传入`use_mock_hardware=true`、`robot_ip=127.0.0.1`、`gui=false`、`start_controller=joint_trajectory_controller`；断言URDF ros2_control hardware plugin是GenericSystem，controller_manager服务可用，joint_state_broadcaster与joint_trajectory_controller进入预期状态。
+4. 用ROS graph/系统socket观测或隔离网络命名空间证明测试不访问真实机器人网段；仅设置robot_ip loopback不足以证明没有其他旁路网络请求。
+5. 在mock hardware上执行有限幅度、短时轨迹并验证action成功及joint_states反馈；若仅验证控制器启动而没有轨迹action结果，不能标记trajectory execution PASS。
+6. 将MoveIt readiness超时/异常退出、spawner失败、controller manager启动失败纳入负向测试，确保整个launch以非零/明确shutdown失败，而不是静默挂起或继续启动下游节点。
+
+**当前状态：** 以上为源码审查得到的明确缺口和待实施项，不代表已修复或已运行ROS launch测试。build/install与独立consumer子门槛仍PASS；runtime bringup与MoveIt readiness子门槛仍BLOCKED。SERVO-906/907整体保持BLOCKED。
