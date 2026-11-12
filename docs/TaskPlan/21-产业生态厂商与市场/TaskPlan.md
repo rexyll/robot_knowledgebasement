@@ -6502,3 +6502,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 读取第三轮完整日志，确认 rosdep、MoveIt 编译、Stäubli 编译与 mock teardown 测试结果。
 
 **状态：** 前两轮实验均为 CI harness 环境/脚本问题，尚无 MoveIt patch 编译或 runtime 结论；第三轮 RUNNING；PR #1 Draft，source pin 不变。
+
+
+### §9.3.368｜GDB teardown backtrace 诊断与 MoveIt 源码实验状态（2026-11-12）
+
+- [x] PR #1 增加可选 GDB prefix，CI 安装 GDB 并在 move_group teardown 时输出 `thread apply all bt full`。
+- [x] GDB wrapper 模式仅额外容许预期 SIGINT 退出码 130；SIGSEGV 不在 allowlist，仍由 post-shutdown assert 拒绝。需以运行日志核对 wrapper 实际退出码与 backtrace。
+- [x] PR head `c74a70f76c642ee99809efc3bcd01740ba90e89d` Format Run `43202281223` SUCCESS。
+- [ ] CI Run `43202281251` / job `131128472436` 完成后检查 GDB 输出、move_group backtrace 和进程退出码。
+- [x] MoveIt Jazzy source overlay 实验 Run `43201789602` 已通过 ROS setup、MoveIt clone/patch 与 rosdep，进入 patched MoveIt build。
+- [ ] 等待 MoveIt build、Stäubli workspace build、mock planning 与 strict teardown regression 全部完成；通过前不更新 source pin、不合并 PR。
+
+**状态：** Format PASS；binary CI RUNNING；GDB 诊断启用；MoveIt scope-order overlay build RUNNING；PR #1 Draft；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
