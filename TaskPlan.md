@@ -5311,3 +5311,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 用户镜像同SHA的Format、Documentation、CI均SUCCESS；但上游PR #9仍OPEN、未合并、无review/评论，PR Format/CI仍为action_required，等待维护者批准workflow。
 - 验收范围仅限ROS Jazzy构建/安装/导出/独立consumer和现有测试，不包含真实CS9/VAL3、HIL、机器人运动安全、现场网络、长时间运行及真实硬件验收。SERVO-906的build/install与独立consumer证据子门槛标记PASS；SERVO-906/907整体仍按剩余硬件/运行时/上游合并门槛保持BLOCKED。A1.1 BLOCKED；TODO-EXT-001未授权。
 - **当前任务节点：根计划的主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.347。下一步跟踪上游PR #9的workflow审批/review/合并，并开展不连接真实机器人时可执行的runtime/plugin/仿真验证；最新知识库main的CI与专项workflow正在执行/排队，须逐项核验，不提前宣称通过。**
+
+### 2026-11-12｜v11.61：完成Stäubli runtime/仿真验证差距审查
+
+- 对固定镜像源码进行只读审查：URDF描述测试覆盖两型号、两种prefix及mock true/false的XACRO/check_urdf解析；SRDF测试仅做描述解析；driver单测具备loopback MockRobotServer和pluginlib覆盖；但test_launch_mocked.py仍只有TODO，没有端到端launch_testing。
+- launch_robot_control与launch_demo提供use_mock_hardware=true的无真实控制器入口；MoveIt launch可做headless启动验证。README当前明确position control受支持，项目仍属prototype，不能推断velocity/hand-guiding已产品化。
+- 已将下一阶段拆为mock controller bringup、MoveIt headless launch、mock-only有限幅值轨迹、真实CS9/HIL独立验收；详细见第21章TaskPlan §9.3.348及专项审计§16。
+- 上游PR #9仍OPEN、未合并，Format/CI action_required且无review/评论；需要维护者批准workflow运行。
+- **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.348。ROS Jazzy build/install与独立consumer证据子门槛PASS；下一步进入无真实硬件的mock bringup/MoveIt integration验证，SERVO-906/907整体保持BLOCKED。**
