@@ -5327,3 +5327,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 已把具体缺口、风险与负向测试要求写入第21章§9.3.349和专项审计§17。
 - 当前知识库最新main的普通CI Run 43171335549 SUCCESS。ROS Jazzy专项Run 43171335488仍在OFF/ON build/install/consumer矩阵阶段，尚未出结论；不得提前宣布通过。
 - **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.349。下一步先完成当前专项Run结果核验，再在用户镜像上修复readiness timeout/returncode gate，并补充headless mock bringup launch_testing与trajectory action验证。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+### 2026-11-12｜v11.63：Stäubli固定镜像ROS Jazzy矩阵第二次复验通过
+
+- 专项Run [43171335488](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43171335488) SUCCESS；OFF/ON独立consumer均实际运行成功，7/7 gtest suites通过，colcon 53 tests无失败，validator 49/49 PASS，证据manifest五项哈希核验通过。
+- Artifact ID 13922711625，ZIP SHA-256 0636c276135f618e8523a9487865eece113b7fca6108a50687e93dd9e6e9f1ca。普通CI Run 43171335549 SUCCESS。
+- 固定源码仍是用户镜像SHA 1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f。此次为第二次专项矩阵复验，确认build/install/consumer结果可重复；不覆盖真实控制器/HIL/现场运动安全。
+- runtime差距审查已推进至第21章§9.3.349，矩阵复验记录见§9.3.350。wait_for_robot_ready无超时，MoveIt OnProcessExit未检查returncode，spawner失败后的激活缺少门控，mock launch test仍为TODO。
+- **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.350。下一步在用户镜像中修复readiness timeout/returncode gate，新增headless mock bringup launch_testing及mock-only轨迹action测试。SERVO-906 build/install与独立consumer子门槛PASS；runtime/MoveIt子门槛及SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
