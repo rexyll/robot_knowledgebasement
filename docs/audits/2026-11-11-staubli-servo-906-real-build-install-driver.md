@@ -324,3 +324,14 @@
 6. 将MoveIt readiness超时/异常退出、spawner失败、controller manager启动失败纳入负向测试，确保整个launch以非零/明确shutdown失败，而不是静默挂起或继续启动下游节点。
 
 **当前状态：** 以上为源码审查得到的明确缺口和待实施项，不代表已修复或已运行ROS launch测试。build/install与独立consumer子门槛仍PASS；runtime bringup与MoveIt readiness子门槛仍BLOCKED。SERVO-906/907整体保持BLOCKED。
+
+## 18. 最新main触发的第二次ROS Jazzy OFF/ON矩阵复验通过（2026-11-12）
+
+- Run [#43171335488](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43171335488) completed / success；唯一job `Pinned ROS Jazzy build/install matrix`成功，基于知识库main SHA `9e50a8a04d1e63893c3c30830a5dba7091fc7dda`执行。
+- 固定Stäubli镜像源码SHA仍为`1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`，source checkout/dependency resolution成功。
+- OFF/ON独立install-space consumer均实际运行成功：日志分别包含`INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=OFF`和`...ON`。
+- 7/7 gtest suites通过；colcon汇总53 tests、0 errors、0 failures、0 skipped。Target graph validator报告`check_count=49`、`error_count=0`、`execution_status=PASS`；49项检查全部PASS。
+- 证据manifest最终`execution_status=PASS`、`checked_artifact_count=5`；artifact ID `13922711625`，名称`staubli-ros-jazzy-build-install-evidence`，大小48,836,333 bytes；上传ZIP SHA-256：`0636c276135f618e8523a9487865eece113b7fca6108a50687e93dd9e6e9f1ca`。[打开证据工件](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43171335488/artifacts/13922711625)
+- 同一知识库SHA的普通CI Run `43171335549`也SUCCESS（Python 3.10/3.11/3.12、OSV审计、SBOM任务均完成）。
+- 这是第二次独立专项run通过，增强固定镜像SHA下build/install/consumer矩阵的可重复性；不增加本次测试范围，不证明真实控制器/HIL/现场运动安全，也不解决§17所述runtime readiness/launch integration缺口。
+- 结论：SERVO-906 build/install与独立consumer证据子门槛继续PASS；runtime/MoveIt子门槛仍BLOCKED，SERVO-906/907整体仍BLOCKED。A1.1 BLOCKED；TODO-EXT-001未授权。
