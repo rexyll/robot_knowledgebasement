@@ -25,9 +25,9 @@ def test_build_matrix_uses_fixed_upstream_validator_and_real_build_install():
     assert "--export-root" in content
 
 
-def test_build_matrix_requires_pinned_clean_jazzy_source():
+def test_build_matrix_requires_pinned_clean_owned_jazzy_source():
     content = SCRIPT.read_text(encoding="utf-8")
-    assert "bd658e2d266e315d2ee35f985fb352ea88306b79" in content
+    assert "1847c945b83cb4a111a3799b2b10b5e7cf2b9885" in content
     assert '[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]]' in content
     assert '[[ "${ROS_DISTRO}" == "jazzy" ]]' in content
     assert "find_package(backward_ros REQUIRED)" in content
