@@ -274,3 +274,25 @@
 - 验收范围限制：本次只证明ROS Jazzy容器中的build/install/export/downstream consumer及现有测试通过；不覆盖真实Stäubli控制器、CS9/VAL3、硬件在环、现场网络、机器人运动安全、长时间运行、ABI兼容矩阵、sanitizer、plugin真实加载/卸载及工业现场验收。硬件/运行时验证不可由本次CI推断。
 - SERVO-906的“ROS Jazzy build/install + independent consumer evidence”子门槛可标记PASS；若SERVO-906总项或SERVO-907还包含硬件/运行时/上游合并条件，则整体保持BLOCKED，不能据此宣布机器人驱动产品级验收完成。A1.1保持BLOCKED；TODO-EXT-001未授权。
 - 下一步：将本次专项证据链接、镜像SHA与范围限制同步到TaskPlan；继续审查上游PR #9的维护者review/CI批准和合并状态，并单独规划不连接真实机器人时可完成的仿真/runtime验证。不得擅自将本次镜像验收冒充上游main验收。
+
+## 16. Runtime与仿真验证范围审查：现有测试的覆盖边界（2026-11-12）
+
+基于固定镜像SHA 1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f的源码只读审查：
+
+- README声明当前面向ROS 2 Jazzy/Ubuntu 24.04及CS9控制器；项目仍处于prototype/development状态，作者说明主动开发曾暂停；README只明确称position control当前受支持，velocity/hand-guiding及diagnostics为后续功能。不得将接口导出或mock单测存在解释为所有运动模式均已产品化。
+- URDF测试 test_default_urdf.py 覆盖tx2_60l与tx2_60l_med、空prefix与staubli_ prefix、use_mock_hardware true/false的XACRO生成与check_urdf解析；这属于模型描述结构验证，不是ros2_control controller manager运行验证。
+- MoveIt SRDF测试 test_default_srdf.py 仅覆盖tx2_60l及两个prefix的URDF/XACRO解析；它没有启动move_group、执行规划或检查规划轨迹。
+- staubli_robot_description/test/test_launch_mocked.py目前只有TODO“launch mocked hardware for tests”，没有实际launch integration test。
+- 硬件接口C++单测已具备MockRobotServer loopback UDP路径，覆盖mock robot配置、hardware interface初始化、pluginlib加载/初始化和接口导出；这是进程内/组件级模拟，不等于完整bringup launch graph端到端测试。
+- launch_robot_control.launch.py串联robot_state_publisher、ros2_control_node、joint_state_broadcaster、joint_trajectory_controller spawner和RViz；launch_demo.launch.py默认use_mock_hardware=true并串联MoveIt。它们提供可行的无真实控制器仿真入口，但当前检查到的测试目录尚无对应launch_testing覆盖。
+- README明确提醒真实AUTO模式需监督、E-stop随时可用，MoveIt首次执行应使用很低的速度/加速度比例并先在RViz检查。此类真实机器人测试不能在通用CI中自动执行。
+
+### 建议的无真实硬件下一阶段门槛
+
+1. 在固定ROS Jazzy环境中补齐mock bringup launch_testing：启动robot_state_publisher与ros2_control_node（use_mock_hardware=true、gui=false），等待controller_manager服务可用，断言hardware component状态、joint_state_broadcaster和joint_trajectory_controller生命周期状态；超时应收集节点日志并失败。
+2. 补齐launch_demo headless启动测试（RViz/GUI关闭），验证MoveIt move_group与robot_description/semantic/kinematics参数可加载；若无合适的规划场景则只验证节点就绪与planning pipeline配置，不伪称完成运动规划验收。
+3. 增加明确的模拟轨迹测试：只向mock hardware发送低幅度、有限时长的joint trajectory，验证控制器接受/完成动作并检查joint state反馈；必须确认mock硬件确实不加载真实Stäubli plugin/不打开真实机器人IP。
+4. 分开记录：URDF/SRDF静态解析、driver UDP mock单测、controller bringup integration、MoveIt planning integration、真实CS9/HIL。不得合并成一个含糊的“仿真通过”。
+5. 在实施前检查mock hardware插件来源、controller YAML、launch arguments、launch_testing依赖与节点退出/清理策略；测试只在loopback/mock模式执行，禁止自动连接192.168.0.254等默认真实机器人地址。
+
+**当前结论：** ROS Jazzy build/install与独立consumer子门槛已通过；端到端mock bringup与MoveIt launch integration尚未证明。SERVO-906/907整体仍保持BLOCKED，直到其定义的所有非硬件与硬件验收项分别有证据；A1.1 BLOCKED；TODO-EXT-001未授权。
