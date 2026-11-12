@@ -251,3 +251,33 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 这使本次 teardown 的顺序链条更明确：SIGINT → 默认 handler shutdown Context → executor.spin 返回 → main 显式 shutdown → 离开作用域时析构 MoveGroupExe 和 Executor。它与 Executor 析构栈和 SIGSEGV 现象高度吻合，但仍需受控实验验证修复。
 - 后续实验只在用户控制的隔离分支/临时工作区进行，不推送或修改 MoveIt 上游。候选方案为禁用默认自动 shutdown，使用受支持的同步信号等待/control thread 请求 executor.cancel，等待 spin 返回，销毁 MoveGroupExe/相关对象与 Executor，最后 shutdown Context。必须先确认 ROS 2 signal API 的安全用法，不能在异步 POSIX signal handler 中直接调用 ROS API。
 - 现阶段不改动 Stäubli PR 的 MoveIt 依赖，不更新 source pin；PR #1 继续 Draft，exit -11 继续作为失败。
+
+
+## 6.11 MoveIt 对象析构作用域与 logger pre-shutdown 修复的区分（2026-11-12）
+
+### 直接析构顺序
+
+- MoveIt Jazzy `moveit_ros/move_group/src/move_group.cpp` 的 main 中，`rclcpp::init(argc, argv)` 后创建 `nh`、`moveit_cpp` 与 `planning_scene_monitor`。
+- 在 planning scene 的 if 块内，先声明 `MultiThreadedExecutor executor`，再声明 `MoveGroupExe mge`。C++ 逆序析构意味着退出该作用域时先析构 `mge`，再析构 `executor`。
+- 当前代码在 `executor.spin()` 返回后、退出 if 作用域之前执行 `rclcpp::shutdown()`。因此析构 `mge` 和 `executor` 时 Context 已 shutdown；退出 main 时更外层的 `planning_scene_monitor`、`moveit_cpp`、`nh` 也在 shutdown 后才析构。
+- 默认 `InitOptions.shutdown_on_signal=true` 且 `rclcpp::init()` 默认安装 SIGINT/SIGTERM handler，故 teardown 期间还可能发生先由 signal handler shutdown Context，再从 spin 返回的路径。
+- 这一明确的作用域顺序与实际 SIGSEGV 栈帧 `rclcpp::Executor::~Executor()` 直接吻合，现列为首要根因候选。尚未宣称已证实：必须通过受控对象生命周期重排实验及重复运行验证。
+
+### 与 MoveIt logger PR #3833 的区别
+
+- MoveIt PR [#3833](https://github.com/moveit/moveit2/pull/3833) 于 2026-09-10 合入 main，修复 logger helper 中静态 `rclcpp::Node` 在 RMW shutdown 之后才进行静态析构的问题。实现通过 Context pre-shutdown callback 在 RMW teardown 前 reset node，并增加回归测试。
+- 当前 MoveIt `jazzy` 分支的 `moveit_core/utils/src/logger.cpp` 尚不包含 `registerNodeResetOnPreShutdown` / `add_pre_shutdown_callback`。这与 main 分支已合入的修复不同；不能将 #3833 误认为已经进入 Jazzy 分支。
+- Stäubli CI 安装的二进制包为 `ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`。其构建日期晚于 #3833 合入日期，但当前未取得 bloom release source revision，故不能仅凭日期断言二进制是否包含 #3833。
+- #3833 解决的是 logger static Node/RMW teardown 生命周期；本次观测栈帧明确位于 Executor 析构。两者可能都涉及 Context shutdown 顺序，但属于不同对象/路径，必须分别验证。
+
+### 隔离实验
+
+- 在用户镜像仓库创建分支 `experiment/move-group-shutdown-order`，workflow commit `5f33199b2b6615124df9ca67ea53b68e20ecf38a`。
+- Workflow Run [43200850967](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43200850967) 从 MoveIt `jazzy` 源码构建 `moveit_ros_move_group`，仅在本地临时 overlay 中把 main 的 MoveIt 对象生命周期包进一个外层作用域，使所有局部对象先析构，再执行 `rclcpp::shutdown()`。之后构建 Stäubli workspace 并运行原有 mock planning + strict post-shutdown launch test。
+- 该实验不修改、不推送 MoveIt 上游；不修改 PR #1 的 source pin；不放宽 SIGSEGV 断言。Workflow 目前 RUNNING，job `131123588792`。
+- 实验若通过，只能支持对象析构顺序假设，不能直接替代上游评审、release/backport 或重复运行。若失败，必须读取 backtrace 并判断是否是源码编译、运行环境或实际 teardown 缺陷。
+
+### 验收边界
+
+- PR #1 保持 Draft；不允许 exit -11，不删除 post-shutdown assert，不更新 ROS Jazzy source pin，不合并。
+- 不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；`TODO-EXT-001` 未授权。
