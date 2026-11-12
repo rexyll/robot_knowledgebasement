@@ -6116,3 +6116,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 提案列出OFF/ON clean build/install/consumer/gtest验收条件，并明确不允许consumer预定义Boost target、伪造include目录或事后修改安装导出文件。
 - 当前只是知识库内的技术提案，没有修改上游仓库、没有创建上游PR；等待用户明确授权。SERVO-906/907仍BLOCKED。
 - **当前节点：§9.3.342；上游修复提案已形成，等待用户决定是否授权向上游提交。**
+
+### §9.3.343｜用户fork写权限验证与Stäubli最小修复提交
+
+- 用户授权后，检查个人fork `rexyll/staubli_driver_ros2`。fork main HEAD精确等于固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`；无基线漂移。
+- 已成功创建 `fix/install-export-boost-asio` 分支，证明具备fork分支写权限；随后提交两项修改：
+  - `679cc4dd939484eeb9c72fb12c163a2b53b407b2`：移除未定义的 `\${asio_SOURCE_DIR}/asio/include` PUBLIC include，并将 `Boost::system` 改为PRIVATE链接。
+  - `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`：在package.xml增加 `<depend>boost</depend>`。
+- 分支HEAD为 `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`，相对固定基线ahead 2 / behind 0；仅修改CMakeLists.txt与package.xml，且重新读取文件确认内容。
+- 尝试从该fork分支创建指向上游main的PR，GitHub返回HTTP 403 `Resource not accessible by integration`。当前集成连接有fork写权限，但没有在ICube-Robotics上创建PR的权限；未创建错误的fork自PR，也未绕过权限。
+- fork CI配置监听pull_request，但目前PR尚未建立，且连接没有workflow dispatch操作，因此没有新CI或ROS Jazzy验收结果。修复分支当前是待审查候选，不代表修复已验证。
+- **验收仍待办：** 用户在GitHub网页创建fork→upstream PR；随后核对CI、OFF/ON clean build/install、独立consumer configure/build、七个gtest suites及证据artifact。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- **当前任务节点：§9.3.343；fork分支已提交修复，等待上游PR建立后继续CI和真实ROS Jazzy验证。**
