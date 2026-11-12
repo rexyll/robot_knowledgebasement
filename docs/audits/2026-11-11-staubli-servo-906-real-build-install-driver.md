@@ -175,3 +175,10 @@
 - **未通过：** OFF/ON独立安装空间consumer configure；target graph validator的两项ASIO路径检查。故SERVO-906/907仍BLOCKED，不得以构建和gtest通过替代安装consumer验收。
 - 上游源码保持只读。下一步为形成可提交给上游维护者的最小修复建议/patch草案，但在用户明确授权前不修改上游、不创建PR；若不允许上游修复，则记录为上游阻塞项，继续补充静态审查与其他不依赖该修复的验证。
 - A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+## 12. 上游安装导出修复建议草案（知识库内审查文件，未提交上游）
+
+- 新增本地审查提案：`docs/audits/staubli-upstream-install-export-fix-proposal.md`，基于Run #9 artifact与固定上游CMakeLists/package.xml源码证据整理。
+- 建议方向：移除未定义的`${asio_SOURCE_DIR}/asio/include` PUBLIC include；确认Boost仅用于`src/communication/udp_socket_impl.hpp`后将`Boost::system`作为PRIVATE链接依赖；在package.xml声明适当Boost rosdep依赖。若上游维护者确认Boost属于公共接口，则必须采用完整导出Boost target依赖的替代方案。
+- 提案包含OFF/ON clean build/install/consumer/gtest验收门槛，并明确禁止consumer预先find_package Boost、伪造include目录或安装后改写export文件。
+- 该文件只存在于知识库仓库，**没有修改上游、没有创建上游分支或PR**。等待用户明确授权后才可向上游提交。SERVO-906/907继续BLOCKED。
