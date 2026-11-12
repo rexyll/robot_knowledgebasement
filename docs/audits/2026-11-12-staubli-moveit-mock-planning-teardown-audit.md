@@ -203,3 +203,41 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - CI Run `43198319123` / job `131114885750` 仍在运行 `ros-tooling/action-ros-ci@0.4.8`；目前不能宣称 CI 通过。
 - 最新 Format PASS 仅清除了格式门槛，不改变 MoveIt shutdown 的 runtime 验收状态。历史 head 的 CI 已两次在 move_group SIGSEGV (-11) 处失败，最新 head 仍需实测。
 - PR 保持 Draft；不更新 ROS Jazzy source pin、不合并。真实 CS9/HIL 与运动命令仍禁止。
+
+
+## 6.9 CI Run 43198319123 失败复核与 MoveIt shutdown-before-destruction 源码定位（2026-11-12）
+
+### 最新 CI 的实际失败证据
+
+- CI Run `43198319123` / job `131114885750` 已完成 FAILURE；同一 PR head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9` 的 Format Run `43198319316` SUCCESS。
+- 完整日志显示 mock MoveGroup planning 已成功：日志为 `Motion plan was computed successfully.`，Python test `Ran 1 test ... OK`；没有请求真实轨迹执行。随后 launch_testing 向 move_group 发送 SIGINT，rclcpp 输出 `signal_handler(SIGINT/SIGTERM)`，进程在 `rclcpp::Executor::~Executor()` 崩溃并退出 `-11`。
+- `test_all_processes_exit_cleanly` 在 post-shutdown assertion 失败，证明测试正确捕获崩溃。colcon 汇总的 73 tests / 2 failures 是 CTest 与 JUnit 对同一 launch test 的重复计数；唯一独立失败是 move_group 的退出码。
+- 另一个进程 `ros2_control_node` 在 controller_manager shutdown 时输出两次 PAL statistics publisher thread 的 context-invalid 异常，但进程最终 clean exit；应独立跟踪，不能与 move_group SIGSEGV 合并成同一个根因。
+- CI apt 安装的 MoveIt 版本可由日志直接确认：`ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`；MoveIt Core、Planning、OMPL 等包也是 2.12.4 系列。
+
+### MoveIt 2.12.4/Jazzy 的对象生命周期顺序
+
+对照 [MoveIt 2.12.4 move_group.cpp](https://github.com/moveit/moveit2/blob/2.12.4/moveit_ros/move_group/src/move_group.cpp) 与 [ROS 2 Jazzy executor.cpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/executor.cpp)：
+
+1. `main()` 在第220行调用默认 `rclcpp::init(argc, argv)`，没有传入自定义 `InitOptions`，因此使用默认 signal handler 行为。
+2. 在 `if (planning_scene_monitor->getPlanningScene())` 作用域内先构造 `MultiThreadedExecutor executor`，后构造 `MoveGroupExe mge`。
+3. 调用 `executor.spin()`；SIGINT 默认 handler 会触发 rclcpp Context shutdown 并使 spin 返回。
+4. `move_group.cpp` 第331行又显式调用 `rclcpp::shutdown()`。
+5. 之后才离开 if 作用域，按 C++ 逆序析构 `mge`，再析构 `executor`。Executor 析构在 Jazzy 中仍移除 interrupt/shutdown guard condition、wait-set entities，并注销 Context shutdown callback。
+
+这条源代码顺序与“context 已 shutdown，而 MoveGroupExe/Executor 仍在进行析构清理”相吻合，且失败栈顶正落在 Executor 析构中。因此它比先前泛化的“signal handler 与析构可能竞争”更具体，是当前最强候选根因。仍不能仅凭静态顺序断言已证明具体 use-after-free：需要用受控的 source-built MoveIt overlay 调整生命周期后，在相同 launch test 中复测，最好取得带调试符号的完整 backtrace。
+
+### 历史同栈问题与已合并修复的边界
+
+- MoveIt issue [#3268](https://github.com/moveit/moveit2/issues/3268) 于 2025-04-15 报告 ROS Jazzy binary MoveIt 2.12.1 在 SIGINT 时于 `rclcpp::Executor::~Executor()` SIGSEGV，与本次栈特征几乎相同；该 issue 随 PR [#3435](https://github.com/moveit/moveit2/pull/3435) 合并而关闭。
+- PR #3435 的实际改动是：planning request/response adapter 增加 virtual destructor；logger 全局节点从静态裸指针改为静态 `rclcpp::Node::SharedPtr`。这些改动已经存在于本轮 CI 所使用的 2.12.4/Jazzy 源码。
+- 但 PR #3435 没有修改 `move_group.cpp` 中 `executor.spin()` 后、局部对象析构前调用 `rclcpp::shutdown()` 的顺序。故不能把 #3435 的标题“close move_group gracefully”理解为所有 Executor teardown SIGSEGV 都已消除。
+- MoveIt issue [#3680](https://github.com/moveit/moveit2/issues/3680) 仍 OPEN，报告同类 MoveGroup shutdown SIGSEGV；截至本次查询没有评论或修复链接。
+- MoveIt issue [#3721](https://github.com/moveit/moveit2/issues/3721) 是 MoveItPy 2.12.4 的不同代码路径：其评论指出 detached executor thread、先 `rclcpp::shutdown()` 再 delete MoveItCpp 的析构顺序问题。该案例支持 MoveIt 2.12.x 中存在 context/object teardown 次序风险，但不能当作本次 move_group 的直接根因证据。
+
+### 验证计划与安全边界
+
+- 在受控 MoveIt 源码实验分支中验证一个方案：通过 ROS 2 支持的信号处理机制避免默认 handler 先 shutdown Context；由专用 signal-wait/control thread 请求 `executor.cancel()`，等待 spin 完全返回；先析构 MoveGroupExe、相关节点和 Executor，最后 shutdown Context。不能在 POSIX async signal handler 中直接调用不保证 async-signal-safe 的 ROS API。
+- 使用 source-built MoveIt overlay 对相同 Jazzy 环境运行现有 mock planning + post-shutdown launch test。必须同时证明 planning PASS、所有进程退出码合规、重复运行稳定；仅编译通过不算修复。
+- 不在 Stäubli 驱动仓库伪修 MoveIt/rclcpp，不允许 SIGSEGV、不删除 post-shutdown assertion、不用 sleep/SIGKILL/日志过滤掩盖崩溃。未验证前 PR #1 保持 Draft，ROS Jazzy source pin 不更新、不合并。
+- 不连接真实 CS9，不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED，`TODO-EXT-001` 未授权。
