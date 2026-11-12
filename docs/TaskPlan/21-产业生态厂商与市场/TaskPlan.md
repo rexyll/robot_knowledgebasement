@@ -6247,3 +6247,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 跟踪上游PR #9维护者workflow审批/review/合并；真实CS9/HIL/现场运动安全独立验收。
 
 **状态：** 镜像readiness CI子门槛PASS；知识库source pin更新完成，新pin下ROS Jazzy专项矩阵待最终HEAD workflow完成；runtime/MoveIt integration仍BLOCKED。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§20。
+
+
+### §9.3.353｜新pin ROS Jazzy build/install/consumer矩阵通过（2026-11-12）
+
+- [x] 最终知识库HEAD `f79ca6ae7e89e021ef9900f4687c84d5fd884bfd`普通CI通过。
+- [x] 专项Run `43175652104` SUCCESS；验证用户镜像SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa`。
+- [x] BUILD_TESTING OFF/ON build/install成功；两个独立install-space consumer均完成编译、安装并实际运行成功。
+- [x] 7/7 gtest suites通过；colcon 53 tests、0 errors、0 failures、0 skipped。
+- [x] validator PASS，manifest 5/5；证据Artifact `13924820027`，ZIP SHA256 `2526ae1b3e1d9a5580e7afda4ee67d7aaa957c7b3b5ffa76cacc932260caf37a`。
+- [ ] 实施headless mock bringup launch_testing，验证xacro、GenericSystem、controller_manager与controller lifecycle。
+- [ ] 实施MoveIt headless planning与mock trajectory action/feedback验证。
+- [ ] 跟踪上游PR #9；真实控制器/HIL/现场运动安全验收。
+
+**状态：** SERVO-906 build/install/consumer子门槛PASS；bringup/MoveIt integration仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§21。
