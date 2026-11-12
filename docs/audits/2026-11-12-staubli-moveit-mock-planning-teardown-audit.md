@@ -160,3 +160,37 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 需在两项工作流完成后再次读取 job 状态和完整日志。Format 成功仅表示静态格式门槛通过，不代表 MoveIt shutdown runtime 通过。
 - 不更新知识库 ROS Jazzy source pin；旧 pin `9e617a9e323ef3342f5151a89239bfd93c089f8c` 的历史 build/install/consumer PASS 不可外推至 PR head。
 - 不接真实 CS9，不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED，`TODO-EXT-001` 未授权。
+
+
+## 6.7 精确 Black 差异与 MoveIt shutdown 源码时序假设（2026-11-12）
+
+### Format 诊断与修复
+
+- 为避免 Black 只报告文件被重排却不展示差异，在用户镜像 PR 分支的 `.github/workflows/ci-format.yml` 增加了一个 `if: always()` 诊断步骤，在 pre-commit 失败后输出目标 launch 文件的 git diff。该诊断步骤本身不改变格式门槛。
+- 诊断 Format Run `43197993909` / job `131113778634` 输出精确 diff：
+  1. `robot_description` 字典中的 `ParameterValue(value=robot_description_content, value_type=str)` 应保持单行；
+  2. 成功分支 `return [LogInfo(msg=f"Controller '{controller_name}' activated successfully.")]` 应保持单行。
+- 仓库 `.pre-commit-config.yaml` pin Black 25.1.0，且参数为 `--line-length=99`。此前将这两处按88列拆分是错误的；现已按真实 formatter diff 还原为 Black 25.1.0 的输出。
+- 精确修复提交：`01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`。新 Format Run `43198319316`、CI Run `43198319123` 正在执行，最终结论待检查。
+
+### MoveIt 2.12.4 / ROS 2 Jazzy shutdown 时序复核
+
+- 读取 MoveIt 2.12.4 tag 的 `moveit_ros/move_group/src/move_group.cpp`。main 路径调用 `rclcpp::init(argc, argv)`，构造 `MultiThreadedExecutor executor`，再构造 `MoveGroupExe mge`，添加 node 并执行 `executor.spin()`，返回后调用 `rclcpp::shutdown()`。
+- ROS Jazzy `rclcpp::InitOptions` 默认 `shutdown_on_signal=true`；`rclcpp::init()` 默认安装 SIGINT/SIGTERM handler。Context 文档说明 signal handler 会在启用该选项时 shutdown context，shutdown 会使派生节点、guard condition 等实体失效。
+- ROS Jazzy `rclcpp::Executor::~Executor()` 在析构时仍调用 `notify_waitable_->remove_guard_condition(...) `、从 wait-set 移除实体，并通过 `context_->remove_on_shutdown_callback(...) ` 注销回调。
+- 这给出一个与观察结果相容的假设：SIGINT 触发异步 context shutdown 后，executor 与其 guard conditions 的后续析构清理可能存在时序/生命周期问题。该假设不能仅凭源码顺序确认；还需要针对 move_group 的最小复现、gdb/ASan/调试构建和上游维护者确认。
+- 若上游验证该假设，研究方向应是可控的信号处理：避免默认 handler 先销毁 context，使用线程安全的信号等待机制请求 executor.cancel，等待 spin 返回，按依赖顺序销毁 MoveGroup capabilities、node 和 executor，最后 shutdown context。不能在 POSIX async signal handler 中直接调用不保证 async-signal-safe 的 ROS API；也不能简单把 Executor 的析构清理跳过。
+- 当前不修改 Stäubli 仓库中的外部 MoveIt/rclcpp 二进制或源代码；不以 sleep、SIGKILL、忽略 exit -11 或移除 post-shutdown assertion 作为解决方案。
+
+### realtime_tools 关联问题状态修正
+
+- ros-controls/realtime_tools issue [#480](https://github.com/ros-controls/realtime_tools/issues/480) 当前 CLOSED，讨论显示因长期无活动且未补充 stack trace 而自动关闭；没有证据表明其症状已修复。
+- 因此，CI 中 `controller_manager.pal_statistics` publisher thread 的 `context cannot be slept with because it's invalid` 仍作为单独待调查症状，不再描述为“开放问题”。该进程本次最终退出码为0，不能将它与 move_group 的 SIGSEGV 混为同一个失败。
+
+### 验证状态
+
+- 最新 PR head：`01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`。
+- Format Run `43198319316` / job `131114885647`：运行中。
+- CI Run `43198319123`：运行中。
+- 旧 CI Run `43197493740` 再次确认同一 move_group exit `-11`，没有新发现其他功能失败；旧 Format Run `43197493726` 的精确差异已由诊断步骤定位。
+- PR #1 保持 Draft，不合并；知识库源码 pin 保持旧 SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`。不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED，`TODO-EXT-001` 未授权。
