@@ -130,3 +130,15 @@
 - 随后用户需在最新main手动重新触发专用workflow。Run #7不能rerun旧SHA替代新提交验证。
 - 新一轮若成功完成依赖安装，应继续检查真实OFF/ON构建、安装空间consumer、ASIO/Boost导出错误、七份gtest XML及manifest/SHA-256。
 - SERVO-906/907仍BLOCKED；A1.1仍BLOCKED；`TODO-EXT-001`未授权。
+
+
+## 9. 专用workflow Run #8：APT重试识别出持续性Ubuntu镜像DNS故障（2026-11-11）
+
+- Run ID：`43035899689`；SHA：`4b4b201dfda5745475269c430f3b509289964a3b`；结果：`failure`。
+- APT重试脚本按预期执行5轮，并在每轮检查关键包Candidate；ROS仓库索引均可访问，但Ubuntu Noble的`archive.ubuntu.com`与`security.ubuntu.com`每轮均DNS解析失败，`libdw-dev`始终无Candidate。脚本以明确错误退出，没有让不完整索引进入apt install。
+- 失败步骤仍为显式依赖安装；固定上游checkout、rosdep、OFF/ON build/install、consumer和gtest均SKIPPED。此次失败没有新增上游CMake/安装导出证据。
+- **根因修正方向：** 重试只能处理瞬时故障，不能改变不可达的软件源端点。GitHub-hosted runner运行在Azure托管环境；Microsoft Azure官方Ubuntu镜像配置文档明确建议Ubuntu 24.04及更新版本将`archive.ubuntu.com`和`security.ubuntu.com`改为`azure.archive.ubuntu.com`。参考：[Microsoft Learn：Create and upload an Ubuntu Linux VHD in Azure](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/create-upload-ubuntu)。
+- 知识库侧新增`configure_ubuntu_apt_mirror()`，在APT刷新前幂等改写Ubuntu传统`.list`与Noble deb822 `.sources`文件中的官方archive/security域名为Azure官方Ubuntu archive；保留原有签名校验、Candidate完整性门控和最多5轮重试，不添加第三方源、不跳过依赖、不伪造Candidate。新增静态回归测试与bash语法检查。
+- 此策略基于GitHub runner所处Azure环境及Microsoft官方文档，但**尚未由新的ROS Jazzy专项运行验证**。下一次手动workflow必须确认Azure镜像可解析、Noble/security pocket可获取，且`libdw-dev`有真实Candidate；否则继续按日志定位，不得降低依赖门禁。
+- 普通CI Run `43034734598`（SHA `4b4b201dfda5745475269c430f3b509289964a3b`）completed/success；这只证明知识库静态测试通过，不代表镜像策略或ROS构建动态通过。
+- 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
