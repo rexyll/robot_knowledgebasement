@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: staubli-ros-jazzy-build
+  group: staubli-ros-jazzy-build-owned-source
   cancel-in-progress: false
 
 jobs:
