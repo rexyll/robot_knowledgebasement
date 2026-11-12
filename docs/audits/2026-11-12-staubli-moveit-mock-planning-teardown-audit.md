@@ -299,3 +299,14 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 将 workflow 五处 `set -euo pipefail` 改为 `set -eo pipefail`，保留失败即停与管道失败检测，只移除不兼容的 nounset。修复提交 `8ce23a0e3ba6579176cb295afc4968f73e8501c9`。
 - 第三轮 Run [43201789602](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43201789602) / job `131126782233` 已启动，当前 in_progress。
 - 第二轮没有进入 rosdep dependency resolution、MoveIt build 或 mock test；不能据此判断源码补丁是否可编译或是否修复 SIGSEGV。
+
+
+## 6.14 GDB teardown backtrace 诊断加入 PR（2026-11-12）
+
+- PR #1 增加可选 `move_group_prefix` launch argument，并在 mock launch test 中读取 `STAUBLI_MOVE_GROUP_GDB_PREFIX`，将 move_group 包装在 GDB 下运行。
+- CI 安装 GDB，并设置命令：`gdb --batch --return-child-result -ex "set pagination off" -ex "handle SIGINT nostop noprint pass" -ex run -ex "thread apply all bt full" --args`。目的是在 move_group 收到 SIGSEGV 时保存完整线程回溯，定位 Executor 析构内部的实际崩溃函数。
+- 测试 allowlist 在 GDB wrapper 模式下增加 `128 + SIGINT = 130`，用于包装进程预期 SIGINT 退出；不允许 SIGSEGV 的 139，也不允许 GDB 在 inferior 尚未正常退出时的异常/未完成状态。实际行为仍须从新 CI 的 GDB 日志和 proc_info 结果核对。
+- 诊断相关提交：`116b9acf9dc5efd0d0405137354ea386df0e05ca`、`f722db6a1279ec47b3ff96ced20fe5a4d0c72af2`、`89e86f464265e057f6514d06611bc690529eee72`；随后 Black 格式修复提交 `c74a70f76c642ee99809efc3bcd01740ba90e89d`。
+- 最新 PR head `c74a70f76c642ee99809efc3bcd01740ba90e89d`：Format Run `43202281223` SUCCESS；CI Run `43202281251` / job `131128472436` RUNNING。
+- 隔离 MoveIt source overlay Run `43201789602` / job `131126782233` 已通过 ROS setup、源码 patch 和 rosdep，目前正在编译 patched MoveIt move_group。
+- GDB 只用于采集诊断，不可通过 allowlist、日志过滤或 wrapper exit code 掩盖 SIGSEGV；PR 保持 Draft，不更新 source pin、不合并、不接入真实 CS9。
