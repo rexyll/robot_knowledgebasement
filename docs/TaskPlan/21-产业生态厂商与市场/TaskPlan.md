@@ -6290,3 +6290,9 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] CI通过后更新知识库源码pin并重跑ROS Jazzy矩阵。
 
 **状态：** LogError import缺陷已修复，待CI验证；mock bringup/MoveIt integration仍BLOCKED。详见专项审计§23。
+
+
+#### §9.3.355补充｜MoveIt LogInfo导入修复
+
+- [x] SHA `755a710...` flake8发现MoveIt launch缺少LogInfo导入（F821）；已在SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`补充。
+- [ ] 最新SHA CI/Format/Documentation Runs `43178262257`/`43178262221`/`43178262304`待完成；launch集成仍待验证。
