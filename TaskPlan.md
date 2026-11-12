@@ -5440,3 +5440,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 两个job初始化、checkout及依赖准备步骤均成功；CI正在运行action-ros-ci，Format正在运行pre-commit。
 - combined status仍为空；workflow runs已出现且状态为in_progress。Documentation尚无可见run；运行时MoveIt teardown尚未验证。
 - **当前任务节点不变：根主线00-01；第21章Stäubli专项§9.3.358。下一步检查两个run最终结论和日志，修复失败；再执行Jazzy MoveIt mock planning shutdown实测。源码pin不更新，SERVO-906/907与A1.1继续BLOCKED。**
+
+### 2026-11-12｜v11.71：定位 Stäubli PR 首轮 CI 失败的上游根因
+
+- 首轮 CI Run `43189959860`中mock MoveIt规划测试通过，但新增post-shutdown断言捕获 `move_group`在 `rclcpp::Executor::~Executor()` 中SIGSEGV（exit -11）。这是确定的失败，不得白名单绕过。
+- 与MoveIt 2开放问题 [#3680](https://github.com/moveit/moveit2/issues/3680)中的ROS Jazzy SIGINT shutdown堆栈一致；当前用户镜像代码不能修复外部二进制MoveIt的析构缺陷。
+- `ros2_control_node`退出期间出现 `pal_statistics` publisher thread context invalid异常，与ros-controls/realtime_tools问题 [#480](https://github.com/ros-controls/realtime_tools/issues/480)所记录的Jazzy关闭症状一致；该进程最终exit 0，但异常仍需跟踪。
+- 首轮Format Run `43189960017`仅因Black改写launch文件格式失败；已提交格式修复 commit `4700b6b4dd010ac5b22459467bfcb970c2013d14`。
+- PR #1 head更新为 `4700b6b4dd010ac5b22459467bfcb970c2013d14`；新CI Run `43192150453`和Format Run `43192150570`进行中。
+- **当前任务节点：根主线00-01；第21章Stäubli专项§9.3.359。下一步检查新CI/Format结果，并确定MoveIt上游SIGSEGV的安全修复路径。保持Draft PR，不更新源码pin，不允许忽略SIGSEGV。SERVO-906/907、A1.1继续BLOCKED；TODO-EXT-001未授权。**
