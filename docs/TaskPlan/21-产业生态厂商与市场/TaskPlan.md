@@ -6414,3 +6414,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 独立检查 ros2_control_node PAL statistics 线程的 context-invalid shutdown 异常；该进程虽 exit 0，仍需诊断。
 
 **状态：** mock planning 本体 PASS；MoveIt teardown BLOCKED；Black 修复已提交待 Format 验证；CI/Format 新轮次运行中。根主线00-01不变；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.361｜MoveIt shutdown 源码时序假设与 Black 精确格式修复（2026-11-12）
+
+- [x] 为 Format workflow 增加失败后输出目标文件 diff 的诊断步骤。
+- [x] 通过 Format Run `43197993909` 定位 Black 25.1.0 / line-length 99 的真实差异：ParameterValue 调用与单元素 LogInfo 返回列表都应压缩为单行。
+- [x] 按实际 Black 输出修复并提交 SHA `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`。
+- [x] 静态复核 MoveIt 2.12.4 move_group main 与 ROS Jazzy Context/Executor 实现：默认 signal shutdown、Context 派生实体失效、Executor 析构仍清理 guard conditions 与 shutdown callback。
+- [x] 将“SIGINT 后 context shutdown 与 executor teardown 竞争/生命周期时序”记录为可验证假设，而非最终根因；制定上游验证方向，禁止在 async signal handler 中直接调用 ROS API。
+- [x] 修正 realtime_tools #480 状态：CLOSED stale、未提供 stack trace，不代表问题修复。
+- [ ] 最新 Format Run `43198319316`（job `131114885647`）与 CI Run `43198319123`完成后检查日志。
+- [ ] 取得可复现 move_group teardown 调试证据或上游确认；在此之前 MoveIt shutdown SIGSEGV 保持 BLOCKED。
+- [ ] PR #1 保持 Draft；不合并、不更新源码 pin；禁止真实 CS9/真实运动命令。
+
+**状态：** PR head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`；Black 修复已提交待验证；规划本体 PASS，shutdown teardown BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
