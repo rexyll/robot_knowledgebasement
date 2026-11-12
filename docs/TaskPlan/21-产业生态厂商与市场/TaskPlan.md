@@ -6178,3 +6178,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 继续完成不依赖真实硬件的runtime/plugin/仿真验证；真实CS9/VAL3、HIL、现场网络、真实机器人运动安全及长时间运行仍不在本次CI范围内。
 
 **状态更新：** SERVO-906的ROS Jazzy build/install与独立consumer证据子门槛标记PASS；SERVO-906/907整体仍按硬件/运行时/上游合并等剩余门槛保持BLOCKED，不宣布产品级验收完成。A1.1保持BLOCKED；TODO-EXT-001未授权。
+
+### §9.3.348｜Stäubli runtime/仿真验收差距审查与下一阶段拆分（2026-11-12）
+
+- [x] 只读审查固定镜像源码README、URDF/SRDF测试、bringup/MoveIt launch、hardware interface mock fixture及测试依赖。
+- [x] 确认URDF测试覆盖2个型号×2种prefix×mock true/false的XACRO/check_urdf解析；SRDF测试仅覆盖tx2_60l两种prefix的描述解析。
+- [x] 确认hardware interface单测包含MockRobotServer loopback UDP、pluginlib加载/初始化和接口导出；但staubli_robot_description/test/test_launch_mocked.py仍只有TODO，没有真正的launch integration test。
+- [x] 确认launch_robot_control可用use_mock_hardware=true启动ros2_control节点和controller spawner；launch_demo默认mock hardware并可启动MoveIt。README当前明确position control受支持，项目仍是prototype；不能把velocity接口导出视为已支持运动模式。
+- [ ] 新增/运行headless mock bringup launch_testing：确认controller_manager、hardware component、joint_state_broadcaster、joint_trajectory_controller生命周期状态；禁止真实机器人网络连接。
+- [ ] 新增/运行headless MoveIt launch integration：验证move_group就绪、robot_description/semantic/kinematics及planning pipeline参数；若未验证规划执行，不宣称规划通过。
+- [ ] 设计mock-only有限幅值轨迹测试：只针对mock hardware与loopback，验证控制器动作及joint state反馈；禁止连接真实控制器。
+- [ ] 将URDF/SRDF解析、UDP mock单测、controller bringup、MoveIt planning、真实CS9/HIL分开出具证据和状态。
+- [ ] 跟踪上游PR #9：当前OPEN、未合并，Format/CI为action_required，尚无review/评论；需要维护者批准workflow并审查。
+ 
+**状态：** ROS Jazzy build/install与OFF/ON独立consumer证据子门槛PASS；runtime/仿真端到端尚未验收。SERVO-906/907整体继续BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详细审计见专项审计§16。
