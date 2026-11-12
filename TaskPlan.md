@@ -5,7 +5,7 @@
 版本：v11.74  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.365：用户镜像仓库 `rexyll/staubli_driver_ros2_from_org` 的 Draft PR #1 head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`；Format Run `43198319316` SUCCESS，ROS Jazzy CI Run `43198319123` FAILURE。最新 CI 中 mock MoveGroup planning 成功，SIGINT teardown 时 `move_group` 在 `rclcpp::Executor::~Executor()` SIGSEGV（-11）；73 tests / 2 failures 是同一 launch test 在 CTest 与 JUnit 的重复统计。CI 安装的 MoveIt 包为 `ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`。源码对照确认 `move_group.cpp` 在 `executor.spin()` 返回后、局部 `MoveGroupExe` 与 `Executor` 析构前调用 `rclcpp::shutdown()`；默认 SIGINT handler 也会触发 Context shutdown。进一步对照 MoveIt 当前 main 与 ROS 2 Jazzy rclcpp 默认值：main 仍保留相同 shutdown-before-local-destruction 顺序；rclcpp::InitOptions.shutdown_on_signal 默认 true，rclcpp::init 默认安装 SignalHandlerOptions::All。该顺序与本次崩溃高度吻合，但尚未通过受控补丁和运行时复测证实。MoveIt #3268 曾报告相同栈并在 PR #3435 合并后关闭；该 PR 未改动 `move_group.cpp` 的 shutdown 顺序。MoveIt main 的 PR #3833（2026-09-10）另修复 logger 静态 Node 晚于 RMW shutdown 析构的问题，但当前 Jazzy 分支 `logger.cpp` 尚无其 pre-shutdown callback；CI 二进制的精确源码修订仍待核验。新报告 #3680 仍 OPEN。已在独立实验分支 `experiment/move-group-shutdown-order` 添加 MoveIt Jazzy 源码 overlay 工作流，局部重排 move_group 对象作用域后运行同一 mock/teardown 测试；Run `43200850967` 进行中，不触碰上游。MoveItPy #3721 是另一条相似但不同的析构路径。PR #1 保持 Draft；不允许 SIGSEGV、不合并、不更新 ROS Jazzy source pin；不修改 MoveIt/rclcpp 上游、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；`TODO-EXT-001`未授权。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.366：用户镜像仓库 `rexyll/staubli_driver_ros2_from_org` 的 Draft PR #1 head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`；Format Run `43198319316` SUCCESS，ROS Jazzy CI Run `43198319123` FAILURE。最新 CI 中 mock MoveGroup planning 成功，SIGINT teardown 时 `move_group` 在 `rclcpp::Executor::~Executor()` SIGSEGV（-11）；73 tests / 2 failures 是同一 launch test 在 CTest 与 JUnit 的重复统计。CI 安装的 MoveIt 包为 `ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`。源码对照确认 `move_group.cpp` 在 `executor.spin()` 返回后、局部 `MoveGroupExe` 与 `Executor` 析构前调用 `rclcpp::shutdown()`；默认 SIGINT handler 也会触发 Context shutdown。进一步对照 MoveIt 当前 main 与 ROS 2 Jazzy rclcpp 默认值：main 仍保留相同 shutdown-before-local-destruction 顺序；rclcpp::InitOptions.shutdown_on_signal 默认 true，rclcpp::init 默认安装 SignalHandlerOptions::All。该顺序与本次崩溃高度吻合，但尚未通过受控补丁和运行时复测证实。MoveIt #3268 曾报告相同栈并在 PR #3435 合并后关闭；该 PR 未改动 `move_group.cpp` 的 shutdown 顺序。MoveIt main 的 PR #3833（2026-09-10）另修复 logger 静态 Node 晚于 RMW shutdown 析构的问题，但当前 Jazzy 分支 `logger.cpp` 尚无其 pre-shutdown callback；CI 二进制的精确源码修订仍待核验。新报告 #3680 仍 OPEN。已在独立实验分支 `experiment/move-group-shutdown-order` 添加 MoveIt Jazzy 源码 overlay 工作流，局部重排 move_group 对象作用域后运行同一 mock/teardown 测试；Run `43200850967` 进行中，不触碰上游。MoveItPy #3721 是另一条相似但不同的析构路径。PR #1 保持 Draft；不允许 SIGSEGV、不合并、不更新 ROS Jazzy source pin；不修改 MoveIt/rclcpp 上游、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；`TODO-EXT-001`未授权。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -381,7 +381,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.365：已覆盖UDP/VAL3协议、连接/生命周期、运动/轨迹/恢复、多控制源、MoveIt场景同步/碰撞监测、Servo至控制器命令链、VAL3安全状态采样及停止路径语义；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.366：已覆盖UDP/VAL3协议、连接/生命周期、运动/轨迹/恢复、多控制源、MoveIt场景同步/碰撞监测、Servo至控制器命令链、VAL3安全状态采样及停止路径语义；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -414,6 +414,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-09 | [TaskPlan-2026-11-09.md](TaskPlan_History/TaskPlan-2026-11-09.md) | 82 |
 | 2026-11-10 | [TaskPlan-2026-11-10.md](TaskPlan_History/TaskPlan-2026-11-10.md) | 57 |
 | 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan_History/TaskPlan-2026-11-11.md) | 76 |
-| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 30 |
+| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 31 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
