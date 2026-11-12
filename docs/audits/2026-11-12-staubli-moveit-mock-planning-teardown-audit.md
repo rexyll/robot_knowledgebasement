@@ -241,3 +241,13 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 使用 source-built MoveIt overlay 对相同 Jazzy 环境运行现有 mock planning + post-shutdown launch test。必须同时证明 planning PASS、所有进程退出码合规、重复运行稳定；仅编译通过不算修复。
 - 不在 Stäubli 驱动仓库伪修 MoveIt/rclcpp，不允许 SIGSEGV、不删除 post-shutdown assertion、不用 sleep/SIGKILL/日志过滤掩盖崩溃。未验证前 PR #1 保持 Draft，ROS Jazzy source pin 不更新、不合并。
 - 不连接真实 CS9，不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED，`TODO-EXT-001` 未授权。
+
+
+## 6.10 当前 MoveIt main 与 ROS 2 Jazzy rclcpp 默认信号处理参数复核（2026-11-12）
+
+- 读取 MoveIt main 分支 moveit_ros/move_group/src/move_group.cpp：rclcpp::init(argc, argv) 位于 main 开始处；局部 Executor 与 MoveGroupExe 在同一作用域；executor.spin() 后仍先调用 rclcpp::shutdown()，之后才退出作用域并析构局部对象。当前 main 仍有与 Jazzy 2.12.4 相同的顺序，说明该候选问题并未在当前 main 通过简单重排解决。
+- 读取 ROS 2 Jazzy rclcpp/include/rclcpp/init_options.hpp：InitOptions.shutdown_on_signal = true 是默认值。
+- 读取 ROS 2 Jazzy rclcpp/include/rclcpp/utilities.hpp 与 utilities.cpp：rclcpp::init(...) 的默认 SignalHandlerOptions 为 All，并在 Context 初始化后安装信号处理器。
+- 这使本次 teardown 的顺序链条更明确：SIGINT → 默认 handler shutdown Context → executor.spin 返回 → main 显式 shutdown → 离开作用域时析构 MoveGroupExe 和 Executor。它与 Executor 析构栈和 SIGSEGV 现象高度吻合，但仍需受控实验验证修复。
+- 后续实验只在用户控制的隔离分支/临时工作区进行，不推送或修改 MoveIt 上游。候选方案为禁用默认自动 shutdown，使用受支持的同步信号等待/control thread 请求 executor.cancel，等待 spin 返回，销毁 MoveGroupExe/相关对象与 Executor，最后 shutdown Context。必须先确认 ROS 2 signal API 的安全用法，不能在异步 POSIX signal handler 中直接调用 ROS API。
+- 现阶段不改动 Stäubli PR 的 MoveIt 依赖，不更新 source pin；PR #1 继续 Draft，exit -11 继续作为失败。
