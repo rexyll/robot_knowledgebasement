@@ -5283,3 +5283,13 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 仅在知识库仓库新增审查提案；没有修改固定上游commit、没有创建上游分支或PR。等待用户明确授权。
 - 第21章Stäubli专项推进至§9.3.342；SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - **当前任务节点：根当前任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.342。上游修复提案已形成，等待授权。**
+
+### 2026-11-12｜v11.58：验证Stäubli个人fork读写权限并提交最小修复候选
+
+- 用户授权后，验证个人fork `rexyll/staubli_driver_ros2`。fork main HEAD与固定上游基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`完全一致。
+- 成功创建分支 `fix/install-export-boost-asio` 并提交两项修复：`679cc4dd939484eeb9c72fb12c163a2b53b407b2`移除错误PUBLIC ASIO include并将Boost::system改为PRIVATE；`6bbddecaaf9567bd463eacb7a04f6c2295b10bee`在package.xml声明Boost依赖。分支HEAD已核验，ahead 2 / behind 0，仅涉及两个目标文件。
+- 已尝试由集成连接创建从fork分支到上游main的PR，GitHub返回403 `Resource not accessible by integration`。结论：fork读写权限正常；当前连接没有上游仓库PR创建权限。没有创建fork自PR或绕过权限。
+- PR尚未创建，fork PR CI与ROS Jazzy OFF/ON build/install/consumer/gtest完整矩阵均未执行。修复提交仍为候选，不能标记验收完成。需用户在GitHub网页从 `rexyll:fix/install-export-boost-asio` 向 `ICube-Robotics/staubli_driver_ros2:main` 创建PR；PR建立后继续跟踪CI与修复。
+- 第21章Stäubli并行专项推进至§9.3.343；审计更新见`docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §13及`docs/audits/staubli-upstream-install-export-fix-proposal.md`。
+- SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。根当前任务节点仍为第00章00-01。
+- **当前任务节点：根当前任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.343。fork修复分支已提交，等待上游PR建立后开展完整动态验收。**
