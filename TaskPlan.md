@@ -414,6 +414,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-09 | [TaskPlan-2026-11-09.md](TaskPlan_History/TaskPlan-2026-11-09.md) | 82 |
 | 2026-11-10 | [TaskPlan-2026-11-10.md](TaskPlan_History/TaskPlan-2026-11-10.md) | 57 |
 | 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan_History/TaskPlan-2026-11-11.md) | 76 |
-| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 27 |
+| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 28 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
