@@ -335,3 +335,33 @@
 - 同一知识库SHA的普通CI Run `43171335549`也SUCCESS（Python 3.10/3.11/3.12、OSV审计、SBOM任务均完成）。
 - 这是第二次独立专项run通过，增强固定镜像SHA下build/install/consumer矩阵的可重复性；不增加本次测试范围，不证明真实控制器/HIL/现场运动安全，也不解决§17所述runtime readiness/launch integration缺口。
 - 结论：SERVO-906 build/install与独立consumer证据子门槛继续PASS；runtime/MoveIt子门槛仍BLOCKED，SERVO-906/907整体仍BLOCKED。A1.1 BLOCKED；TODO-EXT-001未授权。
+
+## 19. Mock readiness gate第一轮修复与CI状态（2026-11-12）
+
+### 19.1 已提交到用户镜像main的修改
+
+用户镜像 `rexyll/staubli_driver_ros2_from_org` 已提交以下改动，当前HEAD为`abd75ff956b4fb07a76705abcb8fd506b2985aaa`：
+
+- `wait_for_robot_ready.py`增加30秒有限等待超时，超时返回非零退出码；robot_description为空时忽略；joint_states必须包含默认六个关节名才视为ready。
+- 修正QoS：robot_description订阅保留TRANSIENT_LOCAL；joint_states订阅改为BEST_EFFORT + VOLATILE。原代码对joint_states使用TRANSIENT_LOCAL，可能与默认VOLATILE发布端不兼容，造成永远收不到joint_states。
+- `launch_moveit.launch.py`仅在readiness进程returncode为0时启动MoveIt；失败记录错误并Shutdown。
+- `launch_robot_control.launch.py` controller spawner非零退出时Shutdown，不再继续执行后续激活命令。
+- bringup package.xml补充rclpy、sensor_msgs、std_msgs、ament_cmake_pytest依赖；CMake注册readiness pytest。
+- 新增`test_wait_for_robot_ready.py`：发布transient-local robot_description与volatile joint_states，检查不完整关节列表不会通过、完整六关节列表才ready；另增加超时非零退出测试。
+
+### 19.2 已观察到的验证结果与未决项
+
+- Format在中间提交`5d7bcb1d...`失败，原因是Black自动重排两个launch文件以及测试导入E402；已手动修复并提交。
+- Format在提交`169987322f1cc6f3393a3f85d36f32ad13fa0076` SUCCESS；Documentation同一SHA SUCCESS。
+- CI在较早提交`8beb536fbfa6875c453cce8d0f09ccb55c002cb9` SUCCESS，日志确认新增readiness QoS/六关节正向pytest 1/1通过；该SHA早于后续增加的timeout subprocess test和明确VOLATILE durability提交。
+- 最新HEAD `abd75ff956b4fb07a76705abcb8fd506b2985aaa` 的Format、Documentation、CI分别为Run `43173412955`、`43173412938`、`43173412883`，截至记录时均仍IN_PROGRESS。timeout负向测试及最终源码版本尚未获得最终CI结论。
+- 因此不能把早期SHA测试通过扩大解释为最新HEAD全部测试通过；必须等待最新SHA三项workflow全部结束，特别核验timeout测试是否通过。
+
+### 19.3 下一步
+
+1. 等待并检查最新镜像SHA三项Actions。
+2. 若CI通过，将知识库专项workflow与矩阵脚本的固定源码SHA更新为`abd75ff956b4fb07a76705abcb8fd506b2985aaa`，运行完整ROS Jazzy OFF/ON build/install/consumer矩阵并归档新证据。
+3. 再补headless ros2_control mock bringup launch_testing，验证GenericSystem、controller_manager、两个controller生命周期；之后补MoveIt headless启动/配置测试和mock trajectory action测试。
+4. 对真实CS9/VAL3、HIL、网络隔离及运动安全另行设门槛。
+
+**状态：** readiness逻辑第一轮修复已提交；最新镜像SHA的CI仍待完成；launch级端到端bringup/MoveIt/trajectory测试尚未完成。build/install/consumer子门槛仍PASS（旧固定SHA的证据）；SERVO-906/907整体BLOCKED。
