@@ -5361,3 +5361,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 7/7 gtest suites PASS；colcon 53 tests、0 errors、0 failures、0 skipped；validator PASS、manifest 5/5。
 - 证据Artifact `13924820027`，ZIP SHA256 `2526ae1b3e1d9a5580e7afda4ee67d7aaa957c7b3b5ffa76cacc932260caf37a`。审计见第21章专项审计§21及TaskPlan §9.3.353。
 - **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.353。下一步实施headless mock bringup launch_testing，覆盖xacro、GenericSystem、controller_manager和controller lifecycle；随后进行MoveIt headless planning及mock trajectory action/feedback。SERVO-906 build/install/consumer子门槛PASS，但SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜v11.67：开始headless mock bringup集成验证
+
+- Stäubli ROS Jazzy矩阵已在SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa`通过，OFF/ON build/install与独立consumer均PASS，7/7 gtest，colcon 53 tests零失败。
+- 用户镜像新增headless mock bringup launch test，要求GenericSystem mock controller_manager加载两个controller并发布六关节joint_states；当前代码SHA `e1124f29c726a06074bf2f97d23c949a72249fcd`的CI/Format/Documentation待完成。
+- **当前任务节点：根主线仍为第00章00-01；第21章并行专项推进至§9.3.354。下一步检查launch test运行结果并修复，CI通过后更新源码pin并重新执行ROS Jazzy矩阵，再做MoveIt headless规划与mock trajectory action/feedback。SERVO-906/907整体BLOCKED。**
