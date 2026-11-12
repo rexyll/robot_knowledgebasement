@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.73  
+版本：v11.74  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.363：用户镜像仓库 `rexyll/staubli_driver_ros2_from_org` 的 Draft PR #1 head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`；Format Run `43198319316` SUCCESS，ROS Jazzy CI Run `43198319123` FAILURE。最新 CI 中 mock MoveGroup planning 成功，SIGINT teardown 时 `move_group` 在 `rclcpp::Executor::~Executor()` SIGSEGV（-11）；73 tests / 2 failures 是同一 launch test 在 CTest 与 JUnit 的重复统计。CI 安装的 MoveIt 包为 `ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`。源码对照确认 `move_group.cpp` 在 `executor.spin()` 返回后、局部 `MoveGroupExe` 与 `Executor` 析构前调用 `rclcpp::shutdown()`；默认 SIGINT handler 也会触发 Context shutdown。该生命周期顺序是强候选根因，但尚未通过受控补丁和运行时复测证实。MoveIt #3268 曾报告相同栈并在 PR #3435 合并后关闭；该 PR 的 logger/adapter 改动已存在于 2.12.4/Jazzy，但没有改动当前 `move_group.cpp` 的 shutdown 顺序；新报告 #3680 仍 OPEN。MoveItPy #3721 是另一条相似但不同的析构路径。PR #1 保持 Draft；不允许 SIGSEGV、不合并、不更新 ROS Jazzy source pin；不修改 MoveIt/rclcpp 上游、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；`TODO-EXT-001`未授权。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.364：用户镜像仓库 `rexyll/staubli_driver_ros2_from_org` 的 Draft PR #1 head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`；Format Run `43198319316` SUCCESS，ROS Jazzy CI Run `43198319123` FAILURE。最新 CI 中 mock MoveGroup planning 成功，SIGINT teardown 时 `move_group` 在 `rclcpp::Executor::~Executor()` SIGSEGV（-11）；73 tests / 2 failures 是同一 launch test 在 CTest 与 JUnit 的重复统计。CI 安装的 MoveIt 包为 `ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`。源码对照确认 `move_group.cpp` 在 `executor.spin()` 返回后、局部 `MoveGroupExe` 与 `Executor` 析构前调用 `rclcpp::shutdown()`；默认 SIGINT handler 也会触发 Context shutdown。进一步对照 MoveIt 当前 main 与 ROS 2 Jazzy rclcpp 默认值：main 仍保留相同 shutdown-before-local-destruction 顺序；rclcpp::InitOptions.shutdown_on_signal 默认 true，rclcpp::init 默认安装 SignalHandlerOptions::All。该顺序与本次崩溃高度吻合，但尚未通过受控补丁和运行时复测证实。MoveIt #3268 曾报告相同栈并在 PR #3435 合并后关闭；该 PR 的 logger/adapter 改动已存在于 2.12.4/Jazzy，但没有改动当前 `move_group.cpp` 的 shutdown 顺序；新报告 #3680 仍 OPEN。MoveItPy #3721 是另一条相似但不同的析构路径。PR #1 保持 Draft；不允许 SIGSEGV、不合并、不更新 ROS Jazzy source pin；不修改 MoveIt/rclcpp 上游、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；`TODO-EXT-001`未授权。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -414,6 +414,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-09 | [TaskPlan-2026-11-09.md](TaskPlan_History/TaskPlan-2026-11-09.md) | 82 |
 | 2026-11-10 | [TaskPlan-2026-11-10.md](TaskPlan_History/TaskPlan-2026-11-10.md) | 57 |
 | 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan_History/TaskPlan-2026-11-11.md) | 76 |
-| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 28 |
+| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 29 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
