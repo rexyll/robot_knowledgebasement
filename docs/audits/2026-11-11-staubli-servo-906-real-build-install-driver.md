@@ -464,3 +464,15 @@
 - SHA `755a710...` Format Run `43177972439`：Black已通过，flake8发现MoveIt launch文件使用`LogInfo`但未导入（F821）。已补充导入，修复提交 `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`。
 - 当前最新SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`的CI/Format/Documentation Runs分别为 `43178262257`/`43178262221`/`43178262304`，均待完成。
 - 因此，LogError替换方案的最终静态检查尚未通过，且mock bringup launch还未重新走到controller启动断言。后续必须以最新SHA结果为准。
+
+
+### §23.4 mock bringup首轮真实运行结果
+
+- 镜像SHA `755a710b8f5348b14f2f65e47cd882200ffdc877`的ROS CI Run `43177972372` SUCCESS。
+- 新增`test_test_mock_bringup.launch.py`实际启动成功：日志确认controller_manager收到`/robot_description`，加载`mock_components/GenericSystem`，硬件成功初始化；`joint_state_broadcaster`成功激活，`joint_trajectory_controller`成功加载并激活。
+- launch test报告1 test、0 errors、0 failures；整个colcon汇总70 tests、0 errors、0 failures、0 skipped。原有readiness pytest也通过。
+- 测试期间验证`/joint_states`发布包含六个预期关节；controller lifecycle断言通过。此结果仅对mock GenericSystem成立，不代表真实Stäubli硬件。
+- 日志在测试结束/launch shutdown时出现`ros2 control set_controller_state`子进程被SIGINT（exit -2）及controller_manager统计线程shutdown噪声；测试本身仍PASS。需要后续评估是否添加CLI退出等待/优雅关闭断言，避免把shutdown竞态作为已完全清理。
+- 该SHA的Format Run `43177972439`因MoveIt launch文件缺少`LogInfo`导入而失败；已在最新SHA `5b2196f...`补齐。最新SHA CI/Format/Documentation待完成，因此不可将上一SHA的CI结果当成最新HEAD整体通过。
+
+**状态：** headless mock bringup的核心启动、GenericSystem初始化、两个controller active和六关节joint_states断言在SHA `755a710...`通过；最新HEAD完整门槛仍待验证。MoveIt launch import静态修复已提交，MoveIt实际启动/规划尚未测试。
