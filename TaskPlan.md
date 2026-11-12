@@ -5432,3 +5432,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - PR combined status与workflow runs当前均未返回可核验记录；代码已提交不等于CI或runtime通过。当前知识库ROS Jazzy pin仍是旧SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`，不得更新至PR head。
 - 详见第21章TaskPlan §9.3.358及专项审计§6。
 - **当前任务节点：根主线仍为第00章00-01；第21章Stäubli专项推进至§9.3.358。下一步核验PR #1 Format/Documentation/ROS Jazzy CI与mock MoveIt shutdown真实退出码；修复任何失败后再更新源码pin并重跑OFF/ON矩阵。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+#### 2026-11-12｜v11.70补充：Stäubli PR CI/Format已启动
+
+- Draft PR #1 head SHA `4091cb0b731c1003182846e3ea2041a01647336b`已触发CI Run `43189959860`与Format Run `43189960017`。
+- 两个job初始化、checkout及依赖准备步骤均成功；CI正在运行action-ros-ci，Format正在运行pre-commit。
+- combined status仍为空；workflow runs已出现且状态为in_progress。Documentation尚无可见run；运行时MoveIt teardown尚未验证。
+- **当前任务节点不变：根主线00-01；第21章Stäubli专项§9.3.358。下一步检查两个run最终结论和日志，修复失败；再执行Jazzy MoveIt mock planning shutdown实测。源码pin不更新，SERVO-906/907与A1.1继续BLOCKED。**
