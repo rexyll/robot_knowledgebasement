@@ -6491,3 +6491,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 仅将实验 runtime 结果用于评估对象析构顺序假设；环境/依赖失败不等于修复失败或通过。
 
 **状态：** 标准 ROS Jazzy binary CI 仍为 teardown SIGSEGV；源码 overlay 实验第二轮运行中；PR #1 Draft，不更新 source pin、不合并、不连接真实 CS9、不发送真实运动命令。
+
+
+### §9.3.367｜ROS setup 与 shell nounset 冲突修复（2026-11-12）
+
+- [x] 第二轮实验 Run `43201304163` 成功安装 ROS Jazzy 并完成 MoveIt Jazzy 源码 clone/patch。
+- [x] 定位 rosdep 步骤失败原因为 `set -u` 与 ROS `setup.bash` 未定义变量冲突（`AMENT_TRACE_SETUP_FILES: unbound variable`），并非 rosdep 依赖问题。
+- [x] 将实验 workflow 所有 `set -euo pipefail` 改为 `set -eo pipefail`，提交 `8ce23a0e3ba6579176cb295afc4968f73e8501c9`。
+- [x] 第三轮 Run `43201789602` / job `131126782233` 已触发，当前 in_progress。
+- [ ] 读取第三轮完整日志，确认 rosdep、MoveIt 编译、Stäubli 编译与 mock teardown 测试结果。
+
+**状态：** 前两轮实验均为 CI harness 环境/脚本问题，尚无 MoveIt patch 编译或 runtime 结论；第三轮 RUNNING；PR #1 Draft，source pin 不变。
