@@ -106,3 +106,26 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - Format Run `43189960017`，job `Format`，状态 `in_progress`；初始化、checkout、safe-directory配置及pre-commit安装成功，正在执行pre-commit。
 - combined status接口仍返回空statuses；应以workflow run/job最终结论为准。
 - 当前未发现Documentation run；MoveIt mock launch test的ROS Jazzy实际退出码仍待CI/运行时结果。
+
+
+### 6.5 首轮CI失败根因分析与上游关联
+
+**CI Run `43189959860`**
+- mock MoveIt规划测试成功：MoveGroup action请求被接受，OMPL规划成功并返回非空轨迹。
+- 新增post-shutdown断言失败：`move_group-6`在 `rclcpp::Executor::~Executor()`析构路径SIGSEGV，进程退出码为 `-11`。
+- 同一次关闭期间，`ros2_control_node`的 `controller_manager.pal_statistics`后台线程两次报告 `context cannot be slept with because it's invalid`；控制器manager仍完成关闭，进程最终退出码为0。
+- 失败不是规划失败，也不是spawner/activation gate失败；是shutdown生命周期缺陷被新测试揭示。
+
+**上游关联证据**
+- MoveIt 2开放问题 [#3680](https://github.com/moveit/moveit2/issues/3680)报告ROS Jazzy binary的move_group在SIGINT时于 `rclcpp::Executor::~Executor()`发生SIGSEGV，exit -11，与本次堆栈一致。该问题当前仍open，未见可直接回移的修复提交。
+- ros-controls/realtime_tools开放问题 [#480](https://github.com/ros-controls/realtime_tools/issues/480)记录Jazzy关闭期间出现 `context cannot be slept with because it's invalid` 的后台线程异常。当前日志与该症状相符；本次ros2_control_node最终退出码为0。
+- 因此本轮不在Stäubli驱动层伪造MoveIt或ros2_control依赖修复，也不允许把 `-11` 加入测试允许码。应把上游依赖缺陷作为显式阻塞项。
+
+**Format Run `43189960017`**
+- pre-commit其他检查均通过；Black对 `staubli_bringup/launch/launch_robot_control.launch.py`做了自动格式化并导致该run失败。
+- 已提交格式修复 commit `4700b6b4dd010ac5b22459467bfcb970c2013d14`。
+
+**当前复验**
+- PR #1最新head：`4700b6b4dd010ac5b22459467bfcb970c2013d14`。
+- CI Run `43192150453`、Format Run `43192150570`均为in_progress；尚无最终结论。
+- PR保持Draft；不合并，不更新ROS Jazzy source pin。只有上游MoveIt shutdown缺陷得到修复且新head运行时teardown断言通过，才解除此阻塞。
