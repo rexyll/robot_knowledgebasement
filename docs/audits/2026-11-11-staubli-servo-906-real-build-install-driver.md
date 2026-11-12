@@ -215,3 +215,26 @@
 - PR检查入口：Format https://github.com/ICube-Robotics/staubli_driver_ros2/actions/runs/43158192705；CI https://github.com/ICube-Robotics/staubli_driver_ros2/actions/runs/43158192776。请仓库维护者在GitHub Actions界面批准来自fork的workflow运行；获批后再读取全部jobs/steps与check结果。
 - PR仓库现有CI只有Format和通用CI；目前没有证据表明其覆盖本项目要求的ROS Jazzy OFF/ON colcon build/install、无预先Boost查找的独立install-space consumer、七份gtest XML及证据manifest。因此即使上游PR通用CI后续变绿，仍须另行完成专项ROS Jazzy动态验收。
 - 当前结论：修复已提交并通过PR提交链路送达上游维护者审查，但尚未获CI执行、尚未合并、尚未在修复分支完成真实ROS Jazzy验收。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+## 12. 独立镜像验收：绿色workflow中的consumer失败被发现并纠正（2026-11-12）
+
+### 12.1 Run #17结果复核：workflow绿色不等于consumer验收通过
+
+- 专项Run #17：`43163545728`，知识库SHA `4eba82f1794020154ee0b6b4a73e1d09f392d702`，结论`success`。工作流步骤全部显示SUCCESS，证据工件ID `13919775021`，名称`staubli-ros-jazzy-build-install-evidence`，大小约46.5 MiB，GitHub digest / 下载ZIP SHA-256均为 `ffd0bb178950db12c10dec63852a5cc7a2dec576319540a42bd01d59c4839dad`。
+- 独立下载并检查artifact内的 `logs/servo-906-build-install.log`、OFF/ON consumer logs及 `servo-906-validation-report.json` 后，发现矩阵脚本将consumer失败仅写入 `install-consumer-findings.txt`，随后继续打包并以0退出；因此GitHub workflow的绿色状态是脚本门禁缺陷造成的假绿。
+- 两个consumer均已找到安装包、并解析到Boost 1.83.0，但在加载导出目标时失败：`staubli_robot_driver::staubli_robot_driver`的link interface含`Boost::system`，该imported target尚未定义。consumer没有预先`find_package(Boost)`，符合验收要求。错误栈指向安装空间中的`export_staubli_robot_driverExport.cmake`。
+- 同一artifact的target graph validator为49/49 PASS、0 errors；ON模式7份gtest XML全部通过，`colcon test-result`报告53 tests、0 errors、0 failures、0 skipped。但validator范围仅覆盖target graph、install manifest及ament exports，不覆盖consumer configure/build；不能用49项静态检查和53项gtest替代consumer验收。
+
+### 12.2 根因与代码修复
+
+- 新镜像`rexyll/staubli_driver_ros2_from_org`的`staubli_robot_driver/CMakeLists.txt`确实仍以plain signature链接`Boost::system`，且调用`ament_export_dependencies(Boost)`。但该宏只触发普通`find_package(Boost)`，不会转发`system`组件；因此downstream没有创建`Boost::system` imported target。
+- 已在新仓库main新增 `staubli_robot_driver/cmake/BoostDependencies.cmake`，内容为`find_package(Boost REQUIRED COMPONENTS system)`，并将包末尾改为`ament_package(CONFIG_EXTRAS cmake/BoostDependencies.cmake)`。依据ament_cmake的`ament_package(CONFIG_EXTRAS)`合同，CONFIG_EXTRAS在生成的export-target extras之前被加载，使Boost::system先行定义。新仓库修复提交：`c8fb9a800ff5520a1342590a5b5e8de52a90bf07`、`febf8cfd89bc8b2b4004300990e39dbf78de800e`；新仓库main固定SHA为`febf8cfd89bc8b2b4004300990e39dbf78de800e`。
+- 知识库矩阵脚本已改为：保留consumer失败日志和证据包，但在manifest verify之后遇到任何OFF/ON consumer失败即`exit 1`，不再允许失败项被包装为成功。提交`96288096a766d22340ace9bf93387372e3fbc939`；随后将源码checkout及脚本默认expected SHA更新到新镜像修复提交，并同步workflow pin：`50b82b657cbe430d4bc5544f6203ec63c470f12a`、`ca0dd6bbea8fd1d859f86deb4325c4e44bc41bfb`。
+- 知识库普通CI因旧测试仍断言旧源码SHA而失败（Run `43167591777`、`43167587321`）；已把三处旧SHA断言更新为新固定SHA，新增consumer失败必须使矩阵退出非零的回归测试。相关提交`41a7dc974fc3f54c52eb706c510ef1811eac9fa0`、`9ff45c00629d5e0f839c5ef751c9bacde1b11b20`、`ef19c0d9a6bd6c097ab195694683b2d3568285cb`。截至本节写入时，最新专项Run `43167732694`及CI `43167732747`已排队，另有较早run因中间提交被取消/正在结束；新修复尚未取得动态consumer PASS结果。
+
+### 12.3 验收边界与下一步
+
+- 新仓库普通CI/Format/Documentation在较早提交`863d478c815083ef7f0eaa78f967ee7f818180ed`均SUCCESS；含Boost component CONFIG_EXTRAS的最新源码提交`febf8cfd89bc8b2b4004300990e39dbf78de800e`的三个Actions运行仍需逐一核验。
+- 下一轮ROS Jazzy验收必须在新固定SHA上证明：OFF/ON build和install成功；两个独立consumer均configure/build成功并实际运行可执行文件；七份gtest XML均存在且通过；validator与manifest/SHA-256通过；矩阵脚本对consumer失败fail-closed。
+- Run #17必须保留为历史`success`记录，但审计结论标注其consumer OFF/ON均FAIL，不能倒改历史run状态或引用为验收通过。
+- SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。上游`ICube-Robotics/staubli_driver_ros2`未被修改；新镜像仅用于独立修复与验证。
