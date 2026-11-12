@@ -6466,3 +6466,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 对同一 mock planning + post-shutdown 测试进行重复运行，确认所有进程正常退出后再考虑 source pin 更新。
 
 **状态：** Format PASS；CI FAIL（planning PASS、teardown SIGSEGV）；shutdown 顺序缺陷候选尚未通过实验验证；PR #1 保持 Draft。
+
+
+### §9.3.365｜MoveIt 对象析构顺序与 logger pre-shutdown 修复区分（2026-11-12）
+
+- [x] 完整追踪 MoveIt Jazzy main 的局部对象生命周期：Executor、MoveGroupExe 在 if 作用域内声明，`rclcpp::shutdown()` 却先于该作用域结束；更外层 MoveItCpp/Node 也在 Context shutdown 后才析构。
+- [x] 将 SIGINT 默认 handler shutdown → spin 返回 → 显式 shutdown → MoveGroupExe/Executor 析构的具体链条记录为首要根因候选；它与 Executor 析构 SIGSEGV 栈帧吻合。
+- [x] 复核 MoveIt main PR #3833：logger static Node pre-shutdown reset 修复于 2026-09-10 合入 main；当前 Jazzy 分支尚无该 callback。该 logger/RMW 生命周期问题与 Executor destructor crash 必须区分。
+- [x] 记录 CI MoveIt 二进制包版本及日期；其 bloom source revision 尚未追溯，不能根据 build date 断言是否含 #3833。
+- [x] 创建隔离实验分支 `experiment/move-group-shutdown-order`，仅在 MoveIt Jazzy 临时源码 overlay 中重排对象作用域，使 MoveGroupExe/Executor 等对象在 Context shutdown 前析构；不触碰上游。
+- [x] 实验 workflow commit `5f33199b2b6615124df9ca67ea53b68e20ecf38a`；Run `43200850967` / job `131123588792` RUNNING。
+- [ ] 等待 MoveIt 源码构建、Stäubli mock planning 和严格 teardown 回归完成，检查完整日志与退出码。
+- [ ] 对实验结果重复运行；通过前不更新 source pin、不合并 PR #1。
+
+**状态：** 标准 CI Format PASS、ROS Jazzy CI FAIL（planning PASS、teardown SIGSEGV）；对象析构顺序实验 RUNNING；PR #1 Draft；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
