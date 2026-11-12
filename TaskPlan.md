@@ -405,15 +405,15 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 每日子 TaskPlan | 记录条目数 |
 | --- | --- | ---: |
-| 2026-11-03 | [TaskPlan-2026-11-03.md](TaskPlan-2026-11-03.md) | 36 |
-| 2026-11-04 | [TaskPlan-2026-11-04.md](TaskPlan-2026-11-04.md) | 89 |
-| 2026-11-05 | [TaskPlan-2026-11-05.md](TaskPlan-2026-11-05.md) | 48 |
-| 2026-11-06 | [TaskPlan-2026-11-06.md](TaskPlan-2026-11-06.md) | 39 |
-| 2026-11-07 | [TaskPlan-2026-11-07.md](TaskPlan-2026-11-07.md) | 47 |
-| 2026-11-08 | [TaskPlan-2026-11-08.md](TaskPlan-2026-11-08.md) | 87 |
-| 2026-11-09 | [TaskPlan-2026-11-09.md](TaskPlan-2026-11-09.md) | 82 |
-| 2026-11-10 | [TaskPlan-2026-11-10.md](TaskPlan-2026-11-10.md) | 57 |
-| 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan-2026-11-11.md) | 76 |
-| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan-2026-11-12.md) | 21 |
+| 2026-11-03 | [TaskPlan-2026-11-03.md](TaskPlan_History/TaskPlan-2026-11-03.md) | 36 |
+| 2026-11-04 | [TaskPlan-2026-11-04.md](TaskPlan_History/TaskPlan-2026-11-04.md) | 89 |
+| 2026-11-05 | [TaskPlan-2026-11-05.md](TaskPlan_History/TaskPlan-2026-11-05.md) | 48 |
+| 2026-11-06 | [TaskPlan-2026-11-06.md](TaskPlan_History/TaskPlan-2026-11-06.md) | 39 |
+| 2026-11-07 | [TaskPlan-2026-11-07.md](TaskPlan_History/TaskPlan-2026-11-07.md) | 47 |
+| 2026-11-08 | [TaskPlan-2026-11-08.md](TaskPlan_History/TaskPlan-2026-11-08.md) | 87 |
+| 2026-11-09 | [TaskPlan-2026-11-09.md](TaskPlan_History/TaskPlan-2026-11-09.md) | 82 |
+| 2026-11-10 | [TaskPlan-2026-11-10.md](TaskPlan_History/TaskPlan-2026-11-10.md) | 57 |
+| 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan_History/TaskPlan-2026-11-11.md) | 76 |
+| 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 21 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
