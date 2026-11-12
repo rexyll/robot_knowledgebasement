@@ -129,3 +129,34 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - PR #1最新head：`4700b6b4dd010ac5b22459467bfcb970c2013d14`。
 - CI Run `43192150453`、Format Run `43192150570`均为in_progress；尚无最终结论。
 - PR保持Draft；不合并，不更新ROS Jazzy source pin。只有上游MoveIt shutdown缺陷得到修复且新head运行时teardown断言通过，才解除此阻塞。
+
+
+## 6.6 第二轮 CI 结果、Black 格式根因与上游状态（2026-11-12）
+
+### CI Run 43192150453
+
+- Job `build_and_test`（ID `131093890219`）已完成，结论 FAILURE。
+- MoveGroup 规划本体成功：mock hardware、loopback、headless 配置下，`/move_action` 请求被接受；`plan_only=true`，返回 `MoveItErrorCodes.SUCCESS`、非空轨迹及六关节名称集合。没有请求执行轨迹。
+- 失败发生在 post-shutdown 断言：`move_group-6` 于 `rclcpp::Executor::~Executor()` 崩溃，exit `-11`。CTest 与 JUnit 各自报告同一 launch test 失败，因此 colcon 汇总为 73 tests、2 failures；唯一失败断言是进程关闭退出码，不是两个独立功能故障。
+- 其余 71 项及其他包测试未报告失败。日志中 lcov `no .gcno files found` 是 coverage 收集阶段的附带输出，不是最终失败根因。
+
+### Format Run 43192150570
+
+- Job `Format`（ID `131093890103`）已完成，结论 FAILURE。
+- pre-commit 中除 Black 外的检查通过；Black 自动重排 `staubli_bringup/launch/launch_robot_control.launch.py`。
+- 逐行长度复核定位两处应由 Black 拆分的表达式：robot_description 字典中的 ParameterValue 调用（92列）和 joint_state_broadcaster 的 arguments 列表（93列）。此前格式提交只处理了另一处字符串日志行，因此不足以令 Black 幂等。
+- 已按 Black 风格拆分两处表达式，提交 `18a6560bb65f8d81289c7a3b999da29dd0ce5a89`；该提交触发新的 Format 与 CI。
+
+### 上游关联复核
+
+- 通过 GitHub 集成重新读取 MoveIt 2 issue [#3680](https://github.com/moveit/moveit2/issues/3680)：状态仍为 OPEN，comments=0。报告中的 ROS Jazzy binary、`rclcpp::Executor::~Executor()` 栈帧及 SIGSEGV 症状与本次高度相似，但没有证据证明根因完全相同，也没有可直接回移的修复提交。
+- 因此将其记录为上游关联/阻塞线索，而不是已证实的根因结论；不在 Stäubli 仓库中伪修外部 MoveIt 二进制，也不放宽 SIGSEGV 断言。
+
+### 新一轮验证状态
+
+- PR #1 当前 head：`18a6560bb65f8d81289c7a3b999da29dd0ce5a89`，仍为 Draft。
+- CI Run `43197493740` / job `131112070965`：in_progress。
+- Format Run `43197493726` / job `131112077084`：in_progress。
+- 需在两项工作流完成后再次读取 job 状态和完整日志。Format 成功仅表示静态格式门槛通过，不代表 MoveIt shutdown runtime 通过。
+- 不更新知识库 ROS Jazzy source pin；旧 pin `9e617a9e323ef3342f5151a89239bfd93c089f8c` 的历史 build/install/consumer PASS 不可外推至 PR head。
+- 不接真实 CS9，不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED，`TODO-EXT-001` 未授权。
