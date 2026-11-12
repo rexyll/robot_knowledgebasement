@@ -228,13 +228,16 @@
 ### 12.2 根因与代码修复
 
 - 新镜像`rexyll/staubli_driver_ros2_from_org`的`staubli_robot_driver/CMakeLists.txt`确实仍以plain signature链接`Boost::system`，且调用`ament_export_dependencies(Boost)`。但该宏只触发普通`find_package(Boost)`，不会转发`system`组件；因此downstream没有创建`Boost::system` imported target。
-- 已在新仓库main新增 `staubli_robot_driver/cmake/BoostDependencies.cmake`，内容为`find_package(Boost REQUIRED COMPONENTS system)`，并将包末尾改为`ament_package(CONFIG_EXTRAS cmake/BoostDependencies.cmake)`。依据ament_cmake的`ament_package(CONFIG_EXTRAS)`合同，CONFIG_EXTRAS在生成的export-target extras之前被加载，使Boost::system先行定义。新仓库修复提交：`c8fb9a800ff5520a1342590a5b5e8de52a90bf07`、`febf8cfd89bc8b2b4004300990e39dbf78de800e`；新仓库main固定SHA为`febf8cfd89bc8b2b4004300990e39dbf78de800e`。
+- 已在新仓库main新增 `staubli_robot_driver/cmake/BoostDependencies.cmake`，内容为`find_package(Boost REQUIRED COMPONENTS system)`，并将包末尾改为`ament_package(CONFIG_EXTRAS cmake/BoostDependencies.cmake)`。依据ament_cmake的`ament_package(CONFIG_EXTRAS)`合同，CONFIG_EXTRAS在生成的export-target extras之前被加载，使Boost::system先行定义。新仓库修复提交：`c8fb9a800ff5520a1342590a5b5e8de52a90bf07`、`1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`；新仓库main固定SHA为`1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`。
 - 知识库矩阵脚本已改为：保留consumer失败日志和证据包，但在manifest verify之后遇到任何OFF/ON consumer失败即`exit 1`，不再允许失败项被包装为成功。提交`96288096a766d22340ace9bf93387372e3fbc939`；随后将源码checkout及脚本默认expected SHA更新到新镜像修复提交，并同步workflow pin：`50b82b657cbe430d4bc5544f6203ec63c470f12a`、`ca0dd6bbea8fd1d859f86deb4325c4e44bc41bfb`。
 - 知识库普通CI因旧测试仍断言旧源码SHA而失败（Run `43167591777`、`43167587321`）；已把三处旧SHA断言更新为新固定SHA，新增consumer失败必须使矩阵退出非零的回归测试。相关提交`41a7dc974fc3f54c52eb706c510ef1811eac9fa0`、`9ff45c00629d5e0f839c5ef751c9bacde1b11b20`、`ef19c0d9a6bd6c097ab195694683b2d3568285cb`。截至本节写入时，最新专项Run `43167732694`及CI `43167732747`已排队，另有较早run因中间提交被取消/正在结束；新修复尚未取得动态consumer PASS结果。
 
 ### 12.3 验收边界与下一步
 
-- 新仓库普通CI/Format/Documentation在较早提交`863d478c815083ef7f0eaa78f967ee7f818180ed`均SUCCESS；含Boost component CONFIG_EXTRAS的最新源码提交`febf8cfd89bc8b2b4004300990e39dbf78de800e`的三个Actions运行仍需逐一核验。
+- 新仓库普通CI/Format/Documentation在较早提交`863d478c815083ef7f0eaa78f967ee7f818180ed`均SUCCESS；含Boost component CONFIG_EXTRAS的最新源码提交`1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`的三个Actions运行仍需逐一核验。
 - 下一轮ROS Jazzy验收必须在新固定SHA上证明：OFF/ON build和install成功；两个独立consumer均configure/build成功并实际运行可执行文件；七份gtest XML均存在且通过；validator与manifest/SHA-256通过；矩阵脚本对consumer失败fail-closed。
 - Run #17必须保留为历史`success`记录，但审计结论标注其consumer OFF/ON均FAIL，不能倒改历史run状态或引用为验收通过。
 - SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。上游`ICube-Robotics/staubli_driver_ros2`未被修改；新镜像仅用于独立修复与验证。
+
+- **Format修复补充：** 最新Boost CONFIG_EXTRAS文件首次Format运行因缺少Apache版权头失败（Format Run `43167553362`，step `ament_copyright`）。已为 `staubli_robot_driver/cmake/BoostDependencies.cmake`补充Apache-2.0版权头，提交 `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`。新固定源码SHA已同步到知识库矩阵脚本、workflow及pin回归测试；最新源码Format/CI及ROS Jazzy run `43167893738`等待结果。
+
