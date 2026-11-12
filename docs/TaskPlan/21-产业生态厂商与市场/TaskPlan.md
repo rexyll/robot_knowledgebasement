@@ -6527,3 +6527,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 只有规划成功且进程退出码断言全部通过，才可接受局部对象先析构、Context 后 shutdown 的候选修复；否则继续定位。
 
 **状态：** Format PASS；GDB binary CI FAIL（已确认 Executor 析构栈）；MoveIt source overlay build RUNNING；PR #1 Draft；不更新 source pin、不合并、不连接真实 CS9、不发送真实运动命令；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.370｜MoveIt scope-order 实验失败，启动 sigwait/cancel 受控关闭实验（2026-11-12）
+
+- [x] 第一轮 MoveIt Jazzy source overlay Run `43201789602`：patched MoveIt 7 packages 构建成功，Stäubli workspace 5 packages 构建成功。
+- [x] 同一 mock test 的 MoveGroup planning 成功（日志：`Motion plan was computed successfully.`；Python test OK），但 teardown 仍以 move_group exit -11 失败。
+- [x] 结论：仅把显式 `rclcpp::shutdown()` 移到局部对象析构之后不足以修复；默认 rclcpp signal handler 在 SIGINT 时仍会先 shutdown Context。
+- [x] 第二轮隔离实验 Run `43203818571` 已启动：禁用 `shutdown_on_signal` 与默认 signal handlers；阻塞 SIGINT/SIGTERM；由 `sigwait` 专用线程调用 `executor.cancel()`；spin 返回后 join waiter，析构 MoveGroup/Executor/Node，最后 shutdown Context。
+- [x] 在 signal waiter 创建前构造 MoveGroupExe，避免构造异常导致 joinable thread 析构。
+- [ ] 检查第二轮 workflow 的 patch anchor、MoveIt build、Stäubli build 和 strict teardown 回归结果。
+- [ ] 若仍失败，使用 GDB backtrace 与符号信息解析 Executor destructor frame #0，并继续分析 signal/cancel/Context/Fast DDS 交互。
+
+**状态：** GDB 已确认 main() → rclcpp::Executor::~Executor() SIGSEGV；第一轮显式 shutdown 后移实验编译成功但 teardown FAIL；第二轮受控 signal-wait/cancel 实验 RUNNING；PR #1 Draft；source pin 不变；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
