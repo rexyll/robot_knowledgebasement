@@ -6304,3 +6304,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] 实测GenericSystem加载/初始化成功，JSB与trajectory controller均active，六关节`/joint_states`断言通过。
 - [ ] 评估测试关闭时CLI子进程SIGINT（exit -2）和controller_manager shutdown噪声，完善优雅退出。
 - [ ] 最新SHA `5b2196f...`的CI/Format/Documentation结果完成后再固定源码pin；MoveIt实际启动与规划仍待测。
+
+
+### §9.3.356｜新pin矩阵与mock bringup验证通过，开始MoveIt headless规划
+
+- [x] 镜像SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b` Format/Documentation/CI全部SUCCESS（Runs `43178262221`/`43178262304`/`43178262257`）。
+- [x] readiness测试2项与mock bringup launch test 1项通过；GenericSystem加载/初始化，JSB与trajectory controller均active，六关节joint_states断言通过；colcon 70 tests零失败。
+- [x] 知识库pin更新提交 `a3825ab0c2eff6bc62931cc261ef5af16af36ebf`。
+- [x] 新pin ROS Jazzy Run `43179030578` SUCCESS；OFF/ON build/install与独立consumer实际执行通过；7/7 gtest、53 tests零失败、validator PASS、manifest 5/5。
+- [x] 证据Artifact `13925362748`，SHA256 `85a9fbf822a8ca9927e5ad6df5b747ac2557494af49233775dd3a97fd76a5827`。
+- [ ] 评估mock bringup测试关闭时CLI SIGINT及PAL statistics shutdown噪声，改善优雅退出。
+- [ ] 新增MoveIt mock-only headless规划launch test：验证move_group action server、六关节plan_only请求、成功码与非空轨迹；当前镜像main已高于pin，待CI验证后更新pin并重跑矩阵。
+- [ ] 规划通过后增加mock trajectory action/feedback验证；禁止真实硬件执行。
+
+**状态：** build/install/consumer、readiness、mock bringup核心门槛PASS；MoveIt planning/action仍BLOCKED。详见审计§24。
