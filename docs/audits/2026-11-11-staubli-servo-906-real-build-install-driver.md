@@ -431,3 +431,10 @@
 - 本次launch test新增提交发生在此前矩阵源码pin `abd75ff...`之后；待镜像CI通过后，应将ROS Jazzy workflow/script/test pin推进至新镜像SHA并重新跑完整OFF/ON矩阵，才能把当前源码版本纳入证据范围。
 
 **状态：** §21 build/install/consumer gate仍对SHA `abd75ff...`有效；headless mock bringup integration新测试已提交、CI待验证。SERVO-906/907整体仍BLOCKED。
+
+
+### §22补充：Format首轮失败及修复
+
+- 首轮Format Run `43176950462`在Black步骤失败，日志明确指出仅`test_mock_bringup.launch.py`需要重新格式化；clang-format通过，Documentation Run `43176950570`成功。
+- 已按Black输出调整测试文件，修复提交SHA `49d720fde6e95586026e888b583f7f68ecef9400`。
+- 修复SHA对应CI Run `43177314945`、Format Run `43177315000`、Documentation Run `43177314966`仍在运行。以修复SHA的结果为准，首轮Format失败保留为历史记录，不作为最终通过证据。
