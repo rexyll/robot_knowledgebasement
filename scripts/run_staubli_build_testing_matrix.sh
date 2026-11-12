@@ -128,8 +128,9 @@ cmake_minimum_required(VERSION 3.8)
 project(staubli_install_consumer)
 find_package(ament_cmake REQUIRED)
 # Do not resolve Boost in the consumer before loading the installed package.
-# The package exports Boost without forwarding the required "system"
-# component; pre-finding Boost here would mask the missing imported target.
+# The installed CONFIG_EXTRAS must define Boost::system before the exported
+# target file is loaded. Do not pre-find Boost here: that would mask a missing
+# dependency export in the package under test.
 find_package(staubli_robot_driver REQUIRED)
 add_executable(staubli_install_consumer main.cpp)
 target_link_libraries(staubli_install_consumer PRIVATE staubli_robot_driver::staubli_robot_driver)
@@ -163,7 +164,7 @@ CPP
       --build-base "${CONSUMER_ROOT}/build-${lower}" \
       --install-base "${CONSUMER_ROOT}/install-${lower}" \
       --event-handlers console_direct+; then
-      if run_logged "${CONSUMER_ROOT}/install-${lower}/lib/staubli_install_consumer/staubli_install_consumer"; then
+      if run_logged "${CONSUMER_ROOT}/install-${lower}/staubli_install_consumer/lib/staubli_install_consumer/staubli_install_consumer"; then
         printf 'INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=%s\n' "${mode}" | tee -a "${command_log}"
       else
         printf 'BUILD_TESTING=%s: consumer executable failed\n' "${mode}" | tee -a "${CONSUMER_FAILURES_FILE}"
