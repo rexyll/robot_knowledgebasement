@@ -241,3 +241,11 @@
 
 - **Format修复补充：** 最新Boost CONFIG_EXTRAS文件首次Format运行因缺少Apache版权头失败（Format Run `43167553362`，step `ament_copyright`）。已为 `staubli_robot_driver/cmake/BoostDependencies.cmake`补充Apache-2.0版权头，提交 `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`。新固定源码SHA已同步到知识库矩阵脚本、workflow及pin回归测试；最新源码Format/CI及ROS Jazzy run `43167893738`等待结果。
 
+## 13. 独立消费者执行路径修复与最新固定源码复验排队（2026-11-12）
+
+- Run `43168282713`确认：Boost CONFIG_EXTRAS修复已让OFF/ON两个独立consumer都完成CMake configure和build（日志出现`Build files have been written`及`Built target staubli_install_consumer`）；但消费者程序执行路径仍错误，矩阵按fail-closed返回失败。
+- 根因是colcon isolated install布局：实际二进制位于`install-<mode>/staubli_install_consumer/lib/staubli_install_consumer/staubli_install_consumer`，旧脚本误用`install-<mode>/lib/staubli_install_consumer/staubli_install_consumer`。
+- 已修复`scripts/run_staubli_build_testing_matrix.sh`，并同步`tests/test_staubli_ros_jazzy_build_script.py`对路径的回归断言。提交`9260f516ba1d11c4a5bfdb8fbf83c57921c1386a`；最新main为`320735c2517588e5da7c4bbd4f2b9c8208ef6e47`。
+- 该中间提交的CI Run `43169591442`曾因回归断言未同步更新而失败；测试断言已更新，最新CI Run `43169612005`在SHA `320735c`上SUCCESS。
+- 专项Run `43169591434`基于旧脚本提交`9260f51`，已完成容器初始化、工具checkout、依赖安装及固定源码checkout，当前停留在rosdep解析；它不包含最新consumer路径修复，不可作为最终验收。最新SHA对应专项Run `43169611943`处于pending，因相同concurrency group等待前一run释放。
+- 下一步必须等待Run `43169611943`启动并完成OFF/ON完整矩阵，重点核对consumer configure/build/run，七份gtest XML、validator、manifest和SHA-256。SERVO-906/907继续BLOCKED；A1.1继续BLOCKED；TODO-EXT-001未授权。
