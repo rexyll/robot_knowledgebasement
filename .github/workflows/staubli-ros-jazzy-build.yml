@@ -47,8 +47,8 @@ jobs:
         shell: bash
         run: |
           git clone https://github.com/rexyll/staubli_driver_ros2_from_org.git "${RUNNER_TEMP}/staubli_driver_ros2"
-          git -C "${RUNNER_TEMP}/staubli_driver_ros2" checkout --detach abd75ff956b4fb07a76705abcb8fd506b2985aaa
-          test "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" rev-parse HEAD)" = "abd75ff956b4fb07a76705abcb8fd506b2985aaa"
+          git -C "${RUNNER_TEMP}/staubli_driver_ros2" checkout --detach 5b2196f2961a027fabc4c16ae9bfd70b0c73d47b
+          test "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" rev-parse HEAD)" = "5b2196f2961a027fabc4c16ae9bfd70b0c73d47b"
           test -z "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" status --porcelain)"
 
       - name: Resolve declared ROS dependencies
