@@ -5352,3 +5352,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 新pin下普通CI Run `43175490804`进行中，专项ROS Jazzy Run `43175490783`排队中；前序中间提交触发的专项run有cancelled，不能拿来替代最终HEAD证据。
 - 审计详见第21章TaskPlan §9.3.352与专项审计§20。
 - **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.352。下一步核验最终HEAD的普通CI与新pin ROS Jazzy OFF/ON build/install/consumer矩阵；通过后继续headless mock bringup、MoveIt与mock trajectory integration。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜v11.66：Stäubli新源码pin的ROS Jazzy矩阵通过
+
+- 知识库最终HEAD `f79ca6ae7e89e021ef9900f4687c84d5fd884bfd`普通CI通过；专项ROS Jazzy Run `43175652104` SUCCESS。
+- 当前固定源码SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa`完成BUILD_TESTING OFF/ON build/install；两个独立install-space consumer均真实构建、安装、运行通过。
+- 7/7 gtest suites PASS；colcon 53 tests、0 errors、0 failures、0 skipped；validator PASS、manifest 5/5。
+- 证据Artifact `13924820027`，ZIP SHA256 `2526ae1b3e1d9a5580e7afda4ee67d7aaa957c7b3b5ffa76cacc932260caf37a`。审计见第21章专项审计§21及TaskPlan §9.3.353。
+- **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.353。下一步实施headless mock bringup launch_testing，覆盖xacro、GenericSystem、controller_manager和controller lifecycle；随后进行MoveIt headless planning及mock trajectory action/feedback。SERVO-906 build/install/consumer子门槛PASS，但SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
