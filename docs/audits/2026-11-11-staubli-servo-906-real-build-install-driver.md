@@ -151,3 +151,27 @@
 - 最终测试修复提交 `e1e5741eea3c187689936943a2b5c60380878df2`对应CI Run `43130887111` completed/success；Python 3.10/3.11/3.12测试、SBOM、OSV五个Job全部SUCCESS。
 - 结论边界：普通CI验证了镜像改写合同和脚本语法，不证明容器内Azure镜像DNS/下载可用。新的ROS Jazzy手动Run仍是必要动态验证。
 - 当前main SHA为`e1e5741eea3c187689936943a2b5c60380878df2`；等待用户在此最新main上手动启动Run #9。SERVO-906/907继续BLOCKED。
+
+## 11. 专用workflow Run #9：Azure APT恢复后完成真实OFF/ON构建，安装consumer暴露固定上游导出缺陷（2026-11-12）
+
+### 运行身份与证据完整性
+
+- Run ID：`43133529247`；结果：`failure`；SHA：`b594fd3b20827c269d9cf460c70c2126671d8ebb`；workflow：`Stäubli ROS Jazzy build/install evidence`。运行链接：https://github.com/rexyll/robot_knowledgebasement/actions/runs/43133529247。
+- Run #8后加入的Azure官方Ubuntu archive配置已在真实ROS Jazzy容器中生效：APT依赖安装步骤SUCCESS，固定上游commit checkout SUCCESS，ROS依赖解析SUCCESS。此前Ubuntu archive/security DNS和`libdw-dev` Candidate阻塞解除。
+- 固定上游检出并校验的commit仍为`bd658e2d266e315d2ee35f985fb352ea88306b79`，工作树干净；未修改上游源码。
+- OFF/ON两种`BUILD_TESTING`配置均完成构建和安装。ON配置执行七份上游gtest XML，分别为6、7、7、3、5、9、9个测试，共46项；所有XML均为`failures=0`、`errors=0`，CTest日志报告`100% tests passed, 0 tests failed out of 7`。
+- Artifact ID：`13906750810`，名称`staubli-ros-jazzy-build-install-evidence`，SHA-256：`763b18cca96e95153341f3992b7080143849a38133f7bfc4cef80aae26a0df32`；已下载ZIP并核对本地SHA-256与GitHub artifact digest一致。证据含OFF/ON快照、安装清单、安装导出、consumer两种配置日志、七份gtest XML及validator报告。
+- target graph validator共49项检查，47 PASS、2 FAIL；两项失败均为OFF/ON导出target含未解析`/asio/include`。独立安装空间consumer在OFF/ON两种配置均于CMake configure阶段失败。
+
+### 两项固定上游安装导出缺陷（证据互相印证）
+
+1. **无效ASIO include路径。** 固定上游`staubli_robot_driver/CMakeLists.txt`的主库`target_include_directories()`把`${asio_SOURCE_DIR}/asio/include`作为PUBLIC include目录导出，但该CMakeLists只调用`find_package(Boost REQUIRED COMPONENTS system)`，没有定义`asio_SOURCE_DIR`。因此安装导出文件的`INTERFACE_INCLUDE_DIRECTORIES`出现绝对路径`/asio/include`；consumer日志明确报该路径不存在。固定上游`staubli_robot_driver/src/communication/udp_socket_impl.hpp`实际包含`<boost/asio.hpp>`，不是独立`asio/...`头文件。建议上游维护者移除错误的`${asio_SOURCE_DIR}/asio/include`并只保留正确的Boost include依赖；不得在本知识库CI创建伪目录或改写已安装导出文件。
+2. **Boost::system未随包导出。** 固定上游CMakeLists调用`find_package(Boost REQUIRED COMPONENTS system)`，并把`Boost::system`加入主库链接接口；但`ament_export_dependencies()`列表没有Boost，`staubli_robot_driver/package.xml`也没有声明Boost依赖。独立consumer刻意不提前`find_package(Boost)`，加载`staubli_robot_driver`导出目标时报告链接接口含`Boost::system`但target不存在。建议上游维护者根据Boost是否属于公开接口决定将其改为PRIVATE（当前Boost.Asio仅见于`src/communication/udp_socket_impl.hpp`实现头）或完整导出Boost依赖及package manifest；最终做法须由上游维护者确认。
+- 两项缺陷在OFF和ON安装前缀中均复现；consumer的CMake configure失败，因此不应宣称consumer build/link成功。两项缺陷均来自固定上游源码的安装导出合同，不是本地CI夹具预定义target造成的假阳性。
+
+### 当前结论与下一步
+
+- **已通过：** Azure APT依赖准备、固定上游commit校验、ROS依赖解析、OFF/ON生产构建与安装、ON配置七份gtest（46/46通过）、证据artifact完整性及SHA-256。
+- **未通过：** OFF/ON独立安装空间consumer configure；target graph validator的两项ASIO路径检查。故SERVO-906/907仍BLOCKED，不得以构建和gtest通过替代安装consumer验收。
+- 上游源码保持只读。下一步为形成可提交给上游维护者的最小修复建议/patch草案，但在用户明确授权前不修改上游、不创建PR；若不允许上游修复，则记录为上游阻塞项，继续补充静态审查与其他不依赖该修复的验证。
+- A1.1保持BLOCKED；`TODO-EXT-001`未授权。
