@@ -239,4 +239,13 @@ run_logged python3 "${SCRIPT_DIR}/package_staubli_build_evidence.py" package \
 run_logged python3 "${SCRIPT_DIR}/package_staubli_build_evidence.py" verify \
   --manifest "${EVIDENCE_DIR}/evidence_manifest.json"
 
+# Consumer failures are acceptance failures, not merely diagnostic findings.
+# Preserve the evidence artifact above, then fail the workflow so a green
+# Actions result can never mask a broken installed CMake package.
+if [[ -s "${CONSUMER_FAILURES_FILE}" ]]; then
+  printf 'SERVO-906 ERROR: install-space consumer acceptance failed\n' >&2
+  cat "${CONSUMER_FAILURES_FILE}" >&2
+  exit 1
+fi
+
 printf '\nSERVO-906_BUILD_INSTALL_EVIDENCE_PASS\n'
