@@ -6359,3 +6359,19 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 继续 mock trajectory action/feedback 验证；禁止连接真实机器人执行运动。
 
 **状态：** 旧 pin build/install/consumer 子门槛保持 PASS；当前镜像 MoveIt teardown 与 controller lifecycle 仍 BLOCKED；SERVO-906/907整体 BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见 `docs/audits/2026-11-12-staubli-moveit-mock-planning-teardown-audit.md`。
+
+
+### §9.3.358｜修复 mock MoveIt teardown 与 controller lifecycle 失败门控（2026-11-12）
+
+- [x] 在用户镜像独立分支 `fix/mock-planning-shutdown-and-controller-gates` 增加 post-shutdown exit-code assertion；仅允许正常退出码 0 与测试框架 SIGINT 关闭对应的负信号退出码，SIGSEGV/其他非预期退出仍失败。
+- [x] 移除 mock planning test 末尾固定 sleep；规划断言与进程关闭断言分离。
+- [x] 为 joint_state_broadcaster spawner 增加非零退出 Shutdown gate。
+- [x] 为 trajectory controller activation CLI 增加 OnProcessExit returncode gate；失败触发 Shutdown，成功记录激活完成。
+- [x] 创建用户镜像 Draft PR [#1](https://github.com/rexyll/staubli_driver_ros2_from_org/pull/1)，head SHA `4091cb0b731c1003182846e3ea2041a01647336b`，包含2个提交。
+- [x] 对照 ROS 2 Jazzy `launch_testing.asserts.assertExitCodes` 实现确认其默认检查全部被测进程，且公开 `EXIT_OK`；本测试使用 `-signal.SIGINT` 精确表示 POSIX signal returncode，不放行通用非零值。
+- [ ] Draft PR 当前 combined status 为空、PR workflow runs 查询为空；等待/触发并核验 Format、Documentation、ROS Jazzy CI，不得标记运行时通过。
+- [ ] ROS Jazzy mock planning launch test 必须实测 post-shutdown 退出码；重点确认 move_group 不再 SIGSEGV，activation CLI不再因关闭时导入中断而异常退出。
+- [ ] CI与runtime teardown均通过后，才更新知识库源码 pin 并重新执行 BUILD_TESTING OFF/ON build/install、独立consumer、gtest、validator与manifest矩阵。
+- [ ] 后续补mock trajectory action/feedback；不连接真实CS9、不发送真实运动命令。
+
+**状态：** 源码修复已提交到用户镜像 Draft PR，静态实现已对照Jazzy API；PR CI与运行时退出码仍未验证。当前固定pin仍为旧SHA `9e617a9...`，不可将旧矩阵PASS外推到PR head。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
