@@ -476,3 +476,34 @@
 - 该SHA的Format Run `43177972439`因MoveIt launch文件缺少`LogInfo`导入而失败；已在最新SHA `5b2196f...`补齐。最新SHA CI/Format/Documentation待完成，因此不可将上一SHA的CI结果当成最新HEAD整体通过。
 
 **状态：** headless mock bringup的核心启动、GenericSystem初始化、两个controller active和六关节joint_states断言在SHA `755a710...`通过；最新HEAD完整门槛仍待验证。MoveIt launch import静态修复已提交，MoveIt实际启动/规划尚未测试。
+
+
+## 24. MoveIt修复版本的ROS Jazzy矩阵复验通过（2026-11-12）
+
+### 24.1 镜像最新通过版本与CI
+
+- 用户镜像固定源码SHA：`5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`。
+- Format Run `43178262221` SUCCESS；Documentation Run `43178262304` SUCCESS；CI Run `43178262257` SUCCESS。
+- CI日志中`test_wait_for_robot_ready`两项测试通过，`test_test_mock_bringup.launch.py` 1项通过；整套colcon汇总70 tests、0 errors、0 failures、0 skipped。
+- mock bringup日志确认GenericSystem成功加载/初始化、joint_state_broadcaster激活、joint_trajectory_controller加载并激活，六关节joint_states断言通过。
+
+### 24.2 知识库新pin矩阵证据
+
+- 知识库main提交 `a3825ab0c2eff6bc62931cc261ef5af16af36ebf`已将workflow checkout、矩阵脚本默认值和回归断言统一固定到镜像SHA `5b2196f...`。
+- ROS Jazzy专项Run [43179030578](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43179030578) SUCCESS；普通CI Run `43179031003`已触发（以最终状态复核）。
+- OFF/ON build/install均成功；OFF/ON独立install-space consumer均实际编译、安装、运行成功。
+- 7/7 gtest suites PASS；colcon `53 tests, 0 errors, 0 failures, 0 skipped`；validator PASS，manifest 5/5。
+- 证据Artifact [13925362748](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43179030578/artifacts/13925362748)，ZIP SHA256 `85a9fbf822a8ca9927e5ad6df5b747ac2557494af49233775dd3a97fd76a5827`。
+
+### 24.3 mock shutdown观察
+
+- mock launch测试通过，但测试结束时ROS CLI activation进程被launch shutdown以SIGINT终止，controller_manager PAL statistics publisher线程输出context-invalid错误日志。该现象发生在断言通过后的测试清理阶段，不影响当前测试结论；但优雅关闭仍可改进，不能声称shutdown日志完全干净。
+- 当前子门槛：build/install/consumer PASS；readiness PASS；headless mock bringup core PASS。MoveIt headless规划/action/trajectory仍未通过实测，继续BLOCKED。
+
+### 24.4 MoveIt headless规划测试开始
+
+- 在用户镜像新增`staubli_moveit_config/test/test_moveit_mock_planning.launch.py`，组合mock bringup与MoveIt wrapper，等待`/move_action`，发送仅规划（`plan_only=true`）的六关节目标，断言MoveIt成功码及非空轨迹；明确不执行轨迹。
+- CMake已注册launch test，package.xml已声明launch_testing、moveit_msgs、rclpy、bringup等测试依赖。
+- 此测试目前仍处于开发/CI验证阶段；镜像main已高于固定pin `5b2196f...`，新测试通过CI后需要再更新知识库pin并重跑完整ROS Jazzy矩阵。
+
+**状态：** SERVO-906 build/install/consumer、readiness与mock bringup核心门槛PASS（SHA `5b2196f...`）；MoveIt headless planning/action仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
