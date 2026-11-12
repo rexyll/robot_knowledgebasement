@@ -6141,3 +6141,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 上游PR合并且专项动态验收通过后，才可解除SERVO-906/907 BLOCKED。
 
 **状态：** PR已建立但尚未执行CI、尚未合并；SERVO-906/907保持BLOCKED，A1.1保持BLOCKED，`TODO-EXT-001`未授权。
+
+### §9.3.345｜独立镜像Run #17假绿识别、Boost组件导出修复与fail-closed门禁（2026-11-12）
+
+- [x] 下载并校验ROS Jazzy Run #17证据工件：artifact `13919775021`，SHA-256 `ffd0bb178950db12c10dec63852a5cc7a2dec576319540a42bd01d59c4839dad`。
+- [x] 复核artifact原始日志：OFF/ON独立consumer均因导出链接接口含`Boost::system`而CMake configure失败；尽管workflow显示SUCCESS，实际consumer并未通过。根因是`ament_export_dependencies(Boost)`未转发`system`组件。
+- [x] 新镜像添加`cmake/BoostDependencies.cmake`，通过`ament_package(CONFIG_EXTRAS ...)`先行`find_package(Boost REQUIRED COMPONENTS system)`，源码固定SHA `febf8cfd89bc8b2b4004300990e39dbf78de800e`。
+- [x] 矩阵脚本在证据归档后对任意consumer失败执行非零退出；新增静态回归测试，防止consumer失败再次形成假绿。
+- [x] 同步更新知识库脚本、workflow固定SHA和旧SHA测试断言。
+- [ ] 等待最新ROS Jazzy专项run `43167732694`完成；核对OFF/ON consumer configure/build/run、7份gtest XML、49项target graph、证据manifest与SHA-256。
+- [ ] 核验新镜像main最新Format、CI、Documentation全部成功；逐项检查中间失败run的原因并关闭未解决项。
+- [ ] 专项验收全通过后，才允许将SERVO-906/907从BLOCKED调整为已验证状态；不因workflow绿色或静态检查全绿提前放行。
+
+**状态：** Run #17是历史假绿（consumer失败）；Boost组件导出和fail-closed门禁已提交，最新动态复验等待中。SERVO-906/907保持BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权；上游原始仓库保持只读。
+
