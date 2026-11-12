@@ -154,7 +154,7 @@ def test_install_consumer_compiles_public_realtime_tools_header():
 def test_install_consumer_binary_is_executed_in_both_modes():
     content = SCRIPT.read_text(encoding="utf-8")
     consumer_command = (
-        'run_logged "${CONSUMER_ROOT}/install-${lower}/lib/'
+        'run_logged "${CONSUMER_ROOT}/install-${lower}/staubli_install_consumer/lib/'
         "staubli_install_consumer/staubli_install_consumer"
     )
     assert consumer_command in content
