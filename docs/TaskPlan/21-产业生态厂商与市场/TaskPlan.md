@@ -6272,3 +6272,9 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 后续增加MoveIt headless planning及mock trajectory action/feedback测试。
 
 **状态：** 新launch integration test待CI；此前SHA `abd75ff...` build/install/consumer子门槛PASS，不能外推到新SHA。SERVO-906/907整体BLOCKED。
+
+
+#### §9.3.354补充｜格式修复
+
+- [x] 记录首轮Black格式检查失败（Run `43176950462`），修复提交 `49d720fde6e95586026e888b583f7f68ecef9400`。
+- [ ] 修复SHA对应CI/Format/Documentation（Runs `43177314945`/`43177315000`/`43177314966`）待完成；不得将中间失败run标记为最终通过。
