@@ -6086,3 +6086,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 当前修复待普通CI及下一轮手动ROS Jazzy workflow验证。Run #8历史结果不改写；固定上游不修改。
 - SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - **当前节点：§9.3.339；等待main CI通过后，在最新main手动启动ROS Jazzy Run #9。**
+
+
+### §9.3.340｜Azure Ubuntu镜像配置回归修复与普通CI验收
+
+- 镜像改写脚本提交 `b27f2ff9ee0065c7887c8f65a3e0c7819322cfc0` 对应CI Run `43130777043`成功。
+- 新增镜像断言后，Run `43130786960`失败于测试字符串转义错误；已修正raw-string断言与配置调用顺序检查。
+- 最终测试修复提交 `e1e5741eea3c187689936943a2b5c60380878df2`对应CI Run `43130887111` completed/success，Python 3.10/3.11/3.12、SBOM、OSV五个Job全部成功。
+- 普通CI只验证静态合同与bash语法，不代表Azure镜像在ROS容器中可访问。等待基于最新main SHA手动启动ROS Jazzy Run #9，确认真实Candidate和后续构建。
+- SERVO-906/907保持BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- **当前节点：§9.3.340；等待用户在最新main手动启动ROS Jazzy Run #9。**
