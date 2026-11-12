@@ -249,3 +249,28 @@
 - 该中间提交的CI Run `43169591442`曾因回归断言未同步更新而失败；测试断言已更新，最新CI Run `43169612005`在SHA `320735c`上SUCCESS。
 - 专项Run `43169591434`基于旧脚本提交`9260f51`，已完成容器初始化、工具checkout、依赖安装及固定源码checkout，当前停留在rosdep解析；它不包含最新consumer路径修复，不可作为最终验收。最新SHA对应专项Run `43169611943`处于pending，因相同concurrency group等待前一run释放。
 - 下一步必须等待Run `43169611943`启动并完成OFF/ON完整矩阵，重点核对consumer configure/build/run，七份gtest XML、validator、manifest和SHA-256。SERVO-906/907继续BLOCKED；A1.1继续BLOCKED；TODO-EXT-001未授权。
+
+## 15. 最新固定源码ROS Jazzy OFF/ON build-install-consumer验收通过（2026-11-12）
+
+### 15.1 Run与源码可追溯性
+
+- 专项Run：[ #43169946221 ](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43169946221)，workflow结论 completed / success，唯一job Pinned ROS Jazzy build/install matrix及全部steps均成功。
+- 知识库main SHA：0e1c33b578222ea31e0d23b46a74003ab7618da0。
+- 验收源码来自用户镜像 rexyll/staubli_driver_ros2_from_org，固定SHA：1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f；workflow执行checkout后验证HEAD精确匹配且工作树干净。
+- 镜像该SHA的Format、Documentation、CI三项Actions均SUCCESS（Runs 43167866958、43167867013、43167866900）。上游PR #9仍为OPEN、未合并；其head 6bbddecaaf9567bd463eacb7a04f6c2295b10bee，base固定上游SHA bd658e2d266e315d2ee35f985fb352ea88306b79。本次专项验证针对镜像修复，不代表上游PR已合并或其分支已通过同等专项测试。
+
+### 15.2 实际验收结果
+
+- BUILD_TESTING=OFF：colcon build/install完成；clean独立install-space consumer configure/build/install及可执行文件运行通过，日志标记 INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=OFF。
+- BUILD_TESTING=ON：colcon build/install完成；clean独立install-space consumer configure/build/install及可执行文件运行通过，日志标记 INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=ON。consumer未预先 find_package(Boost)，验证依赖由被测包的安装导出配置正确提供。
+- gtest：7/7 suites通过；逐套测试数为7、6、9、5、3、7、9，总计46个gtest断言。colcon test-result总结为53 tests、0 errors、0 failures、0 skipped（其中包含ament测试结果汇总，不应将53误写为53个gtest断言）。
+- target graph validator：49 PASS、0 FAIL、0 errors；覆盖OFF/ON目标存在性、测试target隔离、生产依赖闭包、install manifest与导出include/target合同。
+- 证据manifest：5个核心artifact条目（OFF构建快照、ON构建快照、SERVO-906 validator报告、commands.log、环境指纹）逐一通过size及SHA-256核验；manifest显示 execution_status=PACKAGED，最终核验 execution_status=PASS、checked_artifact_count=5、0 errors。
+- workflow明确输出 SERVO-906_BUILD_INSTALL_EVIDENCE_PASS。GitHub artifact：ID 13921209585，名称 staubli-ros-jazzy-build-install-evidence，大小48,839,334 bytes，保留30天；上传ZIP SHA-256：51a7f99cd3ab829c52f0e1c4c24eb212b8924d61ed69b585981bc543ea115664。[打开证据工件](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43169946221/artifacts/13921209585)
+
+### 15.3 结论、限制与后续
+
+- 结论：之前发现的Boost::system imported target导出顺序问题已由CONFIG_EXTRAS修复；此前colcon isolated install consumer执行路径错误也已修复。最新固定镜像SHA的OFF/ON生产构建、安装、独立consumer运行、7套gtest、49项validator和5项证据哈希检查全部通过。此前Run #17假绿、Run #43168282713/中间consumer路径失败均保留为历史失败，不覆盖或改写。
+- 验收范围限制：本次只证明ROS Jazzy容器中的build/install/export/downstream consumer及现有测试通过；不覆盖真实Stäubli控制器、CS9/VAL3、硬件在环、现场网络、机器人运动安全、长时间运行、ABI兼容矩阵、sanitizer、plugin真实加载/卸载及工业现场验收。硬件/运行时验证不可由本次CI推断。
+- SERVO-906的“ROS Jazzy build/install + independent consumer evidence”子门槛可标记PASS；若SERVO-906总项或SERVO-907还包含硬件/运行时/上游合并条件，则整体保持BLOCKED，不能据此宣布机器人驱动产品级验收完成。A1.1保持BLOCKED；TODO-EXT-001未授权。
+- 下一步：将本次专项证据链接、镜像SHA与范围限制同步到TaskPlan；继续审查上游PR #9的维护者review/CI批准和合并状态，并单独规划不连接真实机器人时可完成的仿真/runtime验证。不得擅自将本次镜像验收冒充上游main验收。
