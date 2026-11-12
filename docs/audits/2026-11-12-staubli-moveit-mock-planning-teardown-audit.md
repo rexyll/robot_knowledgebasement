@@ -310,3 +310,26 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 最新 PR head `c74a70f76c642ee99809efc3bcd01740ba90e89d`：Format Run `43202281223` SUCCESS；CI Run `43202281251` / job `131128472436` RUNNING。
 - 隔离 MoveIt source overlay Run `43201789602` / job `131126782233` 已通过 ROS setup、源码 patch 和 rosdep，目前正在编译 patched MoveIt move_group。
 - GDB 只用于采集诊断，不可通过 allowlist、日志过滤或 wrapper exit code 掩盖 SIGSEGV；PR 保持 Draft，不更新 source pin、不合并、不接入真实 CS9。
+
+
+## 6.15 GDB 捕获 move_group Executor 析构 SIGSEGV（2026-11-12）
+
+### 诊断结果
+
+- GDB-enabled ROS Jazzy CI Run [43202281251](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43202281251) / job `131128472436` 已完成 FAILURE。
+- mock MoveGroup planning 请求本身成功；在 launch teardown 期间，move_group 主线程收到 SIGSEGV。
+- GDB 已成功打印所有线程回溯。主线程关键帧：
+  - `#0 0x... in /opt/ros/jazzy/lib/librclcpp.so`
+  - `#1 rclcpp::Executor::~Executor()`
+  - `#2 main()`
+- 这确认故障发生在 move_group main() 退出时的 rclcpp Executor 析构路径。它不是 MoveGroup planning action 的规划算法失败，也不是 Stäubli 驱动通信失败。当前安装的 rclcpp shared library 无调试符号，frame #0 仍无法解析到具体函数/源码行。
+- 同一 teardown 中，controller_manager.pal_statistics publisher thread 仍打印 context-invalid 异常，但 ros2_control_node 退出码为 clean；该问题与 move_group SIGSEGV 分开跟踪。
+- GDB wrapper 最终退出码 255，严格 post-shutdown assertion 拒绝该进程。不得将 255、139 或任何异常退出码加入 allowlist。GDB 已完成诊断，但本轮 runtime gate 仍然 FAIL。
+
+### 下一步
+
+1. 获取与 CI 安装的 ROS Jazzy rclcpp 精确版本匹配的调试符号，或在 source overlay 中构建带调试符号的 rclcpp，解析 frame #0。
+2. 独立实验分支 `experiment/move-group-shutdown-order` 的 Run `43201789602` 已完成 ROS setup、MoveIt Jazzy 源码 clone/patch 和 rosdep，目前仍在构建 patched MoveIt move_group。
+3. 实验 patch 将 MoveGroupExe、Executor、Node 等局部对象置于内层作用域，在离开作用域完成析构后再调用 `rclcpp::shutdown()`。此 patch 仅为隔离实验，不是上游已批准修复。
+4. 等待 MoveIt 编译、Stäubli workspace 编译和同一 mock planning + strict teardown regression。只有规划成功且进程退出断言全部通过，才能认为此实验支持该修复方向。
+5. PR #1 继续 Draft；不放宽 SIGSEGV 断言、不更新 ROS Jazzy source pin、不合并、不修改 MoveIt/rclcpp 上游、不连接真实 CS9、不发送真实运动命令。
