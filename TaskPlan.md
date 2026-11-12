@@ -5402,3 +5402,13 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 知识库ROS Jazzy workflow/script/regression test源码pin已更新到`9e617a9e323ef3342f5151a89239bfd93c089f8c`；最终知识库HEAD `96ebe334664bcb7ae008f39218e3c301649324d6`普通CI及专项矩阵运行中。此前成功矩阵Run `43175652104`实际验证旧SHA `abd75ff...`，不可视作新SHA证据。
 - 审计见第21章专项审计§22及TaskPlan §9.3.354。
 - **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.354。下一步核验最终HEAD新pin ROS Jazzy矩阵，修复Black格式门槛，排查MoveIt shutdown SIGSEGV并验证mock trajectory action/feedback。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜v11.68：Stäubli新pin矩阵复验通过
+
+- 知识库HEAD `63910bf081594381806571d7bd1adf2e2be5373d`普通CI Run `43183333429`及ROS Jazzy专项Run `43183333433`均SUCCESS；专项验证镜像SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`。
+- BUILD_TESTING OFF/ON build/install通过，独立install-space consumer均真实运行成功；7/7 gtest suites PASS，colcon 53 tests、0 errors、0 failures、0 skipped，validator与manifest PASS。
+- 证据Artifact `13927418549`，ZIP SHA256 `d1562f22b84f01d2fd6a6d793e1f6cb6912e74fa9f130dc9ef74fdcc6c85c2fb`。
+- MoveIt teardown分析定位到launch_testing SIGINT时controller activation CLI仍在Python导入，且move_group在rclcpp Executor析构时SIGSEGV。已增加controller lifecycle等待与测试依赖，最新镜像SHA `84ba020...` CI/Format待完成，尚不声称问题已解决。
+- 审计见第21章专项审计§23及TaskPlan §9.3.355。
+- **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.355。下一步检查最新镜像CI/Format与MoveIt teardown整改；通过后更新源码pin、重跑矩阵，再验证mock trajectory action/feedback。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
