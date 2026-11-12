@@ -290,3 +290,12 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 已在实验 workflow 中加入 `ros-tooling/setup-ros@v0.7`，明确安装 `jazzy`；修复提交 `c1b664f0b2dd6f1f600ceabfa8241756ccaea04c`。
 - 第二轮 Run [43201304163](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43201304163) / job `131125130553` 已启动，当前 `Set up ROS Jazzy` step in_progress；后续步骤待执行。
 - 保持实验范围不变：只在隔离 MoveIt Jazzy source overlay 中调整 move_group 局部对象作用域；不修改/推送 MoveIt 上游、不更新 Stäubli source pin、不放宽 SIGSEGV 断言。
+
+
+## 6.13 ROS setup 脚本与 shell nounset 冲突修复（2026-11-12）
+
+- 第二轮 Run [43201304163](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43201304163) 已成功完成 ROS Jazzy setup、MoveIt Jazzy 源码 clone 和 move_group 对象作用域 patch。
+- 在 `Install MoveIt source dependencies` 步骤 source `/opt/ros/jazzy/setup.bash` 时失败：`AMENT_TRACE_SETUP_FILES: unbound variable`。原因是脚本使用 `set -u`（nounset），而 ROS setup 脚本引用的变量并非全部预先定义；rosdep 本身尚未开始依赖解析。
+- 将 workflow 五处 `set -euo pipefail` 改为 `set -eo pipefail`，保留失败即停与管道失败检测，只移除不兼容的 nounset。修复提交 `8ce23a0e3ba6579176cb295afc4968f73e8501c9`。
+- 第三轮 Run [43201789602](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43201789602) / job `131126782233` 已启动，当前 in_progress。
+- 第二轮没有进入 rosdep dependency resolution、MoveIt build 或 mock test；不能据此判断源码补丁是否可编译或是否修复 SIGSEGV。
