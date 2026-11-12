@@ -2,6 +2,8 @@ name: Stäubli ROS Jazzy build/install evidence
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -41,12 +43,12 @@ jobs:
           # Keep apt indexes available for the subsequent rosdep install step.
           # rosdep invokes apt-get without refreshing package lists itself.
 
-      - name: Checkout fixed Stäubli upstream commit
+      - name: Checkout pinned Stäubli validation source
         shell: bash
         run: |
-          git clone https://github.com/ICube-Robotics/staubli_driver_ros2.git "${RUNNER_TEMP}/staubli_driver_ros2"
-          git -C "${RUNNER_TEMP}/staubli_driver_ros2" checkout --detach bd658e2d266e315d2ee35f985fb352ea88306b79
-          test "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" rev-parse HEAD)" = "bd658e2d266e315d2ee35f985fb352ea88306b79"
+          git clone https://github.com/rexyll/staubli_driver_ros2_from_org.git "${RUNNER_TEMP}/staubli_driver_ros2"
+          git -C "${RUNNER_TEMP}/staubli_driver_ros2" checkout --detach 5a4a578f21ed4bb1df8d2c48d23fb862cb7e65a9
+          test "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" rev-parse HEAD)" = "5a4a578f21ed4bb1df8d2c48d23fb862cb7e65a9"
           test -z "$(git -C "${RUNNER_TEMP}/staubli_driver_ros2" status --porcelain)"
 
       - name: Resolve declared ROS dependencies
