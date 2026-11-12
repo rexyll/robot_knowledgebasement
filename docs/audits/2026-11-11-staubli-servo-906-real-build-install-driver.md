@@ -532,3 +532,16 @@
 - 上一轮已成功的专项Run `43175652104`日志明确检出的是 `abd75ff956b4fb07a76705abcb8fd506b2985aaa`，不是本节新SHA；它只证明此前源码的build/install/consumer矩阵。新SHA含launch测试，必须以本节最终HEAD专项run重新验证。
 
 **状态：** build/install/consumer gate在旧pin `abd75ff...` PASS；新pin `9e617a9...`待ROS Jazzy专项矩阵。headless mock bringup test在镜像CI PASS；MoveIt规划断言PASS但shutdown SIGSEGV待修；Format gate待修复。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+## 23. 新pin ROS Jazzy矩阵复验通过；MoveIt teardown整改继续（2026-11-12）
+
+- 知识库最终HEAD `63910bf081594381806571d7bd1adf2e2be5373d`普通CI Run `43183333429` SUCCESS；专项Run `43183333433` SUCCESS。
+- 专项矩阵检出镜像源码SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`；BUILD_TESTING OFF/ON build/install成功，两个隔离install-space consumer均真实编译、安装、执行成功。
+- 上游7/7 gtest XML报告全部PASS；colcon `53 tests, 0 errors, 0 failures, 0 skipped`；validator/evidence manifest PASS；日志有 `SERVO-906_BUILD_INSTALL_EVIDENCE_PASS`。
+- Artifact [13927418549](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43183333433/artifacts/13927418549)，ZIP SHA256 `d1562f22b84f01d2fd6a6d793e1f6cb6912e74fa9f130dc9ef74fdcc6c85c2fb`，48,857,680 bytes。
+- 重要边界：本次矩阵验证的是 `9e617a9...`，包含mock bringup测试，但不包含之后针对MoveIt teardown所做的controller-active等待与依赖声明提交；后续镜像SHA `84ba020e784fd7a8ab43b9c7a9f538b0a352db67`仍需CI验证，并在需要时再更新源码pin及复跑矩阵。
+- 对MoveIt teardown的日志分析发现，launch_testing测试完成时触发SIGINT；controller activation的 `ros2 control set_controller_state`仍处于Python模块导入阶段，收到KeyboardInterrupt后exit -2；同一时刻move_group收到SIGINT，在 `rclcpp::Executor::~Executor()`析构中SIGSEGV。现已增加MoveIt测试前等待controller_manager两个controller均active的检查，并在规划断言后留出CLI完成缓冲；新增`controller_manager_msgs`测试依赖。此改动尚待最新镜像CI验证，不预判已解决SIGSEGV。
+- Format修复：镜像SHA `e1e438e3762c6f99064863c27bde8983c038567c`的Format Run `43183795535` SUCCESS；之后的controller-active等待改动需以最终SHA Format/CI结果为准。
+
+**状态：** build/install/consumer gate PASS（pin `9e617a9...`）；headless mock bringup launch test PASS（同SHA CI）；MoveIt planning断言PASS但teardown异常待复测；最新镜像改动 `84ba020...` CI/Format进行中；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
