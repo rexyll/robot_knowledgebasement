@@ -142,3 +142,12 @@
 - 此策略基于GitHub runner所处Azure环境及Microsoft官方文档，但**尚未由新的ROS Jazzy专项运行验证**。下一次手动workflow必须确认Azure镜像可解析、Noble/security pocket可获取，且`libdw-dev`有真实Candidate；否则继续按日志定位，不得降低依赖门禁。
 - 普通CI Run `43034734598`（SHA `4b4b201dfda5745475269c430f3b509289964a3b`）completed/success；这只证明知识库静态测试通过，不代表镜像策略或ROS构建动态通过。
 - 固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`未修改；SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+
+## 10. Azure Ubuntu镜像切换静态回归与普通CI验收
+
+- 镜像配置实现提交 `b27f2ff9ee0065c7887c8f65a3e0c7819322cfc0` 对应普通CI Run `43130777043` completed/success；该次CI未包含后续新增镜像回归测试。
+- 首次镜像测试提交 `30341263aeb60559ffcab1f607c445884c59552a` 对应Run `43130786960`失败，原因是测试把shell正则中的转义点写成了双重字面反斜杠，断言未匹配脚本中的正确`.`；不是镜像脚本执行失败。后续提交 `ad2f339619e2daaaee3648c34827e978fb35da22`和`e180f5a68ec86f8e16a2caf0e1f3d6cf0fcf37d5`继续修正断言及调用顺序检查。
+- 最终测试修复提交 `e1e5741eea3c187689936943a2b5c60380878df2`对应CI Run `43130887111` completed/success；Python 3.10/3.11/3.12测试、SBOM、OSV五个Job全部SUCCESS。
+- 结论边界：普通CI验证了镜像改写合同和脚本语法，不证明容器内Azure镜像DNS/下载可用。新的ROS Jazzy手动Run仍是必要动态验证。
+- 当前main SHA为`e1e5741eea3c187689936943a2b5c60380878df2`；等待用户在此最新main上手动启动Run #9。SERVO-906/907继续BLOCKED。
