@@ -6480,3 +6480,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 对实验结果重复运行；通过前不更新 source pin、不合并 PR #1。
 
 **状态：** 标准 CI Format PASS、ROS Jazzy CI FAIL（planning PASS、teardown SIGSEGV）；对象析构顺序实验 RUNNING；PR #1 Draft；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.366｜MoveIt 对象作用域实验的 ROS Jazzy 环境修复（2026-11-12）
+
+- [x] 首轮实验 Run `43200850967` 在环境准备步骤失败：容器没有 `/opt/ros/jazzy/setup.bash`，尚未执行 MoveIt 源码构建或运行测试。
+- [x] 在实验 workflow 中增加 `ros-tooling/setup-ros@v0.7` 安装 ROS Jazzy，提交 `c1b664f0b2dd6f1f600ceabfa8241756ccaea04c`。
+- [x] 第二轮 Run `43201304163` / job `131125130553` 已触发，当前 Setup ROS Jazzy 进行中。
+- [ ] 检查后续 MoveIt 源码构建、Stäubli workspace 构建和原有 mock planning + strict teardown 回归结果。
+- [ ] 仅将实验 runtime 结果用于评估对象析构顺序假设；环境/依赖失败不等于修复失败或通过。
+
+**状态：** 标准 ROS Jazzy binary CI 仍为 teardown SIGSEGV；源码 overlay 实验第二轮运行中；PR #1 Draft，不更新 source pin、不合并、不连接真实 CS9、不发送真实运动命令。
