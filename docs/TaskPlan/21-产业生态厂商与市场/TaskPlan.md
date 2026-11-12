@@ -6156,3 +6156,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 **状态：** Run #17是历史假绿（consumer失败）；Boost组件导出和fail-closed门禁已提交，最新动态复验等待中。SERVO-906/907保持BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权；上游原始仓库保持只读。
 - [x] 处理新Boost CONFIG_EXTRAS文件的Format失败：为文件补充Apache-2.0版权头，修复提交 `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`；同步更新知识库验收源码pin。
 
+### §9.3.346｜colcon isolated consumer执行路径修复与最新专项复验（2026-11-12）
+
+- [x] 从Run `43168282713`日志确认Boost CONFIG_EXTRAS已使OFF/ON独立consumer configure/build成功；定位其执行阶段失败为colcon isolated install路径假设错误。
+- [x] 修复矩阵脚本consumer二进制路径为`install-<mode>/staubli_install_consumer/lib/staubli_install_consumer/staubli_install_consumer`。
+- [x] 更新对应Python回归测试；最新main SHA `320735c2517588e5da7c4bbd4f2b9c8208ef6e47`的CI Run `43169612005` SUCCESS。
+- [ ] 等待最新SHA专项Run `43169611943`开始并完成OFF/ON build/install/consumer运行、gtest、validator和证据包校验。旧脚本Run `43169591434`正在rosdep阶段，不能作为最终验收依据。
+
+**状态：** 路径修复和普通CI已通过；最新专项验收排队。SERVO-906/907保持BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
