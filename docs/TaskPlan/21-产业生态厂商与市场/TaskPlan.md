@@ -6399,3 +6399,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 评估独立验证ros2_control关闭异常；不要通过关闭pal_statistics日志、忽略异常或延时sleep掩盖问题。
 
 **状态：** 规划与控制器门控修复已提交；首次ROS Jazzy CI证明规划成功，但teardown仍因上游MoveIt SIGSEGV失败。格式修复已提交待复验。知识库源码pin保持旧SHA不变；SERVO-906/907、A1.1仍BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.360｜第二轮 MoveIt teardown CI 复核与 Black 格式修复（2026-11-12）
+
+- [x] 检查 CI Run `43192150453`：MoveGroup mock planning 本体成功，`plan_only=true`，返回 SUCCESS、非空六关节轨迹；无轨迹执行。
+- [x] 确认 post-shutdown 退出码断言捕获 `move_group` 在 `rclcpp::Executor::~Executor()` SIGSEGV，exit `-11`。73 tests / 2 failures 为同一 launch test 在 CTest 与 JUnit 双重统计，唯一实际失败是 shutdown 退出码。
+- [x] 检查 Format Run `43192150570`：Black 自动重排 robot_description 的 ParameterValue 调用及 joint_state_broadcaster arguments 列表；其余格式检查通过。
+- [x] 在 PR 分支提交 Black 格式修复 SHA `18a6560bb65f8d81289c7a3b999da29dd0ce5a89`。
+- [x] 复核 MoveIt issue #3680：仍 OPEN、0 comments；仅记录为高度相似上游线索，未将其误写为已证实同源或已修复。
+- [ ] 新 CI Run `43197493740`（job `131112070965`）与 Format Run `43197493726`（job `131112077084`）完成后检查结果及日志。
+- [ ] MoveIt teardown SIGSEGV 仍 BLOCKED；不得允许 exit -11、删除 post-shutdown 检查或以 sleep/日志屏蔽替代修复。
+- [ ] PR #1 保持 Draft；新 head 的 CI/Format/runtime 全部通过前，不合并、不更新 ROS Jazzy source pin。
+- [ ] 独立检查 ros2_control_node PAL statistics 线程的 context-invalid shutdown 异常；该进程虽 exit 0，仍需诊断。
+
+**状态：** mock planning 本体 PASS；MoveIt teardown BLOCKED；Black 修复已提交待 Format 验证；CI/Format 新轮次运行中。根主线00-01不变；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
