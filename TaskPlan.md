@@ -5421,3 +5421,14 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 新增审计：`docs/audits/2026-11-12-staubli-moveit-mock-planning-teardown-audit.md`；第21章TaskPlan推进至§9.3.357。
 - 不修改原始上游，不连接真实控制器，不执行真实运动；当前镜像新 SHA 的 CI 与新 pin ROS Jazzy 矩阵均未验证。
 - **当前任务节点：根主线仍为第00章00-01；第21章Stäubli专项推进至§9.3.357。下一步修复post-shutdown退出码验收、spawner/activation失败门控，完成用户镜像最新SHA CI后再更新pin并重跑OFF/ON矩阵。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜v11.70：提交Stäubli mock teardown与controller lifecycle修复PR
+
+- 用户镜像 `rexyll/staubli_driver_ros2_from_org` 已创建独立分支 `fix/mock-planning-shutdown-and-controller-gates`，Draft PR [#1](https://github.com/rexyll/staubli_driver_ros2_from_org/pull/1)，head SHA `4091cb0b731c1003182846e3ea2041a01647336b`。
+- 增加launch_testing post-shutdown exit-code断言，允许0与预期SIGINT信号退出（POSIX负信号码），明确拒绝SIGSEGV等意外退出；删除规划测试末尾固定sleep。
+- 为joint_state_broadcaster spawner与trajectory controller activation CLI增加非零退出失败关闭门控。
+- 已对照ROS 2 Jazzy launch_testing实现确认assertExitCodes默认检查全部进程，且EXIT_OK公开可用。
+- PR combined status与workflow runs当前均未返回可核验记录；代码已提交不等于CI或runtime通过。当前知识库ROS Jazzy pin仍是旧SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`，不得更新至PR head。
+- 详见第21章TaskPlan §9.3.358及专项审计§6。
+- **当前任务节点：根主线仍为第00章00-01；第21章Stäubli专项推进至§9.3.358。下一步核验PR #1 Format/Documentation/ROS Jazzy CI与mock MoveIt shutdown真实退出码；修复任何失败后再更新源码pin并重跑OFF/ON矩阵。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
