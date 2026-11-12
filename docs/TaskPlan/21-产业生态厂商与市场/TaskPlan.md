@@ -6514,3 +6514,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 等待 MoveIt build、Stäubli workspace build、mock planning 与 strict teardown regression 全部完成；通过前不更新 source pin、不合并 PR。
 
 **状态：** Format PASS；binary CI RUNNING；GDB 诊断启用；MoveIt scope-order overlay build RUNNING；PR #1 Draft；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.369｜GDB 确认 move_group Executor 析构 SIGSEGV（2026-11-12）
+
+- [x] GDB-enabled CI Run `43202281251` / job `131128472436` 完成，确认 mock planning action 成功、teardown 阶段 move_group SIGSEGV。
+- [x] 捕获主线程栈：`#0 librclcpp.so` → `#1 rclcpp::Executor::~Executor()` → `#2 main()`；故障位置确定在 move_group main() 退出时 Executor 析构路径。
+- [x] GDB wrapper exit 255 被严格 post-shutdown assertion 拒绝；未放宽 allowlist，SIGSEGV 仍是 FAIL。
+- [x] 区分 controller_manager.pal_statistics context-invalid publisher-thread 异常：ros2_control_node 最终 clean exit，作为独立问题跟踪。
+- [ ] 获取精确 rclcpp Jazzy 调试符号或源码构建带符号版本，解析 frame #0。
+- [ ] 等待 MoveIt scope-order overlay Run `43201789602` 完成 MoveIt build、Stäubli workspace build 和 strict mock teardown regression。
+- [ ] 只有规划成功且进程退出码断言全部通过，才可接受局部对象先析构、Context 后 shutdown 的候选修复；否则继续定位。
+
+**状态：** Format PASS；GDB binary CI FAIL（已确认 Executor 析构栈）；MoveIt source overlay build RUNNING；PR #1 Draft；不更新 source pin、不合并、不连接真实 CS9、不发送真实运动命令；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
