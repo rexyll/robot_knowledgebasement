@@ -6149,7 +6149,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] 新镜像添加`cmake/BoostDependencies.cmake`，通过`ament_package(CONFIG_EXTRAS ...)`先行`find_package(Boost REQUIRED COMPONENTS system)`，源码固定SHA `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`。
 - [x] 矩阵脚本在证据归档后对任意consumer失败执行非零退出；新增静态回归测试，防止consumer失败再次形成假绿。
 - [x] 同步更新知识库脚本、workflow固定SHA和旧SHA测试断言。
-- [ ] 等待最新ROS Jazzy专项run `43167732694`完成；核对OFF/ON consumer configure/build/run、7份gtest XML、49项target graph、证据manifest与SHA-256。
+- [ ] Run `43167568313`已在旧源码基线上证明consumer失败会使矩阵非零退出；等待固定新源码SHA `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f` 的ROS Jazzy Run `43167967353`完成（当前已进入rosdep依赖解析），并核对OFF/ON consumer configure/build/run、7份gtest XML、49项target graph、证据manifest与SHA-256。Run `43168080087`为后续并发组的排队复验。
 - [ ] 核验新镜像main最新Format、CI、Documentation全部成功；逐项检查中间失败run的原因并关闭未解决项。
 - [ ] 专项验收全通过后，才允许将SERVO-906/907从BLOCKED调整为已验证状态；不因workflow绿色或静态检查全绿提前放行。
 
