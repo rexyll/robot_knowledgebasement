@@ -6429,3 +6429,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] PR #1 保持 Draft；不合并、不更新源码 pin；禁止真实 CS9/真实运动命令。
 
 **状态：** PR head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9`；Black 修复已提交待验证；规划本体 PASS，shutdown teardown BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.362｜最新 PR head Format 通过，等待 ROS Jazzy CI（2026-11-12）
+
+- [x] PR head `01a3646c73e23d571627bf4e2acea0fc3f9ea6d9` Format Run `43198319316` SUCCESS。
+- [x] job `131114885647` 的 Black 25.1.0、line-length 99 和其余 pre-commit 检查全部通过。
+- [ ] 同一 head CI Run `43198319123` / job `131114885750` 仍在运行，完成后检查全部测试日志。
+- [ ] MoveIt teardown SIGSEGV 仍为阻塞项；不允许 SIGSEGV、不删除退出断言、不合并、不更新源码 pin。
+
+**状态：** Format PASS；CI RUNNING；mock planning 本体 PASS，MoveIt shutdown BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
