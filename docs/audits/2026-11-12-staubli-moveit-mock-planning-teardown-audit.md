@@ -66,3 +66,34 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - 不连接真实 CS9，不发送真实机器人运动命令。
 - build/install/consumer 历史子门槛对旧 pin 保持 PASS；当前镜像 main 的 MoveIt teardown、controller activation lifecycle、trajectory action/feedback 仍 BLOCKED。
 - SERVO-906/907 整体仍 BLOCKED；A1.1 BLOCKED；`TODO-EXT-001` 未授权。
+
+
+## 6. 修复实施记录（2026-11-12）
+
+### 6.1 用户镜像 PR
+
+- 在用户镜像创建分支：`fix/mock-planning-shutdown-and-controller-gates`。
+- Draft PR：[rexyll/staubli_driver_ros2_from_org#1](https://github.com/rexyll/staubli_driver_ros2_from_org/pull/1)。
+- PR head SHA：`4091cb0b731c1003182846e3ea2041a01647336b`；包含2个文件提交。
+- 未修改原始上游 `ICube-Robotics/staubli_driver_ros2`，也未将PR合并到用户镜像main。
+
+### 6.2 已提交的代码改动
+
+1. `staubli_moveit_config/test/test_moveit_mock_planning.launch.py`
+   - 增加 `@launch_testing.post_shutdown_test()` 测试。
+   - 使用 `launch_testing.asserts.assertExitCodes` 检查所有被测进程。
+   - 允许退出码0与POSIX SIGINT对应的负信号退出码（`-signal.SIGINT`）；不会放行SIGSEGV（-11）或任意非零退出码。
+   - 移除规划成功后固定 `time.sleep(1.0)`，避免把时间延迟误当作teardown验收。
+
+2. `staubli_bringup/launch/launch_robot_control.launch.py`
+   - 为joint_state_broadcaster spawner增加OnProcessExit处理；非零退出触发Shutdown。
+   - trajectory controller spawner失败路径统一复用失败关闭逻辑。
+   - 为 `ros2 control set_controller_state ... active` 增加OnProcessExit returncode gate；CLI非零退出触发Shutdown，零退出才记录激活成功。
+
+### 6.3 API核对与验证边界
+
+- 已读取ROS 2 Jazzy `ros2/launch` 分支中的 `assert_exit_codes.py` 与 `asserts/__init__.py`，确认 `assertExitCodes` 的 `process=None` 默认值会检查全部被测进程，且 `EXIT_OK=0` 可通过 `launch_testing.asserts` 访问。
+- POSIX进程因SIGINT终止时Python subprocess returncode以负信号编号表示，因此测试显式使用 `-signal.SIGINT`，而不是把通用非零值列入allowlist。
+- PR head combined status查询为空，PR workflow runs查询也为空；尚无Format、Documentation、ROS Jazzy CI或runtime launch test结果。
+- 本轮没有运行ROS Jazzy容器，也没有真实CS9/HIL验证；当前源码修复状态为“已提交待验证”，不是PASS。
+- 只有PR head的CI与MoveIt teardown运行时退出码全部通过后，才允许更新知识库源码pin并重跑OFF/ON矩阵。
