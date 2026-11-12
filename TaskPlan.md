@@ -5371,3 +5371,10 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 
 - 补充：headless mock bringup测试首轮Format因Black重排测试文件失败（Run `43176950462`），已提交格式修复SHA `49d720fde6e95586026e888b583f7f68ecef9400`；该SHA CI/Format/Documentation仍待完成，详见第21章§9.3.354及审计§22。
+
+
+### 2026-11-12｜v11.68：修复Stäubli ROS Jazzy launch action导入缺陷
+
+- 新增headless mock bringup launch test暴露`launch.actions.LogError`在ROS Jazzy不存在，导致launch在启动前导入失败；bringup与MoveIt launch均存在该问题。
+- 已替换为Jazzy支持的`LogInfo`错误日志并保留Shutdown失败关闭；最新镜像SHA `755a710b8f5348b14f2f65e47cd882200ffdc877`的CI/Format/Documentation待完成。
+- **当前任务节点：根主线仍为第00章00-01；第21章并行专项推进至§9.3.355。下一步以最新SHA验证launch修复，继续排查mock controller lifecycle；通过后更新源码pin并重跑ROS Jazzy矩阵，再进行MoveIt headless与mock trajectory action/feedback。SERVO-906/907整体BLOCKED。**
