@@ -104,7 +104,7 @@ def test_manual_ros_workflow_refreshes_apt_indexes_before_rosdep_install():
     assert "rm -rf /var/lib/apt/lists/*" not in workflow
 
 
-def test_manual_ros_workflow_pins_image_and_upstream_source():
+def test_ros_workflow_pins_image_and_owned_validation_source():
     workflow = (
         Path(__file__).parents[1]
         / ".github"
@@ -117,7 +117,9 @@ def test_manual_ros_workflow_pins_image_and_upstream_source():
         "ae7ad3ac243da1dfd8bd402a2fa08e149ffbf7a385013bd8ef798d0800accdc8"
     )
     assert image_digest in workflow
-    assert "bd658e2d266e315d2ee35f985fb352ea88306b79" in workflow
+    assert "https://github.com/rexyll/staubli_driver_ros2_from_org.git" in workflow
+    assert "5a4a578f21ed4bb1df8d2c48d23fb862cb7e65a9" in workflow
+    assert "bd658e2d266e315d2ee35f985fb352ea88306b79" not in workflow
     assert "ros-jazzy-backward-ros" in workflow
     assert "bash scripts/run_staubli_build_testing_matrix.sh" in workflow
     assert "staubli-ros-jazzy-build-install-evidence" in workflow
