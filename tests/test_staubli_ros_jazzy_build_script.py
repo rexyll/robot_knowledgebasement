@@ -351,3 +351,10 @@ def test_retry_apt_script_prefers_official_azure_ubuntu_archive_mirror():
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+def test_build_matrix_fails_when_install_space_consumer_fails():
+    content = SCRIPT.read_text(encoding="utf-8")
+    assert 'if [[ -s "${CONSUMER_FAILURES_FILE}" ]]; then' in content
+    assert "SERVO-906 ERROR: install-space consumer acceptance failed" in content
+    assert "exit 1" in content
+
