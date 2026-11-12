@@ -281,3 +281,12 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 
 - PR #1 保持 Draft；不允许 exit -11，不删除 post-shutdown assert，不更新 ROS Jazzy source pin，不合并。
 - 不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；`TODO-EXT-001` 未授权。
+
+
+## 6.12 隔离实验首次运行的环境失败与重试（2026-11-12）
+
+- 首轮实验 Run [43200850967](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43200850967) 在 `Install workspace tooling` 步骤失败：容器内不存在 `/opt/ros/jazzy/setup.bash`。workflow 使用的 `rostooling/setup-ros-docker:ubuntu-noble-latest` 并不等同于已安装 Jazzy 的 ROS 环境；失败发生在源码 clone/patch/build 之前。
+- 因此首轮失败仅是 CI 环境准备错误，不能作为 MoveIt 对象作用域补丁失败或通过的证据。
+- 已在实验 workflow 中加入 `ros-tooling/setup-ros@v0.7`，明确安装 `jazzy`；修复提交 `c1b664f0b2dd6f1f600ceabfa8241756ccaea04c`。
+- 第二轮 Run [43201304163](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43201304163) / job `131125130553` 已启动，当前 `Set up ROS Jazzy` step in_progress；后续步骤待执行。
+- 保持实验范围不变：只在隔离 MoveIt Jazzy source overlay 中调整 move_group 局部对象作用域；不修改/推送 MoveIt 上游、不更新 Stäubli source pin、不放宽 SIGSEGV 断言。
