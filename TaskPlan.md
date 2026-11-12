@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-> 版本：v11.54  
+> 版本：v11.55  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.338 / SERVO-906/907。最近完成CMake File API reply路径、安装清单路径及安装导出文件路径边界加固，并收紧非UTF-8导出文件解码与快照Schema必需字段；相关普通CI均已通过，但SERVO-907真实ROS Jazzy动态验收仍为NOT_RUN；历史记录节点§9.3.324已完成；当前Stäubli专项节点以本段首句§9.3.337 / SERVO-906/907为准。本轮复核确认根计划提交`83ddd8d`对应普通CI #42975993827全部五个jobs SUCCESS。CMake File API collector已覆盖codemodel target依赖/编译元数据、install manifest、merged/isolated安装导出target及`INTERFACE_INCLUDE_DIRECTORIES`采集；本轮为后者补充ament导出文件行为测试。测试提交`6806cd8`和夹具修正提交`b77e86c`对应CI #42976622959、#42976665301，均因同一测试断言排序错误导致Python测试失败（每个Python版本131 passed、1 failed）；已依据job日志确认collector按字典序返回路径，修正测试期望顺序，提交`9ce154c`，CI #42976802732已completed/success，Python 3.10/3.11/3.12、OSV、SBOM五个jobs全部SUCCESS。上述均为知识库Python/静态合同测试，不代表ROS/C++动态验收。专用ROS Jazzy`workflow_dispatch`已实际运行多轮：Run #5/#6均失败于安装导出/consumer检查；OFF/ON build/install与快照已执行，但consumer和完整gtest/evidence验收未通过。公共头文件`realtime_tools`依赖未列入上游`ament_export_dependencies()`以及Run #5/#6已通过真实ROS Jazzy安装空间consumer确认固定上游导出接口包含无效`/asio/include`；Run #5还直接报告未定义的`Boost::system`链接target。固定上游commit`bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读；本轮新增target graph类型合同：固定上游两项生产库均须在OFF/ON codemodel中呈现为`SHARED_LIBRARY`，不再仅检查target名称存在；新增负向测试覆盖误变为`STATIC_LIBRARY`。validator提交`3526c4d`的CI #42978151314五个jobs全部SUCCESS；测试提交`0f333a4`的CI #42978180872五个jobs全部SUCCESS。A1.1保持BLOCKED，`TODO-EXT-001`未授权。 本轮继续收紧gtest target边界：BUILD_TESTING=ON时七个固定上游gtest target均须为`EXECUTABLE`；安装清单按路径basename精确匹配gtest target，导出集按规范化target名精确匹配，避免子串误报/漏报。validator提交`9ab0a24`对应CI #42981498450五个jobs全部SUCCESS；新增target类型负向测试及相似名称非泄漏测试提交`93a1f52`对应CI #42981522435五个jobs全部SUCCESS。以上为知识库Python/静态合同验证，不替代ROS Jazzy动态验收。 本轮继续补齐诊断工具target类型合同：固定上游`add_executable(test_receive_robot_state ...)`，validator现要求OFF/ON两份快照中该target均为`EXECUTABLE`，并新增将其伪装为`STATIC_LIBRARY`时必须失败的负向测试。validator提交`a96f3c8`对应CI #42980931735五个jobs全部SUCCESS；负向测试提交`02596ca`对应CI #42980948186五个jobs全部SUCCESS。以上仍为知识库Python/静态合同验证，不代表ROS Jazzy动态构建验收。
@@ -5256,3 +5256,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 新增静态回归测试；本轮普通CI结果待GitHub Actions验证。新的Azure镜像配置尚未经过真实ROS Jazzy运行验证，不能标记依赖准备通过。
 - 第21章Stäubli专项推进至§9.3.339。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
 - **当前任务节点：根当前任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.339。先验证本轮普通CI，再由用户基于最新main手动启动ROS Jazzy Run #9。**
+
+
+### 2026-11-12｜v11.55：Azure Ubuntu镜像切换回归修复及普通CI通过
+
+- Run #8确认Ubuntu Noble archive/security域名DNS持续失败；已将容器Ubuntu源配置切换到Microsoft文档建议的Azure官方Ubuntu archive，并保留APT Candidate门禁与重试。
+- 镜像脚本首次提交的普通CI成功；新增回归测试首轮因测试中正则转义错误而失败，已修正。最终提交 `e1e5741eea3c187689936943a2b5c60380878df2`对应Run `43130887111` completed/success，Python 3.10/3.11/3.12、SBOM、OSV五个Job全部SUCCESS。
+- 普通CI成功只证明静态测试和shell语法，不证明Azure镜像在固定ROS Jazzy容器中可访问。下一步须在最新main SHA手动启动专用workflow，验证Azure镜像Candidate、ROS依赖及OFF/ON build/install。
+- 第21章Stäubli专项推进至§9.3.340。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权；固定上游commit `bd658e2d266e315d2ee35f985fb352ea88306b79`保持只读。
+- **当前任务节点：根当前任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.340。等待用户基于最新main SHA `e1e5741eea3c187689936943a2b5c60380878df2`手动启动ROS Jazzy Run #9。**
