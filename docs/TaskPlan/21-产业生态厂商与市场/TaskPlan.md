@@ -6318,3 +6318,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 规划通过后增加mock trajectory action/feedback验证；禁止真实硬件执行。
 
 **状态：** build/install/consumer、readiness、mock bringup核心门槛PASS；MoveIt planning/action仍BLOCKED。详见审计§24。
+
+
+### §9.3.354｜Headless mock bringup测试接入CI与新pin复验（2026-11-12）
+
+- [x] 新增headless mock bringup launch test，强制mock hardware、loopback IP、无GUI；检查controller_manager两个controller active及六关节joint_states。
+- [x] 镜像CI Run `43180150233` SUCCESS；mock bringup launch test 1/1、readiness pytest 2/2、MoveIt planning launch test 1/1通过；colcon 72 tests、0 errors、0 failures、0 skipped。
+- [ ] 修复Format Run `43180150172`中Black自动改写未提交的问题，重新要求Format SUCCESS。
+- [ ] 调查MoveIt测试规划成功后move_group SIGSEGV（exit -11）及controller activation shutdown exit -2；确认launch teardown进程返回码。
+- [x] 知识库workflow/script/regression assertion pin更新到镜像SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`。
+- [ ] 检查最终知识库HEAD `96ebe334664bcb7ae008f39218e3c301649324d6`对应普通CI Run `43183161866`和ROS Jazzy专项Run `43183161697`；新SHA矩阵通过后方可更新build/install gate。
+- [ ] 后续验证mock trajectory action/feedback及MoveIt shutdown稳定性；不连接真实控制器。
+
+**状态：** mock bringup测试CI PASS；MoveIt规划断言PASS但shutdown异常未解决；旧pin build/install/consumer PASS，新pin矩阵待复验；Format待修复。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§22。
