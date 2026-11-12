@@ -438,3 +438,22 @@
 - 首轮Format Run `43176950462`在Black步骤失败，日志明确指出仅`test_mock_bringup.launch.py`需要重新格式化；clang-format通过，Documentation Run `43176950570`成功。
 - 已按Black输出调整测试文件，修复提交SHA `49d720fde6e95586026e888b583f7f68ecef9400`。
 - 修复SHA对应CI Run `43177314945`、Format Run `43177315000`、Documentation Run `43177314966`仍在运行。以修复SHA的结果为准，首轮Format失败保留为历史记录，不作为最终通过证据。
+
+
+## 23. Jazzy launch运行时导入错误修复（2026-11-12）
+
+### 23.1 首轮集成测试发现的问题
+
+- 镜像SHA `e1124f29c726a06074bf2f97d23c949a72249fcd`的CI Run `43176950518`失败：新launch test执行时，`launch_robot_control.launch.py`导入`LogError`失败，ROS Jazzy的`launch.actions`中不存在该符号。
+- 失败发生在launch解析/导入阶段，controller_manager尚未启动，不能把它归因为控制器状态或mock硬件问题。
+- 同时检查发现`launch_moveit.launch.py`也引用同一个无效`LogError`，会在MoveIt路径触发相同问题。
+- 原有`test_wait_for_robot_ready`两项pytest在该run中通过；launch integration测试失败。该run的colcon汇总存在失败项，整体CI为FAIL。
+
+### 23.2 修复
+
+- 已在`staubli_bringup/launch/launch_robot_control.launch.py`和`staubli_bringup/launch/launch_moveit.launch.py`移除不受支持的`LogError`导入及调用，改用Jazzy支持的`LogInfo`输出明确的`ERROR:`前缀，再通过`EmitEvent(Shutdown(...))`执行失败关闭。
+- 修复提交：`cd8f6446888554f4d9c0485d751ac2ff04e586e3`及`755a710b8f5348b14f2f65e47cd882200ffdc877`。
+- 最新镜像SHA `755a710b8f5348b14f2f65e47cd882200ffdc877`的CI Run `43177972372`、Format Run `43177972439`、Documentation Run `43177972523`仍在运行。修复尚未取得CI通过证据。
+- 先前Format修复链也出现Black行宽配置未按仓库`--line-length=99`执行导致的重复失败；当前测试文件已按仓库99字符配置调整，最终应以SHA `755a710...`检查为准。
+
+**状态：** Jazzy launch import问题已提交修复，验证待最新镜像CI完成；headless mock bringup仍BLOCKED。不得更新知识库ROS Jazzy源码pin至新SHA，直到镜像Format/CI/Documentation通过。
