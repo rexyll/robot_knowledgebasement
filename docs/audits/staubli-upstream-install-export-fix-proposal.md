@@ -65,6 +65,18 @@ A proposed upstream change is acceptable only when all of the following pass on 
 - No consumer-side preemptive `find_package(Boost)`, fake include directories, or post-install export rewriting.
 - Preserve the fixed source commit and complete evidence manifest/hash checks for each candidate run.
 
-## Authorization boundary
+## Authorization and implementation status
 
-This proposal does not modify the upstream repository. Do not create an upstream branch, commit, or pull request until the user explicitly authorizes that action. Until an upstream fix is available and the complete matrix passes, SERVO-906 and SERVO-907 remain BLOCKED.
+The user explicitly authorized implementation on their fork. The minimal patch has been committed to:
+
+- Repository: https://github.com/rexyll/staubli_driver_ros2
+- Branch: `fix/install-export-boost-asio`
+- Base: `bd658e2d266e315d2ee35f985fb352ea88306b79`
+- Commits:
+  - `679cc4dd939484eeb9c72fb12c163a2b53b407b2` — remove invalid PUBLIC ASIO include and make Boost::system PRIVATE.
+  - `6bbddecaaf9567bd463eacb7a04f6c2295b10bee` — declare the Boost package dependency.
+- The fork branch was re-read after the writes; both file changes are present. The branch is two commits ahead of, and zero commits behind, the pinned base.
+
+An attempt to create a pull request from `rexyll:fix/install-export-boost-asio` to `ICube-Robotics/staubli_driver_ros2:main` was rejected with HTTP 403 `Resource not accessible by integration`. The connection has verified fork read/write access but cannot create a PR in the upstream repository. No substitute PR against the fork itself was created.
+
+Next action: the user can open the PR in GitHub from the fork branch to upstream main. Once it exists, validate the PR CI and run the complete ROS Jazzy matrix: OFF/ON clean build/install, independent install-space consumer configure/build, and all gtest suites. The fork commits are a proposed fix, not yet validated or accepted upstream. Until the complete matrix passes, SERVO-906 and SERVO-907 remain BLOCKED.
