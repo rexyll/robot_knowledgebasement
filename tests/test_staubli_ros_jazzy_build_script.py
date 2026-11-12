@@ -335,8 +335,8 @@ def test_retry_apt_script_prefers_official_azure_ubuntu_archive_mirror():
     assert "configure_ubuntu_apt_mirror()" in content
     assert "/etc/apt/sources.list.d/*.sources" in content
     assert "/etc/apt/sources.list.d/*.list" in content
-    assert "archive\\\\.ubuntu\\\\.com" in content
-    assert "security\\\\.ubuntu\\\\.com" in content
+    assert "archive\\.ubuntu\\.com" in content
+    assert "security\\.ubuntu\\.com" in content
     assert "azure.archive.ubuntu.com/ubuntu" in content
     assert content.index("configure_ubuntu_apt_mirror\\n") < content.index(
         "APT_INDEX_REFRESH_ATTEMPT"
