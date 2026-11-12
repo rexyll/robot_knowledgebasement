@@ -97,3 +97,12 @@ MoveIt test 末尾的 `time.sleep(1.0)` 不能证明 controller activation 子�
 - PR head combined status查询为空，PR workflow runs查询也为空；尚无Format、Documentation、ROS Jazzy CI或runtime launch test结果。
 - 本轮没有运行ROS Jazzy容器，也没有真实CS9/HIL验证；当前源码修复状态为“已提交待验证”，不是PASS。
 - 只有PR head的CI与MoveIt teardown运行时退出码全部通过后，才允许更新知识库源码pin并重跑OFF/ON矩阵。
+
+
+### 6.4 PR自动检查状态更新
+
+在PR创建后再次查询到：
+- CI Run `43189959860`，job `build_and_test`，状态 `in_progress`；容器初始化、checkout、pip权限配置成功，正在执行 `ros-tooling/action-ros-ci@0.4.8`。
+- Format Run `43189960017`，job `Format`，状态 `in_progress`；初始化、checkout、safe-directory配置及pre-commit安装成功，正在执行pre-commit。
+- combined status接口仍返回空statuses；应以workflow run/job最终结论为准。
+- 当前未发现Documentation run；MoveIt mock launch test的ROS Jazzy实际退出码仍待CI/运行时结果。
