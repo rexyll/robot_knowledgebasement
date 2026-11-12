@@ -128,8 +128,8 @@ cmake_minimum_required(VERSION 3.8)
 project(staubli_install_consumer)
 find_package(ament_cmake REQUIRED)
 # Do not resolve Boost in the consumer before loading the installed package.
-# The fixed upstream links Boost::system but omits Boost from
-# ament_export_dependencies(); pre-finding Boost would mask that export defect.
+# The package exports Boost without forwarding the required "system"
+# component; pre-finding Boost here would mask the missing imported target.
 find_package(staubli_robot_driver REQUIRED)
 add_executable(staubli_install_consumer main.cpp)
 target_link_libraries(staubli_install_consumer PRIVATE staubli_robot_driver::staubli_robot_driver)
