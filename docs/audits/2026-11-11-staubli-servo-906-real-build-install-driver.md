@@ -204,3 +204,14 @@
 - 没有创建指向fork自身main的替代PR，也没有尝试绕过权限。修复分支与两个提交均保留在用户fork，可直接从该分支向上游main发起PR。
 - **状态：** 修复已提交到用户fork；上游PR尚未创建；PR CI、OFF/ON clean build/install、独立consumer configure/build和gtest矩阵均待验证。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - 下一步：由用户在GitHub网页上从fork分支 `fix/install-export-boost-asio` 向 `ICube-Robotics/staubli_driver_ros2:main` 创建PR；PR建立后，本连接可继续检查PR状态、review意见和Actions结果，并据失败证据修复fork分支。
+
+
+## 14. 上游PR #9建立与CI等待授权（2026-11-12）
+
+- 用户已确认PR建立。GitHub核验PR：[#9 Fix/install export boost asio](https://github.com/ICube-Robotics/staubli_driver_ros2/pull/9)，状态OPEN，base为`ICube-Robotics:main`，head为`rexyll:fix/install-export-boost-asio`。
+- PR head SHA：`6bbddecaaf9567bd463eacb7a04f6c2295b10bee`；base SHA仍为固定基线`bd658e2d266e315d2ee35f985fb352ea88306b79`。PR包含2个commit、2个文件、2 additions/2 deletions；与此前候选修复一致。
+- GitHub API确认PR `mergeable=true`，但`mergeable_state=blocked`，尚未合并。当前无review submission、无inline review thread、无PR评论。
+- PR触发两个workflow：Format Run `43158192705`、CI Run `43158192776`。两者均为`completed/action_required`，jobs列表为空，commit status为pending且0个checks。此状态不是测试失败，也不是成功；说明GitHub尚未实际执行这些fork PR workflow（需要仓库维护者批准/允许该fork workflow运行）。
+- PR检查入口：Format https://github.com/ICube-Robotics/staubli_driver_ros2/actions/runs/43158192705；CI https://github.com/ICube-Robotics/staubli_driver_ros2/actions/runs/43158192776。请仓库维护者在GitHub Actions界面批准来自fork的workflow运行；获批后再读取全部jobs/steps与check结果。
+- PR仓库现有CI只有Format和通用CI；目前没有证据表明其覆盖本项目要求的ROS Jazzy OFF/ON colcon build/install、无预先Boost查找的独立install-space consumer、七份gtest XML及证据manifest。因此即使上游PR通用CI后续变绿，仍须另行完成专项ROS Jazzy动态验收。
+- 当前结论：修复已提交并通过PR提交链路送达上游维护者审查，但尚未获CI执行、尚未合并、尚未在修复分支完成真实ROS Jazzy验收。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
