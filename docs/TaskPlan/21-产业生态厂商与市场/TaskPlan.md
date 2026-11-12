@@ -6331,3 +6331,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 后续验证mock trajectory action/feedback及MoveIt shutdown稳定性；不连接真实控制器。
 
 **状态：** mock bringup测试CI PASS；MoveIt规划断言PASS但shutdown异常未解决；旧pin build/install/consumer PASS，新pin矩阵待复验；Format待修复。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§22。
+
+
+### §9.3.355｜新pin ROS Jazzy矩阵复验通过（2026-11-12）
+
+- [x] 最终知识库HEAD `63910bf081594381806571d7bd1adf2e2be5373d`普通CI Run `43183333429`及专项Run `43183333433`均SUCCESS。
+- [x] 新pin镜像SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c` BUILD_TESTING OFF/ON build/install通过；两套独立install-space consumer均真实执行成功。
+- [x] 7/7 gtest XML PASS；colcon 53 tests、0 errors、0 failures、0 skipped；validator及manifest PASS。
+- [x] 证据Artifact `13927418549`，ZIP SHA256 `d1562f22b84f01d2fd6a6d793e1f6cb6912e74fa9f130dc9ef74fdcc6c85c2fb`。
+- [ ] 验证最新镜像SHA `84ba020e784fd7a8ab43b9c7a9f538b0a352db67` controller-active等待整改的CI/Format；确认MoveIt teardown SIGSEGV是否消失。
+- [ ] 如最新镜像CI/Format通过，更新源码pin并重跑ROS Jazzy矩阵；后续补mock trajectory action/feedback与MoveIt优雅关闭检查。
+
+**状态：** build/install/consumer gate PASS（pin `9e617a9...`）；MoveIt teardown待验证；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§23。
