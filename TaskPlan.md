@@ -5378,3 +5378,6 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 新增headless mock bringup launch test暴露`launch.actions.LogError`在ROS Jazzy不存在，导致launch在启动前导入失败；bringup与MoveIt launch均存在该问题。
 - 已替换为Jazzy支持的`LogInfo`错误日志并保留Shutdown失败关闭；最新镜像SHA `755a710b8f5348b14f2f65e47cd882200ffdc877`的CI/Format/Documentation待完成。
 - **当前任务节点：根主线仍为第00章00-01；第21章并行专项推进至§9.3.355。下一步以最新SHA验证launch修复，继续排查mock controller lifecycle；通过后更新源码pin并重跑ROS Jazzy矩阵，再进行MoveIt headless与mock trajectory action/feedback。SERVO-906/907整体BLOCKED。**
+
+
+- 补充：Jazzy launch action替换后，flake8发现MoveIt launch缺少LogInfo导入（F821），已在镜像SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`修复；其CI/Format/Documentation仍待最终结果。详见第21章§9.3.355与审计§23。
