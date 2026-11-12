@@ -5293,3 +5293,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 第21章Stäubli并行专项推进至§9.3.343；审计更新见`docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §13及`docs/audits/staubli-upstream-install-export-fix-proposal.md`。
 - SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。根当前任务节点仍为第00章00-01。
 - **当前任务节点：根当前任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.343。fork修复分支已提交，等待上游PR建立后开展完整动态验收。**
+
+
+### 2026-11-12｜v11.59：Stäubli上游PR #9建立，等待fork workflow审批
+
+- 用户确认PR已创建；已核验 [ICube-Robotics/staubli_driver_ros2#9](https://github.com/ICube-Robotics/staubli_driver_ros2/pull/9) OPEN，head `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`，base仍为固定上游基线 `bd658e2d266e315d2ee35f985fb352ea88306b79`。PR仅涉及预期的CMakeLists与package.xml两个文件。
+- PR的Format Run `43158192705`和CI Run `43158192776`均显示`completed/action_required`，尚无jobs，commit status pending/0 checks；需上游维护者批准fork workflow运行。PR尚无review/评论，未合并。
+- 本节点只记录PR提交与CI审批门禁，不代表修复已验证或合并。仍须完成ROS Jazzy OFF/ON build/install、独立consumer、七份gtest与证据包验收。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- 根计划当前任务节点仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.344。
