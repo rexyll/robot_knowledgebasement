@@ -6220,3 +6220,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 补齐headless mock bringup launch_testing与mock-only trajectory action/反馈验证。
  
 **状态：** build/install与独立consumer子门槛再次PASS；runtime/MoveIt子门槛BLOCKED；SERVO-906/907整体BLOCKED。详见专项审计§17、§18。
+
+### §9.3.351｜Mock readiness gate第一轮修复已提交，等待最新镜像CI（2026-11-12）
+
+- [x] `wait_for_robot_ready.py`增加30秒超时与非零失败码；检查robot_description非空和joint_states包含六个预期关节。
+- [x] 修复QoS兼容：robot_description为TRANSIENT_LOCAL，joint_states为BEST_EFFORT + VOLATILE，避免与默认volatile发布端不兼容。
+- [x] MoveIt仅在readiness process returncode==0时启动；controller spawner非零退出触发launch Shutdown。
+- [x] 补齐bringup运行/测试依赖，注册pytest；新增完整六关节ready正向测试、不完整关节拒绝测试及timeout非零退出测试。
+- [x] 中间SHA `8beb536fbfa6875c453cce8d0f09ccb55c002cb9` CI SUCCESS，日志readiness正向pytest 1/1通过；SHA `169987322f1cc6f3393a3f85d36f32ad13fa0076` Format和Documentation SUCCESS。
+- [ ] 等待最新镜像HEAD `abd75ff956b4fb07a76705abcb8fd506b2985aaa`的Format Run `43173412955`、Documentation Run `43173412938`、CI Run `43173412883`；尤其核验timeout负向测试。
+- [ ] 最新镜像SHA CI全通过后，将知识库专项矩阵source pin更新至该SHA，重新运行ROS Jazzy OFF/ON build/install/consumer并归档新证据。
+- [ ] 新增headless mock bringup launch_testing、controller lifecycle、MoveIt headless与mock trajectory action验证。
+
+**状态：** readiness逻辑已提交，最新HEAD CI待完成；旧SHA build/install/consumer证据子门槛PASS，最新runtime/MoveIt launch integration仍BLOCKED。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§19。
