@@ -80,3 +80,11 @@ The user explicitly authorized implementation on their fork. The minimal patch h
 An attempt to create a pull request from `rexyll:fix/install-export-boost-asio` to `ICube-Robotics/staubli_driver_ros2:main` was rejected with HTTP 403 `Resource not accessible by integration`. The connection has verified fork read/write access but cannot create a PR in the upstream repository. No substitute PR against the fork itself was created.
 
 Next action: the user can open the PR in GitHub from the fork branch to upstream main. Once it exists, validate the PR CI and run the complete ROS Jazzy matrix: OFF/ON clean build/install, independent install-space consumer configure/build, and all gtest suites. The fork commits are a proposed fix, not yet validated or accepted upstream. Until the complete matrix passes, SERVO-906 and SERVO-907 remain BLOCKED.
+
+
+## 7. PR #9 已建立，等待上游维护者批准fork CI（2026-11-12）
+
+- PR：[ICube-Robotics/staubli_driver_ros2#9](https://github.com/ICube-Robotics/staubli_driver_ros2/pull/9)，从`rexyll:fix/install-export-boost-asio`合入`main`，head `6bbddecaaf9567bd463eacb7a04f6c2295b10bee`，base `bd658e2d266e315d2ee35f985fb352ea88306b79`。
+- PR处于OPEN且GitHub报告mergeable=true，但mergeable_state=blocked；没有review和评论。
+- Format Run `43158192705`、CI Run `43158192776`均为completed/action_required，未创建jobs，commit status pending/0 checks。需要上游维护者批准fork触发的workflow运行。
+- 上游现有Format/CI不等于ROS Jazzy真实构建验收。合并前后均需执行OFF/ON colcon build/install、独立consumer configure/build（不得预先find_package Boost）、七份gtest及证据校验。SERVO-906/907保持BLOCKED，直到专项验收全部通过。
