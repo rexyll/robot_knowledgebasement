@@ -365,3 +365,32 @@
 4. 对真实CS9/VAL3、HIL、网络隔离及运动安全另行设门槛。
 
 **状态：** readiness逻辑第一轮修复已提交；最新镜像SHA的CI仍待完成；launch级端到端bringup/MoveIt/trajectory测试尚未完成。build/install/consumer子门槛仍PASS（旧固定SHA的证据）；SERVO-906/907整体BLOCKED。
+
+
+## 20. Readiness修复CI通过并更新ROS Jazzy验证源码固定版本（2026-11-12）
+
+### 20.1 镜像最新源码CI证据
+
+- 用户镜像 `rexyll/staubli_driver_ros2_from_org` HEAD `abd75ff956b4fb07a76705abcb8fd506b2985aaa` 的CI Run [43173412883](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43173412883) completed / success。
+- 唯一job `build_and_test`（job ID `131031848855`）SUCCESS；新增 `test_wait_for_robot_ready.py` 两项pytest均通过，其中包含完整六关节QoS readiness正向场景及timeout非零退出负向场景。
+- colcon汇总68 tests、0 errors、0 failures、0 skipped；新增readiness测试报告2 passed。Format Run `43173412955`与Documentation Run `43173412938`也均SUCCESS。
+- 日志中的 `geninfo` 无`.gcno/.gcda`及coverage.info缺失属于覆盖率采集/报告问题；不影响本次Actions结论，但覆盖率报告本身仍不可用。另有mock硬件测试输出预期的模拟连接错误日志，不等同于测试失败。
+
+### 20.2 知识库验证源码pin更新
+
+- 已将以下三个文件中旧固定SHA `1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f`替换为新镜像SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa`：
+  - `.github/workflows/staubli-ros-jazzy-build.yml`：checkout SHA及HEAD一致性断言；
+  - `scripts/run_staubli_build_testing_matrix.sh`：默认EXPECTED_UPSTREAM_COMMIT；
+  - `tests/test_staubli_ros_jazzy_build_script.py`：源码pin回归断言。
+- 变更提交依次为 `344c13fcd0718ccf9facf09c7641f9a675a2d494`、`fee2c972a2ad92897dbed2ddf3c115e120119d58`、`8025ca10b5826241cd684982416855a4df7a69e3`；当前main HEAD为最后一个提交。
+- push触发知识库CI Run `43175490804`（进行中）及ROS Jazzy专项Run `43175490783`（排队中）。前两个中间提交也触发了workflow，其中较早的专项run出现cancelled；这些中间run不作为最终验收依据。必须以最终HEAD对应run为准。
+- 本节记录的是pin更新与workflow触发，不是新SHA下ROS Jazzy矩阵通过。待最终专项run成功后，才可把build/install/consumer证据子门槛更新为新SHA有效。
+
+### 20.3 下一步与状态边界
+
+1. 检查最终HEAD `8025ca10b5826241cd684982416855a4df7a69e3`对应普通CI与ROS Jazzy专项Run；如失败，先修知识库workflow/脚本，再重跑。
+2. 专项成功后核验OFF/ON build/install、独立consumer实际执行、7/7 gtest、validator、evidence manifest和artifact SHA-256。
+3. 之后实施headless mock bringup launch_testing，确认GenericSystem、controller_manager及两个controller lifecycle；再做MoveIt headless与mock-only trajectory action。
+4. 上游PR #9仍OPEN且未合并；镜像CI不等于上游main修复。无真实控制器/HIL/现场运动测试。
+
+**状态：** readiness逻辑在用户镜像SHA `abd75ff...`上的CI子门槛PASS；知识库source pin已更新，但新pin下ROS Jazzy专项矩阵仍待最终HEAD workflow完成。runtime launch integration仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
