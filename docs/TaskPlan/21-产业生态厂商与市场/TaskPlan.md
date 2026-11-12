@@ -6192,3 +6192,20 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 跟踪上游PR #9：当前OPEN、未合并，Format/CI为action_required，尚无review/评论；需要维护者批准workflow并审查。
  
 **状态：** ROS Jazzy build/install与OFF/ON独立consumer证据子门槛PASS；runtime/仿真端到端尚未验收。SERVO-906/907整体继续BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详细审计见专项审计§16。
+
+### §9.3.349｜Mock bringup与MoveIt readiness gate风险细化（2026-11-12）
+
+- [x] 检查`staubli.r2c.xacro`确认mock true加载`mock_components/GenericSystem`，真实false分支才加载Stäubli UDP硬件插件；mock模式的`robot_ip`参数不进入真实驱动插件。
+- [x] 检查controller配置：250 Hz controller_manager、joint_state_broadcaster、6关节position trajectory controller。
+- [x] 检查`wait_for_robot_ready.py`：仅等待robot_description和joint_states，没有超时；`launch_moveit.launch.py`的OnProcessExit不检查returncode，异常退出仍可能启动MoveIt。
+- [x] 检查controller spawner退出处理：后续激活命令未按returncode做成功门控。
+- [x] 确认`test_launch_mocked.py`仍只有TODO，bringup test目录只有占位文件，尚无真正的launch_testing。
+- [ ] 修复readiness wait超时、数据内容/6关节校验和失败非零退出。
+- [ ] 修复MoveIt启动门控，仅returncode==0才include；失败应触发launch Shutdown。
+- [ ] 修复controller spawner状态切换门控，仅成功退出才执行activate。
+- [ ] 新增headless mock bringup launch_testing：显式mock true、robot_ip loopback、gui false；断言GenericSystem、controller_manager和两个controller生命周期。
+- [ ] 增加mock-only有限幅度trajectory action与joint_states反馈测试。
+- [ ] 增加wait超时、异常退出、spawner失败的负向测试；以日志和明确失败码验收。
+- [ ] 跟踪上游PR #9维护者review与workflow审批，不把镜像验收等同于上游main合并。
+
+**状态：** 本节新增项是已完成的只读源码审查；所有代码修复与ROS launch测试仍未完成。build/install与独立consumer子门槛PASS，runtime/MoveIt子门槛BLOCKED；SERVO-906/907整体BLOCKED。详见专项审计§17。
