@@ -394,3 +394,29 @@
 4. 上游PR #9仍OPEN且未合并；镜像CI不等于上游main修复。无真实控制器/HIL/现场运动测试。
 
 **状态：** readiness逻辑在用户镜像SHA `abd75ff...`上的CI子门槛PASS；知识库source pin已更新，但新pin下ROS Jazzy专项矩阵仍待最终HEAD workflow完成。runtime launch integration仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+## 21. 新源码SHA的ROS Jazzy build/install/consumer矩阵通过（2026-11-12）
+
+### 21.1 最终HEAD与工作流结论
+
+- 知识库main HEAD：`f79ca6ae7e89e021ef9900f4687c84d5fd884bfd`。
+- ROS Jazzy专项Run [43175652104](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43175652104) completed / success；job `Pinned ROS Jazzy build/install matrix` ID `131039357412` SUCCESS。
+- 本次矩阵检出的镜像源码SHA为 `abd75ff956b4fb07a76705abcb8fd506b2985aaa`，即前节通过mirror CI的runtime/readiness修复版本。
+
+### 21.2 结果
+
+- BUILD_TESTING=OFF和ON两种配置的build/install均成功。
+- 两种配置均构建独立install-space consumer，并实际执行成功：日志分别出现 `INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=OFF` 与 `INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=ON`。
+- 7/7 upstream gtest XML suites通过；colcon汇总 `53 tests, 0 errors, 0 failures, 0 skipped`。
+- Validator `execution_status=PASS`，manifest检查 `checked_artifact_count=5` 且五项均PASS；日志输出 `SERVO-906_BUILD_INSTALL_EVIDENCE_PASS`。
+- 证据Artifact [13924820027](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43175652104/artifacts/13924820027)，名称 `staubli-ros-jazzy-build-install-evidence`，大小48,847,855 bytes；ZIP SHA256 `2526ae1b3e1d9a5580e7afda4ee67d7aaa957c7b3b5ffa76cacc932260caf37a`。
+
+### 21.3 解释与边界
+
+- 本次日志中mock server/硬件接口测试出现若干ERROR级模拟日志（如未连接控制端口、缺少关节描述），但对应gtest均明确PASSED，colcon零失败；不得将预期mock负向场景日志误记为CI失败。
+- build/install/Boost exported-target/独立consumer子门槛在当前pin SHA上PASS。此结果不等同于bringup launch、controller lifecycle、MoveIt规划/执行或真实机器人运动通过。
+- 后续需新增并运行headless mock bringup launch_testing：验证xacro生成、GenericSystem、controller_manager、joint_state_broadcaster、joint_trajectory_controller的加载/激活和状态；再验证MoveIt headless planning及mock trajectory action/feedback。不能在launch tests中连接真实机器人。
+- PR #9仍OPEN且未合并；真实控制器/HIL/现场运动安全验收未执行。
+
+**状态：** SERVO-906 build/install/consumer gate PASS（当前镜像SHA `abd75ff...`）；runtime bringup/MoveIt integration仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
