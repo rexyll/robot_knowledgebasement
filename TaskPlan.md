@@ -5381,3 +5381,6 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 
 - 补充：Jazzy launch action替换后，flake8发现MoveIt launch缺少LogInfo导入（F821），已在镜像SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`修复；其CI/Format/Documentation仍待最终结果。详见第21章§9.3.355与审计§23。
+
+
+- 补充：镜像SHA `755a710...`的ROS CI Run `43177972372`通过，headless mock bringup实测GenericSystem初始化、JSB/trajectory controller active及六关节joint_states断言通过；70 tests零失败。测试结束时存在CLI子进程SIGINT关闭噪声，后续需评估优雅退出。该SHA Format因MoveIt LogInfo漏导入失败，已在最新SHA `5b2196f...`修复，最新SHA CI/Format/Docs待完成。详见审计§23.4。
