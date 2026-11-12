@@ -5342,3 +5342,13 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 中间SHA 8beb536 CI SUCCESS，日志确认readiness正向pytest 1/1通过；169987322 Format和Documentation SUCCESS。最新HEAD abd75ff956b4fb07a76705abcb8fd506b2985aaa的Format/Documentation/CI仍在执行，timeout subprocess负向测试尚待最新CI结果。
 - 审计见第21章§9.3.351及专项审计§19。
 - **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.351。下一步核验镜像最新SHA CI；通过后将知识库ROS Jazzy workflow source pin更新至abd75ff并重跑OFF/ON矩阵。随后补headless mock bringup、MoveIt和mock trajectory launch integration。SERVO-906 build/install/consumer子门槛基于旧SHA仍PASS；runtime/MoveIt子门槛及SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜v11.65：Stäubli readiness CI通过并更新ROS Jazzy源码pin
+
+- 用户镜像SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa`的Format、Documentation、CI全部SUCCESS；CI Run `43173412883`，readiness测试2 passed，colcon 68 tests、0 errors、0 failures、0 skipped。
+- 确认timeout负向测试通过，readiness QoS与关节完整性检查已进入CI；MoveIt和controller spawner失败门控已提交至用户镜像。
+- 已更新知识库ROS Jazzy workflow、矩阵脚本默认源码pin及Python回归断言至新SHA。知识库main最新提交为`8025ca10b5826241cd684982416855a4df7a69e3`。
+- 新pin下普通CI Run `43175490804`进行中，专项ROS Jazzy Run `43175490783`排队中；前序中间提交触发的专项run有cancelled，不能拿来替代最终HEAD证据。
+- 审计详见第21章TaskPlan §9.3.352与专项审计§20。
+- **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.352。下一步核验最终HEAD的普通CI与新pin ROS Jazzy OFF/ON build/install/consumer矩阵；通过后继续headless mock bringup、MoveIt与mock trajectory integration。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
