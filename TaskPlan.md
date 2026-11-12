@@ -5319,3 +5319,11 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 已将下一阶段拆为mock controller bringup、MoveIt headless launch、mock-only有限幅值轨迹、真实CS9/HIL独立验收；详细见第21章TaskPlan §9.3.348及专项审计§16。
 - 上游PR #9仍OPEN、未合并，Format/CI action_required且无review/评论；需要维护者批准workflow运行。
 - **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.348。ROS Jazzy build/install与独立consumer证据子门槛PASS；下一步进入无真实硬件的mock bringup/MoveIt integration验证，SERVO-906/907整体保持BLOCKED。**
+
+### 2026-11-12｜v11.62：细化Stäubli mock bringup与MoveIt readiness验收门槛
+
+- 固定镜像源码审查发现：mock Xacro分支确实加载GenericSystem，不加载真实Stäubli UDP plugin；但launch参数仍保留真实IP默认值，测试应显式覆盖loopback并运行时确认plugin类型。
+- wait_for_robot_ready.py无超时，且launch_moveit对OnProcessExit不检查returncode，异常退出仍可能继续启动MoveIt；controller spawner退出后的激活命令也缺少成功门控。mock launch测试文件仍只有TODO。
+- 已把具体缺口、风险与负向测试要求写入第21章§9.3.349和专项审计§17。
+- 当前知识库最新main的普通CI Run 43171335549 SUCCESS。ROS Jazzy专项Run 43171335488仍在OFF/ON build/install/consumer矩阵阶段，尚未出结论；不得提前宣布通过。
+- **当前任务节点：根主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.349。下一步先完成当前专项Run结果核验，再在用户镜像上修复readiness timeout/returncode gate，并补充headless mock bringup launch_testing与trajectory action验证。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
