@@ -5412,3 +5412,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - MoveIt teardown分析定位到launch_testing SIGINT时controller activation CLI仍在Python导入，且move_group在rclcpp Executor析构时SIGSEGV。已增加controller lifecycle等待与测试依赖，最新镜像SHA `84ba020...` CI/Format待完成，尚不声称问题已解决。
 - 审计见第21章专项审计§23及TaskPlan §9.3.355。
 - **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.355。下一步检查最新镜像CI/Format与MoveIt teardown整改；通过后更新源码pin、重跑矩阵，再验证mock trajectory action/feedback。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜Stäubli §9.3.357：MoveIt teardown 与 controller lifecycle 缺口复审
+
+- 用户镜像最新检索提交为 `4f9a37e12038174a010a9ad1f4523807fbb1434b`；该提交只显示 Black 格式修复，当前 combined status 无可核验检查结果。
+- 静态复审发现：MoveIt mock planning test 尚无 post-shutdown 退出码断言；固定 sleep 1 秒不能证明 launch teardown 正常。robot control launch 中 joint_state_broadcaster spawner 缺少失败关闭，controller activation ExecuteProcess 缺少 returncode gate；MoveIt readiness 的 returncode gate 已存在。
+- 新增审计：`docs/audits/2026-11-12-staubli-moveit-mock-planning-teardown-audit.md`；第21章TaskPlan推进至§9.3.357。
+- 不修改原始上游，不连接真实控制器，不执行真实运动；当前镜像新 SHA 的 CI 与新 pin ROS Jazzy 矩阵均未验证。
+- **当前任务节点：根主线仍为第00章00-01；第21章Stäubli专项推进至§9.3.357。下一步修复post-shutdown退出码验收、spawner/activation失败门控，完成用户镜像最新SHA CI后再更新pin并重跑OFF/ON矩阵。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
