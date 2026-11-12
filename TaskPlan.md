@@ -5393,3 +5393,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - 证据Artifact `13925362748`，SHA256 `85a9fbf822a8ca9927e5ad6df5b747ac2557494af49233775dd3a97fd76a5827`。
 - 用户镜像已新增MoveIt mock-only headless planning测试，目标为`/move_action`六关节plan_only，不执行轨迹；新测试尚待CI。镜像main已高于当前知识库pin，必须等新测试通过再更新pin。
 - **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.356。下一步修复并验证MoveIt headless规划；通过后验证mock trajectory action/feedback，再固定新SHA并重跑矩阵。SERVO-906/907整体仍BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
+
+
+### 2026-11-12｜v11.67：Stäubli headless mock bringup集成测试
+
+- 用户镜像SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`已接入headless mock bringup launch test；要求mock硬件、loopback IP、无GUI，验证controller lifecycle及六关节joint_states。镜像CI Run `43180150233`通过，colcon 72 tests、0 errors、0 failures、0 skipped。
+- MoveIt mock planning规划断言通过，但shutdown阶段move_group SIGSEGV（exit -11）及controller activation退出异常（exit -2）仍需排查；Format Run `43180150172`因Black自动改写未提交而失败。
+- 知识库ROS Jazzy workflow/script/regression test源码pin已更新到`9e617a9e323ef3342f5151a89239bfd93c089f8c`；最终知识库HEAD `96ebe334664bcb7ae008f39218e3c301649324d6`普通CI及专项矩阵运行中。此前成功矩阵Run `43175652104`实际验证旧SHA `abd75ff...`，不可视作新SHA证据。
+- 审计见第21章专项审计§22及TaskPlan §9.3.354。
+- **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.354。下一步核验最终HEAD新pin ROS Jazzy矩阵，修复Black格式门槛，排查MoveIt shutdown SIGSEGV并验证mock trajectory action/feedback。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
