@@ -27,7 +27,7 @@ def test_build_matrix_uses_fixed_upstream_validator_and_real_build_install():
 
 def test_build_matrix_requires_pinned_clean_owned_jazzy_source():
     content = SCRIPT.read_text(encoding="utf-8")
-    assert "1847c945b83cb4a111a3799b2b10b5e7cf2b9885" in content
+    assert "febf8cfd89bc8b2b4004300990e39dbf78de800e" in content
     assert '[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]]' in content
     assert '[[ "${ROS_DISTRO}" == "jazzy" ]]' in content
     assert "find_package(backward_ros REQUIRED)" in content
@@ -118,8 +118,8 @@ def test_ros_workflow_pins_image_and_owned_validation_source():
     )
     assert image_digest in workflow
     assert "https://github.com/rexyll/staubli_driver_ros2_from_org.git" in workflow
-    assert "1847c945b83cb4a111a3799b2b10b5e7cf2b9885" in workflow
-    assert 'rev-parse HEAD)" = "1847c945b83cb4a111a3799b2b10b5e7cf2b9885"' in workflow
+    assert "febf8cfd89bc8b2b4004300990e39dbf78de800e" in workflow
+    assert 'rev-parse HEAD)" = "febf8cfd89bc8b2b4004300990e39dbf78de800e"' in workflow
     assert "bd658e2d266e315d2ee35f985fb352ea88306b79" not in workflow
     assert "ros-jazzy-backward-ros" in workflow
     assert "bash scripts/run_staubli_build_testing_matrix.sh" in workflow
