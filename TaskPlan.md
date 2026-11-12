@@ -5368,3 +5368,6 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - Stäubli ROS Jazzy矩阵已在SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa`通过，OFF/ON build/install与独立consumer均PASS，7/7 gtest，colcon 53 tests零失败。
 - 用户镜像新增headless mock bringup launch test，要求GenericSystem mock controller_manager加载两个controller并发布六关节joint_states；当前代码SHA `e1124f29c726a06074bf2f97d23c949a72249fcd`的CI/Format/Documentation待完成。
 - **当前任务节点：根主线仍为第00章00-01；第21章并行专项推进至§9.3.354。下一步检查launch test运行结果并修复，CI通过后更新源码pin并重新执行ROS Jazzy矩阵，再做MoveIt headless规划与mock trajectory action/feedback。SERVO-906/907整体BLOCKED。**
+
+
+- 补充：headless mock bringup测试首轮Format因Black重排测试文件失败（Run `43176950462`），已提交格式修复SHA `49d720fde6e95586026e888b583f7f68ecef9400`；该SHA CI/Format/Documentation仍待完成，详见第21章§9.3.354及审计§22。
