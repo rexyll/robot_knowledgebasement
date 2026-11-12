@@ -118,7 +118,7 @@ def test_ros_workflow_pins_image_and_owned_validation_source():
     )
     assert image_digest in workflow
     assert "https://github.com/rexyll/staubli_driver_ros2_from_org.git" in workflow
-    assert "5a4a578f21ed4bb1df8d2c48d23fb862cb7e65a9" in workflow
+    assert "1847c945b83cb4a111a3799b2b10b5e7cf2b9885" in workflow
     assert "bd658e2d266e315d2ee35f985fb352ea88306b79" not in workflow
     assert "ros-jazzy-backward-ros" in workflow
     assert "bash scripts/run_staubli_build_testing_matrix.sh" in workflow
