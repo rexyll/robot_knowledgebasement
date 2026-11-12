@@ -507,3 +507,28 @@
 - 此测试目前仍处于开发/CI验证阶段；镜像main已高于固定pin `5b2196f...`，新测试通过CI后需要再更新知识库pin并重跑完整ROS Jazzy矩阵。
 
 **状态：** SERVO-906 build/install/consumer、readiness与mock bringup核心门槛PASS（SHA `5b2196f...`）；MoveIt headless planning/action仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+## 22. Headless mock bringup接入CI；新镜像SHA待专项矩阵复验（2026-11-12）
+
+### 22.1 Mock bringup集成测试
+
+- 用户镜像main提交 `9e617a9e323ef3342f5151a89239bfd93c089f8c`新增 `staubli_bringup/test/test_mock_bringup.launch.py`，通过现有CMake `add_launch_test(... TIMEOUT 120)`接入Jazzy CI；package.xml已声明launch_testing与controller_manager_msgs测试依赖。
+- 该launch test明确使用 `use_mock_hardware=true`、`robot_ip=127.0.0.1`、`gui=false`，查询 `/controller_manager/list_controllers`，要求joint_state_broadcaster及joint_trajectory_controller均active，并验证`/joint_states`包含joint_1..joint_6。
+- 镜像CI Run `43180150233` SUCCESS，job `131053868013`；bringup launch test 1/1通过；readiness pytest 2/2通过；MoveIt mock planning launch test 1/1通过；colcon汇总72 tests、0 errors、0 failures、0 skipped。
+- 同一提交Format Run `43180150172` FAILURE：Black hook自动改写 `staubli_moveit_config/test/test_moveit_mock_planning.launch.py`但改写未提交；flake8等其他格式检查通过。CI build/test通过不能替代Format通过，需修复格式后重新验证。
+
+### 22.2 MoveIt teardown异常（未关闭）
+
+- MoveIt mock planning的规划Action返回SUCCESS且轨迹非空，测试xUnit为1 test、0 failures。
+- 但运行日志显示launch teardown阶段 `move_group`进程SIGSEGV（exit -11），且controller activation子进程在context关闭时异常退出（exit -2）；controller_manager统计线程也报告invalid context。
+- 因此目前只确认规划断言成功，不确认MoveIt进程生命周期/优雅关闭健康。下一步应分离bringup和MoveIt测试的进程生命周期，排查launch shutdown顺序与ROS context teardown；测试必须同时断言被测进程未在测试完成前异常退出，并检查shutdown后的returncode，不能只看xUnit主测试通过。
+
+### 22.3 更新源码pin并触发复验
+
+- 将知识库workflow checkout SHA、矩阵脚本默认EXPECTED_UPSTREAM_COMMIT、Python回归断言从 `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`统一更新为镜像SHA `9e617a9e323ef3342f5151a89239bfd93c089f8c`。
+- 知识库变更提交：`cbda29b6439184fc2e9ce032deb4cda20f4d1dcd`（workflow）、`170623bb8627648eea19a9e257aaa7ebe672788c`（matrix script）、`96ebe334664bcb7ae008f39218e3c301649324d6`（regression test）；最终main HEAD为`96ebe334664bcb7ae008f39218e3c301649324d6`。
+- 最终HEAD普通CI Run `43183161866` queued；ROS Jazzy专项Run `43183161697` pending。较早的中间提交专项Run `43183146575` cancelled，不作为验收证据。
+- 上一轮已成功的专项Run `43175652104`日志明确检出的是 `abd75ff956b4fb07a76705abcb8fd506b2985aaa`，不是本节新SHA；它只证明此前源码的build/install/consumer矩阵。新SHA含launch测试，必须以本节最终HEAD专项run重新验证。
+
+**状态：** build/install/consumer gate在旧pin `abd75ff...` PASS；新pin `9e617a9...`待ROS Jazzy专项矩阵。headless mock bringup test在镜像CI PASS；MoveIt规划断言PASS但shutdown SIGSEGV待修；Format gate待修复。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
