@@ -5384,3 +5384,12 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 
 
 - 补充：镜像SHA `755a710...`的ROS CI Run `43177972372`通过，headless mock bringup实测GenericSystem初始化、JSB/trajectory controller active及六关节joint_states断言通过；70 tests零失败。测试结束时存在CLI子进程SIGINT关闭噪声，后续需评估优雅退出。该SHA Format因MoveIt LogInfo漏导入失败，已在最新SHA `5b2196f...`修复，最新SHA CI/Format/Docs待完成。详见审计§23.4。
+
+
+### 2026-11-12｜v11.69：Stäubli mock bringup与新pin ROS Jazzy矩阵通过，推进MoveIt规划
+
+- 镜像SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b` Format/Documentation/CI全部通过；readiness 2项、mock bringup launch test 1项通过，colcon 70 tests零失败。
+- 知识库源码pin更新提交 `a3825ab0c2eff6bc62931cc261ef5af16af36ebf`；新pin专项Run `43179030578`通过，OFF/ON build/install与独立consumer均实际执行成功，7/7 gtest、53 tests零失败，validator及manifest 5/5通过。
+- 证据Artifact `13925362748`，SHA256 `85a9fbf822a8ca9927e5ad6df5b747ac2557494af49233775dd3a97fd76a5827`。
+- 用户镜像已新增MoveIt mock-only headless planning测试，目标为`/move_action`六关节plan_only，不执行轨迹；新测试尚待CI。镜像main已高于当前知识库pin，必须等新测试通过再更新pin。
+- **当前任务节点：根主线仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.356。下一步修复并验证MoveIt headless规划；通过后验证mock trajectory action/feedback，再固定新SHA并重跑矩阵。SERVO-906/907整体仍BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。**
