@@ -6108,3 +6108,11 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 运行整体FAIL，故不能把SERVO-906/907标为完成。固定上游只读；需上游维护者修复导出合同并重新跑真实consumer。建议修复方向已记入专项审计§11，用户授权前不修改上游或创建PR。
 - A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - **当前节点：§9.3.341；Run #9已完成真实build/install与测试，等待上游导出缺陷的授权处理/后续验证。**
+
+### §9.3.342｜形成Stäubli上游安装导出缺陷修复提案（未修改上游）
+
+- 基于Run #9真实consumer日志、artifact导出文件与固定上游CMakeLists/package.xml，新增本地提案`docs/audits/staubli-upstream-install-export-fix-proposal.md`。
+- 提案针对两项问题：移除未定义`${asio_SOURCE_DIR}/asio/include`；若Boost仅用于src私有实现则将`Boost::system`改为PRIVATE，并在package.xml声明Boost依赖；如公共接口实际暴露Boost则改为完整导出Boost target依赖。
+- 提案列出OFF/ON clean build/install/consumer/gtest验收条件，并明确不允许consumer预定义Boost target、伪造include目录或事后修改安装导出文件。
+- 当前只是知识库内的技术提案，没有修改上游仓库、没有创建上游PR；等待用户明确授权。SERVO-906/907仍BLOCKED。
+- **当前节点：§9.3.342；上游修复提案已形成，等待用户决定是否授权向上游提交。**
