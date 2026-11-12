@@ -6439,3 +6439,19 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] MoveIt teardown SIGSEGV 仍为阻塞项；不允许 SIGSEGV、不删除退出断言、不合并、不更新源码 pin。
 
 **状态：** Format PASS；CI RUNNING；mock planning 本体 PASS，MoveIt shutdown BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.363｜MoveIt 2.12.4 teardown CI 失败与 shutdown-before-destruction 源码顺序定位（2026-11-12）
+
+- [x] CI Run `43198319123` / job `131114885750` 已完成 FAILURE；同一 head Format Run `43198319316` SUCCESS。
+- [x] 确认 mock planning 本体通过，SIGINT teardown 时 move_group 在 `rclcpp::Executor::~Executor()` SIGSEGV，exit `-11`；CTest/JUnit 重复计数为73 tests / 2 failures，但唯一独立失败为退出码断言。
+- [x] 确认 CI 安装包版本 `ros-jazzy-moveit-ros-move-group 2.12.4-1noble.20260915.202214`。
+- [x] 对照 MoveIt 2.12.4/Jazzy 源码确认：默认 `rclcpp::init(argc, argv)`；Executor、MoveGroupExe 为局部对象；`executor.spin()` 返回后第331行调用 `rclcpp::shutdown()`；之后才析构 MoveGroupExe 与 Executor。Executor 析构仍清理 guard conditions、wait-set 与 Context shutdown callback。
+- [x] 复核历史同栈 issue #3268 和 PR #3435：PR 已合并且其 logger shared_ptr/adapter virtual destructor 改动已在 2.12.4，但没有改变 move_group.cpp shutdown-before-destruction 顺序；新 issue #3680 仍 OPEN。
+- [x] 将 MoveItPy #3721 作为相似生命周期风险的旁证，明确其不是本次 move_group 代码路径。
+- [x] 更新 Draft PR #1 描述，补入 CI 最终结果、精确包版本、历史同栈 issue 与源码顺序分析。
+- [ ] 在受控 MoveIt 源码 overlay 中验证“停止 executor → 等待 spin 返回 → 析构 MoveGroupExe/节点/Executor → shutdown Context”的信号处理与对象生命周期方案；不得直接修改上游仓库。
+- [ ] 对同一 mock planning + post-shutdown test 进行重复运行，取得 planning PASS、所有进程退出码合规及必要调试符号 backtrace。
+- [ ] 在验证通过前 PR #1 保持 Draft，不允许 -11、不移除断言、不更新 source pin、不合并；真实 CS9/HIL/运动命令禁止。
+
+**状态：** Format PASS；CI FAIL（MoveIt teardown SIGSEGV）；planning PASS；shutdown-before-destruction 为强候选根因但修复未验证。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
