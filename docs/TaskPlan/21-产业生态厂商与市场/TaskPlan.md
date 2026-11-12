@@ -6164,3 +6164,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 等待最新SHA专项Run `43169611943`开始并完成OFF/ON build/install/consumer运行、gtest、validator和证据包校验。旧脚本Run `43169591434`正在rosdep阶段，不能作为最终验收依据。
 
 **状态：** 路径修复和普通CI已通过；最新专项验收排队。SERVO-906/907保持BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+
+### §9.3.347｜最新固定源码ROS Jazzy OFF/ON build-install-consumer证据通过（2026-11-12）
+
+- [x] 专项Run 43169946221 在知识库main SHA 0e1c33b578222ea31e0d23b46a74003ab7618da0完成，workflow及唯一job结论SUCCESS。
+- [x] 验收源码固定为用户镜像SHA 1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f，checkout后HEAD与clean working tree校验通过。
+- [x] BUILD_TESTING=OFF与ON均完成colcon build/install；两个独立、干净的install-space consumer均configure/build/install并实际运行成功，分别输出 INSTALL_SPACE_CONSUMER_PASS BUILD_TESTING=OFF/ON；consumer没有预先find_package(Boost)。
+- [x] 7/7 gtest suites通过；gtest断言总计46。colcon测试汇总53 tests、0 errors、0 failures、0 skipped。
+- [x] target graph validator 49 PASS、0 FAIL；OFF/ON target、测试隔离、生产依赖闭包、安装manifest与导出目标合同检查通过。
+- [x] 证据manifest五个核心artifact均通过size/SHA-256核验；最终 execution_status=PASS，0 errors。证据artifact ID 13921209585，ZIP SHA-256 51a7f99cd3ab829c52f0e1c4c24eb212b8924d61ed69b585981bc543ea115664。
+- [x] 用户镜像同一固定SHA的Format、Documentation、CI三项workflow均SUCCESS。
+- [ ] 上游PR #9仍OPEN、未合并；需继续跟踪维护者review与PR workflow授权/结果，不能把镜像验收等同于上游main已修复。
+- [ ] 继续完成不依赖真实硬件的runtime/plugin/仿真验证；真实CS9/VAL3、HIL、现场网络、真实机器人运动安全及长时间运行仍不在本次CI范围内。
+
+**状态更新：** SERVO-906的ROS Jazzy build/install与独立consumer证据子门槛标记PASS；SERVO-906/907整体仍按硬件/运行时/上游合并等剩余门槛保持BLOCKED，不宣布产品级验收完成。A1.1保持BLOCKED；TODO-EXT-001未授权。
