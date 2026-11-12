@@ -6233,3 +6233,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 新增headless mock bringup launch_testing、controller lifecycle、MoveIt headless与mock trajectory action验证。
 
 **状态：** readiness逻辑已提交，最新HEAD CI待完成；旧SHA build/install/consumer证据子门槛PASS，最新runtime/MoveIt launch integration仍BLOCKED。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§19。
+
+
+### §9.3.352｜Readiness gate CI通过并更新验证源码pin（2026-11-12）
+
+- [x] 用户镜像最新SHA `abd75ff956b4fb07a76705abcb8fd506b2985aaa` Format、Documentation、CI均SUCCESS；CI Run `43173412883`，readiness pytest 2 passed，colcon 68 tests、0 errors、0 failures、0 skipped。
+- [x] 确认timeout subprocess负向测试通过；joint_states使用BEST_EFFORT + VOLATILE QoS；MoveIt与controller spawner失败门控已在镜像提交。
+- [x] 更新知识库workflow checkout pin、矩阵脚本默认EXPECTED_UPSTREAM_COMMIT及Python回归断言至新SHA。
+- [x] 记录知识库三个文件变更提交：`344c13fcd0718ccf9facf09c7641f9a675a2d494`、`fee2c972a2ad92897dbed2ddf3c115e120119d58`、`8025ca10b5826241cd684982416855a4df7a69e3`。
+- [ ] 检查最终HEAD对应知识库CI Run `43175490804`及ROS Jazzy专项Run `43175490783`；确认无中间提交run误作最终证据。
+- [ ] 新pin专项矩阵通过后核验OFF/ON独立consumer实际执行、7/7 gtest、validator和证据包manifest/hash。
+- [ ] 补headless mock bringup launch_testing、controller lifecycle、MoveIt headless及mock-only trajectory action/feedback验证。
+- [ ] 跟踪上游PR #9维护者workflow审批/review/合并；真实CS9/HIL/现场运动安全独立验收。
+
+**状态：** 镜像readiness CI子门槛PASS；知识库source pin更新完成，新pin下ROS Jazzy专项矩阵待最终HEAD workflow完成；runtime/MoveIt integration仍BLOCKED。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。详见专项审计§20。
