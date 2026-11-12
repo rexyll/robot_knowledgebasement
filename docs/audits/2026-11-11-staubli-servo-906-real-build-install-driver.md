@@ -420,3 +420,14 @@
 - PR #9仍OPEN且未合并；真实控制器/HIL/现场运动安全验收未执行。
 
 **状态：** SERVO-906 build/install/consumer gate PASS（当前镜像SHA `abd75ff...`）；runtime bringup/MoveIt integration仍BLOCKED；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+## 22. 开始headless mock bringup集成测试（2026-11-12）
+
+- 在镜像main新增 `staubli_bringup/test/test_mock_bringup.launch.py`：只使用TX2-60L的GenericSystem mock硬件、robot_ip=127.0.0.1、gui=false；等待controller_manager的ListControllers服务，要求joint_state_broadcaster与joint_trajectory_controller均为active，并验证`/joint_states`包含六个预期关节。
+- `staubli_bringup/CMakeLists.txt`注册`add_launch_test(... TIMEOUT 120)`；package.xml新增launch_testing相关test依赖。此测试不连接真实控制器，不发送真实机器人运动命令。
+- 镜像最新提交SHA `e1124f29c726a06074bf2f97d23c949a72249fcd`；对应CI Run `43176950518`、Format Run `43176950462`、Documentation Run `43176950570`正在运行。尚无launch test通过证据。
+- 新增测试存在真实集成风险：spawner启动时序、controller_manager robot_description订阅、controller activation CLI及joint_states发布均需在Jazzy容器里实测。若失败，依据日志修复，不能仅凭静态代码宣称通过。
+- 本次launch test新增提交发生在此前矩阵源码pin `abd75ff...`之后；待镜像CI通过后，应将ROS Jazzy workflow/script/test pin推进至新镜像SHA并重新跑完整OFF/ON矩阵，才能把当前源码版本纳入证据范围。
+
+**状态：** §21 build/install/consumer gate仍对SHA `abd75ff...`有效；headless mock bringup integration新测试已提交、CI待验证。SERVO-906/907整体仍BLOCKED。
