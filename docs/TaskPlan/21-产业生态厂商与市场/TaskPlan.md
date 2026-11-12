@@ -6375,3 +6375,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 后续补mock trajectory action/feedback；不连接真实CS9、不发送真实运动命令。
 
 **状态：** 源码修复已提交到用户镜像 Draft PR，静态实现已对照Jazzy API；PR CI与运行时退出码仍未验证。当前固定pin仍为旧SHA `9e617a9...`，不可将旧矩阵PASS外推到PR head。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+#### §9.3.358运行状态更新
+
+- [x] 用户镜像PR #1触发CI Run `43189959860`（build_and_test）与Format Run `43189960017`。
+- [x] 已检查jobs：容器初始化、checkout、依赖准备均成功；CI正在执行 `action-ros-ci`，Format正在执行pre-commit。
+- [ ] 等待两个run完成并检查失败日志；Documentation未见对应run，不得标记通过。
+- [ ] CI通过后仍需在ROS Jazzy环境验证MoveIt teardown最终退出码；当前无runtime证据。
+
+**状态更新：** PR checks从“尚未出现”更新为“CI/Format进行中”；combined status仍为空不代表失败或成功。
