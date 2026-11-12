@@ -457,3 +457,10 @@
 - 先前Format修复链也出现Black行宽配置未按仓库`--line-length=99`执行导致的重复失败；当前测试文件已按仓库99字符配置调整，最终应以SHA `755a710...`检查为准。
 
 **状态：** Jazzy launch import问题已提交修复，验证待最新镜像CI完成；headless mock bringup仍BLOCKED。不得更新知识库ROS Jazzy源码pin至新SHA，直到镜像Format/CI/Documentation通过。
+
+
+### §23.3 后续静态检查反馈
+
+- SHA `755a710...` Format Run `43177972439`：Black已通过，flake8发现MoveIt launch文件使用`LogInfo`但未导入（F821）。已补充导入，修复提交 `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`。
+- 当前最新SHA `5b2196f2961a027fabc4c16ae9bfd70b0c73d47b`的CI/Format/Documentation Runs分别为 `43178262257`/`43178262221`/`43178262304`，均待完成。
+- 因此，LogError替换方案的最终静态检查尚未通过，且mock bringup launch还未重新走到controller启动断言。后续必须以最新SHA结果为准。
