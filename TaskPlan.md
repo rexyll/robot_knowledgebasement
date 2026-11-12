@@ -5301,3 +5301,13 @@ LC-01至LC-15验收矩阵已建立，全部未执行。未运行ROS 2构建/单�
 - PR的Format Run `43158192705`和CI Run `43158192776`均显示`completed/action_required`，尚无jobs，commit status pending/0 checks；需上游维护者批准fork workflow运行。PR尚无review/评论，未合并。
 - 本节点只记录PR提交与CI审批门禁，不代表修复已验证或合并。仍须完成ROS Jazzy OFF/ON build/install、独立consumer、七份gtest与证据包验收。SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
 - 根计划当前任务节点仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.344。
+
+### 2026-11-12｜v11.60：Stäubli ROS Jazzy镜像专项OFF/ON build-install-consumer验收通过
+
+- 专项Run [43169946221](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43169946221) 在知识库main SHA 0e1c33b578222ea31e0d23b46a74003ab7618da0完成，workflow SUCCESS；固定验证用户镜像SHA 1a5f61b59fe1f47dfa8f0e118ceaca7f92b1ef5f。
+- BUILD_TESTING=OFF/ON均完成colcon build/install，两个独立install-space consumer均完成configure/build/install并实际运行；均未预先find_package(Boost)。
+- 7/7 gtest suites通过，46个gtest断言；colcon汇总53 tests、0 errors、0 failures、0 skipped。target graph validator 49 PASS、0 FAIL；证据manifest五个核心artifact均通过size/SHA-256核验。
+- 证据artifact ID 13921209585，ZIP SHA-256 51a7f99cd3ab829c52f0e1c4c24eb212b8924d61ed69b585981bc543ea115664；审计详见第21章TaskPlan §9.3.347及专项审计§15。
+- 用户镜像同SHA的Format、Documentation、CI均SUCCESS；但上游PR #9仍OPEN、未合并、无review/评论，PR Format/CI仍为action_required，等待维护者批准workflow。
+- 验收范围仅限ROS Jazzy构建/安装/导出/独立consumer和现有测试，不包含真实CS9/VAL3、HIL、机器人运动安全、现场网络、长时间运行及真实硬件验收。SERVO-906的build/install与独立consumer证据子门槛标记PASS；SERVO-906/907整体仍按剩余硬件/运行时/上游合并门槛保持BLOCKED。A1.1 BLOCKED；TODO-EXT-001未授权。
+- **当前任务节点：根计划的主线任务仍为第00章00-01；第21章Stäubli并行专项推进至§9.3.347。下一步跟踪上游PR #9的workflow审批/review/合并，并开展不连接真实机器人时可执行的runtime/plugin/仿真验证；最新知识库main的CI与专项workflow正在执行/排队，须逐项核验，不提前宣称通过。**
