@@ -6076,3 +6076,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 此问题属于CI容器外部Ubuntu镜像DNS/索引可用性，不是固定上游源码构建失败；本修复不修改上游、不绕过ASIO/Boost consumer验收。
 - 审计详见`docs/audits/2026-11-11-staubli-servo-906-real-build-install-driver.md` §8。SERVO-906/907继续BLOCKED；A1.1 BLOCKED；`TODO-EXT-001`未授权。
 - **当前任务节点：§9.3.338之后，先确认普通CI Run `43034476816`通过，再由用户在最新main重新手动触发ROS Jazzy专项workflow。**
+
+
+### §9.3.339｜ROS Jazzy Run #8：将Ubuntu APT源切换到Azure官方镜像
+
+- Run #8 `43035899689`（SHA `4b4b201dfda5745475269c430f3b509289964a3b`）失败于显式依赖安装。APT Candidate门禁按设计运行5轮，持续发现Ubuntu Noble archive/security域名DNS失败及`libdw-dev`无Candidate；ROS仓库索引正常。固定上游checkout及后续构建未启动。
+- 根因说明：重试不能修复持续不可达的镜像域名。依据Microsoft Learn对Ubuntu 24.04 Azure镜像的官方配置建议，将Ubuntu archive和security URI统一指向`azure.archive.ubuntu.com/ubuntu`。
+- 新增`configure_ubuntu_apt_mirror()`，覆盖传统sources.list、sources.list.d/*.list和deb822 *.sources，保留Ubuntu签名校验及候选包门禁；新增回归测试。
+- 当前修复待普通CI及下一轮手动ROS Jazzy workflow验证。Run #8历史结果不改写；固定上游不修改。
+- SERVO-906/907继续BLOCKED；A1.1保持BLOCKED；`TODO-EXT-001`未授权。
+- **当前节点：§9.3.339；等待main CI通过后，在最新main手动启动ROS Jazzy Run #9。**
