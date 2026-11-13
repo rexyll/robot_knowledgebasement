@@ -6594,3 +6594,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 检查三轮中每轮的 planning 结果、各进程退出码、GDB backtrace、MoveGroupExe/Executor 生命周期标记和 LD_DEBUG DSO unload 时序；任何一轮 teardown 异常均保持 FAIL/BLOCKED。
 
 **状态：** 实验循环已由单轮修正为三轮，workflow commit 已提交并复核文件内容；对应 push-run/job 尚无可核验记录。实验 teardown 仍 BLOCKED。PR #1 保持 Draft；固定源码 pin 不变；不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
+
+
+### §9.3.375｜定位连续零 Job 的 YAML 缩进故障并恢复实验执行（2026-11-13）
+
+- [x] 通过 GitHub Actions REST `actions/runs?branch=experiment/move-group-shutdown-order` 取得 push-run 列表，纠正此前“无法读取 push-run”的判断。提交 `d96badbd980d82954d005061d83c629a83968e4b` 对应 Run #70（ID `43441884977`），事件为 push，结论 failure。
+- [x] 读取 Run #70 的 jobs endpoint：`total_count=0`。对照 Run #63–#69（ID 分别为 43435900714、43436242302、43439965125、43440054252、43440079320、43440121461、43440174830），均为 completed/failure 且 `total_jobs=0`；Run #61/#62 则正常生成 Job，证明零 Job 是近期 workflow 文件结构回归，而非该 workflow 长期不具备执行能力。
+- [x] 通过比较提交定位到根因：commit `9861761a`（ci: fix declaration-order patch anchors）将 Python 三引号 C++ 声明字符串中的两行从 14 空格错误改为 4 空格，导致它们逃逸出 YAML `run: |` 块（块内容要求至少 10 空格）。随后 Run #63–#70 的失败都发生在 Job 创建前，因而没有测试日志；这不是 MoveIt runtime failure，也不是 Actions runner 在测试中崩溃。
+- [x] 在实验分支修复两行缩进为 14 空格，保留 Python 字符串内 C++ 声明的 4 空格缩进；提交 `cf1863db076e231f3aab349d17e512ba2468f783`。回读 workflow 第 143–148 行确认两行已回到 YAML block 内。
+- [x] 新提交触发 Run #71（ID `43443596119`），事件 push，head SHA `cf1863db076e231f3aab349d17e512ba2468f783`；成功创建 Job `131947193335`，确认 YAML/Job 编排故障已解除。最近一次轮询时 Job 正在 Initialize containers 后进入 Set up ROS Jazzy，尚未进入编译和回归阶段。
+- [x] 读取真实运行的 Run #61（ID `43435504211`）与 Run #62（ID `43435759610`）Job 日志：rclcpp overlay、MoveIt patched build、Stäubli mock workspace build 均成功；mock planning 通过，但严格 teardown 因 gdb-7 进程 exit 255 失败。Run #62 GDB backtrace 明确落在 `std::weak_ptr<rclcpp::Waitable>` 的 weak-count release、`rclcpp::CallbackGroup::~CallbackGroup`、`NodeBase::~NodeBase` 析构链；故真实 teardown 问题仍存在。
+- [ ] 轮询 Run #71，确认三轮测试循环是否实际执行；读取 Job steps/logs/artifacts，逐轮检查 planning、进程退出码、生命周期 marker、GDB backtrace 和 LD_DEBUG unload 顺序。
+- [ ] 若 Run #71 失败，先根据实际首个失败步骤区分 build/harness/runtime，再做单变量修复；不放宽退出码断言。若三轮全部严格通过，仍需独立复跑确认稳定性，之后才可重新评估 SERVO-906/907。
+
+**状态：** 连续零 Job 的直接原因已定位并修复，Run #71 已恢复 Job 调度且仍在执行；真实 MoveIt teardown 根因尚未解决，Run #61/#62 已确认 mock planning 成功但 teardown 的 GDB 进程以 255 退出并伴随 Waitable weak_ptr 析构异常。teardown 继续 BLOCKED。PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp、不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
