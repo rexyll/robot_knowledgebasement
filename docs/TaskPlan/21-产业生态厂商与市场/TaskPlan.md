@@ -6623,3 +6623,19 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 若三轮中任一轮失败，保留失败证据并继续根因分析；若三轮全部严格通过，仍需独立新 run 重复验证后才可重新评估 BLOCKED 状态。
 
 **状态：** Run #71 构建与 mock planning 成功，但 native non-ASan teardown 继续因 GDB wrapper exit 255 和 Waitable weak_ptr 析构异常失败。三轮测试之前被 `set -e` 中止，不能声称已执行三轮；fail-continue harness 已提交，Run #72 正在执行，待验证三轮实际运行。SERVO-906/907、A1.1 继续 BLOCKED；PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp，不连接真实 CS9、不发送真实运动命令；TODO-EXT-001 未授权。
+
+
+### §9.3.377｜Run #72 三轮严格 teardown 回归与 control-block 定位实验（2026-11-13）
+
+- [x] 读取 Run #72（ID `43448897967`，head SHA `b219af359f1ff0c41f5a4f14f0aa1fad30c35ee6`）Job `131965565718` 的完整步骤与约 3.04 MB 日志。ROS Jazzy setup、workspace tooling、未修改 rclcpp overlay、patched MoveIt、Stäubli mock workspace build 全部成功。
+- [x] 证明 fail-continue harness 有效：日志明确出现 `Strict mock planning + teardown repetition 1/3`、`2/3`、`3/3`，并最终报告 `failures=3/3`；三轮均完成，不再被首轮失败中止。
+- [x] 三轮均复现 `move_group` teardown SIGSEGV，严格断言 `test_all_processes_exit_cleanly` 失败，GDB wrapper 分别以 exit 255 退出。每轮调用栈一致：`std::_Sp_counted_base::_M_release_last_use` / `std::__weak_count::_M_weak_release` → `weak_ptr<rclcpp::Waitable>` → `CallbackGroup::~CallbackGroup` → `NodeBase::~NodeBase` → `Node::~Node` → `TrajectoryExecutionManager::~TrajectoryExecutionManager` → `MoveItCpp::~MoveItCpp` → `main()`。
+- [x] 三轮均记录 `libsequence_capability.so` 与 `libcommand_list_manager.so` 的 `calling fini` / `destroying link map` 先于 Waitable weak-count 崩溃；这仍是时间顺序相关性，不可直接当作 DSO 卸载导致 use-after-unload 的因果证明。
+- [x] 发现每轮日志另有 `liblttng-ust.so.1: undefined symbol: ltt_probe_register (fatal)`；它出现在子进程日志中，需作为独立环境/诊断器次级线索排查，不得未经对照实验就认定为主崩溃原因。
+- [x] 核验 GDB 旧诊断命令在 frame 15（`shared_ptr<CallbackGroup>`）查询局部变量 `executor`，导致大量 `No symbol "executor" in current context`，此前 WaitSet 内存/成员地址诊断未真正成功，需修正采样帧。
+- [x] 提交隔离实验 workflow 诊断增强 `8986dbe338df17e27cf0f7e79868be51b654a9f1`：崩溃时切换 frame 0，输出 control block 的 `this` 地址、内存字、vptr 对应符号、进程映射、PC 附近指令、寄存器和全线程 backtrace；不修改测试断言、不改上游 rclcpp/MoveIt。
+- [x] 新提交触发 Run #73（ID `43452965703`），head SHA `8986dbe338df17e27cf0f7e79868be51b654a9f1`，最近状态 queued。
+- [ ] 检查 Run #73 是否创建 Job、YAML 是否正常解析；读取崩溃 control block vptr 所属符号和映射，判断其是否落在已卸载 DSO 地址区间。
+- [ ] 用独立对照确定 `ltt_probe_register` 警告与 teardown SIGSEGV 是否相关；任何诊断变化都不得放宽严格退出码断言。
+
+**状态：** 三轮严格回归均失败，MoveGroup teardown 根因未解决。当前最优先假设是 callback-group Waitable weak control block 生命周期/内存所有权问题；插件 DSO 卸载可能相关，但尚未证实。SERVO-906/907、A1.1 继续 BLOCKED；PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp，不连接真实 CS9、不发送真实运动命令；TODO-EXT-001 未授权。
