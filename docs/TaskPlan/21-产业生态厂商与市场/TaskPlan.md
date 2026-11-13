@@ -6608,3 +6608,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 若 Run #71 失败，先根据实际首个失败步骤区分 build/harness/runtime，再做单变量修复；不放宽退出码断言。若三轮全部严格通过，仍需独立复跑确认稳定性，之后才可重新评估 SERVO-906/907。
 
 **状态：** 连续零 Job 的直接原因已定位并修复，Run #71 已恢复 Job 调度且仍在执行；真实 MoveIt teardown 根因尚未解决，Run #61/#62 已确认 mock planning 成功但 teardown 的 GDB 进程以 255 退出并伴随 Waitable weak_ptr 析构异常。teardown 继续 BLOCKED。PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp、不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
+
+
+### §9.3.376｜Run #71 teardown 复现与三轮 fail-continue harness 修复（2026-11-13）
+
+- [x] 读取 Run #71（ID `43443596119`，commit `cf1863db076e231f3aab349d17e512ba2468f783`）完整 Job steps/logs/artifacts。Job `131947193335` 已完成；ROS Jazzy setup、workspace tooling、未修改 rclcpp overlay build、MoveIt patched build、Stäubli mock workspace build 全部成功。
+- [x] 确认 mock planning 实际成功：日志显示 MoveGroup 收到 planning request，OMPL RRTConnect 执行并完成 response adapters；控制器 mock shutdown 也报告 hardware staubli successful shutdown。
+- [x] 确认严格 teardown 仍失败：唯一测试失败为 `test_all_processes_exit_cleanly`，断言 `Proc gdb-7 exited with code 255`。GDB 栈再次指向 `std::weak_ptr<rclcpp::Waitable>` weak-count release → `rclcpp::CallbackGroup::~CallbackGroup` → `rclcpp::node_interfaces::NodeBase::~NodeBase`；故 Run #71 不是 build failure，也不是 YAML/zero-job failure。
+- [x] LD_DEBUG 再次记录 `libsequence_capability.so` 与 `libcommand_list_manager.so` 的 `calling fini` / `destroying link map` 事件，发生在后续 Waitable weak_ptr 析构异常之前；这与既有 DSO unload 生命周期疑点一致，但仅凭先后相关性尚不能断言单一因果。
+- [x] 发现 Run #71 的所谓三轮循环实际上仅执行第 1/3：workflow 使用 `set -eo pipefail`，首轮 `colcon test --return-code-on-test-failure` 返回非零后触发 `errexit`，导致循环提前退出。之前只修正循环列表但未处理 fail-fast 语义，三轮稳定性证据并未取得。
+- [x] 仅修改隔离实验 workflow：每轮暂时关闭 `errexit`，分别捕获 `colcon test` 与 `colcon test-result --verbose` 退出码，失败后继续执行剩余轮次，最后按失败轮数返回非零；不屏蔽、不放宽任何进程退出码或测试断言。提交 `b219af359f1ff0c41f5a4f14f0aa1fad30c35ee6`，回读文件确认修复内容。
+- [x] 新提交触发 Run #72（ID `43448897967`），head SHA `b219af359f1ff0c41f5a4f14f0aa1fad30c35ee6`，Job `131965565718` 已创建；最近轮询状态为 in_progress，处于 Set up ROS Jazzy。
+- [ ] 轮询 Run #72，确认 1/3、2/3、3/3 三轮均真实执行；分别记录 planning 结果、gdb/MoveGroup 退出码、生命周期 marker、WaitSet weak_ptr 栈和 DSO unload 顺序。
+- [ ] 若三轮中任一轮失败，保留失败证据并继续根因分析；若三轮全部严格通过，仍需独立新 run 重复验证后才可重新评估 BLOCKED 状态。
+
+**状态：** Run #71 构建与 mock planning 成功，但 native non-ASan teardown 继续因 GDB wrapper exit 255 和 Waitable weak_ptr 析构异常失败。三轮测试之前被 `set -e` 中止，不能声称已执行三轮；fail-continue harness 已提交，Run #72 正在执行，待验证三轮实际运行。SERVO-906/907、A1.1 继续 BLOCKED；PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp，不连接真实 CS9、不发送真实运动命令；TODO-EXT-001 未授权。
