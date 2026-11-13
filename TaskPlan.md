@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.75  
+版本：v11.76  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.371：用户镜像仓库 rexyll/staubli_driver_ros2_from_org 的 Draft PR #1 保持未合并；Format 检查历史 PASS，ROS Jazzy mock planning 在多轮实验中成功，但 teardown 仍在 Executor WaitSet 的 std::weak_ptr<rclcpp::Waitable> 控制块释放阶段 SIGSEGV。2026-11-13 的 LD_DEBUG 观察到 libsequence_capability.so、libcommand_list_manager.so 在该崩溃前卸载；局部声明顺序 A/B 仍失败，故插件卸载是强生命周期线索但根因尚未证实。ASan Run 43394257561 三轮 PASS，Native 对照 Run 43400319637 复现失败；Run 43435759610 的插件生命周期 A/B 仍 teardown FAIL；Run 43435900714 创建 0 个 Jobs，未执行测试。当前下一节点为§9.3.372：为 MoveGroupExe capability/loader、MoveItCpp 与 Executor/WaitSet 增加析构时序标记，确定实际卸载路径，再做保留插件实例及 loader 的单变量实验。实验仅限 experiment/move-group-shutdown-order 的 CI overlay；不修改上游 MoveIt/rclcpp，不更新 ROS Jazzy 固定 pin，不合并 PR #1，不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.372：用户镜像仓库 rexyll/staubli_driver_ros2_from_org 的 Draft PR #1 未合并。常规 main CI 最新报告为 #4109 SUCCESS；持续失败的是独立 experiment/move-group-shutdown-order 的 MoveIt/rclcpp mock teardown 回归，并非整个仓库所有 CI 均失败。实验 Run 43381986090 曾在特定配置下三轮 PASS，但 Native non-ASan Run 43428873007、LD_DEBUG Run 43435504211、声明顺序 A/B Run 43435759610 均复现 teardown 问题，说明尚无稳定修复。LD_DEBUG 观察到 libsequence_capability.so、libcommand_list_manager.so 在 WaitSet weak_ptr release SIGSEGV 前卸载；该时间关联尚未证明根因。已在实验分支提交 MoveGroupExe capability/loader 与 Executor destructor body 的时序探针（最新 commit 5d6e90afec89268ff5da007e622737bd4bb55bc0），但对应 Actions Job 结果尚未取得。下一节点§9.3.373：检查探针运行结果，确定实际析构/卸载先后；若未创建 Job，先修复 workflow trigger。审查固定源码基线 bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不修改上游 MoveIt/rclcpp、不更新 pin、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
