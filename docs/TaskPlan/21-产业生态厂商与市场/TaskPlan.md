@@ -6569,3 +6569,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] Native mock teardown 在严格进程退出断言下重复通过前，SERVO-906/907 不解除 BLOCKED；PR #1 保持 Draft。
 
 **状态：** 常规 main CI 与 teardown 实验是两条不同验证通道；实验 teardown 验收仍 BLOCKED。生命周期探针已提交但尚未取得对应运行证据。固定源码 pin 不变；不修改上游 MoveIt/rclcpp、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。
+
+
+### §9.3.373｜Push-triggered 生命周期探针运行证据接口核对（2026-11-13）
+
+- [x] 重新读取实验分支 `.github/workflows/experiment-moveit-shutdown-order.yml`，确认 workflow 仍配置 `push` 触发且分支过滤为 `experiment/move-group-shutdown-order`；MoveGroupExe 析构/capability clear/context reset/loader reset 标记与 Executor destructor body BEGIN/END 标记仍存在。
+- [x] 核验实验分支修复提交 `943b420737ccf7e9581e8b639a107c29649c0f69`：仅将 PSM stop/join 注入代码中的字面量双反斜杠换行修正为 Python 字符串换行转义，避免生成 C++ 源码中残留字面量 `\\n`；该提交没有修改固定上游源码 pin。
+- [x] 对提交 `943b420737ccf7e9581e8b639a107c29649c0f69` 查询 workflow runs 与 combined status，当前连接器均返回空列表；确认其 `fetch_commit_workflow_runs` 工具只返回 PR-triggered runs，而该实验 workflow 使用 push trigger。因此空列表不能证明 push workflow 未触发，也不能证明没有 job。
+- [x] 尝试通过公开 Actions workflow 页面核验，当前网页读取不可用；不将工具/页面不可读误判为 GitHub Actions no-job。
+- [ ] 取得能覆盖 push-triggered workflow 的运行列表或用户可见 Actions 运行记录，核对该提交对应 run ID、job ID、执行状态和完整日志。
+- [ ] 若确认 run 存在，按标记顺序对齐 MoveGroupExe/capability/loader、Executor body END、WaitSet weak_ptr release 与 LD_DEBUG DSO unload；若确认没有 run，再单独修复触发机制并验证产生真实 job。
+- [ ] 在取得 native non-ASan 重复通过及严格退出码证据前，teardown 继续 BLOCKED；不放宽 -11/-6/255 断言，不改上游 MoveIt/rclcpp，不合并 PR #1，不更新固定源码 pin，不连接真实 CS9、不发送真实运动命令。
+
+**状态：** workflow push trigger 与探针源码已核验；PSM 注入换行修复提交已核验；push-run 运行状态目前无法由现有连接器接口判定，不能标注 PASS、FAIL 或 no-job。下一节点 §9.3.374：取得 push-run/job 的独立证据。SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
