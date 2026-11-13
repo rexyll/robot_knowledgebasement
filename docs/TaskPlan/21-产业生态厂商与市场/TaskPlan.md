@@ -6582,3 +6582,15 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 在取得 native non-ASan 重复通过及严格退出码证据前，teardown 继续 BLOCKED；不放宽 -11/-6/255 断言，不改上游 MoveIt/rclcpp，不合并 PR #1，不更新固定源码 pin，不连接真实 CS9、不发送真实运动命令。
 
 **状态：** workflow push trigger 与探针源码已核验；PSM 注入换行修复提交已核验；push-run 运行状态目前无法由现有连接器接口判定，不能标注 PASS、FAIL 或 no-job。下一节点 §9.3.374：取得 push-run/job 的独立证据。SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
+
+
+### §9.3.374｜修复实验 workflow 单轮循环与三轮严格回归设置（2026-11-13）
+
+- [x] 比较实验分支与提交 `943b420737ccf7e9581e8b639a107c29649c0f69`：分支 HEAD 已在其后额外前进17个提交；此前将 943b420 当作最新分支状态的表述已纠正。当前 workflow 文件 blob SHA 为 `6d89a2349775e77abc30340fb65f5b320866a7a8`（修复前）。
+- [x] 检查最新 workflow 第 407 行附近的回归循环，发现 `for iteration in 1; do` 与日志中的 `repetition ${iteration}/3` 不一致，实际只执行一次，不能满足三轮稳定性回归要求。
+- [x] 仅修改实验 workflow，将循环修正为 `for iteration in 1 2 3; do`；提交 `d96badbd980d82954d005061d83c629a83968e4b`。重新读取分支文件确认三轮循环已存在。
+- [x] 保持 workflow 中 native non-ASan 执行方式、GDB/LD_DEBUG 诊断和严格进程退出码断言不变；没有修改 Stäubli 生产源码、MoveIt/rclcpp 上游源码或固定 source pin。
+- [ ] 取得 push commit `d96badbd980d82954d005061d83c629a83968e4b` 对应的 Actions run/job 及完整日志；当前连接器的 commit-run 查询仅返回 PR-triggered runs，不能用空结果推断 push workflow 是否触发。
+- [ ] 检查三轮中每轮的 planning 结果、各进程退出码、GDB backtrace、MoveGroupExe/Executor 生命周期标记和 LD_DEBUG DSO unload 时序；任何一轮 teardown 异常均保持 FAIL/BLOCKED。
+
+**状态：** 实验循环已由单轮修正为三轮，workflow commit 已提交并复核文件内容；对应 push-run/job 尚无可核验记录。实验 teardown 仍 BLOCKED。PR #1 保持 Draft；固定源码 pin 不变；不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
