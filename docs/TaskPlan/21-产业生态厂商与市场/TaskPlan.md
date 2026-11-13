@@ -6555,3 +6555,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] Native non-ASan 继续作为权威复现通道；ASan 仅作为独立诊断通道。严格要求 mock planning 成功及所有进程干净退出；SIGSEGV/-11、SIGABRT/-6、GDB wrapper 255 和未解释退出均判失败。
 
 **状态：** MoveIt/Stäubli mock planning 在 native 实验中成功，但 teardown 仍失败。插件 DSO unload 与 WaitSet weak_ptr release 的时间关联已观察到，根因和修复尚未证实。PR #1 保持 Draft；ROS Jazzy pin 不变；不修改 MoveIt/rclcpp 上游、不合并 CI 插桩、不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
+
+
+### §9.3.372｜常规 CI 与 teardown 实验分流、析构时序探针（2026-11-13）
+
+- [x] 区分仓库常规 main CI 与独立实验分支：最新报告的常规 CI #4109 成功；本轮持续失败集中于 CI-only MoveIt/rclcpp source-overlay 的严格 mock shutdown 回归，不能据此声称整个驱动仓库主 CI 均失败。
+- [x] 保留非确定性证据：Run 43381986090 在其特定实验配置下三轮严格 mock planning/teardown PASS；Native non-ASan Run 43428873007 复现 teardown SIGSEGV；Run 43435504211、43435759610 也复现 WaitSet weak_ptr teardown 失败。单次通过不等于稳定修复。
+- [x] Run 43435759610 已确认实际应用 MoveGroupExe 声明先于 Executor 的 A/B，但仍出现 plugin DSO unload 与 WaitSet weak_ptr release SIGSEGV；该变量单独不足以修复。
+- [x] 实验分支已提交 MoveGroupExe capability clear/context/loader reset 时序标记（435093364719f4623bfbc45b7618235a43a1be9f）、Executor 析构函数体入口/出口标记（4f9c67705f5574e1c9bbcdeeec857f9f47e0504b）及转义修正（5d6e90afec89268ff5da007e622737bd4bb55bc0）。已重新读取 workflow 文件确认标记存在；尚无对应新 run/job 结果，不得记为测试通过。
+- [x] 保持审查固定源码基线 bd658e2d266e315d2ee35f985fb352ea88306b79 不变；仓库 main 分支移动 HEAD 不得自动替代本审查 pin。
+- [ ] 获取生命周期探针对应的最新 Actions Job；判断 MoveGroupExe 析构/capabilities_.clear() 与 Executor destructor body END、DynamicStorage weak_ptr 析构的先后关系，并与 LD_DEBUG 动态库卸载事件对齐。
+- [ ] 若新 workflow 仍未创建 Job，单独修复 Actions trigger/harness 并验证 job 确实执行；不修改生产源码或放宽 SIGSEGV/-11/-6/255 断言。
+- [ ] Native mock teardown 在严格进程退出断言下重复通过前，SERVO-906/907 不解除 BLOCKED；PR #1 保持 Draft。
+
+**状态：** 常规 main CI 与 teardown 实验是两条不同验证通道；实验 teardown 验收仍 BLOCKED。生命周期探针已提交但尚未取得对应运行证据。固定源码 pin 不变；不修改上游 MoveIt/rclcpp、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。
