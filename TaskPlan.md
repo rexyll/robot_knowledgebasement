@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.78  
+版本：v11.79  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.374：用户镜像仓库 rexyll/staubli_driver_ros2_from_org 的 Draft PR #1 未合并。常规 main CI 最新报告为 #4109 SUCCESS；持续失败的是独立 experiment/move-group-shutdown-order 的 MoveIt/rclcpp mock teardown 回归，并非整个仓库所有 CI 均失败。实验 Run 43381986090 曾在特定配置下三轮 PASS，但 Native non-ASan Run 43428873007、LD_DEBUG Run 43435504211、声明顺序 A/B Run 43435759610 均复现 teardown 问题，说明尚无稳定修复。LD_DEBUG 观察到 libsequence_capability.so、libcommand_list_manager.so 在 WaitSet weak_ptr release SIGSEGV 前卸载；该时间关联尚未证明根因。已在实验分支提交 MoveGroupExe capability/loader 与 Executor destructor body 的时序探针；随后 commit 943b420737ccf7e9581e8b639a107c29649c0f69 修复 PSM stop/join 注入代码中的换行转义。实验 workflow YAML 已确认配置 push 到 experiment/move-group-shutdown-order，并保留生命周期标记；但当前可用的 fetch_commit_workflow_runs 仅返回 PR-triggered runs，故其空结果及空 combined status 不能证明 push workflow 未触发，也无法据此取得 job 日志。最新 workflow 曾将三轮回归循环误写为单轮，已在实验分支提交 d96badbd980d82954d005061d83c629a83968e4b 修复为 1/3、2/3、3/3；对应 push-run/job 尚未取得。下一节点§9.3.375：核验该提交的 Actions run/job 与三轮日志。审查固定源码基线 bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不修改上游 MoveIt/rclcpp、不更新 pin、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.375：用户镜像仓库 rexyll/staubli_driver_ros2_from_org 的 Draft PR #1 未合并。常规 main CI 与实验 teardown workflow 是不同验证通道。实验分支连续 Run #63–#70 为 push-triggered failure 且 0 jobs；根因已定位为 commit 9861761a 将 Python 三引号 C++ 声明字符串中的两行错误缩进至 YAML run 块之外，已由 commit cf1863db076e231f3aab349d17e512ba2468f783 修复。Run #71（43443596119）已创建 Job 131947193335，最近轮询时正在 Set up ROS Jazzy。此前真实运行 Run #61/#62 的 rclcpp、MoveIt、Stäubli workspace 构建成功，mock planning 通过，但 teardown 仍以 gdb-7 exit 255 失败；Run #62 GDB 栈落在 weak_ptr<rclcpp::Waitable> weak-count release、CallbackGroup 和 NodeBase 析构链。三轮循环已由 d96badb 修正；须待 Run #71 实际完成三轮并检查 logs/artifacts，不能提前宣称 teardown 修复。审查固定源码基线 bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不修改上游 MoveIt/rclcpp、不更新 pin、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。下一节点§9.3.376：跟踪 Run #71 的编译与三轮严格回归结果。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
