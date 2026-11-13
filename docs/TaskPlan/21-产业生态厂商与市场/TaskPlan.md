@@ -6540,3 +6540,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 若仍失败，使用 GDB backtrace 与符号信息解析 Executor destructor frame #0，并继续分析 signal/cancel/Context/Fast DDS 交互。
 
 **状态：** GDB 已确认 main() → rclcpp::Executor::~Executor() SIGSEGV；第一轮显式 shutdown 后移实验编译成功但 teardown FAIL；第二轮受控 signal-wait/cancel 实验 RUNNING；PR #1 Draft；source pin 不变；SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。
+
+
+### §9.3.371｜插件动态库卸载与 Executor WaitSet weak_ptr 生命周期关联审查（2026-11-13）
+
+- [x] Run 43435504211 已启用正确位置的 LD_DEBUG=files；日志显示 libsequence_capability.so、libcommand_list_manager.so 在 DynamicStorage::WeakWaitableEntry 的 std::weak_ptr<rclcpp::Waitable> 控制块释放 SIGSEGV 前发生 fini / destroying link map。
+- [x] Run 43435759610 实际应用了声明顺序 A/B：生成的 MoveIt Jazzy diff 中 MoveGroupExe mge(...) 位于 MultiThreadedExecutor executor 之前；mock planning PASS，但 teardown 仍 FAIL，GDB wrapper exit 255。该实验说明单纯改变局部变量声明顺序不足以修复。
+- [x] Run 43435900714 创建 0 个 Jobs，未执行容器、构建或测试；归类为 Actions orchestration/no-job anomaly，不归类为代码或运行时失败。
+- [x] Run 43410786162 的 MoveIt overlay 编译失败是 workflow 生成 C++ 时写入字面量 \\n 导致 stray backslash；目标 Stäubli workspace 和 teardown 测试均未运行，不作为目标回归证据。
+- [x] 交叉记录 ASan/Native 差异：Run 43394257561 三轮 ASan mock planning/teardown PASS；Run 43400319637 关闭 ASan 后复现 native teardown SIGSEGV。ASan 通过不能替代 native 验收。
+- [ ] 在 CI-only MoveIt overlay 中为 MoveGroupExe::~MoveGroupExe()、capabilities_.clear()、context_.reset()、capability_plugin_loader_.reset()、MoveItCpp 析构和 Executor/WaitSet 析构增加明确时序标记，并与 LD_DEBUG 事件逐一关联。
+- [ ] 解释为何生成源码已反转 MoveGroupExe 与 Executor 声明顺序，插件 DSO 仍在 WaitSet weak_ptr 释放前卸载；在确认实际触发卸载的析构路径前，不将动态库卸载认定为根因。
+- [ ] 若标记证实 capability 实例先于 WaitSet 释放，则做单变量保留 capability 实例及 loader 至 Executor/WaitSet 析构后的实验；否则沿首个异常生命周期标记继续追踪。
+- [ ] Native non-ASan 继续作为权威复现通道；ASan 仅作为独立诊断通道。严格要求 mock planning 成功及所有进程干净退出；SIGSEGV/-11、SIGABRT/-6、GDB wrapper 255 和未解释退出均判失败。
+
+**状态：** MoveIt/Stäubli mock planning 在 native 实验中成功，但 teardown 仍失败。插件 DSO unload 与 WaitSet weak_ptr release 的时间关联已观察到，根因和修复尚未证实。PR #1 保持 Draft；ROS Jazzy pin 不变；不修改 MoveIt/rclcpp 上游、不合并 CI 插桩、不连接真实 CS9、不发送真实运动命令；SERVO-906/907、A1.1 继续 BLOCKED；TODO-EXT-001 未授权。
