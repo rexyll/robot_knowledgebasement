@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.87  
+版本：v11.88  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.377：用户镜像仓库 rexyll/staubli_driver_ros2_from_org 的 Draft PR #1 未合并。常规 main CI 与实验 teardown workflow 是不同验证通道。实验分支连续 Run #63–#70 为 push-triggered failure 且 0 jobs；根因已定位为 commit 9861761a 将 Python 三引号 C++ 声明字符串中的两行错误缩进至 YAML run 块之外，已由 commit cf1863db076e231f3aab349d17e512ba2468f783 修复。Run #71（43443596119）Job 131947193335 已完成：ROS Jazzy、rclcpp overlay、patched MoveIt 与 Stäubli mock workspace 构建成功，mock planning 成功，但严格 teardown 仍因 gdb-7 exit 255 失败；GDB 栈再次落在 weak_ptr<rclcpp::Waitable>、CallbackGroup、NodeBase 析构链，LD_DEBUG 记录 sequence_capability 与 command_list_manager DSO 在异常前卸载。Run #71 日志还证明原三轮循环被 set -e 在首轮失败后提前终止；已在隔离实验 workflow 提交 fail-continue harness 修复 b219af359f1ff0c41f5a4f14f0aa1fad30c35ee6，保留每轮退出码并在末尾汇总失败。Run #72（43448897967，commit b219af3）已完成，Job 131965565718 的全部构建阶段成功，严格 teardown 三轮均真实执行且均失败（failures=3/3）；每轮均在 move_group 退出时复现 SIGSEGV，栈为 Waitable weak_ptr weak-count release → CallbackGroup::~CallbackGroup → NodeBase::~NodeBase → TrajectoryExecutionManager::~TrajectoryExecutionManager → MoveItCpp::~MoveItCpp → main，GDB wrapper exit 255。三轮均记录 sequence_capability 与 command_list_manager DSO 卸载在异常前；其因果关系尚待 control-block/vtable 地址证据验证。日志另见 liblttng-ust ltt_probe_register undefined-symbol fatal warning，列为次级环境线索。已提交实验诊断增强 8986dbe338df17e27cf0f7e79868be51b654a9f1：崩溃时打印 control block 地址/内存、vptr 所属符号、进程映射、指令和全线程 backtrace；Run #73（43452965703）已排队。此前真实运行 Run #61/#62 的 rclcpp、MoveIt、Stäubli workspace 构建成功，mock planning 通过，但 teardown 仍以 gdb-7 exit 255 失败；Run #62 GDB 栈落在 weak_ptr<rclcpp::Waitable> weak-count release、CallbackGroup 和 NodeBase 析构链。Run #71 仅实际执行第 1/3 轮，因 set -e 在首轮测试失败后提前退出；已由 b219af3 修复 fail-continue 循环。Run #72 已证明三轮均执行且均复现相同 teardown 崩溃；Run #73 将验证 weak_ptr control block/vtable 是否位于已卸载 DSO 映射，以及 lttng 符号警告是否与崩溃独立。审查固定源码基线 bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不修改上游 MoveIt/rclcpp、不更新 pin、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。下一节点§9.3.378：分析 Run #73 control-block/vtable 与 DSO 映射证据。
@@ -348,6 +348,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
+| 2026-11-14 | v11.88 | 完成 MotionControlAlgorithms MPC/QP/CBF 与鲁棒控制模块静态审查，覆盖 NonlinearMpc、ConstrainedQp、GenericMpc、连续/离散/鲁棒/多输入/相对阶二 CBF、slew-rate、ReferenceGovernor、RobustAdaptive、SlidingMode；新增 §20 审查结论和 P0/P1/P2 清单。发现 RelativeDegreeTwoCbfFilter 的 h_dot 系数需数学复核；未导入源码 | 上游 main `c11091b`、CI Run #2827、12个测试源文件/95个 TEST case；遵守 G-25 与源码导入授权边界 |
 | 2026-11-14 | v11.87 | 完成 MotionControlAlgorithms 移动底盘与机械臂控制模块静态审查，覆盖差速/Mecanum、轮速分配、Pure Pursuit/Stanley/LQR/MPC、Cartesian PD/impedance/admittance 和 null-space；新增 §19 审查结论与 P0/P1/P2 改进清单，更新外部项目登记表、第14章和每日归档。识别 Cartesian 姿态 frame 和 Pure Pursuit lookahead 优先复核项；未导入源码 | 上游 main `c11091b`、CI Run #2827、11个测试源文件/67个 TEST case；遵守 G-25 与源码导入授权边界 |
 | 2026-11-14 | v11.86 | 完成 MotionControlAlgorithms 状态估计/里程计模块静态审查，覆盖 StateObserver、DiscreteKalman/LQG、DisturbanceObserver 与 PlanarOdometry；新增 §18 审查结论和 P0/P1/P2 改进清单，更新外部项目登记表、第14章和每日归档。确认当前没有完整 IMU/编码器融合定位栈；未导入源码 | 上游 main `c11091b`、CI Run #2827、4个测试源文件/21个 TEST case；遵守 G-25 与源码导入授权边界 |
 | 2026-11-14 | v11.85 | 完成 MotionControlAlgorithms 运动学与动力学模块静态审查，覆盖 DH/URDF、FK、数值/DLS IK、Jacobian、奇异性指标、质量矩阵/Coriolis/重力、重力补偿和 computed torque；新增 §17 审查结论与 P0/P1/P2 改进清单，更新外部项目登记表、第14章和每日归档。未导入源码 | 上游 main `c11091b`、CI Run #2827、9个测试源文件/38个 TEST case；遵守 G-25 与源码导入授权边界 |
@@ -426,6 +427,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan_History/TaskPlan-2026-11-11.md) | 76 |
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
-| 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 8 |
+| 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 9 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
