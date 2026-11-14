@@ -16,7 +16,7 @@
 | 测试状态 | **基础 CI 已独立核验**：main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的主 CI Run [#2827](https://github.com/rexyll/MotionControlAlgorithms/actions/runs/43574894453) 于 2026-11-14 成功；Linux、Windows、benchmarks 三个 job 均成功。覆盖 CMake build/CTest、离线 EtherCAT ESI/CoE 工具测试、算法场景验收、20,000-cycle 实时诊断、P8-39–P8-46 回归和 benchmark 构建/运行。该证据仅支持该 commit 的 CI 范围，不代表全模块完整验收、目标平台 WCET、物理 EtherCAT HIL 或安全验证 |
 | 许可证状态 | 2026-11-06 审查未发现根目录 LICENSE/LICENSE.md；2026-11-14 再次读取这两个路径仍返回 404。许可证不明是源码引入硬阻塞，不据此推定任何开源许可 |
 | 主要技术风险 | 目标平台实时性/WCET、具体驱动器和 EtherCAT/CANopen 互操作、硬件 HIL、故障恢复及安全职责仍需按模块和目标平台验证 |
-| 当前允许 | 链接上游；独立撰写算法原理、接口模型、测试方法、差距分析；核对用户所称基本测试的证据 |
+| 当前允许 | 链接上游；独立撰写算法原理、接口模型、测试方法、差距分析；已完成 PID 模块的实现/测试静态审查并记录到知识页 §15 |
 | 当前禁止 | 未解决许可证前复制源码、tests、scripts、benchmark 或通过 subtree/vendor 引入；不得把上游 CI/SIL 结果写成目标机器人验证 |
 | 下一步 | 获取基本测试对应 commit 和 Run/日志；逐模块复核测试范围及失败项；继续许可证和文件级许可核查；更新 14-EXT-01。满足准入条件后仍需单独授权 |
 
