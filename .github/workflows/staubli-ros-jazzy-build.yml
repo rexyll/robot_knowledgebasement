@@ -8,6 +8,9 @@ on:
       - '.github/workflows/staubli-ros-jazzy-build.yml'
       - 'scripts/retry_apt_update.sh'
       - 'scripts/run_staubli_build_testing_matrix.sh'
+      - 'scripts/collect_staubli_cmake_file_api.py'
+      - 'scripts/validate_staubli_upstream_target_graph.py'
+      - 'scripts/package_staubli_build_evidence.py'
 
 permissions:
   contents: read
