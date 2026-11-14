@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - '.github/workflows/staubli-ros-jazzy-build.yml'
+      - 'scripts/retry_apt_update.sh'
+      - 'scripts/run_staubli_build_testing_matrix.sh'
 
 permissions:
   contents: read
