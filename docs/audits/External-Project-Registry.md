@@ -12,8 +12,8 @@
 | 关联知识章节 | 12 数学基础与通用算法；14 规划、控制与机器人操作；09 嵌入式软件/驱动；10 通信与中间件；19 测试与验证 |
 | 当前处理方式 | 独立知识化、上游链接、逐模块审查；不整体复制源码 |
 | 最近专项审查 | 2026-11-06，见 [审查报告](MotionControlAlgorithms-main-review-2026-11-06.md) |
-| 版本基线 | 2026-11-06 审查 main；本轮尚未固定新的最新 commit SHA |
-| 测试状态 | 用户于 2026-11-14 报告“基本测试已完成”；本轮尚未独立核验具体 commit、CI Run、测试范围、原始日志和失败项。状态为**基础测试待复核**，不能表述为全量验收 |
+| 版本基线 | main commit `472e0ee76684d4e567caed1a40467af650d7fa9a`（2026-11-14）；本次核验快照 |
+| 测试状态 | **基础 CI 已独立核验**：main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的主 CI Run [#2827](https://github.com/rexyll/MotionControlAlgorithms/actions/runs/43574894453) 于 2026-11-14 成功；Linux、Windows、benchmarks 三个 job 均成功。覆盖 CMake build/CTest、离线 EtherCAT ESI/CoE 工具测试、算法场景验收、20,000-cycle 实时诊断、P8-39–P8-46 回归和 benchmark 构建/运行。该证据仅支持该 commit 的 CI 范围，不代表全模块完整验收、目标平台 WCET、物理 EtherCAT HIL 或安全验证 |
 | 许可证状态 | 2026-11-06 审查未发现根目录 LICENSE/LICENSE.md；2026-11-14 再次读取这两个路径仍返回 404。许可证不明是源码引入硬阻塞，不据此推定任何开源许可 |
 | 主要技术风险 | 目标平台实时性/WCET、具体驱动器和 EtherCAT/CANopen 互操作、硬件 HIL、故障恢复及安全职责仍需按模块和目标平台验证 |
 | 当前允许 | 链接上游；独立撰写算法原理、接口模型、测试方法、差距分析；核对用户所称基本测试的证据 |
