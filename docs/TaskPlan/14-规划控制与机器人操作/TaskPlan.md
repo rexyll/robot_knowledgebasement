@@ -150,3 +150,5 @@
 | 2026-11-14 | 00-01 / 14-02 / 14-03 / 14-EXT-01 | 对 MotionControlAlgorithms 轨迹模块完成文件级静态审查：scalar、polynomial、S-curve 与 CSP trajectory bridge 实现，以及四个对应测试源文件；记录单轴能力、rest-to-rest 限制、多轴批次与同步的区别、非有限/极端数值风险、无效 S 曲线通过 bridge 的接口缺口及后续 P0/P1 改进项，见《轨迹优化与运动控制》§16。CI Run #2827 Linux/Windows/benchmarks 成功；从测试代码基线到许可更新后的 main 仅改 LICENSE/NOTICE/README。未本地重建、未复制源码、未进行 HIL/WCET/实机验证；14-02/14-03状态不变。 |
 
 | 2026-11-14 | 00-01 / 14-04 / 14-EXT-01 | 对 MotionControlAlgorithms 运动学/动力学模块完成文件级静态审查：DH/URDF model、FK、数值/DLS IK、Jacobian、singularity metrics、rigid-body dynamics、gravity compensation 与 computed torque 实现及9个测试源文件（38个 TEST case）。记录串联模型边界、初始 IK 限位、任务空间权重、惯性张量校验、有限差分 Coriolis 和输出饱和等风险，见《轨迹优化与运动控制》§17。CI Run #2827 成功；未本地重建、未进行真实机械臂参数辨识/HIL/WCET/实机验证，未复制源码；14-04状态不变。 |
+
+| 2026-11-14 | 00-01 / 14-04 / 14-EXT-01 | 对 MotionControlAlgorithms 状态估计/里程计模块完成静态审查：StateObserver、DiscreteKalman/LQG、DisturbanceObserver、PlanarOdometry 四个实现及四个测试源文件（21个 TEST case）。记录 Euler dt 稳定性、估计器数值溢出、扰动残差与执行器误差混淆、Kalman 后验协方差检查、SE(2) 小角速度/大 dt 边界，以及当前缺少 IMU/编码器融合定位等问题，见《轨迹优化与运动控制》§18。CI Run #2827 成功；未本地重建、未使用真实传感器日志、未进行 HIL/WCET/实机验证；14-04状态不变。 |
