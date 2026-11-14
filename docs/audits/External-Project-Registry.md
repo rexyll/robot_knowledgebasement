@@ -11,14 +11,14 @@
 | 上游仓库 | https://github.com/rexyll/MotionControlAlgorithms |
 | 关联知识章节 | 12 数学基础与通用算法；14 规划、控制与机器人操作；09 嵌入式软件/驱动；10 通信与中间件；19 测试与验证 |
 | 当前处理方式 | 独立知识化、上游链接、逐模块审查；不整体复制源码 |
-| 最近专项审查 | 2026-11-14：PID、轨迹生成/时间参数化、运动学与动力学模块静态审查，见知识页《轨迹优化与运动控制》§15–§19；2026-11-06 历史审查见 [审查报告](MotionControlAlgorithms-main-review-2026-11-06.md) |
+| 最近专项审查 | 2026-11-14：PID、轨迹生成/时间参数化、运动学与动力学模块静态审查，见知识页《轨迹优化与运动控制》§15–§20；2026-11-06 历史审查见 [审查报告](MotionControlAlgorithms-main-review-2026-11-06.md) |
 | 版本基线 | main commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`（2026-11-14）；该提交包含 Apache-2.0 许可声明 |
 | 测试状态 | **基础 CI 已独立核验**：main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的主 CI Run [#2827](https://github.com/rexyll/MotionControlAlgorithms/actions/runs/43574894453) 于 2026-11-14 成功；Linux、Windows、benchmarks 三个 job 均成功。覆盖 CMake build/CTest、离线 EtherCAT ESI/CoE 工具测试、算法场景验收、20,000-cycle 实时诊断、P8-39–P8-46 回归和 benchmark 构建/运行。该证据仅支持该 commit 的 CI 范围，不代表全模块完整验收、目标平台 WCET、物理 EtherCAT HIL 或安全验证 |
 | 许可证状态 | 用户确认项目为原创开发；2026-11-14 已在上游 main 添加标准 Apache-2.0 `LICENSE`、项目 `NOTICE`，并在 README 声明许可（提交 `1d7b904`、`e533e0c`、`eea2efb`、`c11091b`）。许可证未知这一阻塞已解除；第三方依赖仍各自适用其许可证，仍须完成逐文件来源/许可、依赖/SBOM 与目标仓库兼容审查 |
 | 主要技术风险 | 目标平台实时性/WCET、具体驱动器和 EtherCAT/CANopen 互操作、硬件 HIL、故障恢复及安全职责仍需按模块和目标平台验证 |
-| 当前允许 | 链接上游；独立撰写算法原理、接口模型、测试方法、差距分析；已完成 PID、轨迹生成/时间参数化、运动学与动力学、状态估计与里程计、移动底盘与机械臂控制模块的实现/测试静态审查并记录到知识页 §15–§19 |
+| 当前允许 | 链接上游；独立撰写算法原理、接口模型、测试方法、差距分析；已完成 PID、轨迹生成/时间参数化、运动学与动力学、状态估计与里程计、移动底盘与机械臂控制、MPC/QP/CBF 与鲁棒控制模块的实现/测试静态审查并记录到知识页 §15–§20 |
 | 当前禁止 | 在完成逐文件来源/第三方代码与依赖许可核查、目标仓库兼容验证并取得具体文件范围和目标分支授权前，不复制源码、tests、scripts、benchmark 或通过 subtree/vendor 引入；不得把上游 CI/SIL 结果写成目标机器人验证 |
-| 下一步 | 继续 MPC/QP/CBF 与鲁棒控制模块审查；并行完成逐文件来源、第三方依赖许可/SBOM、NOTICE 与目标仓库兼容核查；更新 14-EXT-01。任何源码引入仍需用户对具体文件范围和目标分支单独授权 |
+| 下一步 | 继续 legged whole-body QP/task hierarchy 与 EtherCAT/CANopen 模块审查；并行完成逐文件来源、第三方依赖许可/SBOM、NOTICE 与目标仓库兼容核查；更新 14-EXT-01。任何源码引入仍需用户对具体文件范围和目标分支单独授权 |
 
 ### EXT-002｜staubli_driver_ros2_from_org
 
