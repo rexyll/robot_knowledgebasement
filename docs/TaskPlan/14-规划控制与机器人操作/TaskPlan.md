@@ -109,11 +109,11 @@
 
 | ID | 待办事项 | 启动条件 | 当前状态 |
 |---|---|---|---|
-| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 用户于2026-11-14报告上游基本测试已完成；先核对对应 commit、CI Run、测试范围/日志/失败项，再完成许可证、文件级许可、依赖/SBOM和目标仓库兼容审查；准入后仍需用户对具体文件范围和分支明确授权 | **基础 CI 已核验（main 472e0ee，Run #2827）；许可证阻塞；源码未授权、未导入** |
+| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 上游 main 已声明 Apache-2.0；继续逐文件核查原创/第三方来源、依赖许可/SBOM、NOTICE 与目标仓库兼容性；任何源码引入仍须用户对具体文件范围和目标分支明确授权 | **基础 CI 已核验（Run #2827）；Apache-2.0 已添加；逐文件/依赖许可与兼容性审查待完成；源码未授权、未导入** |
 
 > 上游最后验证完成不等于自动允许合并。在用户明确讨论并授权前，不复制或导入上游源码、测试、脚本和 benchmark。当前继续推进独立知识整理。
 
-> 2026-11-14 状态更新：用户报告上游基本测试已完成；随后独立核验 main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的主 CI Run #2827（43574894453）：Linux、Windows、benchmarks 三个 job 全部成功，覆盖 CMake build/CTest、离线 EtherCAT ESI/CoE 工具测试、算法场景验收、20,000-cycle 实时诊断、P8-39–P8-46 回归和 benchmark。该结果只证明此 commit 上 CI 所覆盖的项目通过，不代表目标机器人实时性/WCET、物理 EtherCAT HIL、全量协议互操作或安全验收。2026-11-14 对上游根目录 `LICENSE` 与 `LICENSE.md` 的读取仍返回 404，源码引入继续受 G-08 阻塞；不得复制源码、tests、scripts 或 benchmark。外部项目统一治理与登记见 `docs/engineering/External-Project-Integration-Policy.md` 和 `docs/audits/External-Project-Registry.md`。
+> 2026-11-14 状态更新：用户报告上游基本测试已完成；随后独立核验 main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的主 CI Run #2827（43574894453）：Linux、Windows、benchmarks 三个 job 全部成功，覆盖 CMake build/CTest、离线 EtherCAT ESI/CoE 工具测试、算法场景验收、20,000-cycle 实时诊断、P8-39–P8-46 回归和 benchmark。该结果只证明此 commit 上 CI 所覆盖的项目通过，不代表目标机器人实时性/WCET、物理 EtherCAT HIL、全量协议互操作或安全验收。2026-11-14 上游已在 main 添加 Apache-2.0 `LICENSE` 与 `NOTICE`，README 已声明许可；许可证未知阻塞解除。但逐文件来源、第三方依赖许可/SBOM、目标仓库兼容性仍待核查，且尚未取得针对具体源码范围和目标分支的引入授权；不得复制源码、tests、scripts 或 benchmark。外部项目统一治理与登记见 `docs/engineering/External-Project-Integration-Policy.md` 和 `docs/audits/External-Project-Registry.md`。
 
 ## 9. 本轮增量执行记录
 
@@ -144,3 +144,5 @@
 | 2026-11-06 | 00-01 / 14-04 / 14-05 / 14-06 | 在《全身控制与接触动力学》新增第14–15节 WBC 分层 QP 与工具链集成边界：细化标准 QP 矩阵组装、任务尺度、严格层级/松弛、摩擦锥内接近似、冗余接触力与内部力、CoP/执行器可行域、QP 不可行诊断、实时循环伪代码和最小数值测试集。新增来源#1335–#1339。仅完成算法实现方法论和静态文档；未编译 TSID/Pinocchio/OCS2，未运行 QP/SOCP、仿真/SIL/HIL/WCET或实机验证，相关任务节点状态不变。 |
 | 2026-11-14 | 00-01 / 14-EXT-01 | 根据用户确认的目标项目与外部工程分离策略，新增外部项目集成治理规范、登记表和档案模板；独立核验 MotionControlAlgorithms main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的 CI Run #2827（43574894453），Linux、Windows、benchmarks 三个 job 全部成功；记录 CI 覆盖范围和不包含的硬件/安全验证。上游根目录 LICENSE/LICENSE.md 仍为 404，源码导入继续阻塞。该记录不改变14-02至14-06任务验收状态，不代表目标机器人验证完成。证据/治理入口：`docs/audits/External-Project-Registry.md`、`docs/engineering/External-Project-Integration-Policy.md`、`docs/templates/External-Project-Intake.md`。 |
 | 2026-11-14 | 00-01 / 14-02 / 14-03 | 对 MotionControlAlgorithms PID 模块完成首轮文件级静态审查：核对 `pid.hpp` 与 `pid_test.cpp`，确认测量微分、条件积分抗饱和、数值错误事务性保持、非法重配置保护及相关测试覆盖；独立撰写实现边界和缺失能力，追加至 `knowledge/algorithms/轨迹优化与运动控制.md` §15。未复制上游源码，未在本地重新构建/执行测试，未进行目标电机/驱动器/HIL/WCET 验证；不改变14-02/14-03状态。来源固定为 MotionControlAlgorithms main commit `472e0ee76684d4e567caed1a40467af650d7fa9a`。 |
+
+| 2026-11-14 | 00-01 / 14-EXT-01 | 用户确认 MotionControlAlgorithms 为原创项目后，已在上游 main 添加标准 Apache-2.0 LICENSE、项目 NOTICE，并更新 README 许可说明；上游最新 main 提交为 `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`。许可证未知阻塞解除，但第三方依赖许可/SBOM、逐文件来源核查和目标知识库兼容性仍待审查；未导入任何源码，未改变14-02至14-06验收状态。 |
