@@ -109,9 +109,11 @@
 
 | ID | 待办事项 | 启动条件 | 当前状态 |
 |---|---|---|---|
-| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 源码引入本项目 | 上游最后验证完成后，由用户与助手另行讨论；之后仍须重新完成许可证、依赖、文件级许可和目标仓库兼容审查 | **待讨论；未授权、未执行** |
+| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 用户于2026-11-14报告上游基本测试已完成；先核对对应 commit、CI Run、测试范围/日志/失败项，再完成许可证、文件级许可、依赖/SBOM和目标仓库兼容审查；准入后仍需用户对具体文件范围和分支明确授权 | **基础测试待复核；许可证阻塞；源码未授权、未导入** |
 
 > 上游最后验证完成不等于自动允许合并。在用户明确讨论并授权前，不复制或导入上游源码、测试、脚本和 benchmark。当前继续推进独立知识整理。
+
+> 2026-11-14 状态更新：用户报告上游基本测试已完成，但本轮尚未取得可独立核验的 commit、CI Run 与原始测试证据；该信息仅登记为用户报告，不等于目标仓库验收。2026-11-14 对上游根目录 `LICENSE` 与 `LICENSE.md` 的读取仍返回 404，源码引入继续受 G-08 阻塞。当前进入“基本测试证据复核”，不得复制源码、tests、scripts 或 benchmark。外部项目统一治理与登记见 `docs/engineering/External-Project-Integration-Policy.md` 和 `docs/audits/External-Project-Registry.md`。
 
 ## 9. 本轮增量执行记录
 
@@ -140,3 +142,4 @@
 
 
 | 2026-11-06 | 00-01 / 14-04 / 14-05 / 14-06 | 在《全身控制与接触动力学》新增第14–15节 WBC 分层 QP 与工具链集成边界：细化标准 QP 矩阵组装、任务尺度、严格层级/松弛、摩擦锥内接近似、冗余接触力与内部力、CoP/执行器可行域、QP 不可行诊断、实时循环伪代码和最小数值测试集。新增来源#1335–#1339。仅完成算法实现方法论和静态文档；未编译 TSID/Pinocchio/OCS2，未运行 QP/SOCP、仿真/SIL/HIL/WCET或实机验证，相关任务节点状态不变。 |
+| 2026-11-14 | 00-01 / 14-EXT-01 | 根据用户确认的目标项目与外部工程分离策略，新增外部项目集成治理规范、登记表和档案模板；将 MotionControlAlgorithms 记录为“用户报告基本测试完成、证据待复核、许可证阻塞、源码未授权/未导入”。2026-11-14 对上游根目录 LICENSE/LICENSE.md 读取仍为 404。该记录不改变14-02至14-06任务验收状态，不代表基本测试已独立复现或目标机器人验证完成。证据/治理入口：`docs/audits/External-Project-Registry.md`、`docs/engineering/External-Project-Integration-Policy.md`、`docs/templates/External-Project-Intake.md`。 |
