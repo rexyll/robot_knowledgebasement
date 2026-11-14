@@ -146,3 +146,5 @@
 | 2026-11-14 | 00-01 / 14-02 / 14-03 | 对 MotionControlAlgorithms PID 模块完成首轮文件级静态审查：核对 `pid.hpp` 与 `pid_test.cpp`，确认测量微分、条件积分抗饱和、数值错误事务性保持、非法重配置保护及相关测试覆盖；独立撰写实现边界和缺失能力，追加至 `knowledge/algorithms/轨迹优化与运动控制.md` §15。未复制上游源码，未在本地重新构建/执行测试，未进行目标电机/驱动器/HIL/WCET 验证；不改变14-02/14-03状态。来源固定为 MotionControlAlgorithms main commit `472e0ee76684d4e567caed1a40467af650d7fa9a`。 |
 
 | 2026-11-14 | 00-01 / 14-EXT-01 | 用户确认 MotionControlAlgorithms 为原创项目后，已在上游 main 添加标准 Apache-2.0 LICENSE、项目 NOTICE，并更新 README 许可说明；上游最新 main 提交为 `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`。许可证未知阻塞解除，但第三方依赖许可/SBOM、逐文件来源核查和目标知识库兼容性仍待审查；未导入任何源码，未改变14-02至14-06验收状态。 |
+
+| 2026-11-14 | 00-01 / 14-02 / 14-03 / 14-EXT-01 | 对 MotionControlAlgorithms 轨迹模块完成文件级静态审查：scalar、polynomial、S-curve 与 CSP trajectory bridge 实现，以及四个对应测试源文件；记录单轴能力、rest-to-rest 限制、多轴批次与同步的区别、非有限/极端数值风险、无效 S 曲线通过 bridge 的接口缺口及后续 P0/P1 改进项，见《轨迹优化与运动控制》§16。CI Run #2827 Linux/Windows/benchmarks 成功；从测试代码基线到许可更新后的 main 仅改 LICENSE/NOTICE/README。未本地重建、未复制源码、未进行 HIL/WCET/实机验证；14-02/14-03状态不变。 |
