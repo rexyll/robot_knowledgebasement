@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.81  
+版本：v11.83  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.377：用户镜像仓库 rexyll/staubli_driver_ros2_from_org 的 Draft PR #1 未合并。常规 main CI 与实验 teardown workflow 是不同验证通道。实验分支连续 Run #63–#70 为 push-triggered failure 且 0 jobs；根因已定位为 commit 9861761a 将 Python 三引号 C++ 声明字符串中的两行错误缩进至 YAML run 块之外，已由 commit cf1863db076e231f3aab349d17e512ba2468f783 修复。Run #71（43443596119）Job 131947193335 已完成：ROS Jazzy、rclcpp overlay、patched MoveIt 与 Stäubli mock workspace 构建成功，mock planning 成功，但严格 teardown 仍因 gdb-7 exit 255 失败；GDB 栈再次落在 weak_ptr<rclcpp::Waitable>、CallbackGroup、NodeBase 析构链，LD_DEBUG 记录 sequence_capability 与 command_list_manager DSO 在异常前卸载。Run #71 日志还证明原三轮循环被 set -e 在首轮失败后提前终止；已在隔离实验 workflow 提交 fail-continue harness 修复 b219af359f1ff0c41f5a4f14f0aa1fad30c35ee6，保留每轮退出码并在末尾汇总失败。Run #72（43448897967，commit b219af3）已完成，Job 131965565718 的全部构建阶段成功，严格 teardown 三轮均真实执行且均失败（failures=3/3）；每轮均在 move_group 退出时复现 SIGSEGV，栈为 Waitable weak_ptr weak-count release → CallbackGroup::~CallbackGroup → NodeBase::~NodeBase → TrajectoryExecutionManager::~TrajectoryExecutionManager → MoveItCpp::~MoveItCpp → main，GDB wrapper exit 255。三轮均记录 sequence_capability 与 command_list_manager DSO 卸载在异常前；其因果关系尚待 control-block/vtable 地址证据验证。日志另见 liblttng-ust ltt_probe_register undefined-symbol fatal warning，列为次级环境线索。已提交实验诊断增强 8986dbe338df17e27cf0f7e79868be51b654a9f1：崩溃时打印 control block 地址/内存、vptr 所属符号、进程映射、指令和全线程 backtrace；Run #73（43452965703）已排队。此前真实运行 Run #61/#62 的 rclcpp、MoveIt、Stäubli workspace 构建成功，mock planning 通过，但 teardown 仍以 gdb-7 exit 255 失败；Run #62 GDB 栈落在 weak_ptr<rclcpp::Waitable> weak-count release、CallbackGroup 和 NodeBase 析构链。Run #71 仅实际执行第 1/3 轮，因 set -e 在首轮测试失败后提前退出；已由 b219af3 修复 fail-continue 循环。Run #72 已证明三轮均执行且均复现相同 teardown 崩溃；Run #73 将验证 weak_ptr control block/vtable 是否位于已卸载 DSO 映射，以及 lttng 符号警告是否与崩溃独立。审查固定源码基线 bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不修改上游 MoveIt/rclcpp、不更新 pin、不合并 PR #1、不连接真实 CS9、不发送真实运动命令。SERVO-906/907整体BLOCKED；A1.1 BLOCKED；TODO-EXT-001未授权。下一节点§9.3.378：分析 Run #73 control-block/vtable 与 DSO 映射证据。
@@ -221,6 +221,10 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 至少选取一个具备可验证资料的参考机器人项目贯通全流程，并建立与其他类型的差异分支。参考项目应从需求、方案、设计、BOM、实现、测试走到生产与交付；每个阶段回链相关知识章节。案例必须区分教学示例、仿真结果、实验室样机、工程验证、试生产和真实量产证据，不得把教学样例伪装成商业量产案例。
 
+### G-25｜外部工程项目与知识资产分离治理
+
+外部工程仓库默认保持独立维护；知识库优先吸收独立撰写的原理、架构、接口、测试方法、适用边界和可追溯证据摘要，不默认复制或整体合并源码。每个外部项目须在 `docs/audits/External-Project-Registry.md` 登记仓库 URL、精确版本、关联章节、许可证、依赖、验证等级、阻塞、允许/禁止动作和下一步。源码引入必须逐文件完成许可证/NOTICE/专利、依赖/SBOM、目标平台兼容、测试和维护策略审查，并取得用户对具体范围和分支的明确授权；测试通过、submodule 或链接均不能替代准入审查。治理规范见 `docs/engineering/External-Project-Integration-Policy.md`，登记模板见 `docs/templates/External-Project-Intake.md`。
+
 ---
 
 ## 4. 全局 Limit（所有任务节点严格禁止）
@@ -344,6 +348,8 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
+| 2026-11-14 | v11.83 | MotionControlAlgorithms 经用户确认原创后，在上游 main 添加 Apache-2.0 LICENSE、NOTICE 并更新 README；更新外部项目登记表、第14章 14-EXT-01、运动控制知识页和每日归档。许可证未知阻塞解除，但逐文件来源/第三方依赖许可/SBOM及兼容性审查仍待完成；未导入源码 | 用户明确授权为原创项目添加许可证；Apache 官方文本与上游 main 提交 `c11091b` 为依据；遵守 G-25 的逐文件准入与单独授权要求 |
+| 2026-11-14 | v11.82 | 新增 G-25 外部工程项目与知识资产分离治理；建立外部工程项目集成规范、登记表和档案模板；登记 MotionControlAlgorithms 与 staubli_driver_ros2_from_org，明确知识化优先、源码准入门和独立仓库策略；第14章 MotionControlAlgorithms 待办更新为基本测试证据复核阶段 | 用户确认 robot_knowledgebasement 为目标项目，并授权按“外部项目保持独立、知识与证据纳入知识库”的建议继续推进；依据 G-08、G-11、G-15、G-20 与 G-25 |
 | 2026-11-03 | v1.0 | 建立机器人行业全域知识体系建设总计划；拆分 00–24 共 25 个章节计划；所有章节统一继承本文件 Guide/Limit | 用户明确项目目标、知识范围和 TaskPlan 分层要求 |
 | 2026-11-03 | v1.1 | 将零基础学习、端到端阶段门、工程成果物和参考项目要求纳入使命与全局 Guide；新增 25 章跨章节产品化主线 | 用户明确知识库最终验收目标 |
 | 2026-11-03 | v1.2 | 逐章复核 00–25 子计划节点状态；将有明确成果但未满足整节点验收条件的节点标记为进行中，未实际启动者保持未开始；设置当前主节点 00-01，并继续推进桌面机械臂参考项目的方案比较、负载预算与初始风险登记 | 仓库 TaskPlan 与项目/审计成果交叉核对；不把局部修订视为整节点完成 |
@@ -372,7 +378,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 章节 | 进行中节点 | 当前工作与未关闭项 |
 |---|---|---|
-| 00 知识治理 | 00-01、00-07、00-08、00-09、00-10 | 资产主张级审计（新增 ROS 2 QoS/实时性/中间件、KF、SLAM、融合定位、激光 SLAM/LIO、视觉 SLAM/VIO、学习型算法与 VLA、路径规划/局部避障、多机协同、视觉感知、轨迹优化与运动控制、算法目录索引、Nav2、实时系统与嵌入式、DDS专题、ROS1迁移定向复核）；零基础课程与能力测评；阶段门跨章映射；教学成熟度抽样；许可/事实授权和隐私复核 |
+| 00 知识治理 | 00-01、00-07、00-08、00-09、00-10 | 资产主张级审计（新增 ROS 2 QoS/实时性/中间件、KF、SLAM、融合定位、激光 SLAM/LIO、视觉 SLAM/VIO、学习型算法与 VLA、路径规划/局部避障、多机协同、视觉感知、轨迹优化与运动控制、算法目录索引、Nav2、实时系统与嵌入式、DDS专题、ROS1迁移定向复核）；零基础课程与能力测评；阶段门跨章映射；教学成熟度抽样；许可/事实授权和隐私复核；新增外部工程项目登记与知识化治理（MotionControlAlgorithms、Stäubli ROS 2 driver），保持源码/知识资产边界 |
 | 04 运动机构与执行器 | 04-02、04-03、04-04 | 减速器、电机/驱动器专题已纠正无条件通用参数；准确型号数据、工况计算、接口兼容和实测待补 |
 | 05 电子电气与能源 | 05-01、05-03、05-04 | 电源预算、电池/BMS、自动充电页面已做定向修订；项目级电源树、器件接口、热/保护/充电验证待补 |
 | 06 传感器 | 06-01、06-02、06-03 | 分类、空间传感器及运动/位置传感器页面已定向修订；完整标定、驱动兼容和环境可靠性验证待补 |
@@ -416,5 +422,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-11 | [TaskPlan-2026-11-11.md](TaskPlan_History/TaskPlan-2026-11-11.md) | 76 |
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
+| 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 4 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
