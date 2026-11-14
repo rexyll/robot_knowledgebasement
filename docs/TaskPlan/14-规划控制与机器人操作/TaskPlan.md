@@ -152,3 +152,5 @@
 | 2026-11-14 | 00-01 / 14-04 / 14-EXT-01 | 对 MotionControlAlgorithms 运动学/动力学模块完成文件级静态审查：DH/URDF model、FK、数值/DLS IK、Jacobian、singularity metrics、rigid-body dynamics、gravity compensation 与 computed torque 实现及9个测试源文件（38个 TEST case）。记录串联模型边界、初始 IK 限位、任务空间权重、惯性张量校验、有限差分 Coriolis 和输出饱和等风险，见《轨迹优化与运动控制》§17。CI Run #2827 成功；未本地重建、未进行真实机械臂参数辨识/HIL/WCET/实机验证，未复制源码；14-04状态不变。 |
 
 | 2026-11-14 | 00-01 / 14-04 / 14-EXT-01 | 对 MotionControlAlgorithms 状态估计/里程计模块完成静态审查：StateObserver、DiscreteKalman/LQG、DisturbanceObserver、PlanarOdometry 四个实现及四个测试源文件（21个 TEST case）。记录 Euler dt 稳定性、估计器数值溢出、扰动残差与执行器误差混淆、Kalman 后验协方差检查、SE(2) 小角速度/大 dt 边界，以及当前缺少 IMU/编码器融合定位等问题，见《轨迹优化与运动控制》§18。CI Run #2827 成功；未本地重建、未使用真实传感器日志、未进行 HIL/WCET/实机验证；14-04状态不变。 |
+
+| 2026-11-14 | 00-01 / 14-03 / 14-04 / 14-EXT-01 | 对 MotionControlAlgorithms 移动底盘与机械臂控制模块完成静态审查：差速/Mecanum、WheelCommandAllocator、Pure Pursuit/Stanley/LQR/MPC、CartesianControl/Impedance/Admittance 与 NullSpaceControl 实现及11个测试源文件（67个 TEST case）。记录 Pure Pursuit lookahead 几何、路径跟踪固定速度/约束缺口、Cartesian 姿态误差 frame 一致性风险、admittance Euler/passivity 和阻尼 null-space 主任务泄漏等问题，见《轨迹优化与运动控制》§19。CI Run #2827 成功；未本地重建、未进行真实底盘/机械臂/HIL/WCET验证，未复制源码；14-03/14-04状态不变。 |
