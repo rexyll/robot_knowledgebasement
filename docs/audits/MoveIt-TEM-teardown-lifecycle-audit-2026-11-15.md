@@ -430,3 +430,14 @@ A workflow-only correction has been committed on the same isolated branch:
 - correction: close the Python triple-quoted function template after the C++ function closing brace; candidate semantics and required post-stop assertions are unchanged.
 
 The branch file was fetched after the update and confirms the closing quote, arm-marker barrier, and `join_performed=1` / `execution_thread_joinable=0` assertions are present. A fresh run for commit `42392ccf...` has not yet been observed at the time of this record. No product source or upstream repository was changed.
+
+
+## 13. Fresh candidate run after fixing the Python injection template (2026-11-15)
+
+The previous candidate run [#43682618698](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43682618698) failed before compilation because the workflow's embedded Python `stop_function = """...` template lacked its closing triple-quote. This was a test-overlay generator syntax failure only; no candidate C++ source was written to the temporary MoveIt tree and no candidate tests ran.
+
+The same isolated branch now carries workflow commit `42392ccf20644541e9e2394ae1cdb18ba6f8cc83`, which adds the missing closing triple-quote after the C++ function body. The candidate always-join logic and post-stop assertions are otherwise unchanged.
+
+Run [#43683012297](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) is the first run for the corrected template. Its latest Jobs API state is `source-overlay-regression` in ROS Jazzy setup (step 3); no barrier injection, MoveIt candidate build, Stäubli mock build, or five-round regression has completed yet. The run is pending, not a pass/fail judgment on the candidate.
+
+Required acceptance remains five iterations with `released=1`, `join_performed=1`, `execution_thread_joinable=0`, `active_handles=0`, successful mock action result, and clean process teardown. All other state-field and preempt bool access review remains open.
