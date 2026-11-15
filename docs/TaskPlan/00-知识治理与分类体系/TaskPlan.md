@@ -777,3 +777,16 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 
 **当前判断：** 35 项代码/自动化资产已完成限定范围的来源/副作用静态审查；发现并修复一个 APT helper 默认可执行系统级修改的防误用缺口。系统包/rosdep provenance、系统级 SBOM、代码权利人映射和全库内容许可边界仍未完成。00-01 继续进行中；MotionControlAlgorithms 合并继续延期。
 
+### 2026-11-15｜00-01持续审计记录（CI 失败定位与 Node 24 兼容升级）
+
+- PR #22 head `eb4c9684ddc0b1757fa923edcddfa5a0a87af3f9` 首轮 APT opt-in 变更 CI 的 Python 3.11 job 在 Ruff lint 失败：新增断言 101 字符，超过项目 100 字符限制；pytest 阶段因 lint 前置失败而跳过。未发现 APT guard 行为测试失败。现已拆分该断言并提交修复。
+- 同一 CI 日志警告 `actions/checkout` v4、`actions/setup-python` v5 与 `actions/upload-artifact` v4 声明 Node 20，runner 正强制 Node 24。依据 GitHub 2026-09-23 Node 20 removal 公告，两个工作流已升级到 Node 24 支持版本并继续固定完整 SHA：
+  - checkout v7.0.1 `3d3c42e5aac5ba805825da76410c181273ba90b1`
+  - setup-python v6.2.0 `a309ff8b426b58ec0e2a45f0f869d46889d02405`
+  - upload-artifact v6.0.0 `b7c566a772e6b6bfb58ed0dc250532a479d7789f`
+- 三个 commit 均经 GitHub 官方 release tag ref 复核，commit verification 为 verified；setup-uv v10.3.3 pin 保持不变。
+- 新增 CI head `2072b0f5194fccf1cd93d263213027ef71f48edc` 后又升级工作流 action 引用，故以再后续最新 head CI 结果为最终验证依据；不沿用早先的 Node 20 warnings 或旧 head 成功记录。
+- 相关完整记录见 [源码、脚本、测试与 CI 来源/副作用审查报告](../../audits/2026-11-15-code-ci-provenance-and-side-effect-review.md)。
+
+**当前判断：** Ruff 失败已修复；工作流 action 已迁移 Node 24；升级后最新 head CI 尚待完成。本轮不把失败或进行中的任务写成成功，00-01 继续进行中。
+
