@@ -6715,10 +6715,10 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 - [x] 对照MoveIt Jazzy源码：`stopExecution()`在1211行锁外读取普通bool `execution_complete_`，随后在1213–1214行加锁后二次检查；执行线程在1357–1359行持同一state mutex将其置true。
 - [x] 识别check-lock-recheck窗口：若首次读到false，执行线程恰在TEM取得state mutex前完成并将flag改为true，则函数走1240行unlock分支；该分支不会join execution_thread_，因为1242行else-if与外层初始if配对，不会执行。析构函数随后只join private_executor_thread_，没有无条件二次join execution_thread_。
-- [x] `execution_complete_`在header中为普通bool（不是atomic），首次读取不持state mutex，存在潜在数据竞争。该竞态是静态源码风险，尚未在Run #102中触发；Run #102只做mock planning与process teardown，没有启动真实trajectory execution。
+- [x] `execution_complete_`在header中是普通bool（不是atomic）。全量盘点未统一持`execution_state_mutex_`的读/写点：`push()` 397行；`stopExecution()` 1211行首次判断；`execute()` 1281行写false；`clear()` 1302行；`executeThread()` 1317、1337行；`executePart()` 1379、1542、1563行。已加锁的访问包括stopExecution 1214/1220、waitForExecution 1290、executeThread 1348/1357–1359、executePart 1384–1385。该不一致构成潜在data race风险；仍需按实际调用线程图判断可并发路径，不把静态发现直接写成已发生UB。Run #102只做mock planning与process teardown，没有启动真实trajectory execution。
 - [x] `executeThread()`置完成标志后不自行reset `execution_thread_`；若漏join，joinable `std::thread`对象析构可触发std::terminate。这是需专项验证的高优先级边界。
 - [x] 核验当前TEM字段声明：`active_handles_`在323行、`trajectories_`在329行、loader在331行、manager在332行。未提前清理时默认reverse member destruction会在loader后才销毁handles/trajectory container。
-- [ ] 使`execution_complete_`的所有读写统一受`execution_state_mutex_`保护，或采用经过审查的原子状态设计；避免锁外读普通bool。
+- [ ] 为`execution_complete_`全部访问点（push 397、stopExecution 1211/1214、execute 1281、clear 1302、executeThread 1317/1337/1348/1358、executePart 1379/1385/1542/1563）画出读写线程图，并将可并发访问统一为`execution_state_mutex_`保护或经审查的atomic设计；同时检查execute_thread_指针创建/读取/join/reset的互斥保护。
 - [ ] 在析构阶段保证execution线程无条件join/reset：调用`stopExecution(true)`后，再独立锁定`execution_thread_mutex_`，检查thread pointer并join/reset；处理self-join保护，保证析构上下文不是execution thread自身。
 - [ ] execution与private executor线程均停止后，显式`clear()`释放`trajectories_` raw contexts；再持`execution_state_mutex_`清空`active_handles_`，必须发生在`controller_manager_.reset()`及loader卸载之前。
 - [ ] 设计mock trajectory execution专用测试：覆盖执行线程正常完成与析构同一时刻竞争、停止请求与自然完成竞争、auto_clear=true/false、callback执行期间、未启动线程、controller manager缺失、异常/早退及重复shutdown；用同步屏障控制完成标志翻转窗口。
