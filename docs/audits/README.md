@@ -70,6 +70,8 @@
 
 - [2026-11-15 功能安全与机械安全标准生命周期及主张边界增量审计](2026-11-15-functional-safety-standards-lifecycle-and-claim-boundary-addendum.md)：刷新 ISO 12100、ISO 3691-4、ISO 13849-1、ISO 13850、IEC 62061、IEC 60204-1 官方生命周期状态，并核验欧盟《机械法规》(EU) 2023/1230 一般适用日；更新功能安全知识页 §11。仅使用官方目录/摘要和法规合并文本，未审读标准全文、未评估具体产品或法规符合性；整篇文章仍待 claim-level 验收。
 
+- [2026-11-15 安全防护器件官方来源与主张边界增量审计](2026-11-15-safety-protective-devices-source-and-claim-boundary-addendum.md)：交叉核验 ANSI/A3 R15.06-2025 Part 3 发布状态与 A3 页面冲突、OSHA 法规/共识标准边界、ISO/DIS 3691-4 页面内部阶段字段冲突，以及 OS32C、SICK microScan3、3SK1、G9SE、PSENmlock 的响应与变体配置限制；整篇知识页仍待 claim-level 验收，未进行目标设备/现场验证。
+
 ## 审计状态
 
 - 00-01 全库资产盘点：进行中。2026-11-08交叉核查发现Stäubli专项记录在根计划、专项报告、厂商档案、本索引及第00章日志之间未同步；详见[专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)。在完成逐节同步和来源复核前，不以根计划摘要替代专项报告正文。

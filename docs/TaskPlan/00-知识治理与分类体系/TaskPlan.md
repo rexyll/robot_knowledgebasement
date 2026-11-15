@@ -878,3 +878,16 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - **未完成项：** 未审读标准全文，未完成地区采标/协调标准及产品法规适用性审查；未做具体机器风险评估、PLr/SIL分配、器件证书核验、急停/停止距离测试、HIL或实机验证。该页仍保持 unaccepted_claim_level_review_pending，不得将本轮定向增量审查视为整篇通过。
 - 资产主清单已更新最近审查范围；逐路径权利登记仅记录本轮内容审查范围，权利人仍 UNVERIFIED、再分发仍 UNDETERMINED。00-01 保持进行中；MotionControlAlgorithms 合并继续延期。
 
+
+
+### 2026-11-15｜00-01 持续审计记录（安全防护器件官方来源与主张边界增量复核）
+
+新增 [安全防护器件官方来源与主张边界增量审计](../../audits/2026-11-15-safety-protective-devices-source-and-claim-boundary-addendum.md)，更新《安全防护器件》§7.3、§8.2、§8.4、§10.2、§10.3、§11.4 和新增 §12；来源台账 #1777–#1786。
+
+- 核对 ANSI/A3 R15.06-2025 Parts 1/2 与 ANSI/A3 R15.06-3-2025 Part 3：A3 Store 出版物页记载三部分均于 2025-10-29 发布，但 A3 另一张标准概览页仍称 Part 3 “COMING SOON”；明确披露厂商页面不同步。OSHA 当前页面仍引用 R15.06-2012，且明确共识标准不是 OSHA 法规、State Plan 可能不同/更严格。
+- 重新检查 ISO/DIS 3691-4：当前官方页仍将其标为 Under development / DIS，但页面 Stage 40.60 与同页 40.99 FDIS 注册事件不一致；不把未发布草案误标为现行标准或精确当前阶段。
+- 复核 OS32C 官方规格页和用户手册，披露 PTM 6 ms/scan 规格描述与 PTM-RBM Table 2-5 的具体表值不可混成统一偏置。
+- 复核 SICK 官方手册，明确 4.0/5.5 m 与 9.0 m 量程变体扫描周期/最小响应时间不同；响应时间公式及 OSSD output processing term 应绑定配置。
+- 复核 3SK1、G9SE 和 PSENmlock 的启动、停止类别、接通/断开时间定义、非定期自诊断与 emergency release 版本限制。
+- 本轮没有取得目标机器人实际器件完整订货号/证书/配置，没有进行保护区计算、停止时间/距离测试、故障注入、HIL 或实机验证；文章仍为 unaccepted_claim_level_review_pending。逐路径权利人仍 UNVERIFIED，再分发仍 UNDETERMINED。00-01 继续进行中。
+
