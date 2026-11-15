@@ -441,3 +441,52 @@ The same isolated branch now carries workflow commit `42392ccf20644541e9e2394ae1
 Run [#43683012297](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) is the first run for the corrected template. Its latest Jobs API state is `source-overlay-regression` in ROS Jazzy setup (step 3); no barrier injection, MoveIt candidate build, Stäubli mock build, or five-round regression has completed yet. The run is pending, not a pass/fail judgment on the candidate.
 
 Required acceptance remains five iterations with `released=1`, `join_performed=1`, `execution_thread_joinable=0`, `active_handles=0`, successful mock action result, and clean process teardown. All other state-field and preempt bool access review remains open.
+
+ 
+## 14. Controlled A/B evidence: TEM plugin-loader/member destruction order (2026-11-15)
+
+The historical Run #73 and successful Run #107 workflows provide a useful near one-variable A/B comparison.
+
+### 14.1 Run #73 baseline (TEM cleanup disabled)
+
+Workflow commit `8986dbe338df17e27cf0f7e79868be51b654a9f1` already:
+- stopped/joined the PlanningSceneMonitor scene publisher before context shutdown;
+- reordered `MoveGroupExe mge` before the main `MultiThreadedExecutor executor`, so the main executor should destruct before MoveGroupExe.
+
+However, its TEM explicit-cleanup injection was disabled by `if False: # Controlled A/B: leave Jazzy TrajectoryExecutionManager teardown unmodified`. The rest of the workflow's MoveGroup and main-executor instrumentation was enabled.
+
+Run [#73](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43452965703), artifact 14054405267, ZIP SHA-256 `19bb3ab367815da23d7c8e6b0e214b21de194838f1230ea4838481bca3c888b1`, contains four regression stdout captures (latest_test plus three iteration logs); all four have one SIGSEGV. GDB frames show weak_ptr<rclcpp::Waitable> weak-release → CallbackGroup destructor → NodeBase destructor, while `LD_DEBUG` records `libmoveit_simple_controller_manager.so` and `libcontrol_msgs__rosidl_typesupport_cpp.so` destroying their link maps before the final Executor/NodeBase/CallbackGroup teardown.
+
+### 14.2 Run #107 treatment (TEM cleanup enabled)
+
+Workflow commit `18fea00298ee542c304cbf73d652cd540262712e` changed the TEM cleanup gate to `if True`. The injected cleanup block is the same substantive sequence as the disabled block, with only two extra diagnostic log statements in the treatment:
+1. retain the event callback group as a TEM member rather than a local-only reference;
+2. stop/join the trajectory and private executor threads;
+3. reset event subscription, parameter callback handler, and event callback group;
+4. remove the controller-manager node from the private executor;
+5. reset private executor;
+6. reset controller-manager plugin instance;
+7. reset controller-manager node;
+8. only then allow automatic member teardown to destroy the controller-manager class loader and unload its DSO.
+
+Run [#107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898), artifact 14147826279, ZIP SHA-256 `b0e13044c3b51e9e7da2bd2b5653e5ed30a9e09692ab3677d206ef8c6250697a`, has five independent regression stdout logs, all with zero SIGSEGV. Each round completes mock FollowJointTrajectory execution/TEM SUCCEEDED and strict post-shutdown checks. Its log ordering is explicit: TEM shutdown probes, event-subscription reset, callback-group reset, private-executor destructor, controller-node reset, then `libmoveit_simple_controller_manager.so` / `libcontrol_msgs__rosidl_typesupport_cpp.so` link-map destruction.
+
+Run #113 uses the same enabled TEM-cleanup overlay and adds deterministic cancel/natural-completion barrier injection. It also passes five of five rounds with no SIGSEGV.
+
+### 14.3 Source-level explanation
+
+MoveIt Jazzy `TrajectoryExecutionManager` header currently declares:
+- `node_` at line 302;
+- `controller_mgr_node_` at line 304;
+- `private_executor_` at line 305;
+- `controller_manager_loader_` at line 331;
+- `controller_manager_` at line 332;
+- `callback_handler_` at line 352.
+
+C++ destroys members in reverse declaration order. With the stock destructor body (stopExecution, cancel private executor, join private executor thread only), automatic destruction reaches `callback_handler_`, then `controller_manager_`, then `controller_manager_loader_` before later-destroyed `private_executor_`, `controller_mgr_node_`, and `node_`. That can unload the controller-manager DSO before callback groups / weak Waitable references owned by its ROS nodes are finally destroyed. The CI-only treatment makes this teardown explicit while the loader is still alive.
+
+### 14.4 Conclusion and limits
+
+This is strong, controlled evidence that TEM's internal plugin-loader / node / private-executor destruction order is a major contributor to the historical Run #73 Waitable/CallbackGroup SIGSEGV. The main executor reorder and PSM publisher stop were already present in Run #73 but did not prevent the crash; the key treatment difference is enabling explicit TEM cleanup. Run #107 and Run #113 both pass without SIGSEGV after that treatment.
+
+It is not yet a symbol-level proof identifying the exact DSO that owns the crashing weak_ptr control block or its vtable. Run #54 shows the same WaitSet/WeakWaitableEntry crash family but has less detailed DSO tracing; it remains plausible, not fully proven, that the same TEM cleanup order explains that run too. This fix remains CI-only source overlay code. No MoveIt upstream, rclcpp upstream, Stäubli product source, PR #1, or main branch was modified.
