@@ -6,6 +6,10 @@
 
 ## 当前记录
 
+- [2026-11-15 知识资产许可证范围与逐路径权利登记基线](2026-11-15-knowledge-asset-license-scope-audit.md)：为 main 基线 386 个路径建立权利登记；35 项源码/CI、8 项参考软件仅有限来源审查，341 项未进行资产级许可审查；权利人全部未验证、再分发全部未确定，没有资产获准再分发。
+
+- [知识资产许可证与权利来源治理规范](../engineering/Knowledge-Asset-License-and-Rights-Policy.md)：定义逐资产来源、权利人、许可证、NOTICE、专利和分发门禁；明确根 MIT 声明不能自动覆盖所有知识库和第三方材料。
+
 - [2026-11-15 电池与电源标准版本/运输勘误/能量预算边界 P0 审查](2026-11-15-battery-standards-and-energy-claim-boundary-review.md)：复核 IEC 62619:2022、IEC 63056:2020/COR1:2021、UN Manual Rev.8/Amend.1 与 2025-12-15 后续勘误；更新能量预算折减因子，强调标准全文、目标电池包和实测证据仍缺。
 
 - [2026-11-15 SO-101 控制板与舵机 SKU 适用边界 P0 审查](2026-11-15-so101-controller-board-servo-sku-boundary-review.md)：复核 WaveShare 官方产品/FAQ/接线资料及 Seeed SO-ARM101 Chapter 2/6、Hugging Face LeRobot SO-101 资料；纠正 C046 仅适用于公开映射 Leader L4–L6，不可套用到 Follower F1–F6；实际板卡、采购批次BOM、固件和实测仍待确认。
