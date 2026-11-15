@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.06  
+版本：v12.07  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.387：Run #102–104在固定PR #1 HEAD、原始launch测试C=off下A+B临时overlay共15/15次mock planning+teardown repetitions通过；Run #106首次真实mock FollowJointTrajectory五轮均出现controller Goal reached、TEM SUCCEEDED、MoveGroup executed，但测试断言选错可选字段。Run #107（43677374898，commit 18fea00298ee542c304cbf73d652cd540262712e）已成功：五轮每轮2项主测试均OK、1项post-shutdown退出检查OK；五轮均记录TEM析构前execution_thread_joinable=0、active_handles_after_stop=0；artifact 14147826279，SHA-256 b0e13044c3b51e9e7da2bd2b5653e5ed30a9e09692ab3677d206ef8c6250697a。此结果验证正常执行完成后的join/句柄释放路径，不覆盖cancel与自然完成竞争。确定性barrier测试Run #111（43678571443）在CI临时注入阶段因函数尾部空白匹配失败而fail-closed，没有编译/执行；Run #112（43678885235，commit e61fd811175ad78b3d226b357e668aea8d0a5a3b）已修正为rstrip后定位函数闭括号，正验证barrier代码自检、MoveIt编译与真实mock竞争测试。§9.3.386确认MoveGroup /move_action cancel → PlanExecution::stop → TEM stopExecution与TEM executionThread确有并发路径；§9.3.387已完成正常轨迹执行后的析构不变量验证，check-lock-recheck屏障复现和execution_complete_/preempt_requested_同步修复仍未完成。stock Run #54仍SIGSEGV，PR #1保持Draft。固定Stäubli源码pin不变；不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。并行 EXT-001（MotionControlAlgorithms）已完成 DC 能力边界、CSP rearm latch、CANopen Bus-Off/SDO/NMT 会话恢复专项静态审查，知识页至§26；下一步提出 CSP fail-closed 与 CANopen session invalidation/rearm 上游修复方案（需具体授权），已完成 MotionControlAlgorithms 第三方依赖许可证/来源/SBOM 第一轮静态审查：确认 KickCAT 嵌入源码为 CeCILL-C，含 MIT/WTFPL-2.0 组件；argparse 子模块固定 commit；ROS 2/Gazebo package.xml 的 MIT 元数据与根 Apache-2.0 声明不一致；未发现 MotionControlAlgorithms 仓库自身的 SBOM/锁定依赖闭包，详见审计报告与知识页§27。已进一步追溯 KickCAT 基线 cb2e1a192ac11ffaa58f08945053b8129abf94cb：初次导入 478/482 文件 blob 与该上游版本一致；当前快照有10个文件差异、1个本地新增文件，argparse 固定提交许可证确认为 MIT。下一步逐项核验本地修改/通知要求、ROS/Gazebo 包许可意图、完整依赖闭包和真实 SBOM。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.388：Run #102–104在固定PR #1 HEAD、原始launch测试C=off下A+B临时overlay共15/15次mock planning+teardown repetitions通过；Run #107正常plan-and-execute与严格teardown五轮成功，析构前execution_thread_joinable=0、active_handles_after_stop=0。确定性barrier Run #111在CI注入预检fail-closed；Run #112虽完成overlay构建，但五轮注入测试均因生成 launch test Python 字符串语法错误而未真正进入竞态用例。已在独立分支 experiment/move-group-shutdown-order-barrier-fix 提交 CI-only 修复 1d0787c71346144ad2950c537297562b7a73b81b（正确转义换行并增加 ast.parse 预检），Run #113 正在执行，最近检查停留在未修改的 rclcpp Jazzy overlay 构建阶段；未修改 driver、MoveIt/rclcpp upstream、PR #1 或 Stäubli pin。§9.3.386 已确认 /move_action cancel → PlanExecution::stop → TEM stopExecution 与 execution thread 的真实并发调用路径；check-lock-recheck race 仍未动态复现，stock Run #54 仍 SIGSEGV，PR #1 保持 Draft。固定 Stäubli 源码 pin 不变，不连接 CS9、不发送真实运动命令、不宣称 HIL/实机验收。并行 EXT-001 已完成 KickCAT 固定上游基线和当前 vendored 子树逐 blob 审计：482 个本地 blob 中 471 个与上游相同，10 个现有路径 blob 不同（1 个仅换行格式），另有 1 个本地新增文件；发现 DS402、LRW、网络断链仿真与 ESI 配置改动，完整差异报告见 docs/audits/MotionControlAlgorithms-KickCAT-provenance-diff-review-2026-11-15.md。argparse 固定提交 MIT 已核验；四个 ROS/Gazebo package.xml 声明 MIT，与根 Apache-2.0 的关系待权利人确认；SBOM/完整依赖闭包尚未形成。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -348,7 +348,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
-| 2026-11-15 | v11.94 | 完成 CANopen Bus-Off/restart 与 SDO/NMT 会话恢复专项复核：SocketCAN Restarted→Online 不等于应用会话恢复；virtual node bus recovery 未清分段 SDO/NMT/CiA-402 状态，现有测试缺少中断会话与运行态恢复组合。新增知识页 §26、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 socketcan_transport.hpp、canopen.hpp、CANopen tests 与 P12_SOCKETCAN 文档静态核对 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 16 |
 | 2026-11-14 | v11.93 | 完成 EtherCAT CSP rearm latch 状态变化专项复核：确认 staging 对 slave/scan 异常拒绝新命令，但 latch 置位条件缺少 online/operational/AL=OP 与 scan 完整性，可能不 inhibit stale 0x6040；新增知识页 §25、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 receive_process、CSP staging/rearm、fake IgH API 与现有回归测试静态对照 |
 | 2026-11-14 | v11.92 | 完成 EtherCAT IgH adapter Distributed Clocks 专项复核：确认通用 DC 元数据/状态机未连接到 adapter 的配置、IgH 周期同步 API、runtime health 或 CSP interlock；准确标记当前 adapter 不支持/未暴露 DC，新增知识页 §24、更新 EXT-001、第14章记录与每日归档。仅修改知识库文档，未修改上游源码/CI | MotionControlAlgorithms main `c11091b` 的 IgH adapter/header、通用 EtherCAT domain/state model、fake IgH API 与 PDO mapping 测试静态核对 |
 | 2026-11-14 | v11.91 | 完成 RelativeDegreeTwoCbfFilter 标准二阶 exponential CBF 级联公式复核；确认实现漏掉 alpha2*h_dot，并以非零导数解析反例证明现有零导数测试会漏检；知识页新增 §23，更新外部项目登记、第14章任务记录和每日归档。仅修改知识库工作分支，未修改上游算法源码 | MotionControlAlgorithms main `c11091b` 的 relative_degree_two_cbf_filter.hpp、multi_input_cbf_filter.hpp 与测试；级联公式手工推导及解析数值反例 |
@@ -398,7 +398,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.386：Run #102–104原始PR测试C=off下A+B overlay共15次回归全部5/5通过；Run #106实际mock轨迹五轮控制器/TEM/MoveGroup执行成功但测试断言字段选错，Run #107修正断言并记录线程/句柄析构快照，MoveIt build中。源码调用图确认MoveGroup action cancel → PlanExecution::stop → TEM stopExecution与TEM execution thread可并发触碰普通bool execution_complete_，并发现preempt_requested_也存在跨线程普通bool读写；需做同步审查和barrier回归。stock Run #54仍SIGSEGV，PR #1保持Draft；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.388：Run #107五轮正常mock执行/析构通过；Run #112未真正执行竞态测试（临时生成Python语法错误）；Run #113在新的CI-only语法修复分支重新执行，结果待验。MoveGroup cancel与TEM execution thread有真实并发路径，barrier race尚未复现；stock Run #54仍SIGSEGV，PR #1保持Draft。SERVO-203–756动态/集成验收、ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成。EXT-001 KickCAT已完成逐blob对照，10个blob差异（含1个换行格式）、1个本地新增 fixture，报告已归档；包级许可意图与完整SBOM仍待确认/补齐。
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -434,6 +434,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 2 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 16 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
