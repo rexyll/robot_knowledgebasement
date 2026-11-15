@@ -6,7 +6,7 @@
 - KickCAT 上游：leducp/KickCAT
 - KickCAT 固定上游 commit：cb2e1a192ac11ffaa58f08945053b8129abf94cb（2026-10-05）
 - 本地 vendored 子树 SHA：930c75e31f5b8f3c77c9de01ff754e7339359053
-- 方法：Git tree/blob SHA 对照、逐文件文本差异、父仓库提交历史和 DS402 补丁脚本静态审查；另从固定上游原始文件按脚本定义的唯一锚点替换逻辑重放，并与 vendored 文件逐字节比较。未修改上游代码，未执行完整 Git checkout 构建或法律评估。
+- 方法：Git tree/blob SHA 对照、逐文件文本差异、父仓库提交历史和 DS402 补丁脚本静态审查；另从固定上游原始文件按脚本定义的唯一锚点替换逻辑重放，并使用独立 Git blob SHA-1 实现校验对象 ID（先以父仓库根 LICENSE 的已知 GitHub blob SHA 校准）。未修改上游代码，未执行完整 Git checkout 构建或法律评估。
 
 ## 1. 复算结果
 
@@ -42,7 +42,7 @@
 
 ### 2.1 DS402 补丁可重放性边界
 
-本轮已从上游固定 commit 直接读取原始 `Ds402Motor.h`（blob `931c0ac82f63a4af2bdf0efd61c6bb161bd979a8`）和 `DeviceApp.cc`（blob `a3e5fc67e72104801ec99a80ebc99c91d297aea5`），按 `apply_kickcat_ds402_fault_patch.py` 的四组精确唯一锚点替换逻辑重放。生成的两个完整文本与当前 vendored 文件逐字符相同：`Ds402Motor.h` 12,348 字符，对应本地 blob `c805231cc34f5768168836efd75c88050921b400`；`DeviceApp.cc` 1,321 字符，对应本地 blob `6bc1d82c071f458d312e863034074f44bcc87f52`。这确认了脚本定义的文本变更与当前快照一致，但本次并未在真实 pinned Git checkout 中执行 Python 脚本，也未实际调用 Git 计算 blob SHA。
+本轮已从上游固定 commit 直接读取原始 `Ds402Motor.h`（blob `931c0ac82f63a4af2bdf0efd61c6bb161bd979a8`）和 `DeviceApp.cc`（blob `a3e5fc67e72104801ec99a80ebc99c91d297aea5`），按 `apply_kickcat_ds402_fault_patch.py` 的四组精确唯一锚点替换逻辑重放。生成的两个完整文本与当前 vendored 文件逐字符相同，且使用 Git blob object hash 公式独立计算的 SHA-1 与上游文件树中本地 vendored blob SHA 完全一致：`Ds402Motor.h` 12,348 bytes，计算 SHA `c805231cc34f5768168836efd75c88050921b400`；`DeviceApp.cc` 1,321 bytes，计算 SHA `6bc1d82c071f458d312e863034074f44bcc87f52`。SHA-1 实现先用根 `LICENSE` 的已知 GitHub blob SHA（`2b9e83c352cb17ffa9d3d429589bae708ca80010`）校准，结果一致。该结果确认两份 vendored 文件与脚本定义的替换产物具有相同 Git blob ID；但本次并未在真实 pinned Git checkout 中执行 Python 脚本，也未直接调用 `git hash-object`。
 
 父仓库脚本 scripts/ethercat_sil/apply_kickcat_ds402_fault_patch.py：
 - 将基线硬性固定为 cb2e1a192ac11ffaa58f08945053b8129abf94cb；
@@ -139,7 +139,7 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 
 ## 6. 下一步整改顺序
 
-1. **DS402 patch manifest：** 已按脚本定义的锚点逻辑重放并确认两文件逐字符一致；下一步在干净 pinned checkout 直接运行 Python 脚本、用 Git 复算 blob SHA，并补全本地 JSON fixture 的来源、用途、维护者和测试关联。
+1. **DS402 patch manifest：** 已按脚本定义的锚点逻辑重放，两文件输出的 Git blob SHA 均与 vendored 文件精确一致；下一步在干净 pinned checkout 直接运行 Python 脚本，并由 `git hash-object` 复核同一结果；同时补全本地 JSON fixture 的来源、用途、维护者和测试关联。
 2. **LRW patch series：** 将 SimulatorControl / EmulatedNetwork / SimulatorControlServer / unit test 的提交整理为可重放补丁系列，附文件 blob SHA、目的、测试用例和测试执行记录。
 3. **network simulator patch series：** 把 raw socket errno、ENOBUFS + carrier-down 分类、sysfs carrier/operstate、control channel drain 分为逻辑清晰的补丁单元；验证 idle、link-up ENOBUFS、link-down ENOBUFS 和 redundancy 端口场景。
 4. **ESI 依据：** 为 CoE-only / SdoInfo=false 配置补充设备厂商 ESI、协议要求、目标模拟器需求和测试证据；未确认前不要把该 XML 当作目标设备的官方 ESI。
@@ -148,4 +148,4 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 
 ## 7. 验证边界
 
-本轮完成 Git tree/blob 与代码/元数据静态审查，并按脚本定义的相同替换操作完成 DS402 两文件文本重放/逐字节等同性比对；未在真实 pinned Git checkout 中直接运行 Python patch 脚本。未运行 KickCAT unit tests、Linux link-fault SIL、ROS 2/Gazebo build、全 profile dependency resolution、SBOM generation/validation、CVE scan、HIL 或物理 EtherCAT 测试；未修改 MotionControlAlgorithms 上游任何源码、LICENSE、NOTICE、package.xml、CI 或依赖声明。
+本轮完成 Git tree/blob 与代码/元数据静态审查，并按脚本定义的相同替换操作完成 DS402 两文件文本重放及 Git blob SHA-1 独立复算，两个生成 blob ID 均与 vendored 文件一致；未在真实 pinned Git checkout 中直接运行 Python patch 脚本或调用 git hash-object。未运行 KickCAT unit tests、Linux link-fault SIL、ROS 2/Gazebo build、全 profile dependency resolution、SBOM generation/validation、CVE scan、HIL 或物理 EtherCAT 测试；未修改 MotionControlAlgorithms 上游任何源码、LICENSE、NOTICE、package.xml、CI 或依赖声明。
