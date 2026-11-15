@@ -102,11 +102,11 @@ jobs:
           missing = [str(path) for path in required if not path.is_file()]
           if missing:
               raise SystemExit(f"sdist is missing required files: {missing}")
-          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env_file:
-              env_file.write(f"SDIST_SMOKE_ROOT={smoke_root}\n")
-              env_file.write(f"SDIST_SMOKE_SOURCE={source_root}\n")
+          (smoke_root / "source-root.txt").write_text(str(source_root), encoding="utf-8")
           print(f"Extracted {archive} to {source_root}")
           PY
+          export SDIST_SMOKE_ROOT="${smoke_root}"
+          export SDIST_SMOKE_SOURCE="$(cat "${smoke_root}/source-root.txt")"
           export UV_PROJECT_ENVIRONMENT="${SDIST_SMOKE_ROOT}/venv"
           uv sync --locked --extra dev --no-install-project
           uv pip install --python "${SDIST_SMOKE_ROOT}/venv/bin/python" --no-deps "${SDIST_SMOKE_SOURCE}"
