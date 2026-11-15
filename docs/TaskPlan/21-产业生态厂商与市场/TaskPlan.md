@@ -6639,3 +6639,69 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 用独立对照确定 `ltt_probe_register` 警告与 teardown SIGSEGV 是否相关；任何诊断变化都不得放宽严格退出码断言。
 
 **状态：** 三轮严格回归均失败，MoveGroup teardown 根因未解决。当前最优先假设是 callback-group Waitable weak control block 生命周期/内存所有权问题；插件 DSO 卸载可能相关，但尚未证实。SERVO-906/907、A1.1 继续 BLOCKED；PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp，不连接真实 CS9、不发送真实运动命令；TODO-EXT-001 未授权。
+
+### §9.3.378｜Run #73 control-block vtable 与插件 DSO 映射关联确认（2026-11-15）
+
+- [x] 读取 Run [#73](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43452965703)（ID 43452965703，job 131979685436）完整日志与 artifact（14054405267）；ROS Jazzy / rclcpp / MoveIt / Stäubli mock workspace 编译与 mock planning 成功，严格 native teardown 3/3 失败，三轮均在 std::weak_ptr<rclcpp::Waitable> control-block weak-count release 阶段 SIGSEGV，GDB wrapper exit 255。
+- [x] 对三轮 control-block vptr、info proc mappings 与 LD_DEBUG unload 记录逐一对齐。三轮 vptr 分别为 0x7f579c08fd88、0x7fbcdc4ced88、0x7f4f60191d88；分别相对 libmoveit_simple_controller_manager.so 基址偏移均为 0x5ed88，且均在该 DSO fini / link-map 销毁后、weak_ptr teardown 崩溃时已不再映射。
+- [x] 将证据与准确 DSO 对齐，纠正前序泛化归因：崩溃 control-block vptr 落在 libmoveit_simple_controller_manager.so，不是仅凭时间先后出现的 libsequence_capability.so 或 libcommand_list_manager.so。后三者仍保留在 LD_DEBUG 历史中，但不能把它们说成该 control block 的所属 DSO。
+- [x] 继续追溯插件内部 Waitable 来源：MoveIt Jazzy 的 MoveItSimpleControllerManager::initialize() 持有传入的 controller node，并创建 ActionBasedControllerHandle；该 handle 构造函数通过 rclcpp_action::create_client<T>(node, ...) 创建 action client，并持有其 SharedPtr；ROS 2 Jazzy 的 rclcpp_action::ClientBase 明确 public 继承 rclcpp::Waitable。源码：[MoveItSimpleControllerManager](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp)、[ActionBasedControllerHandle](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp)、[rclcpp_action::ClientBase](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp_action/include/rclcpp_action/client.hpp)。这为“插件 DSO 内创建的 action-client Waitable/control-block 关联 controller_mgr_node_ 的 CallbackGroup weak refs”提供源码所有权链证据；具体 _Sp_counted control-block 动态类型仍未通过 RTTI 完整符号化，不把它写成已证明的具体模板实例。
+- [x] 补齐 rclcpp 内部所有权细节：Jazzy 的 rclcpp_action::create_client() 构造带局部 custom deleter closure 的 shared_ptr<Client<ActionT>>，deleter 捕获 weak_node / weak_group；client 作为 Waitable 注册至 NodeWaitables::add_waitable()，由 CallbackGroup::add_waitable() 以 Waitable::WeakPtr 保存。Executor 的 current_collection_ / WaitSet 同时持有执行期间所需实体引用。custom deleter 会尝试在 node 仍存活时调用 NodeWaitables::remove_waitable()，但不能假设它一定能即时删除 CallbackGroup 弱引用：CallbackGroup::remove_waitable() 是对已存储 weak_ptr 执行 lock() 后再比较 get()；当原 shared_ptr 的强计数已归零、custom deleter 正在执行且无其它强引用时，该 lock() 会失败，条目可能保留到 CallbackGroup/Node 析构或后续 prune。源码：[create_client.hpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp_action/include/rclcpp_action/create_client.hpp)、[node_waitables.cpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_waitables.cpp)、[callback_group.cpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/callback_group.cpp)、[executor.cpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/executor.cpp)。
+- [x] 修正候选清理顺序的保证条件：先 cancel/join private executor；remove_node 并销毁 executor，释放 WaitSet/current_collection_ 对 Waitable 的执行期强引用；在 controller_mgr_node_ 与 plugin loader 仍存活时 reset controller_manager_，让 plugin-owned action-client custom deleter 在 DSO 仍加载时执行（它会尝试 remove_waitable，但因弱引用 lock 可能失败，不能依赖其完成 prune）；随后显式 reset controller_mgr_node_，使 CallbackGroup 中可能残留的 expired weak_ptr/control block 在 plugin DSO 仍有效时析构；最后才允许 controller_manager_loader_ 卸载 DSO。Node-before-loader 是安全性必要条件，不能以 remove_waitable 的调用作为替代。此为候选方案推导，仍需 Run #102 与边界测试验证。
+- [x] 结论升级为强生命周期机制证据：仍待 weak_ptr 析构的 control block 需要调用位于已卸载插件 DSO 的虚表函数/析构路径；这比“插件卸载与崩溃先后相关”更具体，但没有通过完整符号/RTTI 解析到 control-block 具体动态类型，故根因结论仍保留为高置信机制判断而非正式上游修复验收。
+- [x] 确认 Run #73 artifact：[moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43452965703/artifacts/14054405267)。
+
+**状态：** control-block vptr 所属映射已锁定到 libmoveit_simple_controller_manager.so，与 DSO 卸载时序三次一致；需要结合 TrajectoryExecutionManager 的成员声明/逆序析构关系和受控 A/B 验证具体存活对象。
+
+### §9.3.379｜TrajectoryExecutionManager 显式析构 A/B 与五轮 mock 回归（2026-11-15）
+
+- [x] 对照 MoveIt 2 Jazzy 固定分支源码：
+  - [trajectory_execution_manager.hpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp)，blob de453558b79662a2f473c0eb5c7999d7a6d34fa3；
+  - [trajectory_execution_manager.cpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp)，blob 126469542aa546046e6e305b18b56213e91d69a8。
+- [x] 证实 controller_mgr_node_ 在头文件成员列表中声明于 controller_manager_loader_ 之前，而 controller_manager_ 在 loader 之后；析构函数主体仅 stopExecution(true)、取消 private executor 并 join 线程。成员随后逆序销毁时，plugin instance/loader 会先于较早声明的 controller node 及其 executor/node callback/waitable 所有权对象销毁。
+- [x] 实验 workflow 对 MoveIt Jazzy 临时 overlay 增加显式 TEM teardown：stop/cancel/join 后释放 event subscription、callback handler / callback group；从 private executor 移除 controller node；依次释放 executor、controller manager instance、controller node；让 controller-manager plugin loader 在相关 node/executor/waitable 资源清理之后才自动销毁。MoveGroup 主作用域还保留 PSM publisher stop/join、main MoveIt owner reset 与 executor/MoveGroupExe 安全析构顺序。所有改动只发生在 Actions 临时工作目录，未提交至 MoveIt/rclcpp 上游。
+- [x] Run [#76](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43576339592)（ID 43576339592，commit ddc6baf5d5bf7e5d86d1744c8793fb86aa1ca0c9）combined overlay 3/3 严格 teardown 通过；每轮 mock test 汇总 6 tests、0 failures、0 skipped。
+- [x] Run [#77](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43578755368)（ID 43578755368，commit cc7f57255739eb7a56587675bd7dc5830c1cc5b1）保留 main-node/plugin ordering 但关闭 TEM explicit-cleanup；三轮重新复现 SIGSEGV / GDB wrapper 255。该隔离 A/B 证明 TEM cleanup 是组合修复中的必要项，不能只保留 MoveGroup main 层的生命周期调整。
+- [x] Run [#78](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43580444280)（ID 43580444280，commit 4bd325af43a2695d04a65ccc8ffaae4dc509ccb8）恢复完整 TEM cleanup 后 3/3 通过。
+- [x] Run [#79](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43581838083)（ID 43581838083，commit 2b53a2e0e2800b6a3027e07c3a6b30f8e88784aa）在不改变 overlay 源码的前提下将严格回归扩展到 5 轮，5/5 通过。
+- [x] Run [#80](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43584290417) 固定 Stäubli 临时构建输入到 PR #1 当时 head c74a70f76c642ee99809efc3bcd01740ba90e89d，5/5 通过。
+- [x] Run [#81](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586145715) 将临时构建输入固定到 PR #1 当前 head 7d9fa0d715db46060199eeca541514ddeed9c4c1 并逐轮校验实际 checkout SHA；5/5 通过。每轮均实际运行 MoveIt mock joint-goal planning 与 post-shutdown process-exit assertions，汇总 6 tests、0 errors、0 failures、0 skipped；artifact 14110644062：[实验日志](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586145715/artifacts/14110644062)。
+- [x] 进一步检查发现 Run #73–#81 的实验 workflow 在临时 Stäubli workspace 中修改了 PR 测试副本：在 planning 后通过 SwitchController 显式 deactivate joint_trajectory_controller，并等待其状态变为 inactive，再触发 launch shutdown。PR #1 实际提交的 test_moveit_mock_planning.launch.py 不包含该测试侧 deactivation；因此此前 5/5 结果不是与普通 PR CI 完全相同的 shutdown 输入。该额外因素在 #75–#81 各轮保持一致，#77 仍能说明 A/B/C 组合中 TEM cleanup 不可缺少，但必须单独验证 C=off。
+- [x] 确认 Run #81 workflow commit d61457a639d6aa083b44519680edde4f862ed7d5 仅更新隔离实验 workflow；MoveIt 与 rclcpp 源码修改由 CI 临时 overlay 生成，没有推送上游、没有改变 Stäubli 正式源码 pin。
+
+**状态：** combined MoveIt Jazzy source-overlay 修复在当前 Stäubli PR head 的 mock 环境中已取得 5/5 重复通过；#77 的隔离失败证明 TEM 显式清理不能删除。该证据只适用于此 CI mock / 临时源码 overlay，不等价于未修改系统 ROS Jazzy 二进制通过，也不代表 HIL、CS9 或真实机器人验收。
+
+### §9.3.380｜PR #1 正常 CI 仍复现 teardown SIGSEGV，保持 Draft / BLOCKED（2026-11-15）
+
+- [x] 核验 PR [#1](https://github.com/rexyll/staubli_driver_ros2_from_org/pull/1)：head 7d9fa0d715db46060199eeca541514ddeed9c4c1，base main=4f9a37e12038174a010a9ad1f4523807fbb1434b，Draft、open、未合并；变更范围为 Stäubli repo 的 5 个文件，不包含 MoveIt upstream 的 TEM 源码修复。
+- [x] 核验 Format Run [#51](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586144410) success。
+- [x] 核验普通 ROS Jazzy CI Run [#54](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586144415)，job 132424919066、attempt 2：ROS 环境、构建和前序测试步骤完成，MoveIt mock planning action 成功；退出时 move_group 在系统安装的 /opt/ros/jazzy/lib/librclcpp.so 路径 SIGSEGV，GDB wrapper exit 255，test_all_processes_exit_cleanly 严格退出码断言失败。整体 Summary: 73 tests, 0 errors, 2 failures, 0 skipped；未发现 setup/编译失败或 timeout 证据。
+- [x] 区分 Run #81 与 Run #54：Run #81 在 CI 中临时编译并应用 MoveIt Jazzy/rclcpp overlay 修复后通过；Run #54 使用默认安装的 ROS Jazzy/MoveIt 二进制，仍复现崩溃。overlay patch 没有进入 PR #1 的 5 个正式变更文件，也未发布为 MoveIt 上游修复。因此不能把 #81 的 5/5 解释为 PR #1 已通过普通 CI 或可以合并。
+- [x] 交叉核验测试输入差异：实验 workflow 对 PR 测试副本插入 SwitchController deactivate + inactive-state wait；PR #1 原始测试文件不含该步骤。故 Run #54（stock ROS Jazzy + 原始 PR 测试）与 Run #81（MoveIt overlay + 测试侧预先停控制器）同时改变了 MoveIt 实现和 teardown 输入，不能仅据 #54/#81 差异把全部结果归结为 MoveIt patch。
+- [x] 保持 PR #1 Draft、未合并；Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；SERVO-906/907、A1.1 继续 BLOCKED；不修改 MoveIt/rclcpp upstream、不连接真实 CS9、不发送真实运动命令、不宣称 HIL/实机验收。
+
+**状态：** 根因机制和 CI overlay 候选修复获得强证据及 5/5 mock 回归通过，但普通 PR CI 仍失败；生产修复尚未合入适当上游发布链。当前节点继续进行中，不得标记完成。
+
+### §9.3.381｜去除测试侧 controller deactivation 并重测 PR 原始 teardown 流程（2026-11-15）
+
+- [x] 建立三因素矩阵：A=MoveGroup 主作用域 owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。所有 #75–#81 实验还共同保留 stopPublishingPlanningScene、MoveGroupExe-before-executor 声明顺序。
+- [x] 现有结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78 恢复 A+B+C 后 3/3 PASS；#79–#81 在 A+B+C 下 5/5 PASS。这里 A/B 指新增 owner reset/TEM cleanup，stop PSM 与 MoveGroupExe-before-executor 是各次实验共同保留项。#54 为 stock ROS Jazzy + 原始 PR 测试（A=off,B=off,C=off，且无临时 MoveIt overlay），teardown FAIL。
+- [x] 仅修改隔离实验 workflow，移除临时注入 SwitchController/deactivation 逻辑，保留 PR head 7d9fa0d715db46060199eeca541514ddeed9c4c1 原始测试文件；MoveIt overlay A+B 不变。workflow commit b49a934e16243b8c81039e5d3d9fd5876b76d046。
+- [x] 新实验 Run #102（ID 43673306520，job 132687888928）已创建，branch head b49a934e16243b8c81039e5d3d9fd5876b76d046；触发时为 in_progress，尚未取得 build、test 或最终结论证据：[Run #102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)。
+- [ ] 检查 Run #102 实际使用的 Stäubli test file 是否与 PR head 原样一致，并核对 source SHA 仍为 7d9fa0d715db46060199eeca541514ddeed9c4c1。
+- [ ] 读取 Run #102 所有 steps/logs/artifacts，记录 mock planning 结果、各进程退出码、GDB 栈、DSO unload/mapping、测试汇总与是否真实执行。
+- [ ] 若 A+B、C=off 仍通过，至少独立复跑一次；若失败，将首个异常拆为 TEM weak_ptr/plugin DSO、MoveGroup main-owner teardown、controller manager deactivation/launch race 三条路径分别复核，不放宽断言。
+- [ ] 保持 stock binary 对照和 overlay 候选分开报告；未修改 MoveIt/rclcpp 上游、不改变固定 pin、不合并 PR #1、不连接 CS9、不发送真实运动命令。
+
+**状态：** 当前仅证明 A+B+C 组合在实验 overlay 中 5/5 通过；原始 PR 测试条件 C=off 的 A+B 验证正在 Run #102 执行，尚无结论。PR #1 继续 Draft，普通 stock CI 仍 FAIL，SERVO-906/907 与 A1.1 继续 BLOCKED。
+
+### 下一节点
+
+**§9.3.382｜TEM/MoveGroup teardown 候选补丁的最小化、所有权图与并发边界审查**
+
+- [ ] 将实验 overlay 的 A/B 补丁与 MoveIt Jazzy 源码逐 hunk 对齐，去除 diagnostics 与 workflow-only 变更。
+- [ ] 结合 Run #102 结果确定最小必要代码路径，审查 executor thread join、remove_node、callback group / Waitable、plugin instance 与 loader 的所有权和释放顺序。
+- [ ] 明确审计 TEM 的 active_handles_：它是 MoveItControllerHandlePtr 容器且声明在 controller_manager_loader_ 之前（因此隐式逆序析构时位于 loader 之后）。确认 stopExecution(true) 后 execution_thread_ 已 join、active_handles_ 在 loader reset 前为空；对异常/早退/未启动执行线程路径考虑在无并发访问的条件下显式清空并验证析构顺序，避免 plugin-owned handles 跨 DSO unload 存活。同步确认 trajectories_ 的 raw contexts 经 clear() 释放，不遗留 controller-handle 或回调对象。
+- [ ] 验证重复析构、未启用 controller management、缺失 plugin、构造中途失败、Context 已 shutdown、controller update 仍在途等边界。
+- [ ] 按源码精确区分 stopExecution(true) 的 clear 路径：execution_complete_ 已为 true 且 execution_thread_ 仍 joinable 时只 join/reset，不触发 auto_clear；clear() 仅删除 trajectories_，不清 active_handles_。executePart() 的正常收尾及部分失败分支会清 handles，但需覆盖异常/早退、auto_clear=false、线程未启动和 controller manager 缺失路径，并在 loader reset 前验证 handle vector 为空。
+- [ ] 不将候选补丁提交至 upstream 或生产 PR，除非用户单独授权。

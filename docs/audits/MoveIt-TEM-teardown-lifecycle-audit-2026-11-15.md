@@ -1,0 +1,124 @@
+# MoveIt Jazzy TEM / MoveGroup teardown 生命周期审查
+
+**审查日期：** 2026-11-15  
+**状态：** 静态源码所有权审查已完成；Run #102 的 C=off overlay 回归仍在构建阶段，尚无测试结论。  
+**适用边界：** MoveIt 2 Jazzy + ROS 2 Jazzy 的 Stäubli mock CI teardown。本文不是上游修复，也不构成 CS9、HIL 或真实机器人验收。
+
+## 1. 结论摘要
+
+Run #73 的三轮崩溃采样中，Waitable weak control block 的 vptr 均相对 `libmoveit_simple_controller_manager.so` 基址偏移 **0x5ed88**；该 DSO 在 weak-count release 崩溃前已卸载。三轮相同偏移、相同 DSO 映射关系，将证据从“插件卸载与崩溃时间相邻”推进到“待析构 control block 的虚表地址属于已卸载 controller-manager plugin DSO”的强生命周期机制证据。其具体 `_Sp_counted` 动态类型仍未通过完整 RTTI/符号解析确认，故不宣称模板实例已被完全识别。
+
+MoveIt Jazzy 的 TEM 成员声明与默认析构顺序确实存在危险：`controller_mgr_node_`、private executor 和 `active_handles_` 声明在 `controller_manager_loader_` 之前；`controller_manager_` 声明在 loader 之后。默认逆序析构会先销毁 controller-manager instance 和 loader，再销毁更早声明的 node/executor/handle 容器。原始析构函数体只执行 `stopExecution(true)`、cancel private executor 和 join thread，没有明确建立 node / CallbackGroup / WaitSet 均先于 loader 销毁的保证。
+
+ROS 2 Jazzy 的 action-client 与 CallbackGroup 实现为这一故障机制提供了源码解释：action-client 自定义 deleter 会尝试 `remove_waitable()`，但 `CallbackGroup::remove_waitable()` 以 `weak_ptr.lock()` 取得原 Waitable 后比较裸指针；当原 control block 的 strong count 已归零时，lock 会失败，expired weak entry 可能继续保留在 CallbackGroup 中，直至 CallbackGroup / Node 销毁或后续 prune。因此安全性不能只依赖 deleter 调用过 `remove_waitable()`；必须保证关联 node / CallbackGroup 在插件 DSO 卸载前销毁。
+
+## 2. 固定源码证据
+
+以下文件来自 MoveIt 2 Jazzy 与 ROS 2 rclcpp Jazzy。文件 blob SHA 已在任务记录中固定：
+
+| 文件 | Blob SHA | 审查位置 |
+|---|---|---|
+| [trajectory_execution_manager.hpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp#L302-L333) | `de453558b79662a2f473c0eb5c7999d7a6d34fa3` | 成员声明顺序 |
+| [trajectory_execution_manager.cpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L86-L93) | `126469542aa546046e6e305b18b56213e91d69a8` | 析构函数 |
+| [move_group.cpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group.cpp#L97-L102) | `2389100756b420935a911a4b4764b196ec0a430f` | MoveGroupExe 析构 |
+| [create_client.hpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp_action/include/rclcpp_action/create_client.hpp#L53-L93) | `f594bca78d64a922670273edd568778a527e4199` | action-client custom deleter |
+| [callback_group.cpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/callback_group.cpp#L205-L228) | `73cd458bbcdb1457e02a7e89df27aa09cd6ef45d` | Waitable weak refs 与 remove |
+| [executor.cpp](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/executor.cpp#L224-L240) | `c922be8a0d70834c7ff1ef73e4c56e19575816ed` | remove_node |
+
+### 2.1 TEM 成员与默认析构
+
+在 `trajectory_execution_manager.hpp` 中，关键成员顺序为：
+
+1. `node_`、`controller_mgr_node_`、`private_executor_`、`private_executor_thread_`；
+2. `event_topic_subscriber_`、执行线程与状态锁；
+3. `active_handles_`、`trajectories_`；
+4. `controller_manager_loader_`；
+5. `controller_manager_`。
+
+C++ 成员按声明顺序构造、按相反顺序析构。因此默认析构时，`controller_manager_` 先于 loader 销毁，但 loader 仍早于 `trajectories_`、`active_handles_`、event subscription、private executor 和 controller node 销毁。这意味着不能把“manager instance 已析构”视为全部 plugin-owned 对象已经释放。
+
+当前 `TrajectoryExecutionManager::~TrajectoryExecutionManager()` 的函数体为：
+
+- `stopExecution(true)`；
+- private executor 存在时调用 `cancel()`；
+- private executor thread 可 join 时执行 `join()`。
+
+随后才进入成员逆序析构。它没有显式 remove/reset controller node，也没有在 loader 销毁前对 CallbackGroup / Waitable weak control block 的最终释放建立保证。
+
+### 2.2 Action-client Waitable 所有权链
+
+MoveIt Simple Controller Manager 持有 controller node，并通过 ActionBasedControllerHandle 创建 ROS action client。Jazzy 的 `rclcpp_action::create_client()` 使用自定义 deleter closure，捕获 `weak_node` 与 `weak_group`；创建的 `Client<ActionT>` 作为 Waitable 注册到 NodeWaitables / CallbackGroup。CallbackGroup 保存的是 Waitable weak pointers。
+
+自定义 deleter 会构造一个不拥有原 control block 的 fake shared pointer，仅用于将原 client 的裸地址传给 `remove_waitable()`。然而 `CallbackGroup::remove_waitable()` 对已存储的 weak pointer 调用 `lock()` 后才比较指针。如果原 client 已经进入最后一个 strong reference 的销毁流程，`lock()` 可能返回空，不能保证对应 expired weak entry 被即时移除。Executor 的 collector / WaitSet 还可能在执行期间持有相关实体引用，所以需要先停止、join 并销毁 executor，再释放 node / group。
+
+## 3. 候选 teardown 顺序（仅作为验证假设）
+
+### 3.1 MoveGroup 主作用域
+
+1. executor.spin() 返回后先停止并 join PlanningSceneMonitor 的 scene publisher，再执行 Context shutdown，避免 publisher thread 与 Context 同时销毁。
+2. 将 `MoveGroupExe` 声明在 `MultiThreadedExecutor` 之前，使逆序析构先销毁 executor / WaitSet，再析构 MoveGroupExe 及其 capability 实例。
+3. Context shutdown 后释放 main scope 的 PSM、MoveItCpp 和 node 外部 shared owners；MoveGroupExe 仍持有其 context/capability 所需对象。
+4. MoveGroupExe 析构先 clear capability instances，再 reset context，最后 reset capability plugin loader。必须确保 executor / WaitSet 已经结束使用 plugin-owned callbacks 后，才卸载 capability DSO。
+
+### 3.2 TrajectoryExecutionManager
+
+候选顺序为：
+
+1. 停止轨迹执行，cancel private executor，并 join private executor thread。
+2. reset event subscription 与 parameter callback handle；对专用 event callback group 显式管理生命周期。
+3. 从 private executor 移除 controller node，reset private executor，使 WaitSet / collector 不再保留执行期 Waitable 引用。
+4. 在 controller node 和 plugin loader 仍存活时 reset controller-manager plugin instance，让其 action-client custom deleter 在 DSO 仍加载时执行。
+5. reset controller node，使 CallbackGroup 中仍可能存在的 expired weak entry / control block 在 DSO 卸载前完成析构。
+6. 最后才让 `controller_manager_loader_` 销毁并卸载 DSO。
+
+上述顺序是基于 Jazzy 源码与 Run #73 vptr 映射证据推导出的候选，不是已经合入上游的生产修复。实验 workflow 中对 event subscription 新增了独立 callback group 字段，属于 CI-only overlay 改动；不能把该插桩直接当成正式 API/生产补丁。
+
+## 4. active_handles_ 与 trajectories_ 边界
+
+`active_handles_` 是 `MoveItControllerHandlePtr` vector，声明在 `controller_manager_loader_` 之前。如果其中残留由 plugin 创建的 controller handle，默认成员逆序析构可能晚于 loader 卸载。
+
+Jazzy 常见执行路径确实有清理逻辑：
+
+- 未取得 controller handle 的分支会 clear；
+- sendTrajectory 失败分支会 clear；
+- executePart 正常/停止收尾路径会在 execution state mutex 下 clear；
+- 该函数的局部 handle vector 在返回时析构。
+
+但需要注意：
+
+- `clear()` 只删除 `trajectories_` 中的 raw trajectory contexts，不会清理 `active_handles_`。
+- `stopExecution(true)` 在进入时 `execution_complete_ == false` 的分支中 join 后才会调用 `clear()`；若进入时 `execution_complete_ == true` 且仍有 joinable execution thread，当前实现只 join/reset thread，不调用 auto_clear。
+- 因此常见路径上 handle vector 由 executePart 自身清理，但不能仅凭调用了 `stopExecution(true)` 就证明所有边界路径都已经释放 plugin handles / trajectory contexts。
+
+**要求：** teardown candidate 在执行线程 join 后、controller-manager loader reset 前，验证 `active_handles_.empty()`；必要时在确认无并发访问并持有正确状态锁的情况下显式释放残余 handles。对 `trajectories_` 也应覆盖尚未执行、`auto_clear=false`、执行已完成但 thread 尚未 join、controller manager 缺失、异常/早退和部分构造失败等路径。
+
+该项是尚待验证的生命周期边界，不是 Run #73 已证实的第二处崩溃根因。不得将其写成已发生的独立 use-after-unload。
+
+## 5. 受控实验与当前验证状态
+
+| 实验 | 变量/输入 | 结果 |
+|---|---|---|
+| Run #75 | A=off、B=on、C=on | 3/3 FAIL |
+| Run #76 | A=on、B=on、C=on | 3/3 PASS |
+| Run #77 | A=on、B=off、C=on | 3/3 FAIL |
+| Run #78 | A=on、B=on、C=on | 3/3 PASS |
+| Run #79–#81 | A+B+C overlay | 5/5 PASS |
+| Run #54 | stock ROS Jazzy + PR 原始测试，无 MoveIt overlay | teardown SIGSEGV |
+| Run #102 | A+B overlay、C=off、PR 原始测试输入 | **当前仍在 MoveIt build；测试未启动** |
+
+其中 A 表示 MoveGroup 主作用域 owner / executor 顺序调整；B 表示 TEM 显式 cleanup；C 表示测试侧预先 deactivate joint_trajectory_controller。Run #75–#81 的 C=on 与 PR 原始 launch test 不同，所以其 5/5 通过不能替代 C=off 验证。
+
+Run #102 的 workflow commit 为 `b49a934e16243b8c81039e5d3d9fd5876b76d046`，实验分支为 `experiment/move-group-shutdown-order`，Actions run ID 为 `43673306520`，job ID 为 `132687888928`。workflow 将 Stäubli 临时 workspace 固定到 PR #1 head `7d9fa0d715db46060199eeca541514ddeed9c4c1`，并删除测试副本中此前的 controller-deactivation 注入。最近一次核验时，ROS Jazzy setup、rclcpp overlay build、MoveIt overlay patch 与依赖安装均已完成；patched MoveGroup build 正在进行，Stäubli workspace build 和 strict teardown repetitions 尚未开始；尚无 artifact 或最终结论。
+
+## 6. 下一步验收条件
+
+- 读取 Run #102 实际 checkout 步骤与 SHA 校验输出，确认 PR launch test 没有被改写。
+- 只有 mock planning 成功、严格 teardown 测试全部五轮真实执行且所有相关进程退出码为 0，才可记录该配置 PASS。
+- 若 Run #102 通过，至少再做一次独立重复；若失败，按首个异常、Waitable vptr/DSO mapping、MoveGroup main owners、TEM node/group/executor 和 controller lifecycle 分层定位。
+- 增加/验证 active_handles_ empty invariant、trajectories_ 清理及构造失败、缺失插件、未启用 controller management、Context 已 shutdown、controller update in-flight、重复 shutdown 等边界。
+- 先把 CI overlay 的有效代码 hunk 与上游 Jazzy 源码逐项对齐，移除诊断输出和 workflow-only 改动，形成最小候选补丁审查稿。
+- 不修改 MoveIt/rclcpp upstream，不改变 Stäubli pin，不合并 Stäubli PR #1，不连接真实 CS9，不发送真实运动命令，不宣称 HIL/实机验收。任何 upstream / 生产 PR 修改仍需单独授权。
+
+---
+
+**本报告的结论边界：** Run #73 对 control-block vptr 与 plugin DSO 的三次映射证据、Jazzy 源码所有权链和候选 teardown 顺序已核验；Run #102 的 C=off 回归仍未完成；PR #1 继续 Draft / BLOCKED。
