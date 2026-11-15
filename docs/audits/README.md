@@ -6,6 +6,12 @@
 
 ## 当前记录
 
+- [2026-11-15 迈步机器人 MileBot 康复外骨骼注册证状态时点复核](2026-11-15-milebot-rehabilitation-exoskeleton-registration-status-review.md)：核对湖南省药监局2026年9月首次注册目录的新证湘械注准20262190524、旧证湘械注准20212190586遗失补发公告、BEAR-H1/H2及BEAR-A1/MAX第三方型号线索和H系列官网描述；确认新旧证不能直接合并、型号范围与深圳/长沙企业主体关系待原始证照及企业文件核验。
+
+- [2026-11-15 柏惠维康重庆迁址：第三类医疗器械生产许可与8张注册证迁移复核](2026-11-15-baihui-chongqing-license-registration-migration-review.md)：核对媒体获证/迁移报道、重庆药监局2025-08和2026年生产许可公告附件、涪陵经营许可证申请公示，以及7个候选产品注册证的逐证时间线；结论为媒体/企业声称已获证并迁移8证，但生产许可证原件和完整8证清单尚未取得，且部分产品注册变更日期在2026年，不能把2025年8月前全迁移视为已证事实。
+
+- [2026-11-15 天智航 TiRobot / 天玑1.0 注册证状态时点复核](2026-11-15-tinavi-ti-robot-registration-status-review.md)：对国械注准20163012280第三方列示有效期、NMPA 2024-01-25送达记录、CQX2300679事项类别缺口及注册延续法规作冲突复核；结论为当前注册状态未闭合，不能据此宣称失效或有效，电子注册证和审批附件待取。
+
 - [2026-11-15 Python Toolkit 13 项发布文件 Git 来源与代码相似性审查](2026-11-15-python-toolkit-source-history-and-similarity-review.md)：追溯 wheel/sdist 的 11 个模块和 2 个测试的 Git 路径历史；17 条 commit 记录均未签名，并记录 chunker.py 的公开相似性线索。sdist 独立安装/测试已在当前 PR HEAD 的 CI #43711328493 复验通过；13/13 权利人仍未验证、再分发仍未确定。
 
 - [2026-11-15 Python Toolkit wheel/sdist 发布范围与许可证元数据审查](2026-11-15-python-distribution-and-license-metadata-review.md)：根据 CI Run #43709474246 和最新 HEAD Run #43711328493 的分发成员清单，确认 wheel 不含 Knowledge Vault；sdist 仅保留两个 Toolkit 测试，独立解包/安装后10项测试通过、CLI入口通过，最新 manifest artifact 14159849177、smoke evidence artifact 14160676005。记录 legacy License metadata 与 PEP 639 迁移阻塞，权利人/再分发授权仍未确认。
