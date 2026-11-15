@@ -176,4 +176,4 @@
 - **必做：** 区分根项目 Apache-2.0 与第三方独立许可；记录 vendored/submodule/包管理依赖；核验版本 pin、许可证文本、再分发义务、包元数据和 SBOM 生成/验证证据。
 - **严格禁止：** 不得将第三方代码视为用户原创或被根许可证自动覆盖；不得在来源/许可不明时复制进知识库；不得把静态清单冒充完整依赖闭包、SBOM 或法律意见；不得未经授权修改上游源码、NOTICE、package.xml 或 CI。
 - **交付物与验收：** 依赖许可证审查报告、知识页专项结论、外部项目登记更新、可复现 SBOM 与许可证检查证据；发现冲突后须由项目权利人确认再修改上游元数据。
-- **状态：** 进行中（第一轮静态审查已发现 KickCAT CeCILL-C、嵌入 MIT/WTFPL-2.0 组件、argparse 子模块固定点、ROS/Gazebo package.xml MIT 元数据冲突，以及 SBOM/依赖锁定证据缺口；KickCAT 精确上游 commit、argparse 许可证、可选构建依赖闭包、SBOM 生成/验证和分发场景仍待补齐）
+- **状态：** 进行中（第一轮静态审查已发现 KickCAT CeCILL-C、嵌入 MIT/WTFPL-2.0 组件、argparse 子模块固定点、ROS/Gazebo package.xml MIT 元数据冲突，以及 SBOM/依赖锁定证据缺口；KickCAT 上游基线已追溯至 cb2e1a192ac11ffaa58f08945053b8129abf94cb，argparse 固定提交 MIT 已核验；当前 KickCAT 快照相对基线的10个文件差异/1个新增文件需逐项形成修改清单和版权/许可说明，ROS/Gazebo 包许可意图、可选构建依赖闭包、SBOM 生成/验证和分发场景仍待补齐）
