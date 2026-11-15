@@ -891,3 +891,13 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - 复核 3SK1、G9SE 和 PSENmlock 的启动、停止类别、接通/断开时间定义、非定期自诊断与 emergency release 版本限制。
 - 本轮没有取得目标机器人实际器件完整订货号/证书/配置，没有进行保护区计算、停止时间/距离测试、故障注入、HIL 或实机验证；文章仍为 unaccepted_claim_level_review_pending。逐路径权利人仍 UNVERIFIED，再分发仍 UNDETERMINED。00-01 继续进行中。
 
+
+### 2026-11-15｜00-01持续审计记录（电机与驱动器驱动安全子功能与标准生命周期增量复核）
+
+新增 [电机与驱动器驱动安全子功能、急停边界与标准生命周期增量审计](../../audits/2026-11-15-motor-drive-safety-subfunctions-and-standard-lifecycle-addendum.md)，更新《电机与驱动器》§9–§10、来源台账 #1787–#1793、资产主清单、逐路径权利登记、审计索引和第04章 TaskPlan。
+
+- 复核 IEC 61800-5-1:2022（官方页注明 Corrected Version 2025-12）、IEC 60204-1:2016+AMD1:2021 CSV（Edition 6.1，Edition 7 仍为 CD）、ISO 13850:2015（当前已发布）及 ISO/WD 13850 第4版（工作草案）的生命周期状态。
+- 对照 Siemens SINAMICS S120 2026-01 产品资料与 ABB ACS880 官方手册，区分 STO、SS1、SBC 等功能的产品选件、配置和参数依赖；明确 STO 后可能自由滑行、不会替代主/辅助回路隔离，且驱动器安全子功能不能自动代表机器级急停。
+- 本轮仅完成公开目录/摘要和制造商公开手册的增量复核；未审读完整标准正文，未取得目标电机/驱动器/制动器 SKU、证书和参数化文件，未进行整机风险评估、故障注入、停止时间/距离、HIL 或实机验证。
+- 资产仍保持 `unaccepted_claim_level_review_pending`；逐路径权利人仍 `UNVERIFIED`、再分发仍 `UNDETERMINED`。00-01 继续进行中，MotionControlAlgorithms 合并仍延期。
+
