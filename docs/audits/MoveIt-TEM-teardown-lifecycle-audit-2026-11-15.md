@@ -325,3 +325,42 @@ The GitHub Jobs API last reported the single `source-overlay-regression` job as 
 The job is currently at **Build patched MoveIt move_group** (step 9), started at 2026-11-15 05:29:24 UTC. GitHub's job-log download endpoint currently returns BlobNotFound, so there is no readable compiler output and no basis to call this a failure or a hang. The Stäubli mock workspace build and the five-round mock execution/barrier race tests have not started. No race reproduction result exists yet.
 
 The static injection review confirms the intended sequence: pause after the first `execution_complete_ == false` read and before locking `execution_state_mutex_`; allow the execution thread to finish and clear active handles; release the barrier; inspect whether the first stop call returns with a joinable execution thread and zero active handles; then verify the MoveGroup action result and subsequent strict teardown. This is test design review, not runtime evidence.
+
+
+## 9. Run #113 deterministic check-lock-recheck missed-join reproduction (2026-11-15)
+
+Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43680932114) completed successfully on workflow-only branch experiment/move-group-shutdown-order-barrier-fix, commit 1d0787c71346144ad2950c537297562b7a73b81b. Artifact 14148018987 was downloaded and inspected; ZIP SHA-256: d8fcea6f09eac1dbe4d1fcebc9459d6e6ebb9b401beefdae104babea466fcc4b.
+
+### 9.1 Five-round marker evidence
+
+All five marker directories (staubli_tem_barrier_1 through _5) contain entered=1, thread_finished=1, release=release, released=1. Every state file contains execution_thread_joinable=1 and active_handles=0.
+
+The order is important: MoveGroup /move_action cancel enters stopExecution(); the CI-only barrier pauses before the state mutex is acquired; the controller/trajectory execution thread naturally completes and emits thread_finished; only then does the test release the barrier. After the original stopExecution() returns, the state marker still sees a joinable execution_thread_ while active controller handles are already zero. This directly exercises the inner re-check path where the original implementation takes the unlock branch and skips its first join.
+
+### 9.2 Test and teardown outcome
+
+Each of the five per-iteration logs (05-40-01, 05-40-19, 05-40-33, 05-40-46, 05-40-59) shows:
+- The normal plan/execute test and the cancellation race test ran; the race test returned MoveGroup PREEMPTED.
+- Controller reports Goal reached, success!; TEM reports trajectory execution SUCCEEDED (the action-level PREEMPTED is the externally requested MoveGroup cancellation result).
+- Python test summary Ran 3 tests ... OK; CTest reports 100% passed; colcon reports 8 tests, 0 errors, 0 failures, 0 skipped.
+- Later TEM destructor probes show execution_thread_joinable=0 and active_handles_after_stop=0, consistent with a subsequent teardown call joining the leftover completed thread.
+- No SIGSEGV appears in any of the five iteration stdout logs.
+
+The full workflow summary is failures=0/5, and Run #113 conclusion is success. Therefore the original TEM check-lock-recheck missed-join path is deterministically reproduced in 5/5 mock iterations.
+
+### 9.3 Scope of the conclusion
+
+This is strong evidence of a real lifecycle bug: the first stopExecution() can return without joining a thread that finished while the caller was between its outer check and state lock. The destructor later compensates by joining it. It does not establish that this path is the sole or direct cause of stock Run #54's DSO Waitable SIGSEGV. It is a mock/SIL lifecycle experiment only; it does not validate CS9, physical robot motion, EtherCAT/VAL3 behavior, HIL, SAT, or safety certification. No MoveIt/rclcpp upstream source or Stäubli driver product source was changed.
+
+## 10. CI-only always-join candidate (pending)
+
+A new isolated branch, experiment/move-group-stop-execution-join-fix, tests a minimal candidate on the same MoveIt Jazzy source overlay:
+1. The test arms the barrier only immediately before sending the /move_action cancel request, so earlier normal planning tests do not block.
+2. The candidate acquires execution_state_mutex_ and makes the stop/cancel decision only under that lock.
+3. After releasing the state mutex, it always checks execution_thread_ under execution_thread_mutex_ and joins/resets any existing thread, including when natural completion won before the state lock was acquired.
+4. clear() remains conditional on an actual stop request and auto_clear, preserving the existing behavior for already-completed executions.
+5. The test now requires execution_thread_joinable=0, active_handles=0, and join_performed=1 after stopExecution returns; it also verifies the barrier's released marker is 1.
+
+Latest candidate workflow commit: 065f2385f9519777db2af89924ad2520cd94a402. Run [#43682618698](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43682618698) is in progress. The candidate changes workflow-injected MoveIt source only; no upstream or product repository file is modified.
+
+**Remaining synchronization audit:** this candidate addresses the stopExecution outer unlocked check and missed join. It does not yet prove every execution_complete_ access in push(), executeThread(), executePart(), or MoveGroupMoveAction::preempt_requested_ is properly synchronized. These need a separate access/lock-domain review and TSAN or equivalent coverage. Do not mark the complete MoveIt lifecycle/data-race issue fixed based on this single candidate.
