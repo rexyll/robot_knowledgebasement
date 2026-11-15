@@ -445,7 +445,7 @@ Required acceptance remains five iterations with `released=1`, `join_performed=1
  
 ## 14. Controlled A/B evidence: TEM plugin-loader/member destruction order (2026-11-15)
 
-The historical Run #73 and successful Run #107 workflows provide a useful near one-variable A/B comparison.
+The historical Run #73 and successful Run #107 workflows provide a useful **compound lifecycle comparison**, but not a single-variable A/B: Run #107 changes both the main MoveItCpp/PSM/nh owner release timing and TEM's internal explicit cleanup.
 
 ### 14.1 Run #73 baseline (TEM cleanup disabled)
 
@@ -487,6 +487,39 @@ C++ destroys members in reverse declaration order. With the stock destructor bod
 
 ### 14.4 Conclusion and limits
 
-This is strong, controlled evidence that TEM's internal plugin-loader / node / private-executor destruction order is a major contributor to the historical Run #73 Waitable/CallbackGroup SIGSEGV. The main executor reorder and PSM publisher stop were already present in Run #73 but did not prevent the crash; the key treatment difference is enabling explicit TEM cleanup. Run #107 and Run #113 both pass without SIGSEGV after that treatment.
+This is strong evidence that the **combined** lifetime treatment used by Run #107/113 avoids the historical Run #73 Waitable/CallbackGroup SIGSEGV in the tested mock workflow. However, Run #107 also introduced early release of the main `planning_scene_monitor`, `moveit_cpp`, and `nh` owners after `rclcpp::shutdown()` and before the `MoveGroupExe` destructor; Run #73 did not. Therefore the no-crash outcome cannot yet be attributed solely to TEM's explicit cleanup. Both factors plausibly prevent DSO unload while ROS Waitable/CallbackGroup owners remain alive.
+
+Two factorial isolation runs have been started from the same Run #107 workflow base:
+- Run [#43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993), branch `experiment/moveit-main-owner-lifetime-only`: main owner early reset ON, TEM cleanup OFF.
+- Run [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847), branch `experiment/moveit-tem-cleanup-only`: TEM cleanup ON, main owner early reset OFF.
+
+Both runs were last observed in ROS Jazzy setup and have not yet completed MoveIt build or mock teardown tests. Together with Run #73 (both OFF) and Run #107 (both ON), they form the 2×2 experiment needed to determine whether either factor alone is sufficient or whether both are required. Run #113 remains a successful 5/5 missed-join reproduction under the combined enabled treatment.
 
 It is not yet a symbol-level proof identifying the exact DSO that owns the crashing weak_ptr control block or its vtable. Run #54 shows the same WaitSet/WeakWaitableEntry crash family but has less detailed DSO tracing; it remains plausible, not fully proven, that the same TEM cleanup order explains that run too. This fix remains CI-only source overlay code. No MoveIt upstream, rclcpp upstream, Stäubli product source, PR #1, or main branch was modified.
+
+
+## 15. Factorial isolation of main-owner reset vs TEM cleanup (2026-11-15)
+
+Run #73 (main-owner reset OFF, TEM cleanup OFF) and Run #107 (both ON) were a confounded two-factor comparison. The main-owner reset injection makes `moveit_cpp`, `planning_scene_monitor`, and `nh` non-const shared pointers and resets them immediately after context shutdown, before the enclosing scope destroys MoveGroupExe. The TEM cleanup injection separately retains and resets the event callback group, subscription, callback handler, private executor, controller manager instance, and controller node before class-loader member destruction.
+
+To isolate them, two new workflow-only branches were created from the same Run #107 base:
+- **Run #118 main-owner-only:** branch `experiment/moveit-main-owner-lifetime-only`, commit `0420f0259d652ca01b3d2e26cce26a3d45dfe73e`, Actions [#43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993). It retains main-owner early reset but sets the TEM explicit cleanup gate to `if False`.
+- **Run #119 TEM-cleanup-only:** branch `experiment/moveit-tem-cleanup-only`, commit `8218084250c9c45fe275f7729ae98f59792a422b`, Actions [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847). It retains TEM explicit cleanup but removes the main-owner early reset injection, keeping the original const shared-owner declarations and no explicit post-shutdown reset.
+
+Both retain the same PSM publisher stop, MoveGroupExe-before-main-executor declaration order, fixed Stäubli PR #1 source pin, mock regression suite, and logger instrumentation. Both were last observed in ROS Jazzy setup, not yet at MoveIt compile or test. The expected matrix is:
+
+| Run | main owner reset | TEM cleanup | Last evidence |
+|---|---|---|---|
+| #73 | OFF | OFF | 4 stdout captures SIGSEGV |
+| #118 | ON | OFF | pending |
+| #119 | OFF | ON | pending |
+| #107 | ON | ON | 5/5 normal execute/teardown, no SIGSEGV |
+| #113 | ON | ON | 5/5 deterministic missed-join race, no SIGSEGV |
+
+Interpret the two isolation outcomes before claiming a single cause:
+- If #118 passes and #119 fails, main-owner release is the primary sufficient factor in this test.
+- If #119 passes and #118 fails, TEM internal cleanup is the primary sufficient factor.
+- If both fail but #107 passes, the two treatments are jointly required or interact.
+- If both pass, either one may be sufficient and follow-up finer-grained isolation is needed.
+
+The current evidence does not yet identify which exact DSO owns the crashing Waitable control block or whether the same exact object chain explains Run #54. All changes remain CI workflow overlays; no upstream MoveIt/rclcpp or Stäubli product code is modified.
