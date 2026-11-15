@@ -71,6 +71,9 @@ jobs:
         run: uv build --require-build-hashes
       - name: Create file-level manifest for built Python distributions
         if: matrix.python-version == '3.12'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
         run: |
           mkdir -p "${RUNNER_TEMP}/python-distribution-audit"
           python - <<'PY'
@@ -168,7 +171,9 @@ jobs:
 
           manifest = {
               "schema_version": 1,
-              "commit_sha": os.environ.get("GITHUB_SHA"),
+              "workflow_sha": os.environ.get("GITHUB_SHA"),
+              "source_commit_sha": os.environ.get("PR_HEAD_SHA"),
+              "base_commit_sha": os.environ.get("PR_BASE_SHA") or None,
               "python_version": platform.python_version(),
               "build_command": "uv build --require-build-hashes",
               "scope": "exact files contained in the wheel and sdist built by this CI job",
