@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-15 源码、脚本、测试与 CI 来源/副作用审查](2026-11-15-code-ci-provenance-and-side-effect-review.md)：限定审查 35 项代码/自动化资产，核验 Actions commit SHA 与官方 tag、固定容器/源码 pin，并为会改写 APT 源的 helper 增加显式 opt-in 门禁；apt/rosdep 动态系统依赖和系统级 SBOM 仍待关闭。
+
 - [2026-11-15 全仓库 Git Tree 资产基线重建](2026-11-15-full-repository-asset-tree-reconciliation.md)：以 main 基线 commit `aac8e08` 的完整递归 Git Tree 对账 386 个文件对象，补录旧清单遗漏的 199 项并刷新 13 项 SHA/大小；仅是元数据基线，不是正文/主张/授权验收。
 - [2026-11-15 参考项目资产与许可证边界抽样审查](2026-11-15-reference-project-content-and-license-boundary-review.md)：审查根 MIT 声明与 GitHub NOASSERTION 元数据差异、SO-101/STS3215 模板与只读工具的来源及边界；未将通用比例视为 SKU 校准或硬件验证。
 
