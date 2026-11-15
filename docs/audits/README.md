@@ -527,3 +527,7 @@
 ### 2026-11-15｜自动充电系统：EN 1175、ISO 3691-4 DIS 与 ABB F702 在线充电增量审计
 
 - [自动充电系统安全边界、标准生命周期与 ABB F702 厂商实例增量审计](2026-11-15-automatic-charging-standard-lifecycle-and-ABB-F702-safety-addendum.md)：核对 EN 1175:2025 对无人驾驶工业车辆自动运行功能的范围排除；核对 ISO 3691-4:2023 与第三版 DIS 草案中自动充电条款/充电站系统边界的区别；对照 ABB Flexley Stack AMR F702 Rev.A 手册，记录在线充电刷板短路/触电残余风险、停靠/CAN 握手与接触器上电/断开时序。仅为公开资料增量审查，整篇 claim-level 验收与目标充电器/AMR 实物验证仍未完成。
+
+### 2026-11-15｜减速器：扭矩等级、负载谱寿命算法与蜗轮蜗杆自锁边界增量审计
+
+- [减速器制造商目录参数、寿命模型与蜗轮蜗杆自锁边界增量审计](2026-11-15-reducer-rating-life-and-worm-self-lock-audit.md)：对照 Harmonic Drive CSG-GH/CSF-GH、Nabtesco RV-Original 和 Norelem 蜗轮蜗杆官方资料，拆分额定连续/重复峰值/平均负载/瞬时冲击/加减速扭矩的厂商定义；确认平均负载算法、寿命模型和自锁条件均不得跨系列泛化。仅为公开产品目录增量审查，没有对项目目标 SKU 做选型批准或实测。
