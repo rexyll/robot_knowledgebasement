@@ -142,7 +142,41 @@ Run #102证明：A+B临时MoveIt/rclcpp源码overlay在Stäubli PR原始launch�
 - 因此日志中的“Aborting!”是误导性文本，不表示调用`abort()`或进程异常终止；上游issue说明进程退出码为0。Run #102中move_group与ros2_control_node均正常退出，与该上游已知行为一致。
 - 本项目不改pal_statistics源代码、不把此日志计作MoveGroup teardown失败；仅保留上游引用与日志归因。此issue仍可能影响log-based health checks，但不构成本轮mock退出回归blocker。
 
-## 7. 下一步验收条件
+## 8. TEM execution_thread_ teardown race discovered after Run #102
+
+A second, separate lifecycle hazard is visible in the unmodified MoveIt Jazzy source. This is **not** the Run #73 Waitable control-block crash root cause and has not yet been dynamically reproduced.
+
+### 8.1 Check-lock-recheck window
+
+In [`TrajectoryExecutionManager::stopExecution()`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1209-L1252):
+
+- Line 1211 reads `execution_complete_` before taking `execution_state_mutex_`.
+- Lines 1213–1214 then lock and read the same flag again.
+- Meanwhile `executeThread()` writes `execution_complete_ = true` under that mutex at lines 1357–1359.
+- If the first read sees false, and the execution thread completes before the second read, the second check takes the unlock branch at 1239–1240. It does not join `execution_thread_`; the `else if (execution_thread_)` at 1242 belongs to the outer initial `if` and is skipped.
+- The TEM destructor at lines 86–93 calls `stopExecution(true)`, then cancels/joins only `private_executor_thread_`; it has no independent unconditional join of `execution_thread_`.
+
+The header declares `execution_complete_` as a plain bool, not atomic, at line 327. Its execution-thread write is mutex-protected, but the first read in stopExecution is outside that mutex, so this path also deserves a data-race review. `executeThread()` does not reset the `execution_thread_` pointer itself. If the join path is missed, later destruction of a still-joinable `std::thread` may call `std::terminate`.
+
+### 8.2 Why Run #102 does not cover it
+
+Run #102 executed mock planning and strict process teardown five times, but it did not start a real trajectory execution thread. Its 5/5 pass therefore strengthens the main-node/TEM/plugin teardown evidence under the original launch file; it does not exercise the execution-thread completion race described above.
+
+### 8.3 Candidate fix and test plan (not implemented)
+
+1. Make every read/write of `execution_complete_` use `execution_state_mutex_`, or adopt a reviewed atomic-state design; eliminate the current unlocked plain-bool read.
+2. After `stopExecution(true)`, independently acquire `execution_thread_mutex_`; if `execution_thread_` still exists and is joinable, join and reset it. Guard against self-join, and ensure destructor execution is external to the trajectory execution thread.
+3. Once both the execution thread and private executor thread have stopped, call `clear()` to delete any remaining `trajectories_` raw contexts, then clear `active_handles_` under `execution_state_mutex_`.
+4. Perform both cleanups before resetting `controller_manager_` or allowing `controller_manager_loader_` to unload the plugin DSO.
+5. Add a dedicated mock trajectory-execution test with a barrier around the natural-completion flag transition; cover natural completion racing with destructor, stop request racing with completion, `auto_clear=true/false`, callback reentrancy, no-start/early-return, missing manager, exception path, and repeated shutdown.
+
+This is a static source-derived risk, not an observed failure. Do not patch MoveIt/rclcpp or production Stäubli code without separate authorization.
+
+### 8.4 Workflow signal-handling correction
+
+The experiment script had a stale message claiming a “structured signal-wait patch” was applied. Source inspection found no `sigwait`, `pthread_sigmask`, or `SignalHandlerOptions::None` implementation; the workflow only rejects such customization and retains MoveIt Jazzy's stock rclcpp signal handling. The experiment step name and output message have been corrected in workflow commit `1c151888bcbac4a62125db62d8890c6aef6071a1`. This is a description correction only; no signal-handler behavior or MoveIt source patch was added.
+
+## 9. 下一步验收条件
 
 - [x] Run #102实际checkout SHA、原始PR launch test blob与未注入controller deactivation的约束已核验；五轮mock planning和严格进程退出均通过。
 - [ ] 核验独立重复Run #103的运行时test blob SHA guard、五轮执行摘要、GDB/进程退出结果与artifact；若出现不一致，不将结果并入通过统计。
@@ -155,4 +189,4 @@ Run #102证明：A+B临时MoveIt/rclcpp源码overlay在Stäubli PR原始launch�
 
 ---
 
-**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102在PR原始输入C=off下A+B overlay五轮通过，但stock Run #54仍失败；Run #103独立复跑待核验；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
+**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102在PR原始输入C=off下A+B overlay五轮通过，但stock Run #54仍失败；Run #103独立复跑待核验；新增的TEM execution_thread_竞争窗口只是静态风险、尚未动态复现；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
