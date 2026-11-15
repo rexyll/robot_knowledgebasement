@@ -2,10 +2,24 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.07  
+版本：v12.16  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.387：Run #102–104在固定PR #1 HEAD、原始launch测试C=off下A+B临时overlay共15/15次mock planning+teardown repetitions通过；Run #106首次真实mock FollowJointTrajectory五轮均出现controller Goal reached、TEM SUCCEEDED、MoveGroup executed，但测试断言选错可选字段。Run #107（43677374898，commit 18fea00298ee542c304cbf73d652cd540262712e）已成功：五轮每轮2项主测试均OK、1项post-shutdown退出检查OK；五轮均记录TEM析构前execution_thread_joinable=0、active_handles_after_stop=0；artifact 14147826279，SHA-256 b0e13044c3b51e9e7da2bd2b5653e5ed30a9e09692ab3677d206ef8c6250697a。此结果验证正常执行完成后的join/句柄释放路径，不覆盖cancel与自然完成竞争。确定性barrier测试Run #111（43678571443）在CI临时注入阶段因函数尾部空白匹配失败而fail-closed，没有编译/执行；Run #112（43678885235，commit e61fd811175ad78b3d226b357e668aea8d0a5a3b）已修正为rstrip后定位函数闭括号，正验证barrier代码自检、MoveIt编译与真实mock竞争测试。§9.3.386确认MoveGroup /move_action cancel → PlanExecution::stop → TEM stopExecution与TEM executionThread确有并发路径；§9.3.387已完成正常轨迹执行后的析构不变量验证，check-lock-recheck屏障复现和execution_complete_/preempt_requested_同步修复仍未完成。stock Run #54仍SIGSEGV，PR #1保持Draft。固定Stäubli源码pin不变；不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。并行 EXT-001（MotionControlAlgorithms）已完成 DC 能力边界、CSP rearm latch、CANopen Bus-Off/SDO/NMT 会话恢复专项静态审查，知识页至§26；下一步提出 CSP fail-closed 与 CANopen session invalidation/rearm 上游修复方案（需具体授权），已完成 MotionControlAlgorithms 第三方依赖许可证/来源/SBOM 第一轮静态审查：确认 KickCAT 嵌入源码为 CeCILL-C，含 MIT/WTFPL-2.0 组件；argparse 子模块固定 commit；ROS 2/Gazebo package.xml 的 MIT 元数据与根 Apache-2.0 声明不一致；未发现 MotionControlAlgorithms 仓库自身的 SBOM/锁定依赖闭包，详见审计报告与知识页§27。已进一步追溯 KickCAT 基线 cb2e1a192ac11ffaa58f08945053b8129abf94cb：初次导入 478/482 文件 blob 与该上游版本一致；当前快照有10个文件差异、1个本地新增文件，argparse 固定提交许可证确认为 MIT。下一步逐项核验本地修改/通知要求、ROS/Gazebo 包许可意图、完整依赖闭包和真实 SBOM。MotionControlAlgorithms 源码合并计划已集中归档于根目录 [MotionControlAlgorithms-MergePlan.md](MotionControlAlgorithms-MergePlan.md)，当前判断为延期（DEFERRED），不提升为当前最高优先级；根主线仍为 00-01，待 00-01 验收及 14-EXT-02 许可/来源/SBOM和兼容性门禁关闭后复评。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01（全仓库资产基线已完成386/386路径与Blob/字节数对账；claim-level和许可/授权审计未完成；Python Toolkit 13项权利人及再分发授权待确认）；第21章21-02并行推进（医疗/康复/腔镜机器人注册与标准证据继续补充，原始电子证照和适用范围附件仍有缺口）。Stäubli专项更新：Run #113 5/5确定性复现TEM stopExecution check-lock-recheck漏join；Run #117 always-join CI overlay 5/5通过（artifact 14149782675，SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮join_performed=1、execution_thread_joinable=0、active_handles=0；Run #118 main-owner-only/TEM cleanup OFF与Run #119 TEM-cleanup-only/main reset OFF已进入patched MoveIt move_group编译，结果待验。仍不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。MotionControlAlgorithms源码集成继续DEFERRED，待00-01验收、14-EXT-02第三方许可/来源/SBOM及目标仓库兼容性门禁关闭并取得具体导入授权。
+
+> 2026-11-15 00-01增量（09-03电子电气设计P0证据复核）：已按 IEC 60204-1 公开目录/条款主题增量核验 PE/FE、移动机器车载电源保护联结端子、供电隔离、过电流保护、SCCR 和验证，并对照 IEC 60947-2/-3/-4-1、IEC 61439-2 及 ABB 说明区分断路器 Icu/Ics、隔离器件条件额定值和整机 SCCR。仅为资料/条款边界审查，无项目原理图、短路电流计算或实验室测试；详见 09-03 §10 与专项报告。
+
+> 2026-11-15 00-01增量（减速器P0证据复核）：已对照 Harmonic Drive CSG-GH/CSF-GH、Nabtesco RV-Original 和 Norelem 蜗轮蜗杆目录，区分连续额定/重复峰值/平均负载/瞬时冲击/加减速扭矩与专属负载谱算法，明确蜗轮蜗杆自锁不能作为安全制动器。详见《减速器》§7 和专项报告；仅为公开资料增量审计，不代表本项目减速器选型或耐久验证已完成。
+
+> 2026-11-15 00-01增量（自动充电系统P0证据复核）：已核对 EN 1175:2025 对无人驾驶工业车辆自动运行功能的范围排除、ISO 3691-4 第三版 DIS 的自动充电条款/系统组成预览，并对照 ABB F702 2025 手册补充在线充电刷板短路/触电残余风险和停靠/CAN/接触器时序。仅为公开资料增量审计，不代表本项目充电系统符合标准或通过现场验证；详见充电知识页 §8 与专项报告。
+
+> 2026-11-15 00-01增量（电机与驱动器P0证据复核）：已补充 STO/SS1/SS2/SOS/SBC/SLS 等驱动安全子功能与机器级急停、机械制动、电气隔离边界，核验 IEC 61800-5-1、IEC 60204-1、ISO 13850 版本状态及 Siemens S120/ABB ACS880 产品配置示例，详情见知识页 §9–§10 和专项报告。仅为公开来源增量审计；整篇 claim-level、准确器件 SKU/证书/参数和实际机器验证仍未完成。
+
+> 2026-11-15 00-01增量（安全防护器件P0证据复核）：已交叉核验 ANSI/A3 R15.06-2025 三部分发布状态、OSHA 对共识标准的说明、ISO/DIS 3691-4 生命周期字段、OS32C/SICK microScan3 配置响应、3SK1/G9SE/PSENmlock 的型号和时间语义；知识页 §12 与专项报告记录页面冲突和验证边界。仅为公开资料审计，不代表目标机器人器件适用、现场验证或整机安全通过。
+
+> 2026-11-15 00-01增量（功能安全标准生命周期复核）：已对《功能安全体系》增加 ISO/IEC 生命周期与适用边界、欧盟《机械法规》(EU) 2023/1230 适用日期的公开来源快照，详情见知识页 §11 和功能安全增量审计报告。该轮仅完成官方目录/摘要核验，整篇 claim-level、标准全文、目标市场法律适用性和产品验证仍未完成；00-01 继续进行中。
+
+> 2026-11-15 00-01增量：已完成 Python Toolkit 实际 wheel/sdist 的 13 个发布源码/测试文件 Git 路径历史与静态内容复核。17 条路径历史 commit 均显示 rexyll 为 author/committer，但均为 unsigned；chunker.py 存在与两个更早公开项目相似的重叠分块控制流程/说明文字线索，尚未确认来源关系。13/13 权利人仍未验证、再分发状态仍未确定；根 LICENSE 与 PEP 639 metadata 暂不变更，00-01 继续执行。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -348,7 +362,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
-| 2026-11-15 | v12.07 | 回溯 2026-11-03 至 11-15 的每日 TaskPlan，恢复 TODO-EXT-001 历史合并意图；建立根目录 MotionControlAlgorithms-MergePlan.md。依据根 00-01 仍进行中、14-EXT-02 第三方许可/SBOM与兼容门禁未关闭，判定当前不适合导入，计划延期且不提升为最高优先级；达到计划门槛后再评估 subtree 集成。未修改上游源码、未导入代码 | 13份 TaskPlan_History；根计划§9.1/§9.3；第14章14-EXT-01/02；G-08/G-25；2026-11-15依赖许可证与KickCAT来源审查 |
 | 2026-11-15 | v11.94 | 完成 CANopen Bus-Off/restart 与 SDO/NMT 会话恢复专项复核：SocketCAN Restarted→Online 不等于应用会话恢复；virtual node bus recovery 未清分段 SDO/NMT/CiA-402 状态，现有测试缺少中断会话与运行态恢复组合。新增知识页 §26、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 socketcan_transport.hpp、canopen.hpp、CANopen tests 与 P12_SOCKETCAN 文档静态核对 |
 | 2026-11-14 | v11.93 | 完成 EtherCAT CSP rearm latch 状态变化专项复核：确认 staging 对 slave/scan 异常拒绝新命令，但 latch 置位条件缺少 online/operational/AL=OP 与 scan 完整性，可能不 inhibit stale 0x6040；新增知识页 §25、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 receive_process、CSP staging/rearm、fake IgH API 与现有回归测试静态对照 |
 | 2026-11-14 | v11.92 | 完成 EtherCAT IgH adapter Distributed Clocks 专项复核：确认通用 DC 元数据/状态机未连接到 adapter 的配置、IgH 周期同步 API、runtime health 或 CSP interlock；准确标记当前 adapter 不支持/未暴露 DC，新增知识页 §24、更新 EXT-001、第14章记录与每日归档。仅修改知识库文档，未修改上游源码/CI | MotionControlAlgorithms main `c11091b` 的 IgH adapter/header、通用 EtherCAT domain/state model、fake IgH API 与 PDO mapping 测试静态核对 |
@@ -383,7 +396,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 - **当前主章节序号：00｜知识治理与分类体系。**
 - **当前主任务节点：00-01｜知识资产基线与主张级审计。**
-- **外部项目合并队列：** MotionControlAlgorithms 合并计划见根目录 [MotionControlAlgorithms-MergePlan.md](MotionControlAlgorithms-MergePlan.md)，目前延期，不改变 00-01 的最高优先级。
 - **选择原因：** 资产路径、文件结构和代表性内容已建立基线，但 120+ 项知识资产仍处于 `unaccepted_claim_level_review_pending`；定向修订和结构扫描不能替代逐条主张、参数、标准版本、来源和适用边界审查。该治理工作是后续章节验收和知识可靠性的前置条件。
 - **横向产品化主线：** 第 25 章同步推进 25-03（产品机会确认）、25-04（系统需求/可行性）、25-12（参考项目贯通）和 25-13（成品教学臂/模块化关节产品基准调研）、25-14（官方手册/接口深度核验，已补 Feetech STS3215 规格书核验）。第 25 章不取代 00–24 的专业验收。
 
@@ -418,15 +430,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 ---
 
-### 9.4｜MotionControlAlgorithms 合并计划优先级决策
-
-- **计划入口：** [MotionControlAlgorithms-MergePlan.md](MotionControlAlgorithms-MergePlan.md)。
-- **历史任务：** `TODO-EXT-001`，最初记录于 2026-11-06 v7.36，2026-11-07 已明确要求上游验证、范围讨论、许可/来源/兼容审查和回滚方案齐备后再启动。
-- **当前判定：延期（DEFERRED）；不是当前最高优先级。** 根主任务仍为 00-01。第00章 00-01 的全库 P1/P2 主张审计和授权核验仍未完成；根计划§9.3的状态核对也未发现任何节点同时满足完整交付与验收条件。
-- **直接阻塞：** KickCAT 10个差异文件+1个新增文件尚未逐项完成 patch/provenance 与许可义务审查；4个 ROS 2/Gazebo `package.xml` 的 MIT 声明意图未确认；完整依赖闭包和可复现 SBOM 未完成；目标仓库子目录、submodule、独立 C++ CI 和回归兼容性未验证。
-- **恢复条件：** 00-01正式验收；14-EXT-02第三方来源/许可/SBOM门禁关闭；独立子目录集成方案和回滚设计通过；试导入分支的知识库 Python 与 MotionControlAlgorithms C++ CI 均通过；用户确认具体 commit、目录、文件范围和实施分支。条件全部满足后，才重新评估是否提升为最高优先级。
-- **执行边界：** 目前只建立计划并整理证据，不复制、不修改上游、不导入源码、不合并至 main。
-
 ## 10. 按日归档的推进记录
 
 自 `2026-11-03 / v1.8` 起，原本追加在根计划末尾的日期/版本推进记录已按自然日拆分为独立文件。每日文件保留当日全部版本记录和详细补充，根计划不再承载长篇历史日志。
@@ -445,6 +448,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 3 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 11 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
