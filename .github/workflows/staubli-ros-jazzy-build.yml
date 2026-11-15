@@ -22,7 +22,7 @@ jobs:
       image: osrf/ros@sha256:ae7ad3ac243da1dfd8bd402a2fa08e149ffbf7a385013bd8ef798d0800accdc8
     steps:
       - name: Checkout knowledge-base tools
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Install explicit upstream CMake dependencies and build tools
         shell: bash
@@ -75,7 +75,7 @@ jobs:
 
       - name: Archive ROS Jazzy build/install evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: staubli-ros-jazzy-build-install-evidence
           path: ${{ runner.temp }}/staubli-servo-906/
