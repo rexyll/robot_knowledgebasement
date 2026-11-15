@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.16  
+版本：v12.17  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项：Run #113 5/5 确定性复现 TEM stopExecution check-lock-recheck 漏 join；Run #117（43683012297，workflow commit 42392ccf20644541e9e2394ae1cdb18ba6f8cc83）always-join CI overlay 候选已 5/5 通过，artifact 14149782675（SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮 state 均 join_performed=1、execution_thread_joinable=0、active_handles=0，未改 MoveIt upstream。Run #73/#107 无崩溃对照是复合干预（主 MoveItCpp/PSM/nh 提前 reset 与 TEM 内部 cleanup 同时变化），不能单独归因；Run #118 main-owner-only/TEM cleanup OFF 和 Run #119 TEM-cleanup-only/main reset OFF 两个因子隔离分支均已通过 rclcpp overlay、MoveIt source prep、barrier injection 和依赖安装，目前停留在 patched move_group 编译 step 8，结果待验。execution_complete_ 其它未锁访问、execution_thread_ 指针创建/访问所有权与 MoveGroup preempt_requested_ 同步/TSAN审查仍待完成；Run #54 的 Waitable/DSO 精确归属尚未证明。PR #1 保持 Draft；不修改 MoveIt/rclcpp upstream、Stäubli driver source、main 或固定 pin，不连接 CS9、不发送真实运动命令、不宣称 HIL/SAT。并行 EXT-001 已完成 KickCAT 固定上游基线、逐文件差异、DS402 文本重放与 Git blob SHA 对照、包级 MIT 元数据来源和 build-profile 清点；真实 Python patch 脚本在 pinned checkout 执行、LRW/network patch series、ESI 依据、许可意图、完整依赖闭包和 SBOM 仍待完成。
@@ -348,7 +348,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 25 |
+| 2026-11-15 | v12.17 | 完成 Stäubli TEM stopExecution 漏 join 5/5 确定性复现，并验证 always-join CI-only 候选 5/5 通过；新增 Run #118/#119 主对象提前 reset 与 TEM cleanup 单因子隔离实验；补齐 TEM/MoveGroup 状态字段同步风险清单；完成 KickCAT DS402 两文件重放及 Git blob SHA 独立复算，并追溯四个 ROS/Gazebo 包级 MIT 元数据首次提交。所有工程修复仍限 CI overlay，未修改 MoveIt/rclcpp 上游、Stäubli driver 产品源码、MotionControlAlgorithms 源码/许可或 main。 | Run #113/#117 artifact 14148018987/14149782675；Run #118/#119 pending；KickCAT upstream commit cb2e1a192ac11ffaa58f08945053b8129abf94cb 与 vendored blob SHA 对照；GitHub Actions / 静态代码审查 |
 | 2026-11-14 | v11.93 | 完成 EtherCAT CSP rearm latch 状态变化专项复核：确认 staging 对 slave/scan 异常拒绝新命令，但 latch 置位条件缺少 online/operational/AL=OP 与 scan 完整性，可能不 inhibit stale 0x6040；新增知识页 §25、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 receive_process、CSP staging/rearm、fake IgH API 与现有回归测试静态对照 |
 | 2026-11-14 | v11.92 | 完成 EtherCAT IgH adapter Distributed Clocks 专项复核：确认通用 DC 元数据/状态机未连接到 adapter 的配置、IgH 周期同步 API、runtime health 或 CSP interlock；准确标记当前 adapter 不支持/未暴露 DC，新增知识页 §24、更新 EXT-001、第14章记录与每日归档。仅修改知识库文档，未修改上游源码/CI | MotionControlAlgorithms main `c11091b` 的 IgH adapter/header、通用 EtherCAT domain/state model、fake IgH API 与 PDO mapping 测试静态核对 |
 | 2026-11-14 | v11.91 | 完成 RelativeDegreeTwoCbfFilter 标准二阶 exponential CBF 级联公式复核；确认实现漏掉 alpha2*h_dot，并以非零导数解析反例证明现有零导数测试会漏检；知识页新增 §23，更新外部项目登记、第14章任务记录和每日归档。仅修改知识库工作分支，未修改上游算法源码 | MotionControlAlgorithms main `c11091b` 的 relative_degree_two_cbf_filter.hpp、multi_input_cbf_filter.hpp 与测试；级联公式手工推导及解析数值反例 |
@@ -434,6 +434,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 16 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 25 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
