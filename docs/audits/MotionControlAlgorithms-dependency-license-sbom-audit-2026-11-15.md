@@ -45,3 +45,25 @@ KickCAT LICENSE 中 CeCILL-C 第 5.3.2/5.3.3 条区分修改软件与衍生组�
 ## 验证边界
 
 未运行 CMake/Conan/ROS/Gazebo 构建，未解析完整依赖闭包，未生成/验证 SBOM，未扫描 CVE，未做 HIL 或法律意见。未修改上游 MotionControlAlgorithms 的任何文件。
+
+## 补充审查：KickCAT 来源基线与本地差异（2026-11-15）
+
+### 来源链确认
+
+- 上游仓库：[`leducp/KickCAT`](https://github.com/leducp/KickCAT)，项目许可证 CeCILL-C。
+- `MotionControlAlgorithms/.github/workflows/ethercat-kickcat-fault-patch.yml` 固定 checkout `cb2e1a192ac11ffaa58f08945053b8129abf94cb`（2026-10-05）。
+- `scripts/ethercat_sil/apply_kickcat_ds402_fault_patch.py` 对同一 SHA 做硬性校验；该脚本可重放 DS402 fault injection 的两个核心文件修改。
+- 初次导入父仓库 commit `f91e16919b5a238cb624b24e1b06a5f007e6787e` 的 KickCAT 子树：482 个本地文件中 478 个 blob 与该上游 commit tree 完全一致；3 个文件不同（foot.xml、Ds402Motor.h、DeviceApp.cc），另有本地新增 `ecat402-drive-fault.json`；上游 7 个 workflow/action/test-install 文件未导入。
+- 当前 main：471/482 个文件 blob 与固定基线完全一致；10 个文件不同、1 个本地新增文件、7 个上游文件未纳入。差异覆盖 DS402 fault fixture、SimulatorControl/Server、EmulatedNetwork、network_simulator、测试及 XML fixture。可见父仓库提交包括 `c046fd2`、`d889510`、`9d34386` 及 network simulator link-down/control-channel 修订。
+- 因此，来源链不是未知：**基线可追溯，但当前 vendored 快照是经过本地修改的衍生工作树**。需要逐项记录差异，而非标记为 pristine upstream copy。
+
+### argparse 许可证核验
+
+固定子模块提交 `7d093f8e1201db2dded2eee94de77665698ee9dc` 的上游 `LICENSE` 已核验为 MIT，版权为 Pranav Srinivas Kumar 2018。应将该信息纳入第三方 notices，并保证使用/分发 submodule 内容时 MIT 声明随附。
+
+### 追加整改要求
+
+1. 对 10 个差异文件逐项生成相对固定上游 commit 的可审计 patch/diff，并记录父仓库引入 commit、作者/日期、目的、测试、是否可由脚本重放。
+2. 把 DS402 fault injection 脚本的两文件修改与 LRW/network simulator 相关其他修改分开管理；后者尚无统一 patch 文件，需补可重放补丁或清晰 patch series。
+3. 对 KickCAT 本地修改是否属于 CeCILL-C 的 Integrated Contribution 或 Related Module 做权利人/法律顾问判断；本报告不替代法律意见。
+4. 将 argparse MIT、KickCAT CeCILL-C、imgui_stdlib MIT、portable-file-dialogs WTFPL-2.0 一并纳入组件级 NOTICE 清单。
