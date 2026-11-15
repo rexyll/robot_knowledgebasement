@@ -109,11 +109,13 @@
 
 | ID | 待办事项 | 启动条件 | 当前状态 |
 |---|---|---|---|
-| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 上游 main 已声明 Apache-2.0；继续逐文件核查原创/第三方来源、依赖许可/SBOM、NOTICE 与目标仓库兼容性；任何源码引入仍须用户对具体文件范围和目标分支明确授权 | **基础 CI 已核验（Run #2827）；Apache-2.0 已添加；逐文件/依赖许可与兼容性审查待完成；源码未授权、未导入** |
+| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 根计划 00-01 完成正式验收；14-EXT-02 第三方来源/许可证/SBOM 门禁关闭；完成目标仓库独立子目录、submodule、CI、构建和回滚方案验证；用户确认具体 commit、文件范围、目标目录和实施分支 | **延期（DEFERRED）；上游根 Apache-2.0 与 Run #2827 基础 CI 已核验，但 KickCAT/第三方许可、包级元数据、SBOM、目标仓库兼容性仍有阻塞；源码未导入、实施未授权。详见根目录 MotionControlAlgorithms-MergePlan.md** |
 
 > 上游最后验证完成不等于自动允许合并。在用户明确讨论并授权前，不复制或导入上游源码、测试、脚本和 benchmark。当前继续推进独立知识整理。
 
 > 2026-11-14 状态更新：用户报告上游基本测试已完成；随后独立核验 main commit `472e0ee76684d4e567caed1a40467af650d7fa9a` 的主 CI Run #2827（43574894453）：Linux、Windows、benchmarks 三个 job 全部成功，覆盖 CMake build/CTest、离线 EtherCAT ESI/CoE 工具测试、算法场景验收、20,000-cycle 实时诊断、P8-39–P8-46 回归和 benchmark。该结果只证明此 commit 上 CI 所覆盖的项目通过，不代表目标机器人实时性/WCET、物理 EtherCAT HIL、全量协议互操作或安全验收。2026-11-14 上游已在 main 添加 Apache-2.0 `LICENSE` 与 `NOTICE`，README 已声明许可；许可证未知阻塞解除。但逐文件来源、第三方依赖许可/SBOM、目标仓库兼容性仍待核查，且尚未取得针对具体源码范围和目标分支的引入授权；不得复制源码、tests、scripts 或 benchmark。外部项目统一治理与登记见 `docs/engineering/External-Project-Integration-Policy.md` 和 `docs/audits/External-Project-Registry.md`。
+
+| 2026-11-15 | 00-01 / 14-EXT-01 / 14-EXT-02 | 回溯全部每日 TaskPlan 中的 TODO-EXT-001 历史，建立根目录 `MotionControlAlgorithms-MergePlan.md`。依据 00-01 仍进行中、KickCAT 10+1 文件差异/第三方许可、ROS/Gazebo package.xml 声明、依赖闭包/SBOM和目标仓库集成验证未闭合，决定暂不导入且不提升为当前最高优先级；待根00-01验收、14-EXT-02门禁及子目录兼容验证通过后复评。只更新计划/文档，没有修改上游源码或导入代码。 |
 
 ## 9. 本轮增量执行记录
 
