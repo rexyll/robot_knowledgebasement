@@ -330,12 +330,28 @@ def test_manual_ros_workflow_retries_apt_and_checks_libdw_candidate():
     assert result.returncode == 0, result.stderr
 
 
+def test_retry_apt_script_requires_explicit_ci_opt_in_before_side_effects():
+    retry_script = (
+        Path(__file__).parents[1] / "scripts" / "retry_apt_update.sh"
+    )
+    result = subprocess.run(
+        ["/bin/bash", str(retry_script), "git"],
+        capture_output=True,
+        text=True,
+        env={"ALLOW_APT_SOURCE_REWRITE": ""},
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "ALLOW_APT_SOURCE_REWRITE=1" in result.stderr
+
+
 def test_retry_apt_script_prefers_official_azure_ubuntu_archive_mirror():
     retry_script = (
         Path(__file__).parents[1] / "scripts" / "retry_apt_update.sh"
     )
     content = retry_script.read_text(encoding="utf-8")
     assert "configure_ubuntu_apt_mirror()" in content
+    assert content.index("ALLOW_APT_SOURCE_REWRITE") < content.index("configure_ubuntu_apt_mirror()")
     assert "/etc/apt/sources.list.d/*.sources" in content
     assert "/etc/apt/sources.list.d/*.list" in content
     assert r"archive\.ubuntu\.com" in content
