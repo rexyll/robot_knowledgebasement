@@ -6,9 +6,9 @@
 
 ## 当前记录
 
-- [2026-11-15 Python Toolkit 13 项发布文件 Git 来源与代码相似性审查](2026-11-15-python-toolkit-source-history-and-similarity-review.md)：追溯 wheel/sdist 的 11 个模块和 2 个测试的 Git 路径历史；17 条 commit 记录均未签名，并记录 chunker.py 的公开相似性线索。sdist 独立安装/测试已在 CI #43711114308 通过；13/13 权利人仍未验证、再分发仍未确定。
+- [2026-11-15 Python Toolkit 13 项发布文件 Git 来源与代码相似性审查](2026-11-15-python-toolkit-source-history-and-similarity-review.md)：追溯 wheel/sdist 的 11 个模块和 2 个测试的 Git 路径历史；17 条 commit 记录均未签名，并记录 chunker.py 的公开相似性线索。sdist 独立安装/测试已在当前 PR HEAD 的 CI #43711328493 复验通过；13/13 权利人仍未验证、再分发仍未确定。
 
-- [2026-11-15 Python Toolkit wheel/sdist 发布范围与许可证元数据审查](2026-11-15-python-distribution-and-license-metadata-review.md)：根据 CI Run #43709474246 和 #43711114308 的分发成员清单，确认 wheel 不含 Knowledge Vault；sdist 仅保留两个 Toolkit 测试，独立解包/安装后10项测试通过、CLI入口通过，smoke evidence artifact 14160845136。记录 legacy License metadata 与 PEP 639 迁移阻塞，权利人/再分发授权仍未确认。
+- [2026-11-15 Python Toolkit wheel/sdist 发布范围与许可证元数据审查](2026-11-15-python-distribution-and-license-metadata-review.md)：根据 CI Run #43709474246 和最新 HEAD Run #43711328493 的分发成员清单，确认 wheel 不含 Knowledge Vault；sdist 仅保留两个 Toolkit 测试，独立解包/安装后10项测试通过、CLI入口通过，最新 manifest artifact 14159849177、smoke evidence artifact 14160676005。记录 legacy License metadata 与 PEP 639 迁移阻塞，权利人/再分发授权仍未确认。
 - [Python wheel/sdist 文件成员和 SHA-256 清单](2026-11-15-python-distribution-file-manifest.json)：保存源提交、base、workflow SHA、artifact digest，以及本次 wheel/sdist 的逐文件路径、大小和 SHA-256。
 
 - [2026-11-15 知识资产许可证范围与逐路径权利登记基线](2026-11-15-knowledge-asset-license-scope-audit.md)：为 main 基线 386 个路径建立权利登记；35 项源码/CI、8 项参考软件仅有限来源审查，341 项未进行资产级许可审查；权利人全部未验证、再分发全部未确定，没有资产获准再分发。

@@ -48,6 +48,19 @@ Run #43709474246 已验证新的 sdist：41 个成员（32 个普通文件、9 �
 当前 sdist 包含根 `LICENSE`、`MANIFEST.in`、`PKG-INFO`、`README.md`、`pyproject.toml`、构建生成的 `setup.cfg` 和 egg-info 元数据、11 个 Python 包源文件及两个 Toolkit 测试。它不含 `knowledge/`、`docs/`、`scripts/`、`.github/` 或仓库级 Stäubli 集成测试。
 
 ### 2.3 独立解包、安装和测试验证（已通过）
+### 2.4 当前 PR HEAD 的重新构建与 smoke-test 复验（Run #43711328493）
+
+为避免只沿用较早提交的构建结果，已在当前 PR HEAD `93a333fc1eba3476e8d54c8ec038f7dc4134ad10` 上重新构建并复验：
+
+- GitHub Actions：[Run #43711328493](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43711328493)，五项 job 全部 success；base 为 `aac8e081ca733265f34b08000647473d02e23e72`，workflow merge ref commit 为 `3eab7401f8886844e49820c1c639207435f8f9c4`，构建环境 Python 3.12.16。
+- 最新 wheel：10,772 bytes，17 个成员，SHA-256 `17da192981dfa2bfa3e8454b24e8c6a56f0e5f8978f21332b59417b91ece5c04`。
+- 最新 sdist：11,846 bytes，34 个成员（25 files + 9 directories），SHA-256 `c8e461ba9e99701d03acda8064458d01f31902d94443b03e85ece64527119f0e`。
+- 当前 HEAD 的完整逐成员清单 artifact：[python-distribution-file-manifest #14159849177](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43711328493/artifacts/14159849177)，digest `sha256:a9894fa73e5d4cec67c897307c316e7d7fbca0574681405cf29a1eb842390978`。其中记录 source commit `93a333fc...`、base SHA、workflow SHA、每个分发成员的路径/大小/SHA-256 和 metadata。
+- 当前 HEAD 的独立 smoke evidence artifact：[python-sdist-smoke-test-evidence #14160676005](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43711328493/artifacts/14160676005)，digest `sha256:f76b2924f89d1decbf84a089506dcf800ed16faf59bd9c60f74649447951d2cd`。
+- 本轮从当前 HEAD 生成的 sdist 解包并安装到独立 venv，导入路径断言通过，两个包内测试 **10 passed in 0.03s**，CLI 输出 `robot-kb 0.1.0`；artifact evidence 的 `installed_module_isolated=true`。
+
+**清单文件版本说明：** 仓库内 `2026-11-15-python-distribution-file-manifest.json` 保留的是 Run #43709474246 的历史、固定构建快照，不应误读为当前 HEAD 的最新归档。当前 HEAD 的完整成员清单以本节所链接的 artifact #14159849177 为准；两轮产物成员数一致，但 archive SHA-256 会随构建产物变化。前述 2.1/2.2 中旧构建 hash 表格对应 Run #43709474246，当前 HEAD 的最新 hash 见本节。
+
 
 后续已将真实 sdist 安装测试加入 CI，并在 PR HEAD `cfd55fd0c0d4667021e64d6e244c142223691332` 上通过。
 
@@ -95,5 +108,5 @@ Python Packaging Authority 的 Core Metadata 规范说明：Metadata 2.4 中旧�
 - 继续保持独立 sdist smoke test 为 Python 3.12 CI 门禁；如未来调整包成员或构建后端，重新检查解包、安装、模块导入和两项测试；
 - 将 Python Toolkit 权利确认与全仓库 386 项资产权利登记分开维护。
 
-**状态：** wheel/sdist 文件成员和哈希已通过 CI 生成并人工核对；sdist 独立解包、安装、10 项测试和 CLI 入口 smoke test 已由 Run #43711114308 验证通过；根 MIT 对 Python Toolkit 的权利人授权及文件级再分发许可仍未关闭。00-01 保持进行中。
+**状态：** wheel/sdist 文件成员和哈希已通过 CI 生成并人工核对；sdist 独立解包、安装、10 项测试和 CLI 入口 smoke test 已在 Run #43711114308 和当前 HEAD Run #43711328493 验证通过；根 MIT 对 Python Toolkit 的权利人授权及文件级再分发许可仍未关闭。00-01 保持进行中。
 

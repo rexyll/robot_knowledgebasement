@@ -103,6 +103,7 @@
 | --- | --- | --- |
 | 2026-11-15 | 00-01 | 对 wheel/sdist 实际发布的 11 个 Python 模块和 2 个测试文件逐路径读取 Git history、首次加入 patch、后续修改和正文；17 条路径历史 commit 均记录为 rexyll 账号作者/提交者，GitHub verification 均为 unsigned。代码搜索发现 chunker.py 与 2026-08-08 的 Camila20197 分块实现有相近控制流程/相同通用说明文字，另有 2026-08-19 vvadr 项目命中相同说明文字但实现不同；两候选仓库 license metadata 均为 null，已查根 LICENSE 路径为 404。此为相似性线索而非抄袭结论；13/13 权利人仍 UNVERIFIED、再分发仍 UNDETERMINED，详见 Python Toolkit 来源与相似性审计报告。 |
 | 2026-11-15 | 00-01 | 为 Python Toolkit sdist 增加独立解包、安装和测试 CI 门禁；Run #43711114308 在 PR head cfd55fd0c0d4667021e64d6e244c142223691332 上五项 job 全部成功。Python 3.12.16 从 sdist 临时解包安装到独立 venv，模块导入位置通过隔离断言，test_chunker.py 与 test_markdown.py 共10 passed in 0.03s，robot-kb --version 输出 robot-kb 0.1.0；smoke artifact 14160845136，digest sha256:070cb1c5fe2deb806bb6ed58102e4a530482d6a9b21c752f846c92807129b68d。两个早期试运行分别修复了遗漏 build 步骤与 GITHUB_ENV 同步可见性错误，具体见 History v6。授权仍未关闭。 |
+| 2026-11-15 | 00-01 | 在最新 PR HEAD 93a333fc1eba3476e8d54c8ec038f7dc4134ad10 上完成重新构建复验：Run #43711328493 五项 job 全部成功；Python 3.12.16 下 sdist 11,846 bytes、34 members、SHA-256 c8e461ba9e99701d03acda8064458d01f31902d94443b03e85ece64527119f0e，独立解包安装后两个测试文件10 passed，隔离导入断言和 robot-kb 0.1.0 CLI 通过。最新完整分发清单 artifact 14159849177/digest sha256:a9894fa73e5d4cec67c897307c316e7d7fbca0574681405cf29a1eb842390978；smoke evidence artifact 14160676005/digest sha256:f76b2924f89d1decbf84a089506dcf800ed16faf59bd9c60f74649447951d2cd。权利仍待确认。 |
 | 2026-11-03 | 00-01 | 基线快照：238 个 Git Tree 条目、171 个文件对象、147 个 Markdown；knowledge/ 110 份 Markdown，docs/TaskPlan 27 份 Markdown。完整结构快照见 docs/audits/2026-11-03-baseline-inventory.md。 |
 | 2026-11-03 | 00-01 | 更新资产清单：基线为 244 个 Git Tree 条目、175 个文件对象、151 个 Markdown、112 个 knowledge Markdown。112/112 已完成标题、章节结构和开篇检查；72/112 完成较详细正文结构/片段抽样，40/112 仍未完成全文专业审查。清单见 docs/audits/2026-11-03-knowledge-asset-inventory.csv；所有文件仍待 claim-level 来源核验。 |
 | 2026-11-03 | 00-01 | 第一批 P0 定向修订六篇：功能安全、电子电气、电池与电源、安全防护器件、充电系统、底盘与运动机构。移除不适用的通用 PL/Cat、保护区、保险/线径/接地、充电倍率和机械性能经验值；详见审计报告第 14 节。 |
@@ -864,4 +865,4 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - **严格禁止：** 不得将 GitHub 账号、提交邮箱、commit 署名、unsigned commit、AI 生成或包 metadata 当作版权归属/许可授权证明；不得未经授权复制或重新分发第三方代码。
 - **依赖：** 00-01 的 main Git Tree 资产基线与 Python wheel/sdist 实测文件清单。
 - **交付物与验收：** 逐文件来源表、相似性审查报告、权利人/授权证据和更新后的逐路径权利登记；所有拟分发文件均有可核验的来源链和覆盖实际分发范围的再分发授权，方可关闭。
-- **状态：** 正在进行中（13 个文件的可见 Git 路径历史和静态正文审查已完成；17 条 commit 记录均未签名；chunker.py 存在待确认相似性线索；独立 sdist smoke test 已由 CI Run #43711114308 通过，Python 3.12.16 下两个测试文件10/10通过且 CLI 入口验证成功；13/13 权利人仍未验证、再分发状态仍未确定）。
+- **状态：** 正在进行中（13 个文件的可见 Git 路径历史和静态正文审查已完成；17 条 commit 记录均未签名；chunker.py 存在待确认相似性线索；独立 sdist smoke test 已由 CI Run #43711114308 首次通过、并由当前 PR HEAD 的 Run #43711328493 复验，Python 3.12.16 下两个测试文件10/10通过且 CLI 入口验证成功；13/13 权利人仍未验证、再分发状态仍未确定）。
