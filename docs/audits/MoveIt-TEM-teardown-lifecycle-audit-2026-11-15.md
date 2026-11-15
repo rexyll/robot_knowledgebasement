@@ -312,3 +312,16 @@ Run [#112](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/4
 Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43680932114) 已由该分支触发。最近状态检查为 in_progress，job 132711175800 已完成 ROS Jazzy setup 和 workspace tooling，正在构建 unmodified rclcpp Jazzy overlay；其余构建、屏障回归和结果尚未完成。等待本轮真实测试结果前，不把 barrier 竞态写为已复现。
 
 **边界：** Run #107仍只证明正常 mock trajectory execution 的 join 与 active_handles 清理；Run #112的测试注入语法错误未覆盖竞争窗口；Run #113成功与否都需要验证 entered/thread_finished/release/state marker 以及 execution_thread_joinable、active_handles、严格进程退出结果。stock Run #54 SIGSEGV 与 PR #1 Draft 状态不变。
+
+
+## 8. Run #113 current CI progress (2026-11-15)
+
+The GitHub Jobs API last reported the single `source-overlay-regression` job as `in_progress`. These steps have completed successfully:
+- Unmodified ROS 2 Jazzy rclcpp overlay build.
+- MoveIt Jazzy source fetch and CI-only teardown-order experiment preparation.
+- Deterministic TEM stopExecution barrier injection (including the new Python AST syntax preflight).
+- MoveIt source dependency installation.
+
+The job is currently at **Build patched MoveIt move_group** (step 9), started at 2026-11-15 05:29:24 UTC. GitHub's job-log download endpoint currently returns BlobNotFound, so there is no readable compiler output and no basis to call this a failure or a hang. The Stäubli mock workspace build and the five-round mock execution/barrier race tests have not started. No race reproduction result exists yet.
+
+The static injection review confirms the intended sequence: pause after the first `execution_complete_ == false` read and before locking `execution_state_mutex_`; allow the execution thread to finish and clear active handles; release the barrier; inspect whether the first stop call returns with a joinable execution thread and zero active handles; then verify the MoveGroup action result and subsequent strict teardown. This is test design review, not runtime evidence.
