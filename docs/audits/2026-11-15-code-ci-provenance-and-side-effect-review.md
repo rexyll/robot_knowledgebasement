@@ -15,7 +15,7 @@
 
 1. **核心 Python Toolkit 当前是小型本地数据处理层。** `src/robot_knowledgebase/` 的模块主要使用 Python 标准库，提供 Markdown 文件读取、元数据解析、文本切块、数据模型，以及 Embedding/Retrieval Protocol；没有发现该包自身发起网络连接、读取凭证、调用外部进程或访问机器人总线的代码。
 2. **新增工具不是机器人运行时控制代码。** 多数脚本读取本地 JSON、Schema、CMake File API 或锁文件，写出规范化报告/证据；外部访问集中在 OSV API、Git/ROS/Ubuntu 软件源及固定 Stäubli 验证仓库的 CI 构建流程。
-3. **工作流引用的 GitHub Actions 已固定到完整 commit SHA。** 本轮通过相应官方 action 仓库的 Git ref 与 commit API 核对：checkout v4、setup-python v5、upload-artifact v4 和 setup-uv v10.3.3 的版本 ref 均指向当前工作流所固定的 commit；四个 commit 的 GitHub verification 均为 verified。
+3. **工作流引用的 GitHub Actions 已固定到完整 commit SHA。** 初始审查确认 checkout v4、setup-python v5 和 upload-artifact v4 均为完整 SHA pin；CI 日志随后显示 GitHub runner 已强制 Node 24 运行这些仍声明 Node 20 的旧版本。已在本分支升级到 checkout v7.0.1、setup-python v6.2.0、upload-artifact v6.0.0，并将每个新版本继续固定为完整 SHA；三项新 pin 与官方 tag ref 一致且 commit verification 为 verified。setup-uv v10.3.3 保持原 pin。
 4. **Stäubli 构建工作流固定了容器 digest 和源仓库 commit，并要求 clean checkout。** 但 apt 包版本、Ubuntu 软件源索引和 rosdep 依赖解析仍然动态，缺少完整系统依赖锁、系统包清单和系统级 SBOM，因此构建尚非完全可复现/ hermetic。
 5. **Python SBOM 不是整个构建环境的 SBOM。** 根 CI 当前覆盖 Python runtime、development、SBOM generator 和 build-tools 等环境；它不自动覆盖 OSRF 容器镜像、Ubuntu apt 包、ROS 2 二进制/rosdep 依赖、第三方源码 checkout 或机器人固件。
 6. **构建证据包提供哈希完整性，不提供身份认证。** `package_staubli_build_evidence.py` 对清单中列出的工件核对相对路径、字节数和 SHA-256，并拒绝路径逃逸；没有数字签名、可信时间戳或独立发布者认证。环境快照只采集有限 allowlist 和工具版本，未形成完整 dpkg/apt package inventory。
@@ -93,11 +93,11 @@ PR #22 最新 head 在本轮 APT opt-in 代码变更前的 CI 已通过；本轮
 
 - 声明 `permissions: contents: read`。
 - Actions 引用固定完整 commit SHA：
-  - `actions/checkout@11d5960a326750d5838078e36cf38b85af677262`，与官方 `v4` tag ref 一致；
-  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`，与官方 `v5` tag ref 一致；
+  - `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1`，与官方 `v7.0.1` tag ref 一致，commit verification verified；
+  - `actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405`，与官方 `v6.2.0` tag ref 一致，commit verification verified；
   - `astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2`，与 `v10.3.3` tag ref 一致；
-  - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`，与官方 `v4` tag ref 一致。
-- 本轮通过官方仓库 Git ref/commit API 核对上述 tag ref 均解析到相同 SHA；四个 commit 的 GitHub commit verification 均为 verified。
+  - `actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f`，与官方 `v6.0.0` tag ref 一致，commit verification verified。
+- 本轮通过官方仓库 Git ref/commit API 核对版本 tag 解析到对应 SHA；官方公告说明 GitHub Actions 已于 2026-09-23 移除 Node 20，相关新版本使用 Node 24（[GitHub Changelog](https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-in-github-actions/)）。
 - 使用 `uv sync --locked`、哈希约束的 build-tools/SBOM-tools 安装、CycloneDX 1.7 产物、SHA256SUMS 和 OSV 查询。此覆盖范围为 Python 项目依赖。
 
 ### 6.2 Stäubli ROS Jazzy 构建工作流
@@ -121,6 +121,19 @@ PR #22 最新 head 在本轮 APT opt-in 代码变更前的 CI 已通过；本轮
 - `package_staubli_build_evidence.py` 的 SHA256 清单用于事后完整性核验；未签名，因此不能证明产物来源身份或不可抵赖性。
 
 因此，Stäubli workflow 的结论应写作“固定源码/容器下的构建与测试证据”，不能写作“完全可重现、全依赖锁定的产品软件供应链”。
+
+
+### 6.4 Actions runtime compatibility remediation
+
+PR #22 的第一次 APT opt-in 变更 CI 中，Python 3.11 job 在 Ruff lint 阶段因新测试断言 101 字符（项目上限 100）失败，pytest 随后被跳过；这是测试文件格式问题，不是 APT guard 逻辑失败。已拆分断言并提交修复，后续新 head 触发 CI。
+
+同一次日志还显示 runner 将 checkout v4、setup-python v5、upload-artifact v4 从 Node 20 强制运行于 Node 24。GitHub 已公告 Node 20 于 2026-09-23 从 Actions runners 移除，并要求使用支持 Node 24 的最新 action 版本。已将两个工作流中的相关引用升级到：
+
+- checkout v7.0.1：`3d3c42e5aac5ba805825da76410c181273ba90b1`
+- setup-python v6.2.0：`a309ff8b426b58ec0e2a45f0f869d46889d02405`
+- upload-artifact v6.0.0：`b7c566a772e6b6bfb58ed0dc250532a479d7789f`
+
+新版本 tag ref 与完整 commit SHA 一致，且 GitHub commit verification 均为 verified。升级后的最新 head CI 仍待结果，不提前声明全部通过。
 
 ## 7. 许可证、权利人和来源缺口
 
