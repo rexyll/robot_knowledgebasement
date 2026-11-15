@@ -6710,3 +6710,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 将CI overlay A/B有效代码逐hunk最小化，剥离diagnostics marker、workflow-only和测试instrumentation，形成候选补丁审查稿；不提交到MoveIt/rclcpp upstream或生产PR，除非用户另行授权。
 
 **状态：** Run #102为A+B、C=off提供了5/5 mock级验证；active_handles_与trajectories_异常路径、候选补丁最小化仍待完成。PAL statistics日志已溯源，不是阻塞项。PR #1保持Draft，stock Run #54失败仍未解决。
+
+### §9.3.383｜TEM execution_thread_ 完成竞态与析构兜底审查（2026-11-15）
+
+- [x] 对照MoveIt Jazzy源码：`stopExecution()`在1211行锁外读取普通bool `execution_complete_`，随后在1213–1214行加锁后二次检查；执行线程在1357–1359行持同一state mutex将其置true。
+- [x] 识别check-lock-recheck窗口：若首次读到false，执行线程恰在TEM取得state mutex前完成并将flag改为true，则函数走1240行unlock分支；该分支不会join execution_thread_，因为1242行else-if与外层初始if配对，不会执行。析构函数随后只join private_executor_thread_，没有无条件二次join execution_thread_。
+- [x] `execution_complete_`在header中为普通bool（不是atomic），首次读取不持state mutex，存在潜在数据竞争。该竞态是静态源码风险，尚未在Run #102中触发；Run #102只做mock planning与process teardown，没有启动真实trajectory execution。
+- [x] `executeThread()`置完成标志后不自行reset `execution_thread_`；若漏join，joinable `std::thread`对象析构可触发std::terminate。这是需专项验证的高优先级边界。
+- [x] 核验当前TEM字段声明：`active_handles_`在323行、`trajectories_`在329行、loader在331行、manager在332行。未提前清理时默认reverse member destruction会在loader后才销毁handles/trajectory container。
+- [ ] 使`execution_complete_`的所有读写统一受`execution_state_mutex_`保护，或采用经过审查的原子状态设计；避免锁外读普通bool。
+- [ ] 在析构阶段保证execution线程无条件join/reset：调用`stopExecution(true)`后，再独立锁定`execution_thread_mutex_`，检查thread pointer并join/reset；处理self-join保护，保证析构上下文不是execution thread自身。
+- [ ] execution与private executor线程均停止后，显式`clear()`释放`trajectories_` raw contexts；再持`execution_state_mutex_`清空`active_handles_`，必须发生在`controller_manager_.reset()`及loader卸载之前。
+- [ ] 设计mock trajectory execution专用测试：覆盖执行线程正常完成与析构同一时刻竞争、停止请求与自然完成竞争、auto_clear=true/false、callback执行期间、未启动线程、controller manager缺失、异常/早退及重复shutdown；用同步屏障控制完成标志翻转窗口。
+- [ ] 检查自我join、lock ordering和callback reentrancy；确认private executor仍可处理取消/结果回调直到execution thread join完成，之后才停止private executor。
+- [x] 将workflow名称/日志文案修正为“MoveIt Jazzy默认信号处理 + teardown-order实验”；脚本只检查上游源码未引入sigwait/SignalHandlerOptions::None，并未应用任何自定义signal-wait patch。
+- [ ] 将实验A/B的有效改动与诊断标记分离，形成最小候选补丁清单；不提交MoveIt/rclcpp upstream或生产PR，除非用户单独授权。
+
+**源码定位：** [TEM destructor/stopExecution/executeThread](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L86-L93), [stopExecution](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1209-L1252), [executeThread completion flag](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1354-L1369), [TEM member order](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp#L313-L334).
+
+**状态：** §9.3.383已完成源码竞态识别，尚未完成动态复现或代码修复。Run #102不覆盖此竞态；Run #103独立重复只验证原始mock launch test输入。PR #1继续Draft，stock Run #54仍失败。
