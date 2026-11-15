@@ -762,3 +762,18 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 
 **当前判断：** 这是 00-01 的受限内容和来源边界审查，帮助缩小了许可/来源/成熟度缺口；00-01 仍为进行中。下一步继续 P0 许可覆盖范围与新增源代码/脚本来源核验，再推进知识文章主张级核验。MotionControlAlgorithms 合并与 14-EXT-02 状态不变，仍不得启动导入。
 
+### 2026-11-15｜00-01持续审计记录（新增源码、脚本、测试与 CI 来源/副作用审查）
+
+新增 [源码、脚本、测试与 CI 来源/副作用审查报告](../../audits/2026-11-15-code-ci-provenance-and-side-effect-review.md)，并更新资产 CSV 中 35 项代码/自动化资产的最近审查范围。
+
+- 审查范围：`scripts/` 12 项、`src/robot_knowledgebase/` 11 项、`tests/` 10 项、`.github/workflows/` 2 项。限定静态源码、输入/输出、网络、子进程、文件/系统写入和测试证据边界。
+- 核心 Python Toolkit 当前仅实现本地 Markdown 读取、元数据解析、文本切块、值模型和 Embedding/Retrieval Protocol；本轮未发现包内网络、凭证或机器人总线访问。调用者仍须约束本地文件路径。
+- OSV 脚本访问公开 OSV API；其他验证器主要处理本地 JSON/CMake File API 并写出报告。CMake collector、runtime evidence validator 和 evidence packager 均包含路径边界检查；Manifest validator 是本仓库使用的 Schema 子集，不是通用完整 Draft 2020-12 实现。
+- 根 CI Actions 的 checkout v4、setup-python v5、setup-uv v10.3.3 和 upload-artifact v4 均固定完整 SHA；本轮分别核对官方 tag ref 解析到相同 SHA，四个 commit verification 均为 verified。Stäubli workflow 也固定 OSRF 容器 digest、Stäubli 验证仓库 commit，并检查 source checkout clean。
+- 发现 Stäubli `retry_apt_update.sh` 会写入系统 `/etc/apt` 源文件并运行 apt-get update，原本无显式启用门禁。已在本分支增加默认拒绝的 `ALLOW_APT_SOURCE_REWRITE=1` 检查、仅在固定临时 CI 容器安装步骤 opt-in，并增加负向测试确保无 opt-in 时以退出码 2 退出。同步更新 `scripts/README.md`，披露该工具仅适用于 disposable CI container。
+- **仍未关闭的供应链缺口：** apt 包版本与索引、rosdep 数据和解析出的 ROS/Ubuntu 系统依赖仍动态；环境指纹未包含完整 dpkg 包清单，现有 CycloneDX/OSV pipeline 只覆盖 Python 环境，不是 OSRF/Ubuntu/ROS 全构建依赖 SBOM。Evidence 包 SHA-256 不提供数字签名或来源身份认证。
+- 根 MIT LICENSE 与 Python package metadata 文本一致，但 GitHub license detector 仍为 NOASSERTION；本轮代码文件未发现独立 SPDX 头/逐文件版权清单，根 LICENSE 的代码/知识/第三方资料覆盖范围和贡献者权利证据仍需治理。
+- 该轮没有修改 Stäubli 外部仓库、MoveIt/rclcpp、控制器或机器人驱动源码；没有 HIL、CS9、VAL3 或实机测试。PR #22 本轮新增 APT 门禁与测试后必须以最新 head CI 结果为准。
+
+**当前判断：** 35 项代码/自动化资产已完成限定范围的来源/副作用静态审查；发现并修复一个 APT helper 默认可执行系统级修改的防误用缺口。系统包/rosdep provenance、系统级 SBOM、代码权利人映射和全库内容许可边界仍未完成。00-01 继续进行中；MotionControlAlgorithms 合并继续延期。
+
