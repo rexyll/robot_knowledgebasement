@@ -523,3 +523,33 @@ Interpret the two isolation outcomes before claiming a single cause:
 - If both pass, either one may be sufficient and follow-up finer-grained isolation is needed.
 
 The current evidence does not yet identify which exact DSO owns the crashing Waitable control block or whether the same exact object chain explains Run #54. All changes remain CI workflow overlays; no upstream MoveIt/rclcpp or Stäubli product code is modified.
+
+
+## 16. Always-join CI-only candidate validation (Run #117, 2026-11-15)
+
+Run [#117](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) completed successfully on workflow commit `42392ccf20644541e9e2394ae1cdb18ba6f8cc83`, branch `experiment/move-group-stop-execution-join-fix`.
+
+Artifact [14149782675](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297/artifacts/14149782675) was downloaded and inspected; ZIP SHA-256: `78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43`.
+
+All five marker directories contain:
+- `entered=1`, `thread_finished=1`, `release=release`, `released=1`;
+- `state`: `execution_thread_joinable=0`, `active_handles=0`, `join_performed=1`.
+
+All five iteration logs show:
+- the normal planning/execution and cancel/natural-completion race tests ran (`Ran 3 tests ... OK`);
+- controller Goal reached, TEM execution status SUCCEEDED, MoveGroup action result PREEMPTED;
+- the TEM destructor probe reports `execution_thread_joinable=0`;
+- strict process teardown passes; colcon summary is 8 tests, 0 errors, 0 failures, 0 skipped;
+- no SIGSEGV appears in the five per-iteration stdout logs.
+
+Workflow summary: `failures=0/5`, overall conclusion success. This proves the **CI-only always-join candidate** handles the deterministic natural-completion-before-state-lock window and immediately joins/resets the execution thread in 5/5 mock iterations. It does not prove all TEM/MoveGroup bool accesses are race-free, does not constitute an upstream fix, and does not establish Run #54's exact SIGSEGV root cause.
+
+Non-fatal shutdown observations in the logs: `controller_manager.pal_statistics` reports a publisher thread cannot sleep after ROS context invalidation. All launch tests, post-shutdown process checks and colcon summaries nevertheless pass; retain this as a shutdown diagnostic to review, not a test failure and not an automatically dismissed warning.
+
+### 16.1 Factorial teardown isolation remains open
+
+Run #73 and #107 differ in two lifetime factors, so their no-crash comparison is compound. Two one-factor branches are now running:
+- Run #118 [#43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993), main-owner-only with TEM cleanup disabled; latest step was MoveIt source dependency install.
+- Run #119 [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847), TEM-cleanup-only with original main owner lifetime; latest step was MoveIt source dependency install.
+
+Neither had started patched MoveIt build or mock teardown tests at the time of this update. Their results are required before assigning the no-SIGSEGV A/B effect to one factor.
