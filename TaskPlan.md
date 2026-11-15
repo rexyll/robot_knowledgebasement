@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.98  
+版本：v11.99  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.381。Run #73 三轮确认 Waitable weak_ptr control-block vptr 均位于 libmoveit_simple_controller_manager.so 相对偏移0x5ed88，且该 DSO 在崩溃前卸载；MoveIt Jazzy TrajectoryExecutionManager 成员逆序析构关系与该生命周期故障吻合。实验 overlay 三因素定义：A=MoveGroup main owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TEM explicit cleanup；C=测试侧预先 deactivate joint_trajectory_controller。#75（A0/B1/C1）3/3 fail，#76（A1/B1/C1）3/3 pass，#77（A1/B0/C1）3/3 fail，#78恢复后3/3 pass，#79–#81 A+B+C 5/5 pass；#75–#81 共同保留 PSM publisher stop/join 与 MoveGroupExe-before-executor 声明顺序。注意实验 C 与 PR 原始测试不同；普通 stock ROS Jazzy PR CI #54（A0/B0/C0）仍 teardown SIGSEGV，Format #51 通过，PR #1 保持 Draft/open/unmerged。现已在隔离实验分支移除 C，保留 A+B overlay 与 PR head 7d9fa0d，Run #102（43673306520，commit b49a934）正在验证原始 PR shutdown 流程。实验代码未提交至 MoveIt/rclcpp upstream；Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不合并 PR、不连接真实 CS9、不发送真实运动命令；SERVO-906/907 与 A1.1 继续 BLOCKED。并行 EXT-001（MotionControlAlgorithms）已完成 DC 能力边界、CSP rearm latch、CANopen Bus-Off/SDO/NMT 会话恢复专项静态审查，知识页至§26；下一步提出 CSP fail-closed 与 CANopen session invalidation/rearm 上游修复方案（需具体授权），已完成第三方依赖许可证/来源/SBOM 第一轮静态审查：确认 KickCAT 嵌入源码为 CeCILL-C，含 MIT/WTFPL-2.0 组件；argparse 子模块固定 commit；ROS 2/Gazebo package.xml 的 MIT 元数据与根 Apache-2.0 声明不一致；未发现 SBOM/锁定依赖闭包，详见审计报告与知识页§27。下一步补齐 KickCAT 上游 commit/版本来源、argparse 许可、所有可选构建路径依赖闭包和真实 SBOM，再决定是否调整 NOTICE/包元数据。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.381。Run #73 三轮确认 Waitable weak_ptr control-block vptr 均位于 libmoveit_simple_controller_manager.so 相对偏移0x5ed88，且该 DSO 在崩溃前卸载；MoveIt Jazzy TrajectoryExecutionManager 成员逆序析构关系与该生命周期故障吻合。源码已追至 MoveItSimpleControllerManager → ActionBasedControllerHandle → rclcpp_action::create_client 自定义 deleter/Waitable → NodeWaitables/CallbackGroup weak refs → Executor WaitSet/current_collection_ 所有权链；候选顺序为 join/remove+reset executor、仍保持 node/loader 存活时销毁 controller manager/action clients 并清除 weak refs、再销毁 node、loader 最后卸载，尚待 A+B/C=off 验证。实验 overlay A+B+C（A=MoveGroup owner reset；B=TEM cleanup；C=测试侧预先 deactivate controller）在 #76/#78 3/3、#79–#81 5/5通过；#75 A0/B1/C1 与 #77 A1/B0/C1 3/3失败。#75–#81 共同保留 PSM publisher stop/join 与 MoveGroupExe-before-executor 顺序。注意实验 C 与 PR 原始测试不同；普通 stock ROS Jazzy PR CI #54 仍 teardown SIGSEGV，Format #51 通过，PR #1 保持 Draft/open/unmerged。现已移除 C、保留 A+B overlay 和 PR head 7d9fa0d 的 Run #102（43673306520）：已完成 ROS Jazzy setup、rclcpp overlay、MoveIt overlay 修改及依赖安装，当前 patched MoveGroup 编译中；测试尚未开始。实验代码未提交 MoveIt/rclcpp upstream；Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不合并 PR、不连接真实 CS9、不发送真实运动命令；SERVO-906/907 与 A1.1 继续 BLOCKED。并行 EXT-001（MotionControlAlgorithms）已完成 DC 能力边界、CSP rearm latch、CANopen Bus-Off/SDO/NMT 会话恢复专项静态审查，知识页至§26；下一步提出 CSP fail-closed 与 CANopen session invalidation/rearm 上游修复方案（需具体授权），已完成第三方依赖许可证/来源/SBOM 第一轮静态审查：确认 KickCAT 嵌入源码为 CeCILL-C，含 MIT/WTFPL-2.0 组件；argparse 子模块固定 commit；ROS 2/Gazebo package.xml 的 MIT 元数据与根 Apache-2.0 声明不一致；未发现 SBOM/锁定依赖闭包，详见审计报告与知识页§27。下一步补齐 KickCAT 上游 commit/版本来源、argparse 许可、所有可选构建路径依赖闭包和真实 SBOM，再决定是否调整 NOTICE/包元数据。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -434,6 +434,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 4 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 5 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
