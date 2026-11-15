@@ -296,3 +296,19 @@ Thus all five normal mock trajectory executions completed and were followed by a
 - For a valid reproduction, the test must record entered, thread_finished, released, and state; the post-barrier state should be execution_thread_joinable=1, active_handles=0 before MoveGroup teardown, followed by a clean process exit as the TEM destructor joins the leftover completed thread.
 - A failure before those markers (e.g. no MONITOR feedback, trajectory completed before cancel, barrier not entered, or timeout) is a harness/trigger failure, not evidence that the race does not exist.
 **本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102–104在PR原始输入C=off下A+B overlay合计15次mock-planning/teardown repetitions通过；Run #107正常mock FollowJointTrajectory执行与析构快照5/5通过，五轮execution_thread_joinable=0、active_handles=0。Run #111屏障注入因函数尾部空白校验失败，Run #112正在验证修正后的barrier；execution_thread_竞态尚未动态复现；stock Run #54仍失败，PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
+
+
+## 7. Run #112 barrier test injection failure and Run #113 syntax correction (2026-11-15)
+
+Run [#112](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43678885235) 的 rclcpp overlay、MoveIt A+B overlay 与 Stäubli mock workspace 均已构建；失败发生在最终 mock regression 中。保存的 job log 报告临时生成的 test_moveit_mock_planning.launch.py 第 260 行出现 unterminated string literal。根因是 workflow 外层 Python 三引号字符串将 release_file.write("release\n") 中的转义提前解释，写入生成文件的是实际换行，破坏了字符串字面量。五轮均未真正运行新增 barrier test；因此 Run #112 不是 race reproduced，也不是 MoveIt 编译失败。
+
+已在新的隔离分支 experiment/move-group-shutdown-order-barrier-fix 提交 workflow-only 修正：
+- workflow commit：1d0787c71346144ad2950c537297562b7a73b81b；
+- 将注入模板改为保留字面量反斜杠的双重转义；
+- 在写入临时 launch test 前加入 ast.parse(source, filename=str(test_path))，使语法错误在 CI 注入步骤 fail-closed；
+- workflow push trigger 加入新分支，便于独立复跑；
+- 未修改 Stäubli driver source、PR #1、MoveIt/rclcpp upstream、main 或固定 source pin。
+
+Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43680932114) 已由该分支触发。最近状态检查为 in_progress，job 132711175800 已完成 ROS Jazzy setup 和 workspace tooling，正在构建 unmodified rclcpp Jazzy overlay；其余构建、屏障回归和结果尚未完成。等待本轮真实测试结果前，不把 barrier 竞态写为已复现。
+
+**边界：** Run #107仍只证明正常 mock trajectory execution 的 join 与 active_handles 清理；Run #112的测试注入语法错误未覆盖竞争窗口；Run #113成功与否都需要验证 entered/thread_finished/release/state marker 以及 execution_thread_joinable、active_handles、严格进程退出结果。stock Run #54 SIGSEGV 与 PR #1 Draft 状态不变。
