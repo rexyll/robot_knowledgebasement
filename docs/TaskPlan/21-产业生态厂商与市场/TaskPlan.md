@@ -6728,7 +6728,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 **源码定位：** [TEM destructor/stopExecution/executeThread](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L86-L93), [stopExecution](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1209-L1252), [executeThread completion flag](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1354-L1369), [TEM member order](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp#L313-L334).
 
-**状态：** §9.3.383已完成源码竞态识别，尚未完成动态复现或代码修复。Run #102不覆盖此竞态；Run #103独立重复只验证原始mock launch test输入。PR #1继续Draft，stock Run #54仍失败。
+**状态：** §9.3.383已完成源码竞态识别，尚未完成确定性动态复现或代码修复。Run #102–104只验证原始plan-only mock输入；Run #106首次真实执行mock FollowJointTrajectory并完成controller goal，但没有制造natural-completion与destructor之间的竞态。Run #107正在增加正常执行后execution_thread_与active_handles_快照。PR #1继续Draft，stock Run #54仍失败。
 
 ### §9.3.384｜active_handles_ 与 Simple Controller Manager 插件句柄强引用链（2026-11-15）
 
@@ -6743,7 +6743,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 增加mock真实trajectory执行用例，覆盖多个controller、正常完成、send fail、cancel、自然完成与析构竞争、异常/早退，验证最后一个strong ref总是在plugin loader仍存活时释放。
 - [ ] 仅完成候选补丁和回归审查；未经用户单独授权，不修改MoveIt/rclcpp upstream或Stäubli生产PR #1。
 
-**状态：** shared_ptr owner chain与action-client依赖关系已由Jazzy源码确认；Run #102仅做planning+shutdown，没有运行真实轨迹执行，故尚未动态验证句柄last-release顺序。
+**状态：** shared_ptr owner chain与action-client依赖关系已由Jazzy源码确认；Run #106已运行真实mock FollowJointTrajectory并观测controller/TEM成功，但由于测试断言字段选择错误，不能作为测试PASS。Run #107修正断言并新增析构前active_handles_快照，结果待核验。
 
 ### §9.3.385｜原始测试独立复跑与真实 mock FollowJointTrajectory 执行（2026-11-15）
 
