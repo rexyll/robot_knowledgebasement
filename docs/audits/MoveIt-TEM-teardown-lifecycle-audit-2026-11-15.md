@@ -296,3 +296,322 @@ Thus all five normal mock trajectory executions completed and were followed by a
 - For a valid reproduction, the test must record entered, thread_finished, released, and state; the post-barrier state should be execution_thread_joinable=1, active_handles=0 before MoveGroup teardown, followed by a clean process exit as the TEM destructor joins the leftover completed thread.
 - A failure before those markers (e.g. no MONITOR feedback, trajectory completed before cancel, barrier not entered, or timeout) is a harness/trigger failure, not evidence that the race does not exist.
 **本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102–104在PR原始输入C=off下A+B overlay合计15次mock-planning/teardown repetitions通过；Run #107正常mock FollowJointTrajectory执行与析构快照5/5通过，五轮execution_thread_joinable=0、active_handles=0。Run #111屏障注入因函数尾部空白校验失败，Run #112正在验证修正后的barrier；execution_thread_竞态尚未动态复现；stock Run #54仍失败，PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
+
+
+## 7. Run #112 barrier test injection failure and Run #113 syntax correction (2026-11-15)
+
+Run [#112](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43678885235) 的 rclcpp overlay、MoveIt A+B overlay 与 Stäubli mock workspace 均已构建；失败发生在最终 mock regression 中。保存的 job log 报告临时生成的 test_moveit_mock_planning.launch.py 第 260 行出现 unterminated string literal。根因是 workflow 外层 Python 三引号字符串将 release_file.write("release\n") 中的转义提前解释，写入生成文件的是实际换行，破坏了字符串字面量。五轮均未真正运行新增 barrier test；因此 Run #112 不是 race reproduced，也不是 MoveIt 编译失败。
+
+已在新的隔离分支 experiment/move-group-shutdown-order-barrier-fix 提交 workflow-only 修正：
+- workflow commit：1d0787c71346144ad2950c537297562b7a73b81b；
+- 将注入模板改为保留字面量反斜杠的双重转义；
+- 在写入临时 launch test 前加入 ast.parse(source, filename=str(test_path))，使语法错误在 CI 注入步骤 fail-closed；
+- workflow push trigger 加入新分支，便于独立复跑；
+- 未修改 Stäubli driver source、PR #1、MoveIt/rclcpp upstream、main 或固定 source pin。
+
+Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43680932114) 已由该分支触发。最近状态检查为 in_progress，job 132711175800 已完成 ROS Jazzy setup 和 workspace tooling，正在构建 unmodified rclcpp Jazzy overlay；其余构建、屏障回归和结果尚未完成。等待本轮真实测试结果前，不把 barrier 竞态写为已复现。
+
+**边界：** Run #107仍只证明正常 mock trajectory execution 的 join 与 active_handles 清理；Run #112的测试注入语法错误未覆盖竞争窗口；Run #113成功与否都需要验证 entered/thread_finished/release/state marker 以及 execution_thread_joinable、active_handles、严格进程退出结果。stock Run #54 SIGSEGV 与 PR #1 Draft 状态不变。
+
+
+## 8. Run #113 pre-completion CI progress snapshot (historical; superseded by §9)
+
+This section preserves the in-progress snapshot written before Run #113 completed. Its final test evidence and conclusion are recorded in §9 below.
+
+The GitHub Jobs API last reported the single `source-overlay-regression` job as `in_progress`. These steps have completed successfully:
+- Unmodified ROS 2 Jazzy rclcpp overlay build.
+- MoveIt Jazzy source fetch and CI-only teardown-order experiment preparation.
+- Deterministic TEM stopExecution barrier injection (including the new Python AST syntax preflight).
+- MoveIt source dependency installation.
+
+The job is currently at **Build patched MoveIt move_group** (step 9), started at 2026-11-15 05:29:24 UTC. GitHub's job-log download endpoint currently returns BlobNotFound, so there is no readable compiler output and no basis to call this a failure or a hang. The Stäubli mock workspace build and the five-round mock execution/barrier race tests have not started. No race reproduction result exists yet.
+
+The static injection review confirms the intended sequence: pause after the first `execution_complete_ == false` read and before locking `execution_state_mutex_`; allow the execution thread to finish and clear active handles; release the barrier; inspect whether the first stop call returns with a joinable execution thread and zero active handles; then verify the MoveGroup action result and subsequent strict teardown. This is test design review, not runtime evidence.
+
+
+## 9. Run #113 deterministic check-lock-recheck missed-join reproduction (2026-11-15)
+
+Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43680932114) completed successfully on workflow-only branch experiment/move-group-shutdown-order-barrier-fix, commit 1d0787c71346144ad2950c537297562b7a73b81b. Artifact 14148018987 was downloaded and inspected; ZIP SHA-256: d8fcea6f09eac1dbe4d1fcebc9459d6e6ebb9b401beefdae104babea466fcc4b.
+
+### 9.1 Five-round marker evidence
+
+All five marker directories (staubli_tem_barrier_1 through _5) contain entered=1, thread_finished=1, release=release, released=1. Every state file contains execution_thread_joinable=1 and active_handles=0.
+
+The order is important: MoveGroup /move_action cancel enters stopExecution(); the CI-only barrier pauses before the state mutex is acquired; the controller/trajectory execution thread naturally completes and emits thread_finished; only then does the test release the barrier. After the original stopExecution() returns, the state marker still sees a joinable execution_thread_ while active controller handles are already zero. This directly exercises the inner re-check path where the original implementation takes the unlock branch and skips its first join.
+
+### 9.2 Test and teardown outcome
+
+Each of the five per-iteration logs (05-40-01, 05-40-19, 05-40-33, 05-40-46, 05-40-59) shows:
+- The normal plan/execute test and the cancellation race test ran; the race test returned MoveGroup PREEMPTED.
+- Controller reports Goal reached, success!; TEM reports trajectory execution SUCCEEDED (the action-level PREEMPTED is the externally requested MoveGroup cancellation result).
+- Python test summary Ran 3 tests ... OK; CTest reports 100% passed; colcon reports 8 tests, 0 errors, 0 failures, 0 skipped.
+- Later TEM destructor probes show execution_thread_joinable=0 and active_handles_after_stop=0, consistent with a subsequent teardown call joining the leftover completed thread.
+- No SIGSEGV appears in any of the five iteration stdout logs.
+
+The full workflow summary is failures=0/5, and Run #113 conclusion is success. Therefore the original TEM check-lock-recheck missed-join path is deterministically reproduced in 5/5 mock iterations.
+
+### 9.3 Scope of the conclusion
+
+This is strong evidence of a real lifecycle bug: the first stopExecution() can return without joining a thread that finished while the caller was between its outer check and state lock. The destructor later compensates by joining it. It does not establish that this path is the sole or direct cause of stock Run #54's DSO Waitable SIGSEGV. It is a mock/SIL lifecycle experiment only; it does not validate CS9, physical robot motion, EtherCAT/VAL3 behavior, HIL, SAT, or safety certification. No MoveIt/rclcpp upstream source or Stäubli driver product source was changed.
+
+## 10. CI-only always-join candidate (pending)
+
+A new isolated branch, experiment/move-group-stop-execution-join-fix, tests a minimal candidate on the same MoveIt Jazzy source overlay:
+1. The test arms the barrier only immediately before sending the /move_action cancel request, so earlier normal planning tests do not block.
+2. The candidate acquires execution_state_mutex_ and makes the stop/cancel decision only under that lock.
+3. After releasing the state mutex, it always checks execution_thread_ under execution_thread_mutex_ and joins/resets any existing thread, including when natural completion won before the state lock was acquired.
+4. clear() remains conditional on an actual stop request and auto_clear, preserving the existing behavior for already-completed executions.
+5. The test now requires execution_thread_joinable=0, active_handles=0, and join_performed=1 after stopExecution returns; it also verifies the barrier's released marker is 1.
+
+Latest candidate workflow commit: 065f2385f9519777db2af89924ad2520cd94a402. Run [#43682618698](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43682618698) is in progress. The candidate changes workflow-injected MoveIt source only; no upstream or product repository file is modified.
+
+**Remaining synchronization audit:** this candidate addresses the stopExecution outer unlocked check and missed join. It does not yet prove every execution_complete_ access in push(), executeThread(), executePart(), or MoveGroupMoveAction::preempt_requested_ is properly synchronized. These need a separate access/lock-domain review and TSAN or equivalent coverage. Do not mark the complete MoveIt lifecycle/data-race issue fixed based on this single candidate.
+
+## 11. Remaining synchronization access-domain inventory (2026-11-15)
+
+A targeted static pass over the MoveIt Jazzy source blobs (TEM cpp SHA 126469542aa546046e6e305b18b56213e91d69a8; MoveGroup action capability cpp SHA 0198a71b5be709bb1a5f62c97a8bb60961e948ac; header SHA 4306130dfc5d591d585696823e6c3af03670096e) found that the reproduced missed-join path is not the only synchronization concern.
+
+### 11.1 execution_complete_ accesses in TrajectoryExecutionManager
+
+| Source location | Access | Lock observation |
+|---|---|---|
+| push(), line 397 | read | No execution_state_mutex_ held at the read |
+| stopExecution(), line 1211 (stock) | read | Outer fast-path read is unlocked; the CI-only always-join candidate removes it |
+| stopExecution(), line 1214 (stock) | read | Re-check occurs while execution_state_mutex_ is held |
+| stopExecution(), line 1220 (stock) | write true | Under execution_state_mutex_ |
+| execute(), line 1281 | write false | Immediately before creating execution_thread_; not under state mutex |
+| waitForExecution(), line 1290 | read | Under execution_state_mutex_ |
+| clear(), line 1302 | read | Preliminary read occurs before taking execution_state_mutex_ |
+| executeThread(), line 1317 | read | No state lock at the read; thread creation ordering covers the initial false write, but concurrent stop requires separate analysis |
+| executeThread(), line 1337 | read | No state lock |
+| executeThread(), line 1348 | read | Under execution_state_mutex_ |
+| executeThread(), line 1358 | write true | Under execution_state_mutex_ |
+| executePart(), line 1379 | read | No state lock |
+| executePart(), line 1385 | read | Under execution_state_mutex_ |
+| executePart(), line 1542 | read | No state lock |
+| executePart(), line 1563 | read | No state lock |
+
+The same field therefore has a mixture of locked and unlocked accesses. The reproduced stopExecution missed-join branch is real, and the outer unlocked read removed by the candidate is one part of the concern; however, it is not sufficient to claim every access is race-free. A complete correction must either make the state flag atomic with a reviewed memory-order/state protocol, or consistently guard every concurrent access with the same mutex while avoiding holding that mutex across controller waits or thread join. Review condition-variable wakeup, active_handles_, last_execution_status_, time_index_, clear(), and callback ordering together.
+
+The pointer execution_thread_ also needs a complete ownership/lock audit: creation/assignment in execute() at line 1282 is outside execution_thread_mutex_, while join/reset paths use that mutex. The test path observes the pointer after the execution thread has been created, but it does not prove every possible concurrent creation/stop ordering.
+
+### 11.2 MoveGroup preempt_requested_
+
+In Jazzy move_action_capability:
+- the header declares preempt_requested_ as a plain bool (header line 74);
+- preemptMoveCallback() writes true (cpp line 283);
+- executeMoveCallbackPlanAndExecute() reads it (line 176);
+- executeMoveCallbackPlanOnly() reads it (line 198);
+- MoveGroup action completion resets it to false (line 127).
+
+The cancel callback and goal execution work can run in separate execution contexts. This field needs its own lock/atomic policy and tests; do not assume the TEM always-join change fixes it. It may be a separate race and is not established as a cause of the stock DSO Waitable SIGSEGV.
+
+
+### 11.3 last_execution_status_ has a separate read/write synchronization problem
+
+The type is not an atomic scalar today: `moveit_controller_manager::ExecutionStatus` is a small wrapper struct containing a private `Value status_` enum (controller_manager.hpp lines 49–100). Its accesses in TEM cpp include:
+
+| Source location | Operation | Lock / sequencing observation |
+|---|---|---|
+| initialize(), line 100 | write SUCCEEDED | Object initialization; before normal concurrent execution |
+| push(), line 461 | write ABORTED | No execution_state_mutex_ in this error branch |
+| stopExecution(), line 1224 | write PREEMPTED | Under execution_state_mutex_ |
+| execute(), line 1272 | write ABORTED | Caller thread, no status lock |
+| execute(), callback line 1276 | read | Same caller path, before worker thread creation |
+| waitForExecution(), line 1297 | read/return | After stopExecution(false) join in this API path, but getter can be called separately |
+| executeThread(), line 1319 | write ABORTED | No state lock |
+| executeThread(), line 1327 | write SUCCEEDED | No state lock |
+| executeThread(), lines 1345/1354/1368 | read | No status lock; includes completion log and user callback |
+| executePart(), line 1407 | write ABORTED | Within the execution_state_mutex_ guarded controller-acquisition block |
+| executePart(), line 1445 | write ABORTED | After the earlier state-lock block; no status lock |
+| executePart(), line 1553 | write TIMED_OUT | After stopExecutionInternal()'s lock scope ends; no status lock |
+| executePart(), line 1572 | write controller-reported status | No status lock |
+| executePart(), line 1593 | write ABORTED | No state lock in the required-controller-state failure branch |
+| getLastExecutionStatus(), line 1681 | read/return | No lock |
+
+This means the always-join candidate can still have the cancellation thread writing PREEMPTED while the execution thread reads or writes SUCCEEDED/TIMED_OUT/ABORTED. It also means an external caller can race `getLastExecutionStatus()` with an in-progress execution. The wrapper's underlying `Value` is a non-atomic enum; do not infer thread safety from the small object size.
+
+**Recommended correction approach:** keep a single state owner/locking contract for `execution_complete_`, `last_execution_status_`, and related completion state. Take short snapshots under `execution_state_mutex_` and release it before invoking user callbacks, waiting on controller handles, joining threads, or doing ROS operations that may re-enter TEM. Alternatively, if the design intentionally needs lock-free reads, make the underlying status value atomic and expose copy/snapshot helpers; do not attempt `std::atomic<ExecutionStatus>` without checking whether the wrapper is trivially copyable and supported. Preserve the existing condition-variable protocol by changing completion state while holding the same mutex used by the wait predicate.
+
+### 11.4 Next validation sequence
+
+1. Finish Run #43682618698 and confirm the CI-only candidate asserts join_performed=1, execution_thread_joinable=0, active_handles=0 in all five natural-completion-before-state-lock repetitions.
+2. Review all execution_thread_ creation, read, join and reset sites under one coherent ownership rule.
+3. Resolve execution_complete_ access semantics consistently and run TSAN or an equivalent race-detection harness across natural completion, cancel, timeout, clear and action teardown.
+4. Resolve preempt_requested_ separately and test plan-only and plan-and-execute cancel paths.
+5. Only then prepare a versioned MoveIt upstream patch proposal, with no direct upstream modifications until separately authorized.
+
+The current candidate remains a CI-only overlay. No upstream MoveIt/rclcpp or Stäubli product source was changed.
+
+## 12. Candidate always-join Run #43682618698 injection-template failure and correction
+
+Candidate workflow commit `065f2385f9519777db2af89924ad2520cd94a402` failed in the CI-only barrier injection step before compiling or running the candidate. The job log shows:
+
+`SyntaxError: unterminated triple-quoted string literal`
+
+The generated Python heredoc assigned a C++ function body to `stop_function = """...` but the workflow template omitted the closing triple quote before the next Python statement. The failure therefore belongs to the test/source-overlay generator, not the candidate C++ algorithm, MoveIt compilation, Stäubli driver, or product source.
+
+A workflow-only correction has been committed on the same isolated branch:
+- branch: `experiment/move-group-stop-execution-join-fix`
+- latest commit: `42392ccf20644541e9e2394ae1cdb18ba6f8cc83`
+- correction: close the Python triple-quoted function template after the C++ function closing brace; candidate semantics and required post-stop assertions are unchanged.
+
+The branch file was fetched after the update and confirms the closing quote, arm-marker barrier, and `join_performed=1` / `execution_thread_joinable=0` assertions are present. A fresh run for commit `42392ccf...` has not yet been observed at the time of this record. No product source or upstream repository was changed.
+
+
+## 13. Fresh candidate run after fixing the Python injection template (2026-11-15)
+
+The previous candidate run [#43682618698](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43682618698) failed before compilation because the workflow's embedded Python `stop_function = """...` template lacked its closing triple-quote. This was a test-overlay generator syntax failure only; no candidate C++ source was written to the temporary MoveIt tree and no candidate tests ran.
+
+The same isolated branch now carries workflow commit `42392ccf20644541e9e2394ae1cdb18ba6f8cc83`, which adds the missing closing triple-quote after the C++ function body. The candidate always-join logic and post-stop assertions are otherwise unchanged.
+
+Run [#43683012297](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) is the first run for the corrected template. Its latest Jobs API state is `source-overlay-regression` in ROS Jazzy setup (step 3); no barrier injection, MoveIt candidate build, Stäubli mock build, or five-round regression has completed yet. The run is pending, not a pass/fail judgment on the candidate.
+
+Required acceptance remains five iterations with `released=1`, `join_performed=1`, `execution_thread_joinable=0`, `active_handles=0`, successful mock action result, and clean process teardown. All other state-field and preempt bool access review remains open.
+
+ 
+## 14. Controlled A/B evidence: TEM plugin-loader/member destruction order (2026-11-15)
+
+The historical Run #73 and successful Run #107 workflows provide a useful **compound lifecycle comparison**, but not a single-variable A/B: Run #107 changes both the main MoveItCpp/PSM/nh owner release timing and TEM's internal explicit cleanup.
+
+### 14.1 Run #73 baseline (TEM cleanup disabled)
+
+Workflow commit `8986dbe338df17e27cf0f7e79868be51b654a9f1` already:
+- stopped/joined the PlanningSceneMonitor scene publisher before context shutdown;
+- reordered `MoveGroupExe mge` before the main `MultiThreadedExecutor executor`, so the main executor should destruct before MoveGroupExe.
+
+However, its TEM explicit-cleanup injection was disabled by `if False: # Controlled A/B: leave Jazzy TrajectoryExecutionManager teardown unmodified`. The rest of the workflow's MoveGroup and main-executor instrumentation was enabled.
+
+Run [#73](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43452965703), artifact 14054405267, ZIP SHA-256 `19bb3ab367815da23d7c8e6b0e214b21de194838f1230ea4838481bca3c888b1`, contains four regression stdout captures (latest_test plus three iteration logs); all four have one SIGSEGV. GDB frames show weak_ptr<rclcpp::Waitable> weak-release → CallbackGroup destructor → NodeBase destructor, while `LD_DEBUG` records `libmoveit_simple_controller_manager.so` and `libcontrol_msgs__rosidl_typesupport_cpp.so` destroying their link maps before the final Executor/NodeBase/CallbackGroup teardown.
+
+### 14.2 Run #107 treatment (TEM cleanup enabled)
+
+Workflow commit `18fea00298ee542c304cbf73d652cd540262712e` changed the TEM cleanup gate to `if True`. The injected cleanup block is the same substantive sequence as the disabled block, with only two extra diagnostic log statements in the treatment:
+1. retain the event callback group as a TEM member rather than a local-only reference;
+2. stop/join the trajectory and private executor threads;
+3. reset event subscription, parameter callback handler, and event callback group;
+4. remove the controller-manager node from the private executor;
+5. reset private executor;
+6. reset controller-manager plugin instance;
+7. reset controller-manager node;
+8. only then allow automatic member teardown to destroy the controller-manager class loader and unload its DSO.
+
+Run [#107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898), artifact 14147826279, ZIP SHA-256 `b0e13044c3b51e9e7da2bd2b5653e5ed30a9e09692ab3677d206ef8c6250697a`, has five independent regression stdout logs, all with zero SIGSEGV. Each round completes mock FollowJointTrajectory execution/TEM SUCCEEDED and strict post-shutdown checks. Its log ordering is explicit: TEM shutdown probes, event-subscription reset, callback-group reset, private-executor destructor, controller-node reset, then `libmoveit_simple_controller_manager.so` / `libcontrol_msgs__rosidl_typesupport_cpp.so` link-map destruction.
+
+Run #113 uses the same enabled TEM-cleanup overlay and adds deterministic cancel/natural-completion barrier injection. It also passes five of five rounds with no SIGSEGV.
+
+### 14.3 Source-level explanation
+
+MoveIt Jazzy `TrajectoryExecutionManager` header currently declares:
+- `node_` at line 302;
+- `controller_mgr_node_` at line 304;
+- `private_executor_` at line 305;
+- `controller_manager_loader_` at line 331;
+- `controller_manager_` at line 332;
+- `callback_handler_` at line 352.
+
+C++ destroys members in reverse declaration order. With the stock destructor body (stopExecution, cancel private executor, join private executor thread only), automatic destruction reaches `callback_handler_`, then `controller_manager_`, then `controller_manager_loader_` before later-destroyed `private_executor_`, `controller_mgr_node_`, and `node_`. That can unload the controller-manager DSO before callback groups / weak Waitable references owned by its ROS nodes are finally destroyed. The CI-only treatment makes this teardown explicit while the loader is still alive.
+
+### 14.4 Conclusion and limits
+
+This is strong evidence that the **combined** lifetime treatment used by Run #107/113 avoids the historical Run #73 Waitable/CallbackGroup SIGSEGV in the tested mock workflow. However, Run #107 also introduced early release of the main `planning_scene_monitor`, `moveit_cpp`, and `nh` owners after `rclcpp::shutdown()` and before the `MoveGroupExe` destructor; Run #73 did not. Therefore the no-crash outcome cannot yet be attributed solely to TEM's explicit cleanup. Both factors plausibly prevent DSO unload while ROS Waitable/CallbackGroup owners remain alive.
+
+Two factorial isolation runs have been started from the same Run #107 workflow base:
+- Run [#43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993), branch `experiment/moveit-main-owner-lifetime-only`: main owner early reset ON, TEM cleanup OFF.
+- Run [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847), branch `experiment/moveit-tem-cleanup-only`: TEM cleanup ON, main owner early reset OFF.
+
+Both runs were last observed in ROS Jazzy setup and have not yet completed MoveIt build or mock teardown tests. Together with Run #73 (both OFF) and Run #107 (both ON), they form the 2×2 experiment needed to determine whether either factor alone is sufficient or whether both are required. Run #113 remains a successful 5/5 missed-join reproduction under the combined enabled treatment.
+
+It is not yet a symbol-level proof identifying the exact DSO that owns the crashing weak_ptr control block or its vtable. Run #54 shows the same WaitSet/WeakWaitableEntry crash family but has less detailed DSO tracing; it remains plausible, not fully proven, that the same TEM cleanup order explains that run too. This fix remains CI-only source overlay code. No MoveIt upstream, rclcpp upstream, Stäubli product source, PR #1, or main branch was modified.
+
+
+## 15. Factorial isolation of main-owner reset vs TEM cleanup (2026-11-15)
+
+Run #73 (main-owner reset OFF, TEM cleanup OFF) and Run #107 (both ON) were a confounded two-factor comparison. The main-owner reset injection makes `moveit_cpp`, `planning_scene_monitor`, and `nh` non-const shared pointers and resets them immediately after context shutdown, before the enclosing scope destroys MoveGroupExe. The TEM cleanup injection separately retains and resets the event callback group, subscription, callback handler, private executor, controller manager instance, and controller node before class-loader member destruction.
+
+To isolate them, two new workflow-only branches were created from the same Run #107 base:
+- **Run #118 main-owner-only:** branch `experiment/moveit-main-owner-lifetime-only`, commit `0420f0259d652ca01b3d2e26cce26a3d45dfe73e`, Actions [#43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993). It retains main-owner early reset but sets the TEM explicit cleanup gate to `if False`.
+- **Run #119 TEM-cleanup-only:** branch `experiment/moveit-tem-cleanup-only`, commit `8218084250c9c45fe275f7729ae98f59792a422b`, Actions [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847). It retains TEM explicit cleanup but removes the main-owner early reset injection, keeping the original const shared-owner declarations and no explicit post-shutdown reset.
+
+Both retain the same PSM publisher stop, MoveGroupExe-before-main-executor declaration order, fixed Stäubli PR #1 source pin, mock regression suite, and logger instrumentation. Both were last observed in ROS Jazzy setup, not yet at MoveIt compile or test. The expected matrix is:
+
+| Run | main owner reset | TEM cleanup | Last evidence |
+|---|---|---|---|
+| #73 | OFF | OFF | 4 stdout captures SIGSEGV |
+| #118 | ON | OFF | pending |
+| #119 | OFF | ON | pending |
+| #107 | ON | ON | 5/5 normal execute/teardown, no SIGSEGV |
+| #113 | ON | ON | 5/5 deterministic missed-join race, no SIGSEGV |
+
+Interpret the two isolation outcomes before claiming a single cause:
+- If #118 passes and #119 fails, main-owner release is the primary sufficient factor in this test.
+- If #119 passes and #118 fails, TEM internal cleanup is the primary sufficient factor.
+- If both fail but #107 passes, the two treatments are jointly required or interact.
+- If both pass, either one may be sufficient and follow-up finer-grained isolation is needed.
+
+The current evidence does not yet identify which exact DSO owns the crashing Waitable control block or whether the same exact object chain explains Run #54. All changes remain CI workflow overlays; no upstream MoveIt/rclcpp or Stäubli product code is modified.
+
+
+## 16. Always-join CI-only candidate validation (Run #117, 2026-11-15)
+
+Run [#117](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) completed successfully on workflow commit `42392ccf20644541e9e2394ae1cdb18ba6f8cc83`, branch `experiment/move-group-stop-execution-join-fix`.
+
+Artifact [14149782675](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297/artifacts/14149782675) was downloaded and inspected; ZIP SHA-256: `78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43`.
+
+All five marker directories contain:
+- `entered=1`, `thread_finished=1`, `release=release`, `released=1`;
+- `state`: `execution_thread_joinable=0`, `active_handles=0`, `join_performed=1`.
+
+All five iteration logs show:
+- the normal planning/execution and cancel/natural-completion race tests ran (`Ran 3 tests ... OK`);
+- controller Goal reached, TEM execution status SUCCEEDED, MoveGroup action result PREEMPTED;
+- the TEM destructor probe reports `execution_thread_joinable=0`;
+- strict process teardown passes; colcon summary is 8 tests, 0 errors, 0 failures, 0 skipped;
+- no SIGSEGV appears in the five per-iteration stdout logs.
+
+Workflow summary: `failures=0/5`, overall conclusion success. This proves the **CI-only always-join candidate** handles the deterministic natural-completion-before-state-lock window and immediately joins/resets the execution thread in 5/5 mock iterations. It does not prove all TEM/MoveGroup bool accesses are race-free, does not constitute an upstream fix, and does not establish Run #54's exact SIGSEGV root cause.
+
+Non-fatal shutdown observations in the logs: `controller_manager.pal_statistics` reports a publisher thread cannot sleep after ROS context invalidation. All launch tests, post-shutdown process checks and colcon summaries nevertheless pass; retain this as a shutdown diagnostic to review, not a test failure and not an automatically dismissed warning.
+
+### 16.1 Factorial teardown isolation remains open
+
+Run #73 and #107 differ in two lifetime factors, so their no-crash comparison is compound. Two one-factor branches are now running:
+- Run #118 [#43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993), main-owner-only with TEM cleanup disabled; latest step was MoveIt source dependency install.
+- Run #119 [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847), TEM-cleanup-only with original main owner lifetime; latest step was MoveIt source dependency install.
+
+Neither had started patched MoveIt build or mock teardown tests at the time of this update. Their results are required before assigning the no-SIGSEGV A/B effect to one factor.
+
+
+## 17. Run #117 always-join candidate passed; factorial branches compiling (2026-11-15)
+
+Run #117 [43683012297](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) is complete and successful. Artifact 14149782675 (ZIP SHA-256 `78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43`) was inspected:
+- all five barriers entered, the trajectory thread completed, and release was observed;
+- all five state files assert `join_performed=1`, `execution_thread_joinable=0`, `active_handles=0`;
+- five iterations each report `Ran 3 tests ... OK`, MoveGroup PREEMPTED on cancel, controller Goal reached, strict post-shutdown checks passed, colcon 8 tests / 0 failures, and no SIGSEGV;
+- overall `failures=0/5`.
+
+The candidate proves the injected always-join logic handles the specifically reproduced natural-completion-before-state-lock window in this mock/SIL test. It remains a workflow-injected source overlay and does not resolve the other unlocked state accesses or prove Run #54's exact DSO control-block root cause.
+
+The lifecycle factorial-isolation branches are now at patched MoveIt build:
+- Run #118 [43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993): main-owner early reset ON, TEM cleanup OFF.
+- Run #119 [43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847): TEM cleanup ON, main-owner early reset OFF.
+
+Both have passed rclcpp overlay build, MoveIt source preparation, CI-only barrier injection, and MoveIt dependency install. Both are currently at step 8, `Build patched MoveIt move_group`; Stäubli workspace build and mock teardown tests have not yet started.
+
+
+## 18. Outer MoveGroupContext / MoveItCpp shared-owner chain (2026-11-15)
+
+A source-level follow-up clarifies what the factorial "main-owner reset" factor actually changes.
+
+- `move_group::MoveGroupContext` constructor stores the incoming `MoveItCppPtr` in member `moveit_cpp_` and also stores shared pointers obtained from it: `planning_scene_monitor_` and, when trajectory execution is enabled, `trajectory_execution_manager_`.
+- `MoveGroupContext::~MoveGroupContext()` explicitly resets `plan_execution_`, `trajectory_execution_manager_`, `planning_pipeline_`, and `planning_scene_monitor_`; automatic member destruction then releases `moveit_cpp_`.
+- `MoveItCpp` itself owns `node_`, `planning_scene_monitor_`, and `trajectory_execution_manager_`.
+- `MoveGroupExe::~MoveGroupExe()` explicitly orders `capabilities_.clear()` → `context_.reset()` → `capability_plugin_loader_.reset()`.
+
+Therefore a main-scope `moveit_cpp` / PSM / node shared_ptr is an *additional owner* beyond the `MoveGroupContext` members. If those outer references remain alive until after `MoveGroupExe` has reset its context and then its capability loader, the context reset may not be the last release of MoveItCpp/TEM and their destructor can be deferred until after the MoveGroup capability DSO has been unloaded. Resetting the outer local shared pointers before `MoveGroupExe` scope destruction lets `context_.reset()` potentially trigger the last release of MoveItCpp/TEM while the capability plugin loader is still loaded.
+
+This explains why "main-owner reset" and "TEM internal cleanup" are distinct nested ownership factors:
+1. **Outer MoveGroup capability-loader boundary:** ensure MoveItCpp/TEM are destroyed from context reset before `capability_plugin_loader_.reset()`.
+2. **Inner TEM controller-manager-loader boundary:** within TEM destruction, explicitly release event subscription/callback group/private executor/controller manager/controller node before automatic member destruction unloads `controller_manager_loader_`.
+
+The factorial branches remain necessary to decide whether either factor alone is sufficient, or whether both are required. This source-level ownership chain is grounded by the Jazzy source blobs; runtime causality still depends on Run #118/#119 results.

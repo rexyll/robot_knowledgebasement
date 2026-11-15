@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.16  
+版本：v12.21  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01（全仓库资产基线已完成386/386路径与Blob/字节数对账；claim-level和许可/授权审计未完成；Python Toolkit 13项权利人及再分发授权待确认）；第21章21-02并行推进（医疗/康复/腔镜机器人注册与标准证据继续补充，原始电子证照和适用范围附件仍有缺口）。Stäubli专项更新：Run #113 5/5确定性复现TEM stopExecution check-lock-recheck漏join；Run #117 always-join CI overlay 5/5通过（artifact 14149782675，SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮join_performed=1、execution_thread_joinable=0、active_handles=0；Run #118 main-owner-only/TEM cleanup OFF与Run #119 TEM-cleanup-only/main reset OFF已进入patched MoveIt move_group编译，结果待验。仍不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。MotionControlAlgorithms源码集成继续DEFERRED，待00-01验收、14-EXT-02第三方许可/来源/SBOM及目标仓库兼容性门禁关闭并取得具体导入授权。
@@ -412,7 +412,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.386：Run #102–104原始PR测试C=off下A+B overlay共15次回归全部5/5通过；Run #106实际mock轨迹五轮控制器/TEM/MoveGroup执行成功但测试断言字段选错，Run #107修正断言并记录线程/句柄析构快照，MoveIt build中。源码调用图确认MoveGroup action cancel → PlanExecution::stop → TEM stopExecution与TEM execution thread可并发触碰普通bool execution_complete_，并发现preempt_requested_也存在跨线程普通bool读写；需做同步审查和barrier回归。stock Run #54仍SIGSEGV，PR #1保持Draft；SERVO-203–756动态/集成验收仍待执行；ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证未完成 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | Run #113已5/5复现TEM stopExecution漏join；Run #117 always-join CI-only候选已5/5通过。MoveGroupContext持有MoveItCpp/PSM/TEM shared_ptr；MoveGroupExe按capabilities_.clear → context_.reset → capability_plugin_loader_.reset析构，main局部shared_ptr可能推迟MoveItCpp/TEM最终析构到capability loader卸载之后。Run #118 main-owner-only/TEM cleanup OFF 与Run #119 TEM-cleanup-only/main reset OFF隔离实验正在patched move_group编译，结果待验。execution_complete_、last_execution_status_、execution_thread_所有权、preempt_requested_锁域/TSAN审查仍待做。PR #1 Draft；CS9/HIL/SAT未做。EXT-001 KickCAT差异/DS402 blob与包级许可来源已归档，完整SBOM/许可边界仍待确认；医疗/康复/腔镜手术机器人注册与标准的新增线索已分主体、型号和证号记录，现行电子证照、适用范围附件、重庆生产许可及CAPA闭环仍待原始材料。 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -448,6 +448,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 11 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 记录持续追加（已汇总 PR #18–#21 专项记录） |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
