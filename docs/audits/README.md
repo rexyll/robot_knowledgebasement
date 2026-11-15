@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-15 Python Toolkit 13 项发布文件 Git 来源与代码相似性审查](2026-11-15-python-toolkit-source-history-and-similarity-review.md)：追溯 wheel/sdist 的 11 个模块和 2 个测试的 Git 路径历史；17 条 commit 记录均未签名，并记录 chunker.py 的公开相似性线索与未决授权边界。13/13 权利人仍未验证、再分发仍未确定。
+
 - [2026-11-15 Python Toolkit wheel/sdist 发布范围与许可证元数据审查](2026-11-15-python-distribution-and-license-metadata-review.md)：根据 CI Run #43709474246 归档的精确 wheel/sdist 文件清单，确认 wheel 不含 Knowledge Vault；sdist 只保留两个 Toolkit 测试，并修正 8 个依赖仓库脚本/工作流但未随包分发的测试文件。记录 legacy License metadata 与 PEP 639 迁移阻塞。
 - [Python wheel/sdist 文件成员和 SHA-256 清单](2026-11-15-python-distribution-file-manifest.json)：保存源提交、base、workflow SHA、artifact digest，以及本次 wheel/sdist 的逐文件路径、大小和 SHA-256。
 

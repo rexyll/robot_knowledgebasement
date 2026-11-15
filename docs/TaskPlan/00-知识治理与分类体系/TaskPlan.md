@@ -32,7 +32,7 @@
 - **严格禁止：** 不得依据旧 TaskPlan 统计或文件数量推断已完成；不得删除旧文档或把空目录计入知识覆盖。
 - **依赖：** 无。
 - **交付物与验收：** 提交可复核的资产清单、章节映射表和缺口报告。
-- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已在 CI 实际构建并生成逐文件 SHA-256 清单，确认 wheel/sdist 均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；根 MIT 对 11 个 Python 模块和 2 个保留测试的权利人授权仍未验证，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成）
+- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已在 CI 实际构建并生成逐文件 SHA-256 清单，确认 wheel/sdist 均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；根 MIT 对 11 个 Python 模块和 2 个保留测试的权利人授权仍未验证，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成；本轮已对 Python Toolkit 实际发布的 13 个源码/测试文件完成 Git 路径历史与静态内容复核，17 条路径历史 commit 的作者/提交者均为 rexyll 且均未签名；chunker.py 出现与两个更早公开项目相似的分块实现/说明文字线索，来源关系和授权仍待确认）
 
 ### 00-02｜全行业分类树与章节边界
 
@@ -101,6 +101,7 @@
 
 | 日期 | 节点 | 记录与证据 |
 | --- | --- | --- |
+| 2026-11-15 | 00-01 | 对 wheel/sdist 实际发布的 11 个 Python 模块和 2 个测试文件逐路径读取 Git history、首次加入 patch、后续修改和正文；17 条路径历史 commit 均记录为 rexyll 账号作者/提交者，GitHub verification 均为 unsigned。代码搜索发现 chunker.py 与 2026-08-08 的 Camila20197 分块实现有相近控制流程/相同通用说明文字，另有 2026-08-19 vvadr 项目命中相同说明文字但实现不同；两候选仓库 license metadata 均为 null，已查根 LICENSE 路径为 404。此为相似性线索而非抄袭结论；13/13 权利人仍 UNVERIFIED、再分发仍 UNDETERMINED，详见 Python Toolkit 来源与相似性审计报告。 |
 | 2026-11-03 | 00-01 | 基线快照：238 个 Git Tree 条目、171 个文件对象、147 个 Markdown；knowledge/ 110 份 Markdown，docs/TaskPlan 27 份 Markdown。完整结构快照见 docs/audits/2026-11-03-baseline-inventory.md。 |
 | 2026-11-03 | 00-01 | 更新资产清单：基线为 244 个 Git Tree 条目、175 个文件对象、151 个 Markdown、112 个 knowledge Markdown。112/112 已完成标题、章节结构和开篇检查；72/112 完成较详细正文结构/片段抽样，40/112 仍未完成全文专业审查。清单见 docs/audits/2026-11-03-knowledge-asset-inventory.csv；所有文件仍待 claim-level 来源核验。 |
 | 2026-11-03 | 00-01 | 第一批 P0 定向修订六篇：功能安全、电子电气、电池与电源、安全防护器件、充电系统、底盘与运动机构。移除不适用的通用 PL/Cat、保护区、保险/线径/接地、充电倍率和机械性能经验值；详见审计报告第 14 节。 |
@@ -854,3 +855,12 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - 未执行从解包 sdist 环境单独安装和测试的 smoke test；未发布到 PyPI；未修改根 LICENSE 或宣称全仓库按 MIT 授权。
 
 **当前判断：** Python Toolkit 的实际构建分发范围已被精确记录，仓库级测试意外进入 sdist 的问题已修正。11 个源模块、两个保留测试的权利人与 MIT 再分发授权，及 legacy metadata 迁移仍为阻塞；00-01 继续进行中。
+
+### 00-01-PY-01｜Python Toolkit 发布文件来源与权利追溯
+
+- **任务范围：** 对 wheel 实际分发的 11 个 Python 模块和 sdist 额外分发的 2 个 Toolkit 测试逐路径梳理首次加入提交、修改历史、署名、签名状态、第三方/生成代码迹象和再分发权利。
+- **必做：** 记录每个文件的 Git history 与首个加入提交；检查首次 patch 和当前正文中的来源标记；对代码搜索相似性线索比较源内容、时间和许可信息；取得作者/权利人对创作来源、共同作者、雇佣/委托关系及发布授权的确认；把证据回填权利登记表。
+- **严格禁止：** 不得将 GitHub 账号、提交邮箱、commit 署名、unsigned commit、AI 生成或包 metadata 当作版权归属/许可授权证明；不得未经授权复制或重新分发第三方代码。
+- **依赖：** 00-01 的 main Git Tree 资产基线与 Python wheel/sdist 实测文件清单。
+- **交付物与验收：** 逐文件来源表、相似性审查报告、权利人/授权证据和更新后的逐路径权利登记；所有拟分发文件均有可核验的来源链和覆盖实际分发范围的再分发授权，方可关闭。
+- **状态：** 正在进行中（13 个文件的可见 Git 路径历史和静态正文审查已完成；17 条 commit 记录均未签名；chunker.py 存在待确认相似性线索；13/13 权利人仍未验证、再分发状态仍未确定）。
