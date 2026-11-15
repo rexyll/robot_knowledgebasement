@@ -6691,7 +6691,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] Run #102 的 A+B、C=off native non-ASan regression 确实执行五轮；五轮均看到 MoveGroup planning request 与 “Motion plan was computed successfully”；`test_all_processes_exit_cleanly` 五轮均为 `ok`，GDB子进程均 clean exit。每轮 `Summary: 6 tests, 0 errors, 0 failures, 0 skipped`，且 `colcon_test=0`、`test_result=0`；最终 `failures=0/5`。日志未发现 MoveGroup SIGSEGV、GDB wrapper 255 或进程异常退出。
 - [x] Run #102 Lifecycle marker 显示五轮 TEM 析构探针均处于 `main_context_valid=0/controller_context_valid=0`，事件订阅与 callback group reset、controller node reset正常完成；MoveGroup侧先出现 Executor destructor body END，随后 MoveGroupExe析构依序清 capabilities、reset context、reset capability loader。当前 overlay中的 `remove_node()` 默认 notify=true 以及 Context 已失效后的 executor cancel 在这五轮中没有导致测试失败。
 - [x] 保存实验 artifact [moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520/artifacts/14145626553)，ID 14145626553，SHA-256 `f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
-- [x] 记录剩余 shutdown 现象：多轮日志中 `ros2_control_node` 的 `controller_manager.pal_statistics` publisher thread 在 Context invalid 后输出 `context cannot be slept with because it's invalid!. Aborting!`；个别轮次还出现 rosout publisher context invalid。它没有使当前进程退出断言失败，也不是 Run #73 的 MoveGroup Waitable SIGSEGV；列为独立线程退出/关闭顺序问题。
+- [x] 溯源多轮日志中的 `controller_manager.pal_statistics` ERROR：上游 [pal_statistics issue #28](https://github.com/pal-robotics/pal_statistics/issues/28) 已报告同一ROS 2 Jazzy正常shutdown日志。其 `publisherThreadCycle()` 内层等待在Context shutdown后仍执行WallRate sleep，抛出的异常被线程内部catch记录，随后外层 `rclcpp::ok()` 检查使线程正常退出；“Aborting!”是误导性日志文案，不表示进程abort。该现象与MoveGroup Waitable SIGSEGV无关，不作为本项目当前阻塞项。
 - [ ] 对 A+B、C=off 做至少一次独立重复；若独立复跑通过，才能把临时 overlay 的 mock结论提升为可重复证据，仍不得声称 stock ROS 已修复。
 - [ ] 对 PAL statistics publisher thread 的失效Context异常追查其线程停止/析构语义，确认是否只是可控退出告警或存在独立的线程竞态。
 - [ ] 保持 stock binary 对照、overlay候选和 Stäubli PR 正式代码分开报告；Run #54 stock CI 仍失败，PR #1不合并，不改固定源码pin，不连接CS9、不发送真实运动命令。
@@ -6707,7 +6707,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] 核验 `Executor::cancel()` 会触发 interrupt guard condition，不以 spinning flag为短路条件。Run #102五轮 TEM dtor marker 显示main/controller context均已invalid，当前overlay仍调用cancel与默认notify remove_node，但五轮都成功；因此当前RMW/CI配置下没有观察到该路径异常，未来最小化补丁仍应审查重复cancel与Context shutdown交错。
 - [ ] 对候选补丁增加或验证 loader reset 前 `active_handles_.empty()` 不变量；必要时在执行线程join并持有正确状态锁后释放残余handles，覆盖异常、未启动线程、`auto_clear=false`、controller manager缺失和部分构造失败。
 - [ ] 验证 `trajectories_` 在未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等路径均能先于loader安全释放。
-- [ ] 对 PAL statistics publisher thread 在 Context invalid 后的异常退出做源码追踪与最小复现，区分可预期shutdown告警与实际线程泄漏/竞态。
+- [x] 已通过pal_statistics issue #28与humble-devel 2.8.2源码确认上述PAL statistics日志属于已知非致命shutdown行为；本项目只记录，不修改pal_statistics上游。
 - [ ] 将 CI overlay A/B有效代码逐hunk最小化，剥离诊断marker、workflow-only和测试instrumentation，形成候选补丁审查稿；不提交到 MoveIt/rclcpp upstream或生产PR，除非用户另行授权。
 - [ ] 不更改 Stäubli固定源码pin，不合并PR #1，不连接真实CS9，不发送真实运动命令，不宣称HIL/实机验收。
 
