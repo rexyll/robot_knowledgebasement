@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-15 天智航 TiRobot / 天玑1.0 注册证状态时点复核](2026-11-15-tinavi-ti-robot-registration-status-review.md)：对国械注准20163012280第三方列示有效期、NMPA 2024-01-25送达记录、CQX2300679事项类别缺口及注册延续法规作冲突复核；结论为当前注册状态未闭合，不能据此宣称失效或有效，电子注册证和审批附件待取。
+
 - [2026-11-11 Stäubli SERVO-900 C++17 Deterministic Fake Harness 契约与 Target 隔离规范](2026-11-11-staubli-socket-v2-servo-900-cpp17-fake-harness-contract.md)：定义C++17 FakeClock、Barrier/Latch、DeterministicExecutor、FaultInjector API语义，以及BUILD_TESTING隔离、production target零Fake依赖、install/ament export/plugin禁入规则；交付为接口规格和机器可读合同，不含C++实现，编译与运行验收均NOT_RUN。
 
 - [2026-11-11 Stäubli SocketV2 RACE/EXEC Test Case Catalog 与双向追踪验收](2026-11-11-staubli-socket-v2-race-exec-test-case-catalog.md)：新增RACE-01–16与EXEC-01–04共20项机器可读测试规格及Schema；为28条Manifest记录补齐所有20项测试引用的正向/反向映射，新增fail-closed双向校验器、负向测试和CI报告归档。CI #3477在Python 3.10/3.11/3.12全部通过，每个版本67项测试通过；所有测试case仍为NOT_RUN，C++/ROS/plugin/HIL/实机未执行。
