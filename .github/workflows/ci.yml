@@ -67,6 +67,8 @@ jobs:
           path: ${{ runner.temp }}/staubli-runtime-evidence-bundle-validation.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Build source and wheel with verified PEP 517 build dependency hashes
+        run: uv build --require-build-hashes
       - name: Smoke-test extracted Python source distribution in an isolated environment
         if: matrix.python-version == '3.12'
         run: |
@@ -116,6 +118,7 @@ jobs:
               exit 1
               ;;
           esac
+          export SDIST_SMOKE_MODULE_PATH="${module_path}"
           (
             cd "${SDIST_SMOKE_ROOT}/work"
             env -u PYTHONPATH "${SDIST_SMOKE_ROOT}/venv/bin/python" -m pytest -q \
@@ -137,12 +140,7 @@ jobs:
           if len(archives) != 1:
               raise SystemExit(f"Expected one sdist, found {len(archives)}")
           archive = archives[0]
-          installed_module = Path(
-              os.popen(
-                  f'"{smoke_root}/venv/bin/python" -c '
-                  '"import robot_knowledgebase; print(robot_knowledgebase.__file__)"'
-              ).read().strip()
-          )
+          installed_module = Path(os.environ["SDIST_SMOKE_MODULE_PATH"])
           evidence = {
               "result": "PASS",
               "archive": archive.name,
