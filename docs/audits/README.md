@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-15 LiDAR 型号参数、ROS 2 数据时序与安全扫描仪边界专项复核](2026-11-15-LiDAR-ROS2-timing-and-safety-scanner-boundary-review.md)：核对 ROS 2 Jazzy LaserScan/PointCloud2 时序与内存布局、Livox Mid-360 参数脚注、SICK TiM1xx 普通传感器与 nanoScan3 安全扫描仪的输出用途，以及 IEC 60825-1/61496-3 的范围差异；没有目标设备点云、去畸变和安全链实测，文章仍保持 claim-level pending。
+
 - [2026-11-15 IMU 物理误差模型与代表型号数据表口径专项复核](2026-11-15-IMU-physical-model-and-datasheet-claim-boundary-review.md)：核验白噪声/偏置随机游走单位、Allan与Kalibr读图假设、Qd/OU离散公式，并对 BMI088/ADIS16470 官方型号数据进行版本和带宽条件对照；发现需要向厂商确认的噪声密度差异。没有目标IMU实测数据，文章仍保持 claim-level pending。
 
 - [2026-11-15 迈步机器人 MileBot 康复外骨骼注册证状态时点复核](2026-11-15-milebot-rehabilitation-exoskeleton-registration-status-review.md)：核对湖南省药监局2026年9月首次注册目录的新证湘械注准20262190524、旧证湘械注准20212190586遗失补发公告、BEAR-H1/H2及BEAR-A1/MAX第三方型号线索和H系列官网描述；确认新旧证不能直接合并、型号范围与深圳/长沙企业主体关系待原始证照及企业文件核验。

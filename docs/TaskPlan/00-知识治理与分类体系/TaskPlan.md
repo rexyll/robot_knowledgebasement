@@ -32,7 +32,7 @@
 - **严格禁止：** 不得依据旧 TaskPlan 统计或文件数量推断已完成；不得删除旧文档或把空目录计入知识覆盖。
 - **依赖：** 无。
 - **交付物与验收：** 提交可复核的资产清单、章节映射表和缺口报告。
-- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已实际构建并生成逐文件 SHA-256 清单，确认均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；Run #43711114308 在 Python 3.12.16 上完成 sdist 独立解包/安装，两个测试文件10/10通过，CLI 输出 robot-kb 0.1.0，证据 artifact 14160845136；对13个实际发布源码/测试文件完成 Git 路径历史与静态内容复核，17条路径历史 commit 均为 rexyll 账号署名且未签名；chunker.py 与两个更早公开项目存在待确认的相似性线索；根 MIT 对11个模块和2个测试的权利人授权仍未验证，13/13 rights-holder 为 UNVERIFIED、redistribution 为 UNDETERMINED，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成；2026-11-15 已完成《IMU》P0官方模型/公式与BMI088、ADIS16470数据表口径定向复核，目标IMU配置、原始样本和Allan/PSD实测仍缺）
+- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已实际构建并生成逐文件 SHA-256 清单，确认均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；Run #43711114308 在 Python 3.12.16 上完成 sdist 独立解包/安装，两个测试文件10/10通过，CLI 输出 robot-kb 0.1.0，证据 artifact 14160845136；对13个实际发布源码/测试文件完成 Git 路径历史与静态内容复核，17条路径历史 commit 均为 rexyll 账号署名且未签名；chunker.py 与两个更早公开项目存在待确认的相似性线索；根 MIT 对11个模块和2个测试的权利人授权仍未验证，13/13 rights-holder 为 UNVERIFIED、redistribution 为 UNDETERMINED，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成；2026-11-15 已完成《IMU》P0官方模型/公式与BMI088、ADIS16470数据表口径定向复核，目标IMU配置、原始样本和Allan/PSD实测仍缺；2026-11-15新增《激光雷达》P0的ROS 2 Jazzy数据时序/布局、Livox参数脚注、普通/安全扫描仪输出和相关标准边界复核，目标雷达实测与安全链验证仍缺）
 
 ### 00-02｜全行业分类树与章节边界
 
@@ -949,4 +949,24 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - 对照 Bosch BMI088 产品页与 Rev.1.9 数据手册：产品页 accel noise density 175 μg/√Hz；数据手册在 gFS3g、25°C、标称供电、Normal mode 下按轴列 X/Y 160、Z 190 μg/√Hz；加速度计 ODR/带宽与陀螺 ODR/滤波组合须分别记录。
 - 对照 ADI ADIS16470 Rev. C：陀螺 in-run bias stability 8°/h、ARW 0.34°/√h、10–40Hz rate noise density 0.008°/s/√Hz；加速度计 in-run 13 μg、VRW 0.037 m/s/√h、10–40Hz noise density 100 μg/√Hz。rate-noise-density换算为0.48°/√h，与表列ARW相差约√2；原因尚需制造商解释，不擅自合并。
 - 未取得目标 IMU 完整型号、序列号、寄存器配置、ODR/OSR/filter/FIFO/时间戳日志和原始数据；未运行目标设备 Allan/PSD、温度循环、旋转台/振动台、Monte Carlo 或 ESKF NIS/NEES 验证。《IMU》仍为 claim-level pending，rights-holder仍UNVERIFIED、再分发仍UNDETERMINED。
+
+### 00-01-SENSOR-LIDAR-01｜LiDAR ROS 2 时序、型号参数与安全扫描仪边界复核
+
+- **任务范围：** 对 2D/3D LiDAR 数据接口、逐束/逐点时序、代表型号数据条件、激光产品等级与机器安全扫描仪功能边界进行可追溯审查。
+- **必做：** 以目标 ROS 发行版消息定义确认 LaserScan 时间戳/角度/scan_time/time_increment 及 PointCloud2 字段布局；对供应商规格保留反射率、环境光、温度、目标尺寸、回波模式和测试脚注；区分普通导航数据、设备数字输出、OSSD/安全通信和激光 Class；核验 IEC 60825-1 与 IEC 61496-3 适用范围。
+- **严格禁止：** 不得把最大测距当作所有目标的保证检测距离；不得将普通 LiDAR/导航点云/普通数字输出作为安全输出；不得把 Class 1 等同于 Type 3/PL d/SIL 2；不得在驱动未提供可信逐点时序时宣称完成 deskew。
+- **依赖：** 00-01 全库资产基线；目标雷达的准确 SKU、固件、驱动版本、ROS 发行版、PTP 配置和原始消息需由项目配置确认。
+- **交付物与验收：** 专项审查报告、知识页增量、来源台账、资产清单和逐路径权利登记；目标设备节点关闭前必须有真实点云/时序/去畸变/目标环境检测及安全控制链测试证据。
+- **状态：** 正在进行中（2026-11-15 已完成公开资料与 ROS 2 Jazzy 接口定向复核；目标雷达 SKU/驱动、原始数据、PTP 偏差、deskew、环境和安全链验证仍未取得）。
+
+
+### 2026-11-15｜00-01 持续审计记录（LiDAR 型号参数、ROS 2 时序与安全扫描仪输出边界复核）
+
+新增 [LiDAR 型号参数、ROS 2 数据时序与安全扫描仪边界专项复核](../../audits/2026-11-15-LiDAR-ROS2-timing-and-safety-scanner-boundary-review.md)，更新《激光雷达》§8、来源台账 #1814–#1820、资产主清单和逐路径权利登记。
+
+- 对照 ROS 2 Jazzy LaserScan/PointCloud2 消息定义，明确第一束 ray 采集时间戳、+Z 角度约定、time_increment 与 scan_time 区别，以及 PointCloud2 二进制字段/点内时间非标准化边界。
+- 核对 Livox Mid-360 官方量程与反射率、精度测试脚注、近距离和低反射率目标限制；没有把宣传页最大距离写成目标检出保证。
+- 对照 SICK TiM1xx 操作说明：有检测区和数字输出，但明确不是机器安全组件；对照 nanoScan3 I/O 指定变体手册：Type 3/PL d/SIL 2 和 OSSD 安全输出，与同设备 Ethernet 导航测量数据通道（非安全相关）分开。
+- 核验 IEC 61496-3:2025 对 AOPDDR 电敏保护设备的特定范围和室外测试排除，以及 IEC 60825-1 激光产品分类与机器安全等级的不同。
+- 未取得目标机器人雷达准确 SKU/驱动/固件/原始点云和时钟日志；未完成去畸变、环境检测概率、多雷达互扰、OSSD/保护场/停止距离或整机安全测试。《激光雷达》保持 claim-level pending，权利人 UNVERIFIED、再分发 UNDETERMINED。
 
