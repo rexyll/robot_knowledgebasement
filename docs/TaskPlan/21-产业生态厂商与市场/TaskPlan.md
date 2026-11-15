@@ -6729,3 +6729,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 **源码定位：** [TEM destructor/stopExecution/executeThread](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L86-L93), [stopExecution](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1209-L1252), [executeThread completion flag](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1354-L1369), [TEM member order](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp#L313-L334).
 
 **状态：** §9.3.383已完成源码竞态识别，尚未完成动态复现或代码修复。Run #102不覆盖此竞态；Run #103独立重复只验证原始mock launch test输入。PR #1继续Draft，stock Run #54仍失败。
+
+### §9.3.384｜active_handles_ 与 Simple Controller Manager 插件句柄强引用链（2026-11-15）
+
+- [x] MoveIt Jazzy `MoveItControllerHandle` 基类有virtual destructor（[源码113–115行](https://github.com/moveit/moveit2/blob/jazzy/moveit_core/controller_manager/include/moveit/controller_manager/controller_manager.hpp#L102-L116)），允许插件派生controller handle经shared_ptr基类接口销毁。
+- [x] Simple Controller Manager在FollowJointTrajectory分支通过`std::make_shared<FollowJointTrajectoryControllerHandle>`创建派生句柄，并存入`controllers_` map；map类型为`ActionBasedControllerHandleBasePtr`。[创建句柄](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L216-L221)，[map声明](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L327-L331)。
+- [x] `getControllerHandle()`从map返回shared_ptr副本，cast为`MoveItControllerHandlePtr`（[252–258行](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L249-L264)）。
+- [x] `ActionBasedControllerHandle`构造时创建`rclcpp_action::create_client<T>()`（[82–90行](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L75-L92)），action client的最后释放会进入此前确认的custom deleter / CallbackGroup Waitable cleanup链。
+- [x] TEM `executePart()`先将manager返回shared_ptr写入`active_handles_`（1412行），再复制到局部`handles` vector（1414行）；正常路径清空active_handles_位于1578–1587行，局部vector则在函数返回后释放。
+- [x] 结论：manager instance reset只释放SimpleControllerManager `controllers_` map持有的引用；如TEM `active_handles_`或执行线程局部vector仍持有引用，插件派生对象/action client的最后一次销毁可能延后至loader卸载后。因此`active_handles_.empty()`是loader reset前必须建立的生命周期不变量，不是单纯代码风格建议。
+- [x] 确认候选安全顺序：先join execution thread（使executePart局部handles vector析构）→持state mutex清空`active_handles_`→reset `controller_manager_`（释放manager map中的最后一批shared_ptr）→reset controller node / CallbackGroup（让action-client deleter在DSO仍加载时处理）→最后卸载`controller_manager_loader_`。
+- [ ] 把此顺序落实为TEM candidate teardown patch，并在loader reset前验证执行线程已joined、`active_handles_.empty()`、controller_manager_为空；保留controller node至manager reset完成。
+- [ ] 增加mock真实trajectory执行用例，覆盖多个controller、正常完成、send fail、cancel、自然完成与析构竞争、异常/早退，验证最后一个strong ref总是在plugin loader仍存活时释放。
+- [ ] 仅完成候选补丁和回归审查；未经用户单独授权，不修改MoveIt/rclcpp upstream或Stäubli生产PR #1。
+
+**状态：** shared_ptr owner chain与action-client依赖关系已由Jazzy源码确认；Run #102仅做planning+shutdown，没有运行真实轨迹执行，故尚未动态验证句柄last-release顺序。
