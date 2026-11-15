@@ -58,10 +58,8 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 
 ### 2.3 上游未纳入路径
 
-本轮 tree 对照发现以下 8 个上游路径未纳入当前 vendored 子树：
+本轮 tree 对照发现以下 **8 个上游文件路径** 未纳入当前 vendored 子树：
 
-- .gitignore
-- CMakeLists.txt
 - .github/actions/apt-install/action.yml
 - .github/actions/setup-conan-action/action.yml
 - .github/actions/setup-simulation/action.yml
@@ -71,8 +69,7 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 - test/install/main.cc
 - test/install/pkgconfig/Makefile
 
-注：上表实际列出 10 个路径；tree 对照的上游-only 计数为 8，故应进一步复核目录项计数口径。按当前 Git tree 结果，严格计数为 8 个文件路径：其中 .gitignore、CMakeLists.txt、3 个 action、2 个 workflow、3 个 install test 组成 10 项。**此处的计数存在冲突，正式发布前必须以原始 tree JSON 重新核对。**
-
+这些路径主要是上游 CI/actions 和安装导出测试资源。当前快照包含本地 CMakeLists.txt 与 .gitignore；它们不属于本轮 upstream-only 清单。
 ## 3. ROS 2 / Gazebo 包许可证元数据
 
 以下四个 package.xml 均明确写入 MIT：
