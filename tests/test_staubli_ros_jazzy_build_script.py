@@ -351,7 +351,10 @@ def test_retry_apt_script_prefers_official_azure_ubuntu_archive_mirror():
     )
     content = retry_script.read_text(encoding="utf-8")
     assert "configure_ubuntu_apt_mirror()" in content
-    assert content.index("ALLOW_APT_SOURCE_REWRITE") < content.index("configure_ubuntu_apt_mirror()")
+    assert (
+        content.index("ALLOW_APT_SOURCE_REWRITE")
+        < content.index("configure_ubuntu_apt_mirror()")
+    )
     assert "/etc/apt/sources.list.d/*.sources" in content
     assert "/etc/apt/sources.list.d/*.list" in content
     assert r"archive\.ubuntu\.com" in content
