@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-15 柏惠维康重庆迁址：第三类医疗器械生产许可与8张注册证迁移复核](2026-11-15-baihui-chongqing-license-registration-migration-review.md)：核对媒体获证/迁移报道、重庆药监局2025-08和2026年生产许可公告附件、涪陵经营许可证申请公示，以及7个候选产品注册证的逐证时间线；结论为媒体/企业声称已获证并迁移8证，但生产许可证原件和完整8证清单尚未取得，且部分产品注册变更日期在2026年，不能把2025年8月前全迁移视为已证事实。
+
 - [2026-11-15 天智航 TiRobot / 天玑1.0 注册证状态时点复核](2026-11-15-tinavi-ti-robot-registration-status-review.md)：对国械注准20163012280第三方列示有效期、NMPA 2024-01-25送达记录、CQX2300679事项类别缺口及注册延续法规作冲突复核；结论为当前注册状态未闭合，不能据此宣称失效或有效，电子注册证和审批附件待取。
 
 - [2026-11-11 Stäubli SERVO-900 C++17 Deterministic Fake Harness 契约与 Target 隔离规范](2026-11-11-staubli-socket-v2-servo-900-cpp17-fake-harness-contract.md)：定义C++17 FakeClock、Barrier/Latch、DeterministicExecutor、FaultInjector API语义，以及BUILD_TESTING隔离、production target零Fake依赖、install/ament export/plugin禁入规则；交付为接口规格和机器可读合同，不含C++实现，编译与运行验收均NOT_RUN。
