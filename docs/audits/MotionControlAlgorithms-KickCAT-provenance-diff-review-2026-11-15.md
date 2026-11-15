@@ -6,7 +6,7 @@
 - KickCAT 上游：leducp/KickCAT
 - KickCAT 固定上游 commit：cb2e1a192ac11ffaa58f08945053b8129abf94cb（2026-10-05）
 - 本地 vendored 子树 SHA：930c75e31f5b8f3c77c9de01ff754e7339359053
-- 方法：Git tree/blob SHA 对照、逐文件文本差异、父仓库提交历史和 DS402 补丁脚本静态审查；未修改上游代码，未执行构建或法律评估。
+- 方法：Git tree/blob SHA 对照、逐文件文本差异、父仓库提交历史和 DS402 补丁脚本静态审查；另从固定上游原始文件按脚本定义的唯一锚点替换逻辑重放，并与 vendored 文件逐字节比较。未修改上游代码，未执行完整 Git checkout 构建或法律评估。
 
 ## 1. 复算结果
 
@@ -29,8 +29,8 @@
 | 路径 | 差异类别 | 观察到的变更 | 可见来源 / 状态 |
 |---|---|---|---|
 | examples/slave/xmc4800/wdc_foot/nuttx/foot.xml | 格式 | CRLF 转 LF，规范化后文本相同 | 初次导入 f91e16919b5a；无语义差异 |
-| lib/simulation/include/kickcat/simulation/devices/Ds402Motor.h | DS402 SIL 故障注入 | 新增 fault_after_cycles / fault_reaction_cycles；计数受 Operation Enabled 与 controlword enable 条件约束；实现 Fault Reaction Active 计时、Fault latch 和 bit-7 上升沿复位 | 初次导入 f91e16919b5a 已包含。父仓库脚本 apply_kickcat_ds402_fault_patch.py 固定检查同一 KickCAT commit，并提供两文件补丁重放入口；本轮未重新执行脚本并对生成文件做 blob 等同性证明 |
-| lib/simulation/src/DeviceApp.cc | DS402 SIL 故障注入 | 从 JSON 配置读取 fault_after_cycles 与 fault_reaction_cycles | 初次导入 f91e16919b5a；由上述脚本覆盖 |
+| lib/simulation/include/kickcat/simulation/devices/Ds402Motor.h | DS402 SIL 故障注入 | 新增 fault_after_cycles / fault_reaction_cycles；计数受 Operation Enabled 与 controlword enable 条件约束；实现 Fault Reaction Active 计时、Fault latch 和 bit-7 上升沿复位 | 初次导入 f91e16919b5a 已包含。父仓库脚本 apply_kickcat_ds402_fault_patch.py 固定检查同一 KickCAT commit；按脚本四处唯一锚点替换操作从固定上游原始文件重放后，生成内容与本地 vendored 文件逐字节相同（上游 blob `931c0ac8…` → 本地 `c805231c…`，12,348 字符） |
+| lib/simulation/src/DeviceApp.cc | DS402 SIL 故障注入 | 从 JSON 配置读取 fault_after_cycles 与 fault_reaction_cycles | 初次导入 f91e16919b5a；由上述脚本覆盖。按脚本 JSON 参数唯一锚点重放后，与本地 vendored 文件逐字节相同（上游 blob `a3e5fc67…` → 本地 `6bc1d82c…`，1,321 字符） |
 | simulation/slave_configs/ecat402-drive-fault.json | 本地新增 fixture | 指定 ecat402-drive.xml、ds402_motor=true、fault_after_cycles=250、fault_reaction_cycles=3 | 本地新增，父仓库历史仅能追溯至初次导入 f91e16919b5a；导入前作者/变更记录未由本轮证据还原 |
 | lib/include/kickcat/SimulatorControl.h | LRW 故障注入控制接口 | 新增 SetLrwDrop 命令、payload、ack 结构与 setLrwDrop 控制接口 | c046fd2c65f6（Add simulator control command for datagram-level LRW suppression） |
 | lib/slave/include/kickcat/EmulatedNetwork.h | LRW 故障注入 | 新增 test-only setLrwDatagramDrop 开关和成员状态 | ef62090d7d01 |
@@ -42,13 +42,15 @@
 
 ### 2.1 DS402 补丁可重放性边界
 
+本轮已从上游固定 commit 直接读取原始 `Ds402Motor.h`（blob `931c0ac82f63a4af2bdf0efd61c6bb161bd979a8`）和 `DeviceApp.cc`（blob `a3e5fc67e72104801ec99a80ebc99c91d297aea5`），按 `apply_kickcat_ds402_fault_patch.py` 的四组精确唯一锚点替换逻辑重放。生成的两个完整文本与当前 vendored 文件逐字节相同：`Ds402Motor.h` 12,348 字符，对应本地 blob `c805231cc34f5768168836efd75c88050921b400`；`DeviceApp.cc` 1,321 字符，对应本地 blob `6bc1d82c071f458d312e863034074f44bcc87f52`。这确认了脚本定义的文本变更与当前快照一致，但本次并未在真实 pinned Git checkout 中执行 Python 脚本，也未实际调用 Git 计算 blob SHA。
+
 父仓库脚本 scripts/ethercat_sil/apply_kickcat_ds402_fault_patch.py：
 - 将基线硬性固定为 cb2e1a192ac11ffaa58f08945053b8129abf94cb；
 - 只修改 Ds402Motor.h 与 DeviceApp.cc；
 - 检查精确插入锚点，检测部分补丁，支持已应用状态及 Operation Enabled cycle 计数语义升级；
 - 父仓库 CI workflow 通过固定上游 checkout 后调用该脚本，并检查 fault_after_cycles、fault_reaction_cycles 和关键状态机条件。
 
-这为 DS402 两文件提供了可复现路径，但仍应在专项验证中从干净 pinned checkout 重放，并将生成的两文件与 vendored blob 做 SHA 比对，形成机器可核验的 patch manifest。新增 JSON fixture 也应纳入同一测试数据清单。
+这为 DS402 两文件提供了已做字节级等同性验证的可复现路径。仍需在干净 pinned Git checkout 中直接执行 Python 脚本，并由 Git 计算生成文件的 blob SHA，以验证实际脚本运行环境和仓库操作；新增 JSON fixture 也应纳入同一测试数据清单。
 
 ### 2.2 LRW 与网络链路仿真改动的边界
 
@@ -121,7 +123,7 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 
 ## 6. 下一步整改顺序
 
-1. **DS402 patch manifest：** 在干净 pinned checkout 重放两文件补丁，对照 vendored blob SHA；把本地 JSON fixture 的来源、用途、维护者和测试关联补全。
+1. **DS402 patch manifest：** 已按脚本定义的锚点逻辑重放并确认两文件逐字节一致；下一步在干净 pinned checkout 直接运行 Python 脚本、用 Git 复算 blob SHA，并补全本地 JSON fixture 的来源、用途、维护者和测试关联。
 2. **LRW patch series：** 将 SimulatorControl / EmulatedNetwork / SimulatorControlServer / unit test 的提交整理为可重放补丁系列，附文件 blob SHA、目的、测试用例和测试执行记录。
 3. **network simulator patch series：** 把 raw socket errno、ENOBUFS + carrier-down 分类、sysfs carrier/operstate、control channel drain 分为逻辑清晰的补丁单元；验证 idle、link-up ENOBUFS、link-down ENOBUFS 和 redundancy 端口场景。
 4. **ESI 依据：** 为 CoE-only / SdoInfo=false 配置补充设备厂商 ESI、协议要求、目标模拟器需求和测试证据；未确认前不要把该 XML 当作目标设备的官方 ESI。
@@ -130,4 +132,4 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 
 ## 7. 验证边界
 
-本轮只完成 Git tree/blob 与代码/元数据静态审查。未运行 DS402 patch replay、KickCAT unit tests、Linux link-fault SIL、ROS 2/Gazebo build、全 profile dependency resolution、SBOM generation/validation、CVE scan、HIL 或物理 EtherCAT 测试；未修改 MotionControlAlgorithms 上游任何源码、LICENSE、NOTICE、package.xml、CI 或依赖声明。
+本轮完成 Git tree/blob 与代码/元数据静态审查，并按脚本定义的相同替换操作完成 DS402 两文件文本重放/逐字节等同性比对；未在真实 pinned Git checkout 中直接运行 Python patch 脚本。未运行 KickCAT unit tests、Linux link-fault SIL、ROS 2/Gazebo build、全 profile dependency resolution、SBOM generation/validation、CVE scan、HIL 或物理 EtherCAT 测试；未修改 MotionControlAlgorithms 上游任何源码、LICENSE、NOTICE、package.xml、CI 或依赖声明。
