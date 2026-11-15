@@ -33,7 +33,7 @@
 | 不纳入知识库 | 未获许可的驱动源码、构建产物、完整日志/二进制、凭空推定的硬件参数，以及未经验证的安全功能声明 |
 | 安全边界 | Mock、CI、仿真或软件 teardown 通过，不等于真实 CS9/机器人 HIL、现场验收或安全认证；任何真实运动与安全回路验证均须按独立项目授权和专业程序执行 |
 | 最新生命周期证据 | 2026-11-15 Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43680932114) 在固定 Stäubli source pin 的 mock workspace 中以确定性 barrier 5/5 复现 TEM stopExecution check-lock-recheck 漏 join：首次 stop 返回时 execution_thread_joinable=1、active_handles=0；后续 MoveGroup teardown 再次 join，五轮均无 SIGSEGV 且 CI 全部通过。artifact 14148018987，ZIP SHA-256 d8fcea6f09eac1dbe4d1fcebc9459d6e6ebb9b401beefdae104babea466fcc4b。该结果证明 mock/SIL 下的生命周期窗口，不证明是 stock Run #54 SIGSEGV 的直接根因，也不代表 CS9/HIL/SAT。 |
-| 下一步 | 在分支 experiment/move-group-stop-execution-join-fix 验证 CI-only always-join 候选（Run #43682618698）；随后补齐 execution_complete_ 全部访问的锁域/TSAN 审查及 MoveGroup preempt_requested_ 独立同步审查；对照 stock Run #54 SIGSEGV 单独定位根因。继续维护厂商档案和证据链接，不复制驱动源码、不连接 CS9、不发送真实运动命令。 |
+| 下一步 | 在分支 experiment/move-group-stop-execution-join-fix 验证 CI-only always-join 候选（最新 Run #43683012297，workflow commit 42392ccf20644541e9e2394ae1cdb18ba6f8cc83；Run #43682618698 仅因注入脚本三引号语法错误在编译前失败）；随后补齐 execution_complete_ 全部访问的锁域/TSAN 审查及 MoveGroup preempt_requested_ 独立同步审查；对照 stock Run #54 SIGSEGV 单独定位根因。继续维护厂商档案和证据链接，不复制驱动源码、不连接 CS9、不发送真实运动命令。 |
 
 ## 统一决策
 
