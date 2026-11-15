@@ -109,7 +109,8 @@
 
 | ID | 待办事项 | 启动条件 | 当前状态 |
 |---|---|---|---|
-| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 上游 main 已声明 Apache-2.0；继续逐文件核查原创/第三方来源、依赖许可/SBOM、NOTICE 与目标仓库兼容性；任何源码引入仍须用户对具体文件范围和目标分支明确授权 | **基础 CI 已核验（Run #2827）；Apache-2.0 已添加；逐文件/依赖许可与兼容性审查待完成；源码未授权、未导入** |
+| 14-EXT-01 | 评估是否将 `rexyll/MotionControlAlgorithms` 的选定源码引入本项目 | 根计划 00-01 完成正式验收；14-EXT-02 第三方来源/许可证/SBOM 门禁关闭；完成目标仓库独立子目录、submodule、CI、构建和回滚方案验证；用户确认具体 commit、文件范围、目标目录和实施分支 | **延期（DEFERRED）；上游根 Apache-2.0 与 Run #2827 基础 CI 已核验，但 KickCAT/第三方许可、包级元数据、SBOM、目标仓库兼容性仍有阻塞；源码未导入、实施未授权。详见根目录 MotionControlAlgorithms-MergePlan.md** |
+| 2026-11-15 | 00-01 / 14-EXT-01 / 14-EXT-02 | 回溯全部每日 TaskPlan 中的 TODO-EXT-001 历史，建立根目录 `MotionControlAlgorithms-MergePlan.md`。依据 00-01 仍进行中、KickCAT 10+1 文件差异/第三方许可、ROS/Gazebo package.xml 声明、依赖闭包/SBOM和目标仓库集成验证未闭合，决定暂不导入且不提升为当前最高优先级；待根00-01验收、14-EXT-02门禁及子目录兼容验证通过后复评。只更新计划/文档，没有修改上游源码或导入代码。 |
 
 > 上游最后验证完成不等于自动允许合并。在用户明确讨论并授权前，不复制或导入上游源码、测试、脚本和 benchmark。当前继续推进独立知识整理。
 
@@ -169,6 +170,7 @@
 
 | 2026-11-15 | 00-01 / 14-06 / 14-EXT-01 | 对 MotionControlAlgorithms CANopen Bus-Off/restart 与 SDO/NMT 会话恢复做专项静态复核：SocketCAN transport 收到 CAN_ERR_RESTARTED 即置 Online，但没有 bus-off epoch/上层会话失效通知；CanopenVirtualNode::set_bus_recovered 仅清 communication_faulted，不清 segmented SDO transfer，也不改变 NMT/CiA-402 状态；NMT reset 路径也不清 SDO session。现有 recovery 测试只覆盖初始 PreOperational node，未覆盖 in-flight segmented SDO、Bus-Off 前 Operational/OperationEnabled、PDO/Controlword 恢复。明确 transport Online 不等于应用会话可恢复，新增知识页 §26 与分层修复/HIL 验收建议；未修改上游源码/测试/CI。 |
 
+| 2026-11-15 | 00-01 / 14-EXT-02 | 对 MotionControlAlgorithms 当前 vendored KickCAT 子树与固定上游 commit 执行逐 blob 对照，复算 471/482 完全一致、10 个现有路径 blob 差异（其中 foot.xml 仅换行格式）、1 个本地新增 DS402 fixture；追溯 DS402、LRW、网络断链仿真、ESI 配置的可见提交链；核验四个 ROS/Gazebo package.xml 均声明 MIT。完整静态差异和限制见 docs/audits/MotionControlAlgorithms-KickCAT-provenance-diff-review-2026-11-15.md 与知识页 §27.9。未运行补丁重放/测试/构建/SBOM/HIL，未修改上游源码或许可元数据。 |
 
 ### 14-EXT-02｜外部运动控制项目依赖许可与软件供应链审查
 
@@ -176,4 +178,4 @@
 - **必做：** 区分根项目 Apache-2.0 与第三方独立许可；记录 vendored/submodule/包管理依赖；核验版本 pin、许可证文本、再分发义务、包元数据和 SBOM 生成/验证证据。
 - **严格禁止：** 不得将第三方代码视为用户原创或被根许可证自动覆盖；不得在来源/许可不明时复制进知识库；不得把静态清单冒充完整依赖闭包、SBOM 或法律意见；不得未经授权修改上游源码、NOTICE、package.xml 或 CI。
 - **交付物与验收：** 依赖许可证审查报告、知识页专项结论、外部项目登记更新、可复现 SBOM 与许可证检查证据；发现冲突后须由项目权利人确认再修改上游元数据。
-- **状态：** 进行中（第一轮静态审查已发现 KickCAT CeCILL-C、嵌入 MIT/WTFPL-2.0 组件、argparse 子模块固定点、ROS/Gazebo package.xml MIT 元数据冲突，以及 SBOM/依赖锁定证据缺口；KickCAT 上游基线已追溯至 cb2e1a192ac11ffaa58f08945053b8129abf94cb，argparse 固定提交 MIT 已核验；当前 KickCAT 快照相对基线的10个文件差异/1个新增文件需逐项形成修改清单和版权/许可说明，ROS/Gazebo 包许可意图、可选构建依赖闭包、SBOM 生成/验证和分发场景仍待补齐）
+- **状态：** 进行中（已完成 KickCAT 当前 vendored 子树与固定上游 commit 的逐 blob 对照：482 个本地 blob 中 471 个完全一致；10 个现有路径 blob 不同，其中 foot.xml 仅换行格式差异、另 9 个存在内容差异；另有 1 个本地新增 DS402 fault fixture。差异已按 DS402 故障注入、LRW 故障注入、网络链路仿真和 ESI 配置分组并追溯可见父仓库提交；DS402 两文件已按脚本定义的唯一锚点替换逻辑重放，生成文本与 vendored 文件逐字符一致，独立 Git blob SHA-1 计算也分别与 vendored blob 完全匹配（c805231c… / 6bc1d82c…）；尚未在真实 pinned checkout 中运行原 Python 脚本或调用 git hash-object，LRW/network simulator patch series 尚待整理。四个 ROS/Gazebo package.xml 的 MIT 字段均在包创建提交中首次写入（2026-10-26至11-01），不是后续误改；各包目录未发现独立 LICENSE/COPYING/NOTICE，是否为有意的包级 MIT 及与根 Apache-2.0 的关系仍待权利人确认；已静态盘点 MCA core、benchmark、SocketCAN、IgH/KickCAT SIL、Windows、ROS 2、Gazebo、KickCAT Conan、Python wheel 和 diagnostics profile；各 profile 的真实依赖解析、CeCILL-C 分发适用、第三方通知、CycloneDX/SPDX SBOM 生成/校验及漏洞扫描仍未完成）
