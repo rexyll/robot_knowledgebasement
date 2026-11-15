@@ -240,8 +240,41 @@ The original PR launch test intentionally sets `planning_options.plan_only=true`
 
 ### 12.3 Scope and interpretation
 
-Run #103 and #104 add two independent original-input A+B C=off 5/5 mock-planning/teardown passes (10 more repetitions). Run #106 is **not** counted as a passing workflow, even though all five mock controller goals were accepted and reached success: the test failed on an invalid optional-result-field assertion. Run #107 is the first corrected plan-and-execute + teardown regression.
+Run #103 and #104 add two independent original-input A+B C=off 5/5 mock-planning/teardown passes (10 more repetitions). Run #106 is **not** counted as a passing workflow, even though all five mock controller goals were accepted and reached success: the test failed on an invalid optional-result-field assertion. Run #107 is the first corrected plan-and-execute + teardown regression. §13 has now confirmed the concrete `/move_action` cancel → PlanExecution::stop → TEM stopExecution path can race the TEM execution thread.
 
 A Run #107 PASS would establish only normal mock trajectory execution and shutdown. It does not deterministically exercise the §8 check-lock-recheck race where natural completion overlaps stopExecution/destruction. A barrier-controlled concurrency test is still required before claiming that thread-join race is fixed. None of these overlay results fixes stock ROS Jazzy Run #54, and they do not unblock Stäubli PR #1.
+
+## 13. Concrete MoveGroup cancel-to-TEM concurrency path
+
+A full call-graph check now confirms a real concurrent access path for TEM's plain-bool `execution_complete_`; this is stronger than merely assuming public APIs might be called from different threads.
+
+### 13.1 `/move_action` path
+
+1. MoveIt Jazzy `MoveGroupMoveAction::initialize()` creates the `/move_action` server. Its accepted callback starts a detached `std::thread` that runs `executeMoveCallback(goal)` ([source lines 64–82](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp#L64-L82)).
+2. That detached thread enters `executeMoveCallbackPlanAndExecute()` and calls `PlanExecution::planAndExecute()` ([lines 85–128 and 131–189](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp#L85-L189)).
+3. The action cancel callback runs in the ROS executor callback and calls `preemptMoveCallback()`, which writes `preempt_requested_=true` and calls `context_->plan_execution_->stop()` ([lines 74–77 and 281–285](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp#L74-L77)).
+4. `PlanExecution::stop()` calls `preempt_.request()`. Meanwhile `planAndExecuteHelper()` continues on the detached goal thread, launches TEM `execute()`, and monitors for `preempt_.checkAndClear()`. On preemption it calls TEM `stopExecution()` ([plan_execution.cpp lines 113–116 and 457–532](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/plan_execution/src/plan_execution.cpp#L113-L116)).
+5. TEM `execute()` creates another `execution_thread_`; `executeThread()` writes `execution_complete_=true` at lines 1357–1359 under `execution_state_mutex_`. Thus the caller executing TEM `stopExecution()` and the trajectory execution thread can overlap.
+
+This makes the unlocked read at TEM `stopExecution()` line 1211 concurrent with the execution-thread write at line 1358 on a reachable call path. The other unlocked reads in `executeThread()` and `executePart()` may also overlap the stop caller's state write at line 1220. Because the member is a plain bool, this is a concrete data-race risk, not just a theoretical multi-caller possibility.
+
+### 13.2 Separate `/execute_trajectory` capability
+
+Do not conflate that path with `MoveGroupExecuteTrajectoryAction`. It uses a private `SingleThreadedExecutor` and a `MutuallyExclusive` callback group. Its goal callback synchronously calls TEM `execute()` and `waitForExecution()`; its cancel callback only returns `CancelResponse::ACCEPT`. The class helper `preemptExecuteTrajectoryCallback()` has a declaration and definition but no call site in the Jazzy source, so it must not be cited as a functioning concurrent stop path. The direct concurrency evidence above comes from `/move_action` + `PlanExecution::stop()`.
+
+An adjacent issue exists in `MoveGroupMoveAction`: `preempt_requested_` is also a plain bool written by the cancel callback and read from the detached goal thread (e.g. source lines 176/198). This should be reviewed separately; it is not the DSO/Waitable crash root cause.
+
+### 13.3 Deterministic race test design
+
+- Add a test-only barrier after TEM `stopExecution()` has read `execution_complete_ == false` but before it acquires `execution_state_mutex_`.
+- Allow the controller/trajectory execution thread to naturally finish and write the flag to true, then release the barrier.
+- Confirm the second check takes the unlock path and determine whether `execution_thread_` remains joinable. A corrected implementation should guarantee join/reset regardless of which state transition wins.
+- Explicitly join any remaining test thread before test teardown; never intentionally let a joinable std::thread reach ordinary object destruction in the test process.
+- Add TSAN or equivalent coverage for `execution_complete_` and `preempt_requested_` accesses.
+- Do not use the ExecuteTrajectory capability's currently unreferenced preempt helper as the test trigger.
+
+### 13.4 Existing test harness limitation
+
+The Jazzy `trajectory_execution_manager/test/test_execution_manager.cpp` retrieved from the upstream branch still includes ROS 1 `ros/ros.h`. The package `CMakeLists.txt` keeps its old catkin/rostest test registration commented out under `CATKIN_ENABLE_TESTING`. Its adjacent `test_moveit_controller_manager.hpp` is rclcpp-shaped, but the existing cpp test is not a ready-to-run Jazzy ament test target. Therefore a dedicated Jazzy ament test target or isolated temporary test executable is needed for the barrier-controlled test; do not claim an existing Jazzy GTest already covers this case.
 
 **本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102–104在PR原始输入C=off下A+B overlay合计15次mock-planning/teardown repetitions通过，但stock Run #54仍失败；Run #106首次实际执行mock FollowJointTrajectory并观察到controller/TEM/MoveGroup成功，但自动化断言误判；Run #107正在验证修正后的plan-and-execute与TEM析构快照；新增的execution_thread_竞争窗口仍是静态风险，尚未动态复现；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
