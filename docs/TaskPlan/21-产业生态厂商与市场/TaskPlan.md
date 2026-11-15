@@ -6757,3 +6757,21 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 如active_handles残留或execution thread仍joinable，继续在CI临时overlay中分析，不直接修改MoveIt upstream或Stäubli PR #1。
 
 **状态：** §9.3.385已首次完成mock FollowJointTrajectory的真实请求与controller成功执行观察；Run #106自动化字段断言已修正，Run #107待验证。正常执行路径不等价于析构竞争窗口已修复。
+
+### §9.3.386｜MoveGroup cancel / PlanExecution / TEM 的真实并发调用图（2026-11-15）
+
+- [x] MoveGroup `/move_action`的accepted callback会启动detached goal thread运行`executeMoveCallback()`；该线程进入`executeMoveCallbackPlanAndExecute()`与`PlanExecution::planAndExecute()`。
+- [x] action cancel callback运行在MoveGroup ROS executor callback中，调用`preemptMoveCallback()`；其设置`preempt_requested_=true`并调用`PlanExecution::stop()`，后者触发`preempt_.request()`。
+- [x] PlanExecution执行线程在启动TEM `execute()`后，继续轮询scene/preempt；检测到`preempt_.checkAndClear()`后，在该线程中调用TEM `stopExecution()`。
+- [x] TEM `execute()`另建`execution_thread_`；执行线程在TEM cpp 1358行写`execution_complete_=true`。因此stopExecution调用者和TEM execution thread存在明确并发路径，stopExecution 1211行锁外读与1358行锁内写的普通bool访问可以竞争。
+- [x] 相邻风险：MoveGroupMoveAction header line 74中的`preempt_requested_`是普通bool，cancel callback线程写入，detached goal thread读取（cpp 176、198行等）；也需要单独审查同步。
+- [x] 区分`/execute_trajectory` capability：其自建MutuallyExclusive callback group与SingleThreadedExecutor里执行阻塞的executePath callback；cancel callback只返回ACCEPT，而`preemptExecuteTrajectoryCallback()`在Jazzy源码没有调用点，不能用它证明取消路径会并发调用TEM stop。
+- [ ] 增加barrier-controlled TEM test seam，控制stopExecution在首次读到false后暂停；让execution thread自然完成并写true，再继续stopExecution；验证二次检查unlock路径后是否遗留joinable execution_thread_。
+- [ ] 同步测试结束时显式join residual thread，不能让joinable thread逃逸至析构。
+- [ ] 使用TSAN/等效工具检查`execution_complete_`和`preempt_requested_`读写访问的实际data race；修复时统一锁域或使用审查过的原子方案，避免盲目机械替换。
+- [ ] 核验MoveIt Jazzy现有TEM测试设施：`test_execution_manager.cpp`仍包含ROS1 `ros/ros.h`，对应CMakeLists的测试段为legacy catkin/rostest注释；要新增Jazzy ament测试目标或独立临时测试可执行文件，不能把legacy文件视为已可用的Jazzy测试。
+- [ ] 任何候选修复需保持execution_thread joined、active_handles_ empty，再reset controller manager、node/CallbackGroup和plugin loader；未经用户单独授权，不修改MoveIt/rclcpp upstream或Stäubli PR #1。
+
+**源码定位：** [MoveGroupMoveAction accepted/cancel callbacks](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp#L64-L82), [PlanExecution launch/monitor/stop](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/plan_execution/src/plan_execution.cpp#L457-L532), [TEM stopExecution/executeThread](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1209-L1369), [ExecuteTrajectory capability callback](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/execute_trajectory_action_capability.cpp#L68-L85).
+
+**状态：** 已确认一条直接可达的并发调用路径，使execution_complete_锁外读取风险成立；尚未运行barrier复现或TSAN。Run #107仍在构建中，PR #16知识库CI此前成功，PR #1保持Draft。
