@@ -6682,13 +6682,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 ### §9.3.381｜去除测试侧 controller deactivation 并重测 PR 原始 teardown 流程（2026-11-15）
 
-- [x] 建立三因素矩阵：A=MoveGroup 主作用域 / executor / PSM 生命周期清理；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。
-- [x] 现有结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78 恢复 A+B+C 后 3/3 PASS；#79–#81 在 A+B+C 下 5/5 PASS。#54 为 stock ROS Jazzy + 原始 PR 测试（A=off,B=off,C=off），teardown FAIL。
+- [x] 建立三因素矩阵：A=MoveGroup 主作用域 owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。所有 #75–#81 实验还共同保留 stopPublishingPlanningScene、MoveGroupExe-before-executor 声明顺序。
+- [x] 现有结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78 恢复 A+B+C 后 3/3 PASS；#79–#81 在 A+B+C 下 5/5 PASS。这里 A/B 指新增 owner reset/TEM cleanup，stop PSM 与 MoveGroupExe-before-executor 是各次实验共同保留项。#54 为 stock ROS Jazzy + 原始 PR 测试（A=off,B=off,C=off，且无临时 MoveIt overlay），teardown FAIL。
 - [x] 仅修改隔离实验 workflow，移除临时注入 SwitchController/deactivation 逻辑，保留 PR head 7d9fa0d715db46060199eeca541514ddeed9c4c1 原始测试文件；MoveIt overlay A+B 不变。workflow commit b49a934e16243b8c81039e5d3d9fd5876b76d046。
 - [x] 新实验 Run #102（ID 43673306520，job 132687888928）已创建，branch head b49a934e16243b8c81039e5d3d9fd5876b76d046；触发时为 in_progress，尚未取得 build、test 或最终结论证据：[Run #102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)。
 - [ ] 检查 Run #102 实际使用的 Stäubli test file 是否与 PR head 原样一致，并核对 source SHA 仍为 7d9fa0d715db46060199eeca541514ddeed9c4c1。
 - [ ] 读取 Run #102 所有 steps/logs/artifacts，记录 mock planning 结果、各进程退出码、GDB 栈、DSO unload/mapping、测试汇总与是否真实执行。
-- [ ] 若 A+B+C=off 仍通过，至少独立复跑一次；若失败，将首个异常拆为 TEM weak_ptr/plugin DSO、MoveGroup capability/main-node teardown、controller manager deactivation/launch race 三条路径分别复核，不放宽断言。
+- [ ] 若 A+B、C=off 仍通过，至少独立复跑一次；若失败，将首个异常拆为 TEM weak_ptr/plugin DSO、MoveGroup main-owner teardown、controller manager deactivation/launch race 三条路径分别复核，不放宽断言。
 - [ ] 保持 stock binary 对照和 overlay 候选分开报告；未修改 MoveIt/rclcpp 上游、不改变固定 pin、不合并 PR #1、不连接 CS9、不发送真实运动命令。
 
 **状态：** 当前仅证明 A+B+C 组合在实验 overlay 中 5/5 通过；原始 PR 测试条件 C=off 的 A+B 验证正在 Run #102 执行，尚无结论。PR #1 继续 Draft，普通 stock CI 仍 FAIL，SERVO-906/907 与 A1.1 继续 BLOCKED。
