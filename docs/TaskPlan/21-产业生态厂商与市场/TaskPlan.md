@@ -6775,3 +6775,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 **源码定位：** [MoveGroupMoveAction accepted/cancel callbacks](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp#L64-L82), [PlanExecution launch/monitor/stop](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/plan_execution/src/plan_execution.cpp#L457-L532), [TEM stopExecution/executeThread](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp#L1209-L1369), [ExecuteTrajectory capability callback](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/execute_trajectory_action_capability.cpp#L68-L85).
 
 **状态：** 已确认一条直接可达的并发调用路径，使execution_complete_锁外读取风险成立；尚未运行barrier复现或TSAN。Run #107仍在构建中，PR #16知识库CI此前成功，PR #1保持Draft。
+
+### §9.3.387｜正常 mock FollowJointTrajectory 执行后的 TEM 析构不变量（2026-11-15）
+
+- [x] Run [#107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898)（workflow commit 18fea00298ee542c304cbf73d652cd540262712e）完整success，五轮plan-and-execute与strict teardown均执行完成。
+- [x] Artifact [14147826279](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898/artifacts/14147826279)，SHA-256 b0e13044c3b51e9e7da2bd2b5653e5ed30a9e09692ab3677d206ef8c6250697a；逐个检查五轮stdout目录，每轮Ran 2 tests ... OK（plan-only与plan-and-execute），随后Ran 1 test ... OK（post-shutdown进程退出检查）。
+- [x] 五轮均见mock controller Goal reached, success!、MoveGroup Solution was found and executed.、TEM Completed trajectory execution with status SUCCEEDED。
+- [x] 五轮析构快照均为execution_thread_joinable=0、active_handles_after_stop=0；正常执行完成路径下TEM线程已joined，插件controller句柄已清空。所有post-shutdown exit assertions通过，未发现MoveGroup SIGSEGV/GDB wrapper 255。
+- [x] 该结果和Run #102–104的15次C=off plan-only mock回归互补，首次建立真实mock执行后资源释放的重复证据；仅覆盖正常完成路径，不能据此宣称cancel与自然完成并发竞态已修复。
+- [x] Run #111在CI屏障注入脚本中因函数切片末尾含额外空白而安全退出，未进入MoveIt编译或测试；无产品源码改动。
+- [ ] Run #112正在验证修正后的屏障注入：stopExecution()函数末尾改用rstrip识别最后闭括号，加入barrier、thread_finished与执行线程/句柄状态快照。只有实际看到entered、thread_finished、released、state标记并通过进程退出检查，才记为有效复现。
+- [ ] 在屏障测试完成前，保留§9.3.386关于普通bool并发读写与check-lock-recheck漏join的静态风险结论；不直接修改MoveIt/rclcpp upstream。
+
+**状态：** 正常mock执行完成后，5/5次析构快照证明execution_thread_joinable=0且active_handles=0；屏障式取消/自然完成竞态正在Run #112验证。PR #1继续Draft，stock Run #54仍失败。
