@@ -158,19 +158,34 @@ In [`TrajectoryExecutionManager::stopExecution()`](https://github.com/moveit/mov
 
 The header declares `execution_complete_` as a plain bool, not atomic, at line 327. Its execution-thread write is mutex-protected, but the first read in stopExecution is outside that mutex, so this path also deserves a data-race review. `executeThread()` does not reset the `execution_thread_` pointer itself. If the join path is missed, later destruction of a still-joinable `std::thread` may call `std::terminate`.
 
+### 8.2 Full access-point audit
+
+The member is a plain `bool` in the Jazzy header. A scan of the entire source file found these important accesses that are not uniformly protected by `execution_state_mutex_`:
+
+| Function | Source line | Access | Synchronization note |
+|---|---:|---|---|
+| `push()` | 397 | read | before trajectory append; no state lock at the check |
+| `stopExecution()` | 1211 | read | outer condition before acquiring the state mutex |
+| `execute()` | 1281 | write `false` | before creating the execution thread; no state lock |
+| `clear()` | 1302 | read | condition outside the following scoped lock |
+| `executeThread()` | 1317, 1337 | read | initial gate and post-part loop check outside the state mutex |
+| `executePart()` | 1379, 1542, 1563 | read | pre-execution, timeout test and stop test outside the state mutex |
+
+Other accesses are protected, including `stopExecution()` lines 1214/1220, `waitForExecution()` line 1290, `executeThread()` lines 1348/1357–1359, and `executePart()` lines 1384–1385. The issue is inconsistent synchronization across the full call graph, not the absence of a mutex. Because the member is a plain bool, a lock-free read concurrent with a mutex-protected write is still a potential C++ data race. A call-graph audit is required to determine which external API calls may actually overlap; source inspection alone does not prove a specific runtime UB event.
+
 ### 8.2 Why Run #102 does not cover it
 
 Run #102 executed mock planning and strict process teardown five times, but it did not start a real trajectory execution thread. Its 5/5 pass therefore strengthens the main-node/TEM/plugin teardown evidence under the original launch file; it does not exercise the execution-thread completion race described above.
 
 ### 8.3 Candidate fix and test plan (not implemented)
 
-1. Make every read/write of `execution_complete_` use `execution_state_mutex_`, or adopt a reviewed atomic-state design; eliminate the current unlocked plain-bool read.
+1. Build a call/thread map for all access sites listed in §8.2, then make concurrent reads/writes consistently use `execution_state_mutex_` or a reviewed atomic-state design. Also review synchronization for the `execution_thread_` pointer itself.
 2. After `stopExecution(true)`, independently acquire `execution_thread_mutex_`; if `execution_thread_` still exists and is joinable, join and reset it. Guard against self-join, and ensure destructor execution is external to the trajectory execution thread.
 3. Once both the execution thread and private executor thread have stopped, call `clear()` to delete any remaining `trajectories_` raw contexts, then clear `active_handles_` under `execution_state_mutex_`.
 4. Perform both cleanups before resetting `controller_manager_` or allowing `controller_manager_loader_` to unload the plugin DSO.
 5. Add a dedicated mock trajectory-execution test with a barrier around the natural-completion flag transition; cover natural completion racing with destructor, stop request racing with completion, `auto_clear=true/false`, callback reentrancy, no-start/early-return, missing manager, exception path, and repeated shutdown.
 
-This is a static source-derived risk, not an observed failure. Do not patch MoveIt/rclcpp or production Stäubli code without separate authorization.
+This is a static source-derived risk, not an observed failure. The full set of reads/writes must be assessed against the actual API caller, execution thread and private executor callback threads before deciding which accesses can race. Do not patch MoveIt/rclcpp or production Stäubli code without separate authorization.
 
 ### 8.4 Workflow signal-handling correction
 
