@@ -67,8 +67,112 @@ jobs:
           path: ${{ runner.temp }}/staubli-runtime-evidence-bundle-validation.json
           if-no-files-found: warn
           retention-days: 14
-      - name: Build source and wheel with verified PEP 517 build dependency hashes
-        run: uv build --require-build-hashes
+      - name: Smoke-test extracted Python source distribution in an isolated environment
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          smoke_root="${RUNNER_TEMP}/python-sdist-smoke"
+          rm -rf "${smoke_root}"
+          mkdir -p "${smoke_root}/extracted" "${smoke_root}/work"
+          python - <<'PY'
+          import os
+          import tarfile
+          from pathlib import Path
+
+          archives = sorted(Path("dist").glob("*.tar.gz"))
+          if len(archives) != 1:
+              raise SystemExit(f"Expected one sdist, found {len(archives)}")
+          archive = archives[0]
+          source_name = archive.name.removesuffix(".tar.gz")
+          with tarfile.open(archive, "r:gz") as package:
+              package.extractall(
+                  path=Path(os.environ["RUNNER_TEMP"]) / "python-sdist-smoke" / "extracted",
+                  filter="data",
+              )
+          smoke_root = Path(os.environ["RUNNER_TEMP"]) / "python-sdist-smoke"
+          source_root = smoke_root / "extracted" / source_name
+          required = (
+              source_root / "pyproject.toml",
+              source_root / "src/robot_knowledgebase/__init__.py",
+              source_root / "tests/test_chunker.py",
+              source_root / "tests/test_markdown.py",
+          )
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit(f"sdist is missing required files: {missing}")
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env_file:
+              env_file.write(f"SDIST_SMOKE_ROOT={smoke_root}\n")
+              env_file.write(f"SDIST_SMOKE_SOURCE={source_root}\n")
+          print(f"Extracted {archive} to {source_root}")
+          PY
+          export UV_PROJECT_ENVIRONMENT="${SDIST_SMOKE_ROOT}/venv"
+          uv sync --locked --extra dev --no-install-project
+          uv pip install --python "${SDIST_SMOKE_ROOT}/venv/bin/python" --no-deps "${SDIST_SMOKE_SOURCE}"
+          module_path="$("${SDIST_SMOKE_ROOT}/venv/bin/python" -c 'import robot_knowledgebase; print(robot_knowledgebase.__file__)')"
+          case "${module_path}" in
+            "${SDIST_SMOKE_ROOT}/venv/"*) ;;
+            *)
+              echo "Installed package resolved outside the isolated sdist environment: ${module_path}" >&2
+              exit 1
+              ;;
+          esac
+          (
+            cd "${SDIST_SMOKE_ROOT}/work"
+            env -u PYTHONPATH "${SDIST_SMOKE_ROOT}/venv/bin/python" -m pytest -q \
+              "${SDIST_SMOKE_SOURCE}/tests/test_chunker.py" \
+              "${SDIST_SMOKE_SOURCE}/tests/test_markdown.py" \
+              --import-mode=importlib
+          ) | tee "${SDIST_SMOKE_ROOT}/pytest-output.txt"
+          "${SDIST_SMOKE_ROOT}/venv/bin/robot-kb" --version | tee "${SDIST_SMOKE_ROOT}/cli-output.txt"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          from pathlib import Path
+
+          smoke_root = Path(os.environ["SDIST_SMOKE_ROOT"])
+          source_root = Path(os.environ["SDIST_SMOKE_SOURCE"])
+          archives = sorted(Path("dist").glob("*.tar.gz"))
+          if len(archives) != 1:
+              raise SystemExit(f"Expected one sdist, found {len(archives)}")
+          archive = archives[0]
+          installed_module = Path(
+              os.popen(
+                  f'"{smoke_root}/venv/bin/python" -c '
+                  '"import robot_knowledgebase; print(robot_knowledgebase.__file__)"'
+              ).read().strip()
+          )
+          evidence = {
+              "result": "PASS",
+              "archive": archive.name,
+              "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+              "python_version": platform.python_version(),
+              "extracted_source_root": str(source_root),
+              "installed_module_path": str(installed_module),
+              "installed_module_isolated": installed_module.is_relative_to(smoke_root / "venv"),
+              "test_files": [
+                  "tests/test_chunker.py",
+                  "tests/test_markdown.py",
+              ],
+              "pytest_output": (smoke_root / "pytest-output.txt").read_text(encoding="utf-8"),
+              "console_entrypoint_output": (smoke_root / "cli-output.txt").read_text(encoding="utf-8"),
+              "note": "Tests ran from the extracted sdist outside the repository checkout; package import resolved inside the isolated virtual environment.",
+          }
+          if not evidence["installed_module_isolated"]:
+              raise SystemExit("Installed package did not resolve from the isolated virtual environment")
+          output = smoke_root / "smoke-evidence.json"
+          output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(f"Wrote {output}")
+          PY
+      - name: Archive isolated Python sdist smoke-test evidence
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: python-sdist-smoke-test-evidence
+          path: ${{ runner.temp }}/python-sdist-smoke/smoke-evidence.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Create file-level manifest for built Python distributions
         if: matrix.python-version == '3.12'
         env:
