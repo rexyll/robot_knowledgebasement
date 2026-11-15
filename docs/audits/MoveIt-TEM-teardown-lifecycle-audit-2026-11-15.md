@@ -597,3 +597,21 @@ The lifecycle factorial-isolation branches are now at patched MoveIt build:
 - Run #119 [43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847): TEM cleanup ON, main-owner early reset OFF.
 
 Both have passed rclcpp overlay build, MoveIt source preparation, CI-only barrier injection, and MoveIt dependency install. Both are currently at step 8, `Build patched MoveIt move_group`; Stäubli workspace build and mock teardown tests have not yet started.
+
+
+## 18. Outer MoveGroupContext / MoveItCpp shared-owner chain (2026-11-15)
+
+A source-level follow-up clarifies what the factorial "main-owner reset" factor actually changes.
+
+- `move_group::MoveGroupContext` constructor stores the incoming `MoveItCppPtr` in member `moveit_cpp_` and also stores shared pointers obtained from it: `planning_scene_monitor_` and, when trajectory execution is enabled, `trajectory_execution_manager_`.
+- `MoveGroupContext::~MoveGroupContext()` explicitly resets `plan_execution_`, `trajectory_execution_manager_`, `planning_pipeline_`, and `planning_scene_monitor_`; automatic member destruction then releases `moveit_cpp_`.
+- `MoveItCpp` itself owns `node_`, `planning_scene_monitor_`, and `trajectory_execution_manager_`.
+- `MoveGroupExe::~MoveGroupExe()` explicitly orders `capabilities_.clear()` → `context_.reset()` → `capability_plugin_loader_.reset()`.
+
+Therefore a main-scope `moveit_cpp` / PSM / node shared_ptr is an *additional owner* beyond the `MoveGroupContext` members. If those outer references remain alive until after `MoveGroupExe` has reset its context and then its capability loader, the context reset may not be the last release of MoveItCpp/TEM and their destructor can be deferred until after the MoveGroup capability DSO has been unloaded. Resetting the outer local shared pointers before `MoveGroupExe` scope destruction lets `context_.reset()` potentially trigger the last release of MoveItCpp/TEM while the capability plugin loader is still loaded.
+
+This explains why "main-owner reset" and "TEM internal cleanup" are distinct nested ownership factors:
+1. **Outer MoveGroup capability-loader boundary:** ensure MoveItCpp/TEM are destroyed from context reset before `capability_plugin_loader_.reset()`.
+2. **Inner TEM controller-manager-loader boundary:** within TEM destruction, explicitly release event subscription/callback group/private executor/controller manager/controller node before automatic member destruction unloads `controller_manager_loader_`.
+
+The factorial branches remain necessary to decide whether either factor alone is sufficient, or whether both are required. This source-level ownership chain is grounded by the Jazzy source blobs; runtime causality still depends on Run #118/#119 results.
