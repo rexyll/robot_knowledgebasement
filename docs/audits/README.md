@@ -6,6 +6,9 @@
 
 ## 当前记录
 
+- [2026-11-15 Python Toolkit wheel/sdist 发布范围与许可证元数据审查](2026-11-15-python-distribution-and-license-metadata-review.md)：根据 CI Run #43709474246 归档的精确 wheel/sdist 文件清单，确认 wheel 不含 Knowledge Vault；sdist 只保留两个 Toolkit 测试，并修正 8 个依赖仓库脚本/工作流但未随包分发的测试文件。记录 legacy License metadata 与 PEP 639 迁移阻塞。
+- [Python wheel/sdist 文件成员和 SHA-256 清单](2026-11-15-python-distribution-file-manifest.json)：保存源提交、base、workflow SHA、artifact digest，以及本次 wheel/sdist 的逐文件路径、大小和 SHA-256。
+
 - [2026-11-15 知识资产许可证范围与逐路径权利登记基线](2026-11-15-knowledge-asset-license-scope-audit.md)：为 main 基线 386 个路径建立权利登记；35 项源码/CI、8 项参考软件仅有限来源审查，341 项未进行资产级许可审查；权利人全部未验证、再分发全部未确定，没有资产获准再分发。
 
 - [知识资产许可证与权利来源治理规范](../engineering/Knowledge-Asset-License-and-Rights-Policy.md)：定义逐资产来源、权利人、许可证、NOTICE、专利和分发门禁；明确根 MIT 声明不能自动覆盖所有知识库和第三方材料。
