@@ -314,7 +314,9 @@ Run [#113](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/4
 **边界：** Run #107仍只证明正常 mock trajectory execution 的 join 与 active_handles 清理；Run #112的测试注入语法错误未覆盖竞争窗口；Run #113成功与否都需要验证 entered/thread_finished/release/state marker 以及 execution_thread_joinable、active_handles、严格进程退出结果。stock Run #54 SIGSEGV 与 PR #1 Draft 状态不变。
 
 
-## 8. Run #113 current CI progress (2026-11-15)
+## 8. Run #113 pre-completion CI progress snapshot (historical; superseded by §9)
+
+This section preserves the in-progress snapshot written before Run #113 completed. Its final test evidence and conclusion are recorded in §9 below.
 
 The GitHub Jobs API last reported the single `source-overlay-regression` job as `in_progress`. These steps have completed successfully:
 - Unmodified ROS 2 Jazzy rclcpp overlay build.
