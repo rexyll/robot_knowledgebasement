@@ -47,7 +47,20 @@ Run #43709474246 已验证新的 sdist：41 个成员（32 个普通文件、9 �
 
 当前 sdist 包含根 `LICENSE`、`MANIFEST.in`、`PKG-INFO`、`README.md`、`pyproject.toml`、构建生成的 `setup.cfg` 和 egg-info 元数据、11 个 Python 包源文件及两个 Toolkit 测试。它不含 `knowledge/`、`docs/`、`scripts/`、`.github/` 或仓库级 Stäubli 集成测试。
 
-**未执行从解包 sdist 环境重新安装并运行测试的独立 smoke test。** 本次 CI 的 pytest 测试仍在完整仓库 checkout 中运行；清单只证明构建包内容与哈希，不将其说成 sdist 安装验收。
+### 2.3 独立解包、安装和测试验证（已通过）
+
+后续已将真实 sdist 安装测试加入 CI，并在 PR HEAD `cfd55fd0c0d4667021e64d6e244c142223691332` 上通过。
+
+- GitHub Actions：[Run #43711114308](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43711114308)，最终结论 success；Python 3.10、3.11、3.12、OSV、Python SBOM 五项 job 全部成功。
+- 测试环境：Python 3.12.16；从 `dist/robot_knowledgebase-0.1.0.tar.gz` 安全解包到 runner 临时目录；以独立 `UV_PROJECT_ENVIRONMENT` 创建虚拟环境，使用锁定 dev extra 安装 pytest，再从解包源码目录执行 `uv pip install --no-deps`。
+- 隔离断言：`robot_knowledgebase` 的实际导入文件路径必须位于独立 smoke venv 内；测试从仓库 checkout 外的临时工作目录启动，并清除 `PYTHONPATH`，避免误加载 checkout 源码。
+- sdist 包含的 `tests/test_chunker.py` 与 `tests/test_markdown.py` 均实际执行：**10 passed in 0.03s**。
+- 安装后的 console script 成功执行，输出 `robot-kb 0.1.0`。
+- 本次构建 sdist SHA-256：`a065336eae377b88779f87f7452144af4c01d086016bd76ce5e5ac4066e98bc3`；本次分发成员清单 artifact ID `14160785226`，digest `sha256:cfac76672e347471bf29f1e7fc4e63e71a7a8aecd7d5e47e12d3aedd60c3a9a2`。
+- 独立 smoke test 证据 artifact：[python-sdist-smoke-test-evidence #14160845136](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43711114308/artifacts/14160845136)，artifact digest：`sha256:070cb1c5fe2deb806bb6ed58102e4a530482d6a9b21c752f846c92807129b68d`。
+
+两次早期试运行的 CI 编排缺陷已在后续提交修正：Run #43711036913 的中间版本未保留 sdist build 步骤，Run #43711057200 的中间版本误把 `GITHUB_ENV` 当作同一步即时变量；最终 Run #43711114308 在当前 HEAD 上通过。失败原因和修复提交记录在当日 TaskPlan History v6。该验证关闭的是 sdist 独立安装/测试缺口，不代表版权或再分发许可已获确认。
+
 
 ## 3. 许可证元数据发现
 
@@ -79,8 +92,8 @@ Python Packaging Authority 的 Core Metadata 规范说明：Metadata 2.4 中旧�
 - 取得 Python Toolkit 11 个源文件和两个保留测试文件的作者/权利确认及发布授权；
 - 根据确认后的发布范围迁移到 PEP 639 SPDX 表达式，重新生成 wheel/sdist 并核验 metadata；
 - 评估把仓库总览 README 用作 PyPI 包 README 的适用性：目前 sdist README 链接指向未随分发物打包的 `knowledge/` 和 `docs/` 页面，未来可为 Toolkit 提供独立 README；
-- 可在后续 CI 增加从 sdist 解包、安装并运行两项 Toolkit 测试的 smoke test；
+- 继续保持独立 sdist smoke test 为 Python 3.12 CI 门禁；如未来调整包成员或构建后端，重新检查解包、安装、模块导入和两项测试；
 - 将 Python Toolkit 权利确认与全仓库 386 项资产权利登记分开维护。
 
-**状态：** wheel/sdist 文件成员和哈希已通过 CI 生成并人工核对；根 MIT 对 Python Toolkit 的权利人授权及文件级再分发许可仍未关闭。00-01 保持进行中。
+**状态：** wheel/sdist 文件成员和哈希已通过 CI 生成并人工核对；sdist 独立解包、安装、10 项测试和 CLI 入口 smoke test 已由 Run #43711114308 验证通过；根 MIT 对 Python Toolkit 的权利人授权及文件级再分发许可仍未关闭。00-01 保持进行中。
 
