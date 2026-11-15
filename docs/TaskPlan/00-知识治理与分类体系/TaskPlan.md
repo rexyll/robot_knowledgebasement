@@ -32,7 +32,7 @@
 - **严格禁止：** 不得依据旧 TaskPlan 统计或文件数量推断已完成；不得删除旧文档或把空目录计入知识覆盖。
 - **依赖：** 无。
 - **交付物与验收：** 提交可复核的资产清单、章节映射表和缺口报告。
-- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已实际构建并生成逐文件 SHA-256 清单，确认均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；Run #43711114308 在 Python 3.12.16 上完成 sdist 独立解包/安装，两个测试文件10/10通过，CLI 输出 robot-kb 0.1.0，证据 artifact 14160845136；对13个实际发布源码/测试文件完成 Git 路径历史与静态内容复核，17条路径历史 commit 均为 rexyll 账号署名且未签名；chunker.py 与两个更早公开项目存在待确认的相似性线索；根 MIT 对11个模块和2个测试的权利人授权仍未验证，13/13 rights-holder 为 UNVERIFIED、redistribution 为 UNDETERMINED，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成）
+- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已实际构建并生成逐文件 SHA-256 清单，确认均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；Run #43711114308 在 Python 3.12.16 上完成 sdist 独立解包/安装，两个测试文件10/10通过，CLI 输出 robot-kb 0.1.0，证据 artifact 14160845136；对13个实际发布源码/测试文件完成 Git 路径历史与静态内容复核，17条路径历史 commit 均为 rexyll 账号署名且未签名；chunker.py 与两个更早公开项目存在待确认的相似性线索；根 MIT 对11个模块和2个测试的权利人授权仍未验证，13/13 rights-holder 为 UNVERIFIED、redistribution 为 UNDETERMINED，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成；2026-11-15 已完成《IMU》P0官方模型/公式与BMI088、ADIS16470数据表口径定向复核，目标IMU配置、原始样本和Allan/PSD实测仍缺）
 
 ### 00-02｜全行业分类树与章节边界
 
@@ -868,6 +868,15 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - **状态：** 正在进行中（13 个文件的可见 Git 路径历史和静态正文审查已完成；17 条 commit 记录均未签名；chunker.py 存在待确认相似性线索；独立 sdist smoke test 已由 CI Run #43711114308 首次通过、并由当前 PR HEAD 的 Run #43711328493 复验，Python 3.12.16 下两个测试文件10/10通过且 CLI 入口验证成功；13/13 权利人仍未验证、再分发状态仍未确定）。
 
 
+### 00-01-SENSOR-IMU-01｜IMU 随机误差模型与代表型号数据表口径复核
+
+- **任务范围：** 对《IMU》的噪声密度、ARW/VRW、bias instability、Brownian bias random walk、Allan deviation、连续/离散协方差，以及代表型号数据表的工作条件开展可追溯审查。
+- **必做：** 分开记录连续噪声密度、离散样本噪声、bias 单步增量、ARW/VRW、in-run bias stability 和滤波器 Q；核对 PSD 单/双边约定、抗混叠/抽取、ODR/OSR/filter BW、温度、量程、时间戳和固件/寄存器设置；来源和数据手册修订版写入链接台账。
+- **严格禁止：** 不得将产品页总范围代替分轴/分传感器数据表；不得把 in-run bias stability 直接当作 Brownian random-walk 驱动；不得在仅跳采样时套用理想低通抽取的白噪声缩放公式；不得以公开参数宣称目标设备性能、精度或导航完整性。
+- **依赖：** 00-01 全库资产 Git Tree 基线；目标 IMU 完整型号、数据手册、驱动配置和原始采样数据需由实际项目提供。
+- **交付物与验收：** 专项审查报告、知识页增量、来源台账、资产清单和逐路径权利登记更新；如需关闭目标设备级节点，必须有原始数据、Allan/PSD 分析、独立验证及滤波器配置证据。
+- **状态：** 正在进行中（2026-11-15 已完成公开来源与公式口径定向复核；目标传感器 SKU/revision/serial、ODR/OSR/filter/FIFO配置、原始静止/温度/动态数据、Allan/PSD拟合及完整ESKF验证仍未取得）。
+
 ### 2026-11-15｜00-01 持续审计记录（功能安全标准生命周期与市场法规边界增量复核）
 
 新增 [功能安全与机械安全标准生命周期及主张边界增量审计](../../audits/2026-11-15-functional-safety-standards-lifecycle-and-claim-boundary-addendum.md)，更新 [功能安全体系](../../../knowledge/architecture/workflows/功能安全体系.md) §11、来源台账 #1769–#1776、审计索引和资产清单。
@@ -930,3 +939,14 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - 重要适用边界：带车载电源的移动机器也需按 IEC 60204-1 §8.2.5 审查内部保护联结端子与导电结构连接；有外部电源连接能力时还要审查外部 PE 接点。自包含电池机器不应被误解为需要无条件接外部 PE，也不能因此省略内部保护联结。
 - 未取得本项目原理图、BOM、准确电池包/断路器/隔离开关/接触器 SKU、额定值和配合表；未计算供电点/支路的预期短路电流、机器 SCCR 或断路器协调；未执行 PE 连续性、故障回路阻抗、保护动作、绝缘/耐压、残余电压、温升或 EMC 测试。整篇文章继续保持 claim-level pending。
 - IEC 标准全文未通过正式购买/授权文本逐条审读；本轮为公开目录、摘要和条款主题核验。报告说明可访问预览的核验范围和视觉页面截图限制。
+
+### 2026-11-15｜00-01 持续审计记录（IMU 物理误差模型和官方型号数据口径复核）
+
+新增 [IMU 物理误差模型与代表型号数据表口径专项复核](../../audits/2026-11-15-IMU-physical-model-and-datasheet-claim-boundary-review.md)，更新《IMU》§11、来源台账 #1808–#1813、资产主清单和逐路径权利登记。
+
+- 对照 ETH Zürich ASL Kalibr Noise Model 与 NXP AN5087，确认 white-noise density 与 Brownian bias random walk 是不同参数；核对 `σ/√Δt` 需要理想低通/抗混叠抽取前提，Brownian bias 单步增量为 `σ_b√Δt`；Allan overlapping 窗口不应当作独立样本，Kalibr 的 τ=1s/3s 读图属于其简化模型约定。
+- 对《IMU》§9.4 二维角度—bias `Q_d` 与 §9.5 OU 精确离散项进行公式一致性复核；计算例子仅为数学自洽，不构成真实 IMU 参数。
+- 对照 Bosch BMI088 产品页与 Rev.1.9 数据手册：产品页 accel noise density 175 μg/√Hz；数据手册在 gFS3g、25°C、标称供电、Normal mode 下按轴列 X/Y 160、Z 190 μg/√Hz；加速度计 ODR/带宽与陀螺 ODR/滤波组合须分别记录。
+- 对照 ADI ADIS16470 Rev. C：陀螺 in-run bias stability 8°/h、ARW 0.34°/√h、10–40Hz rate noise density 0.008°/s/√Hz；加速度计 in-run 13 μg、VRW 0.037 m/s/√h、10–40Hz noise density 100 μg/√Hz。rate-noise-density换算为0.48°/√h，与表列ARW相差约√2；原因尚需制造商解释，不擅自合并。
+- 未取得目标 IMU 完整型号、序列号、寄存器配置、ODR/OSR/filter/FIFO/时间戳日志和原始数据；未运行目标设备 Allan/PSD、温度循环、旋转台/振动台、Monte Carlo 或 ESKF NIS/NEES 验证。《IMU》仍为 claim-level pending，rights-holder仍UNVERIFIED、再分发仍UNDETERMINED。
+

@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.23  
+版本：v12.24  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01（全仓库资产基线已完成386/386路径与Blob/字节数对账；claim-level和许可/授权审计未完成；Python Toolkit 13项权利人及再分发授权待确认）；第21章21-02并行推进（医疗/康复/腔镜机器人注册与标准证据继续补充，原始电子证照和适用范围附件仍有缺口；柏惠维康重庆生产许可、生产范围/地址及自述8张注册证的完整清单待监管原件）。Stäubli专项更新：Run #113 5/5确定性复现TEM stopExecution check-lock-recheck漏join；Run #117 always-join CI overlay 5/5通过（artifact 14149782675，SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮join_performed=1、execution_thread_joinable=0、active_handles=0；Run #118 main-owner-only/TEM cleanup OFF与Run #119 TEM-cleanup-only/main reset OFF已进入patched MoveIt move_group编译，结果待验。仍不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。MotionControlAlgorithms源码集成继续DEFERRED，待00-01验收、14-EXT-02第三方许可/来源/SBOM及目标仓库兼容性门禁关闭并取得具体导入授权。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01（全仓库资产基线已完成386/386路径与Blob/字节数对账；claim-level和许可/授权审计未完成；Python Toolkit 13项权利人及再分发授权待确认；IMU模型/公式与BMI088、ADIS16470数据表P0定向复核已完成，目标IMU实测和权利审计仍待完成）；第21章21-02并行推进（医疗/康复/腔镜机器人注册与标准证据继续补充，原始电子证照和适用范围附件仍有缺口；柏惠维康重庆生产许可、生产范围/地址及自述8张注册证的完整清单待监管原件）。Stäubli专项更新：Run #113 5/5确定性复现TEM stopExecution check-lock-recheck漏join；Run #117 always-join CI overlay 5/5通过（artifact 14149782675，SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮join_performed=1、execution_thread_joinable=0、active_handles=0；Run #118 main-owner-only/TEM cleanup OFF与Run #119 TEM-cleanup-only/main reset OFF已进入patched MoveIt move_group编译，结果待验。仍不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。MotionControlAlgorithms源码集成继续DEFERRED，待00-01验收、14-EXT-02第三方许可/来源/SBOM及目标仓库兼容性门禁关闭并取得具体导入授权。
 
 > 2026-11-15 00-01增量（09-03电子电气设计P0证据复核）：已按 IEC 60204-1 公开目录/条款主题增量核验 PE/FE、移动机器车载电源保护联结端子、供电隔离、过电流保护、SCCR 和验证，并对照 IEC 60947-2/-3/-4-1、IEC 61439-2 及 ABB 说明区分断路器 Icu/Ics、隔离器件条件额定值和整机 SCCR。仅为资料/条款边界审查，无项目原理图、短路电流计算或实验室测试；详见 09-03 §10 与专项报告。
 
@@ -364,6 +364,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | --- | --- | --- | --- |
 | 2026-11-15 | v12.22 | 合并PR #18–#22的治理与审计成果，并补齐第21章21-02医疗/康复/腔镜机器人注册证与标准的分层复核：天智航天玑1.0延续状态待官方个案材料，迈步新旧证与型号映射未闭环，傅利叶按长沙/广州/上海注册主体拆分，翔宇产品证据按型号区分，安杰莱急停不合格事件列供应商CAPA审查且不外推至其他设备；新增腔镜手术机器人注册动态与适用标准范围。所有监管/临床/采购结论维持证据边界，不将公开线索写成监管级证照确认 | PR #19、NMPA/地方药监目录与送达记录、企业官方资料及各专项审查报告；详细历史见 TaskPlan_History/TaskPlan-2026-11-15.md |
 | 2026-11-15 | v12.23 | 第21章21-02补齐柏惠维康重庆迁址专项：区分媒体/企业“已获三类生产许可、迁移8张注册证”主张、重庆药监局2025-08及2026年许可公告附件、涪陵经营许可申请公示和产品注册证变更；目前仅识别7个候选注册证，生产许可证原件、范围/地址/有效期、完整8证清单及逐证变更附件未取得。补充重庆药监局生产许可（备案）查询入口但未完成企业个案查询；明确产品注册、生产许可和经营许可不可互相替代。新增天智航、柏惠维康、迈步机器人专项档案及对应来源记录；所有结论维持公开证据边界。 | PR #20专项报告、重庆药监局公告/查询目录、NMPA送达记录、企业官网及第三方动态信息分级核验 |
+| 2026-11-15 | v12.24 | 00-01新增IMU P0公开来源/模型数学定向审查：核验Kalibr白噪声与Brownian bias单位、抗混叠抽取前提、Allan overlapping/读图口径、二维Qd与OU公式；对BMI088产品页和Rev.1.9数据手册按轴/通道对照，对ADIS16470 ARW、rate noise density、bias stability与DEC_RATE采样语义分层记录。目标IMU配置、原始数据、Allan/PSD、ESKF与实机验证仍缺，IMU保持claim-level pending。 | 专项审查报告、官方产品页/数据手册、NXP AN5087、ETH Zürich Kalibr Wiki；来源台账#1808–#1813 |
 | 2026-11-15 | v11.94 | 完成 CANopen Bus-Off/restart 与 SDO/NMT 会话恢复专项复核：SocketCAN Restarted→Online 不等于应用会话恢复；virtual node bus recovery 未清分段 SDO/NMT/CiA-402 状态，现有测试缺少中断会话与运行态恢复组合。新增知识页 §26、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 socketcan_transport.hpp、canopen.hpp、CANopen tests 与 P12_SOCKETCAN 文档静态核对 |
 | 2026-11-14 | v11.93 | 完成 EtherCAT CSP rearm latch 状态变化专项复核：确认 staging 对 slave/scan 异常拒绝新命令，但 latch 置位条件缺少 online/operational/AL=OP 与 scan 完整性，可能不 inhibit stale 0x6040；新增知识页 §25、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 receive_process、CSP staging/rearm、fake IgH API 与现有回归测试静态对照 |
 | 2026-11-14 | v11.92 | 完成 EtherCAT IgH adapter Distributed Clocks 专项复核：确认通用 DC 元数据/状态机未连接到 adapter 的配置、IgH 周期同步 API、runtime health 或 CSP interlock；准确标记当前 adapter 不支持/未暴露 DC，新增知识页 §24、更新 EXT-001、第14章记录与每日归档。仅修改知识库文档，未修改上游源码/CI | MotionControlAlgorithms main `c11091b` 的 IgH adapter/header、通用 EtherCAT domain/state model、fake IgH API 与 PDO mapping 测试静态核对 |
@@ -450,6 +451,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 记录持续追加（已汇总 PR #18–#21 专项记录） |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 记录持续追加（已汇总 PR #18–#21 专项记录及 v35 IMU 审计） |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。

@@ -518,3 +518,62 @@ Allan deviation 是 PSD 经特定滤波核加权后的积分表示；从单条 A
 1. Jay A. Farrell et al., [IMU Error Modeling Tutorial](https://escholarship.org/uc/item/1vf7j52p)：随机误差状态空间结构、参数估计和离散等效模型。
 2. Elisa Gallon, Mathieu Joerger, Boris Pervan, [Development of Stochastic IMU Error Models for INS/GNSS Integration](https://doi.org/10.33012/2021.17962), ION GNSS+ 2021：turn-on bias、比例因子、GM 偏置、随机游走、Allan/PSD 关系及以实测 PSD 验证/包络误差模型；其高完整性方法和实验结论不自动适用于其他 IMU。
 3. [An Algorithm for Online Stochastic Error Modeling of Inertial Sensors in Urban Cities](https://pmc.ncbi.nlm.nih.gov/articles/PMC9919925/)：讨论低成本 MEMS IMU 复杂噪声、Allan/PSD 方法的谱歧义及在线随机模型估计局限；本轮 PMC 页面访问受到反爬限制，依据可见检索摘要登记，需人工复核全文。
+
+## 11. 2026-11-15｜官方模型与代表型号数据表复核
+
+> 本节为公开来源和公式口径的定向复核，不代表项目已选定 BMI088/ADIS16470，也不代表任何实际 IMU 完成标定、Allan 测试或机器人实机验收。更细的证据矩阵见 `docs/audits/2026-11-15-IMU-physical-model-and-datasheet-claim-boundary-review.md`。
+
+### 11.1 白噪声、偏置随机游走和离散样本的口径
+
+- Kalibr 的经典 IMU 模型将观测误差分为快速加性白噪声与慢变偏置：`measurement = ideal + bias + white_noise`。其默认实现按三轴独立处理；只有在轴间相关性可忽略或已被证明足够小时，才适合直接采用独立轴模型。
+- Kalibr 参数单位为：陀螺白噪声密度 `rad/s/√Hz`、加速度计白噪声密度 `m/s²/√Hz`；陀螺偏置随机游走驱动强度 `rad/s²/√Hz`、加速度计偏置随机游走驱动强度 `m/s³/√Hz`。后两项不是 in-run bias stability 数值。
+- 在其连续白噪声定义下，经过满足假设的理想抗混叠低通/抽取后，离散样本白噪声标准差为 `σ_d = σ/√Δt`；Brownian bias 每步增量标准差为 `σ_b,d = σ_b√Δt`。二者方向相反。**仅仅跳采样/丢弃中间样本而没有相应滤波，不能按前式缩放噪声密度。**
+- Allan deviation 的 -1/2 斜率区可用于识别 rate white noise/ARW（加速度计对应 VRW）；+1/2 斜率区是 rate random walk 类过程；平坦/最低区通常描述 bias-instability 特征。NXP AN5087 以 overlapping Allan variance 充分复用样本窗口，但重叠窗口并非相互独立的重复实验。
+- Kalibr 文档给出的读图约定——白噪声取拟合线在 `τ=1 s` 处，Brownian bias random-walk 参数按其模型拟合线在 `τ=3 s` 处读取——只适用于它声明的白噪声 + 随机游走模型和相应噪声主导区间，不是所有 IMU、所有噪声叠加模型的通用换算律。in-run bias stability / bias-instability 指标不能直接当作 `σ_b` 输入。
+- 本文 §9.4 的角度—陀螺偏置二维 `Q_d` 公式与所声明的 `dθ = δb + n_g`、`d(δb)=σ_bg dW` 模型一致；§9.5 的一阶 OU 精确离散项也与其连续模型一致。例子数值只验证公式内部一致性，不是器件噪声参数或项目 EKF/ESKF 配置。
+
+### 11.2 BMI088：产品页与数据手册不能合成一个“统一噪声值”
+
+Bosch 当前 BMI088 产品页列出：加速度计噪声密度 175 μg/√Hz、陀螺噪声密度 0.014°/s/√Hz、ODR 12.5 Hz–2 kHz、可编程带宽 5–523 Hz。BMI088 数据手册 Rev.1.9（文档 BST-BMI088-DS000-19，2024-01）提供了更细的分通道/配置条件：
+
+| 项目 | 官方产品页 | 数据手册 Rev.1.9 的表格/条件 | 记录方式 |
+| --- | --- | --- | --- |
+| 加速度计噪声密度 | 175 μg/√Hz | 160 μg/√Hz（X/Y）、190 μg/√Hz（Z）；gFS3g、25°C、标称供电、Normal mode | 保留产品页值与分轴数据表值，待 Bosch 解释差异和适用条件；不可自行平均 |
+| 加速度计 ODR | 12.5 Hz–2 kHz（产品概览） | 12.5–1600 Hz | 按加速度计独立数据通道配置引用 |
+| 加速度计带宽 | 5–523 Hz（产品概览） | 5–280 Hz，Z 轴最高值列为 245 Hz；3 dB cutoff 受 ODR/OSR 影响 | 不将产品概览总范围直接套到加速度计 |
+| 陀螺噪声密度 | 0.014°/s/√Hz | Table 5 在 47 Hz BW 条件下列 0.1°/s RMS，并注明对应 0.014°/s/√Hz | 把噪声密度和指定带宽下 RMS 输出噪声分开记录 |
+| 陀螺 ODR/滤波 | 产品页列总范围 | 手册分别列 100/200/400/1000/2000 Hz 数据率及 12–523 Hz 滤波带宽组合 | 必须连同寄存器配置、ODR、filter BW 和实际采样链记录 |
+
+因此 BMI088 的选型表不得只保留“175 μg/√Hz、2 kHz、5–523 Hz”三项概览数字而忽略分轴、分传感器和寄存器设置；采购/驱动验收需冻结数据手册修订版、量程、ODR、OSR、filter BW、温度、供电和 FIFO/时间戳配置。
+
+### 11.3 ADIS16470：ARW、噪声密度和 bias stability 是不同指标
+
+Analog Devices ADIS16470 Rev. C 数据手册（Table 1，标称条件）分别列出：
+
+| 指标 | 陀螺仪 | 加速度计 | 限制/条件 |
+| --- | --- | --- | --- |
+| 动态范围 | ±2000°/s | ±40 g | 每轴；量程配置/格式仍须核验 |
+| In-run bias stability（1σ） | 8°/h | 13 μg | 不是 Brownian bias random-walk 驱动强度 |
+| ARW / VRW（1σ） | 0.34°/√h | 0.037 m/s/√h | 与噪声密度相关，但不能忽略 PSD 和滤波约定 |
+| 噪声密度 | 0.008°/s/√Hz | 100 μg/√Hz | 手册明确标注 10–40 Hz；加速度计另注明 no filtering |
+| 3 dB 带宽 | 550 Hz | 600 Hz | 不等于输出采样率或所有同步模式下有效带宽 |
+
+陀螺的 0.008°/s/√Hz 若只按单位换算为 °/√h，数值为 0.48°/√h；与表列 0.34°/√h 相差约 √2。该差异可能与单边/双边 PSD 归一化或指标估计约定有关，但表格没有明确声明两者之间的换算关系，不能擅自认定原因或将两个值视为可互换参数。应向制造商确认谱定义、测量带宽、滤波和估计方法，再将选定指标转换为滤波器参数。
+ 
+ADIS16470 数据手册还说明：内部时钟名义采样 2000 Hz；加速度计每次输出由两个 4000 Hz 样本平均得到；内部时钟模式的输出更新率为 `2000/(DEC_RATE+1)`，并支持 data-ready/SYNC 等同步方式。因此“2000 SPS”不能脱离 DEC_RATE、同步模式和加速度计内部平均方式直接当作主机收到的有效独立样本率。
+
+### 11.4 本轮审查结论和未完成证据
+
+- **已完成：** 对 §2/§4/§6/§8–§10 中的物理量单位、噪声模型、离散化假设、Allan 读图限制、二维 `Q_d` 和 OU 离散项做定向一致性检查；对 BMI088 与 ADIS16470 官方产品页/数据手册进行版本和条件交叉核对。
+- **需要保留的风险：** BMI088 产品页与 Rev.1.9 数据手册的加速度噪声密度和 ODR/带宽口径不同；ADIS16470 的 ARW 与指定频段 rate-noise-density 存在约 √2 数值差；必须追问厂商数据定义，不能“选一个看起来更好”的数字填入 BOM 或滤波器。
+- **未完成：** 未指定目标机器人实际 IMU 完整型号/硬件 revision/序列号；未取得项目驱动寄存器 dump、实际 ODR/OSR/filter 设置、时钟同步与 FIFO 时间戳日志；未取得多次上电、长时间静止、温度循环、旋转台、振动台或动态轨迹原始数据；未运行本项目 Allan/PSD/OU 拟合、Monte Carlo 或完整 ESKF NIS/NEES 验证。
+- **状态：** 本轮只是 P0 公开来源与模型公式定向复核。《IMU》仍保持 `unaccepted_claim_level_review_pending`；不得宣称已识别目标 IMU 噪声参数、完成器件标定、满足导航精度或证明定位完整性。
+
+### 本轮参考资料（访问日期：2026-11-15）
+
+1. Bosch Sensortec, [BMI088 product page](https://www.bosch-sensortec.com/en/products/motion-sensors/imus/bmi088).
+2. Bosch Sensortec, [BMI088 Data Sheet BST-BMI088-DS000-19 Rev.1.9 (2024-01)](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi088-ds001.pdf), pp. 9–11.
+3. Analog Devices, [ADIS16470 product page](https://www.analog.com/en/products/adis16470.html).
+4. Analog Devices, [ADIS16470 Data Sheet Rev. C](https://www.analog.com/media/en/technical-documentation/data-sheets/ADIS16470.pdf), pp. 3–4 and 27–28.
+5. NXP/Freescale, [AN5087 Allan Variance: Noise Analysis for Gyroscopes](https://www.nxp.com/assets/documents/data/en/application-notes/AN5087.pdf), pp. 2–6.
+6. ETH Zürich ASL, [Kalibr IMU Noise Model](https://github.com/ethz-asl/kalibr/wiki/IMU-Noise-Model).
