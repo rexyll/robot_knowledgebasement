@@ -26,6 +26,8 @@ jobs:
 
       - name: Install explicit upstream CMake dependencies and build tools
         shell: bash
+        env:
+          ALLOW_APT_SOURCE_REWRITE: "1"
         run: |
           bash scripts/retry_apt_update.sh \
             git \
