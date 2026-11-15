@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# This helper changes /etc/apt sources and refreshes system package indexes.
+# Require an explicit opt-in from the disposable CI container that owns this step.
+if [[ "${ALLOW_APT_SOURCE_REWRITE:-}" != "1" ]]; then
+  echo "Refusing to modify APT sources or indexes without ALLOW_APT_SOURCE_REWRITE=1; use only in the pinned disposable CI container." >&2
+  exit 2
+fi
+
 # apt-get update can exit successfully when one or more mirrors are unreachable.
 # Do not proceed until every package required by the next install has a candidate.
 max_attempts="${APT_UPDATE_MAX_ATTEMPTS:-5}"
