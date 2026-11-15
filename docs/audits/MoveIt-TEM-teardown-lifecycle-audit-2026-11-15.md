@@ -406,7 +406,34 @@ In Jazzy move_action_capability:
 
 The cancel callback and goal execution work can run in separate execution contexts. This field needs its own lock/atomic policy and tests; do not assume the TEM always-join change fixes it. It may be a separate race and is not established as a cause of the stock DSO Waitable SIGSEGV.
 
-### 11.3 Next validation sequence
+
+### 11.3 last_execution_status_ has a separate read/write synchronization problem
+
+The type is not an atomic scalar today: `moveit_controller_manager::ExecutionStatus` is a small wrapper struct containing a private `Value status_` enum (controller_manager.hpp lines 49–100). Its accesses in TEM cpp include:
+
+| Source location | Operation | Lock / sequencing observation |
+|---|---|---|
+| initialize(), line 100 | write SUCCEEDED | Object initialization; before normal concurrent execution |
+| push(), line 461 | write ABORTED | No execution_state_mutex_ in this error branch |
+| stopExecution(), line 1224 | write PREEMPTED | Under execution_state_mutex_ |
+| execute(), line 1272 | write ABORTED | Caller thread, no status lock |
+| execute(), callback line 1276 | read | Same caller path, before worker thread creation |
+| waitForExecution(), line 1297 | read/return | After stopExecution(false) join in this API path, but getter can be called separately |
+| executeThread(), line 1319 | write ABORTED | No state lock |
+| executeThread(), line 1327 | write SUCCEEDED | No state lock |
+| executeThread(), lines 1345/1354/1368 | read | No status lock; includes completion log and user callback |
+| executePart(), line 1407 | write ABORTED | Within the execution_state_mutex_ guarded controller-acquisition block |
+| executePart(), line 1445 | write ABORTED | After the earlier state-lock block; no status lock |
+| executePart(), line 1553 | write TIMED_OUT | After stopExecutionInternal()'s lock scope ends; no status lock |
+| executePart(), line 1572 | write controller-reported status | No status lock |
+| executePart(), line 1593 | write ABORTED | No state lock in the required-controller-state failure branch |
+| getLastExecutionStatus(), line 1681 | read/return | No lock |
+
+This means the always-join candidate can still have the cancellation thread writing PREEMPTED while the execution thread reads or writes SUCCEEDED/TIMED_OUT/ABORTED. It also means an external caller can race `getLastExecutionStatus()` with an in-progress execution. The wrapper's underlying `Value` is a non-atomic enum; do not infer thread safety from the small object size.
+
+**Recommended correction approach:** keep a single state owner/locking contract for `execution_complete_`, `last_execution_status_`, and related completion state. Take short snapshots under `execution_state_mutex_` and release it before invoking user callbacks, waiting on controller handles, joining threads, or doing ROS operations that may re-enter TEM. Alternatively, if the design intentionally needs lock-free reads, make the underlying status value atomic and expose copy/snapshot helpers; do not attempt `std::atomic<ExecutionStatus>` without checking whether the wrapper is trivially copyable and supported. Preserve the existing condition-variable protocol by changing completion state while holding the same mutex used by the wait predicate.
+
+### 11.4 Next validation sequence
 
 1. Finish Run #43682618698 and confirm the CI-only candidate asserts join_performed=1, execution_thread_joinable=0, active_handles=0 in all five natural-completion-before-state-lock repetitions.
 2. Review all execution_thread_ creation, read, join and reset sites under one coherent ownership rule.
