@@ -6,6 +6,24 @@
 
 ## 当前记录
 
+- [2026-11-15 Python Toolkit 13 项发布文件 Git 来源与代码相似性审查](2026-11-15-python-toolkit-source-history-and-similarity-review.md)：追溯 wheel/sdist 的 11 个模块和 2 个测试的 Git 路径历史；17 条 commit 记录均未签名，并记录 chunker.py 的公开相似性线索。sdist 独立安装/测试已在当前 PR HEAD 的 CI #43711328493 复验通过；13/13 权利人仍未验证、再分发仍未确定。
+
+- [2026-11-15 Python Toolkit wheel/sdist 发布范围与许可证元数据审查](2026-11-15-python-distribution-and-license-metadata-review.md)：根据 CI Run #43709474246 和最新 HEAD Run #43711328493 的分发成员清单，确认 wheel 不含 Knowledge Vault；sdist 仅保留两个 Toolkit 测试，独立解包/安装后10项测试通过、CLI入口通过，最新 manifest artifact 14159849177、smoke evidence artifact 14160676005。记录 legacy License metadata 与 PEP 639 迁移阻塞，权利人/再分发授权仍未确认。
+- [Python wheel/sdist 文件成员和 SHA-256 清单](2026-11-15-python-distribution-file-manifest.json)：保存源提交、base、workflow SHA、artifact digest，以及本次 wheel/sdist 的逐文件路径、大小和 SHA-256。
+
+- [2026-11-15 知识资产许可证范围与逐路径权利登记基线](2026-11-15-knowledge-asset-license-scope-audit.md)：为 main 基线 386 个路径建立权利登记；35 项源码/CI、8 项参考软件仅有限来源审查，341 项未进行资产级许可审查；权利人全部未验证、再分发全部未确定，没有资产获准再分发。
+
+- [知识资产许可证与权利来源治理规范](../engineering/Knowledge-Asset-License-and-Rights-Policy.md)：定义逐资产来源、权利人、许可证、NOTICE、专利和分发门禁；明确根 MIT 声明不能自动覆盖所有知识库和第三方材料。
+
+- [2026-11-15 电池与电源标准版本/运输勘误/能量预算边界 P0 审查](2026-11-15-battery-standards-and-energy-claim-boundary-review.md)：复核 IEC 62619:2022、IEC 63056:2020/COR1:2021、UN Manual Rev.8/Amend.1 与 2025-12-15 后续勘误；更新能量预算折减因子，强调标准全文、目标电池包和实测证据仍缺。
+
+- [2026-11-15 SO-101 控制板与舵机 SKU 适用边界 P0 审查](2026-11-15-so101-controller-board-servo-sku-boundary-review.md)：复核 WaveShare 官方产品/FAQ/接线资料及 Seeed SO-ARM101 Chapter 2/6、Hugging Face LeRobot SO-101 资料；纠正 C046 仅适用于公开映射 Leader L4–L6，不可套用到 Follower F1–F6；实际板卡、采购批次BOM、固件和实测仍待确认。
+
+- [2026-11-15 源码、脚本、测试与 CI 来源/副作用审查](2026-11-15-code-ci-provenance-and-side-effect-review.md)：限定审查 35 项代码/自动化资产，核验 Actions commit SHA 与官方 tag、固定容器/源码 pin，并为会改写 APT 源的 helper 增加显式 opt-in 门禁；apt/rosdep 动态系统依赖和系统级 SBOM 仍待关闭。
+
+- [2026-11-15 全仓库 Git Tree 资产基线重建](2026-11-15-full-repository-asset-tree-reconciliation.md)：以 main 基线 commit `aac8e08` 的完整递归 Git Tree 对账 386 个文件对象，补录旧清单遗漏的 199 项并刷新 13 项 SHA/大小；仅是元数据基线，不是正文/主张/授权验收。
+- [2026-11-15 参考项目资产与许可证边界抽样审查](2026-11-15-reference-project-content-and-license-boundary-review.md)：审查根 MIT 声明与 GitHub NOASSERTION 元数据差异、SO-101/STS3215 模板与只读工具的来源及边界；未将通用比例视为 SKU 校准或硬件验证。
+
 - [2026-11-11 Stäubli SERVO-900 C++17 Deterministic Fake Harness 契约与 Target 隔离规范](2026-11-11-staubli-socket-v2-servo-900-cpp17-fake-harness-contract.md)：定义C++17 FakeClock、Barrier/Latch、DeterministicExecutor、FaultInjector API语义，以及BUILD_TESTING隔离、production target零Fake依赖、install/ament export/plugin禁入规则；交付为接口规格和机器可读合同，不含C++实现，编译与运行验收均NOT_RUN。
 
 - [2026-11-11 Stäubli SocketV2 RACE/EXEC Test Case Catalog 与双向追踪验收](2026-11-11-staubli-socket-v2-race-exec-test-case-catalog.md)：新增RACE-01–16与EXEC-01–04共20项机器可读测试规格及Schema；为28条Manifest记录补齐所有20项测试引用的正向/反向映射，新增fail-closed双向校验器、负向测试和CI报告归档。CI #3477在Python 3.10/3.11/3.12全部通过，每个版本67项测试通过；所有测试case仍为NOT_RUN，C++/ROS/plugin/HIL/实机未执行。
@@ -50,17 +68,21 @@
 - [2026-11-03 知识资产清单](2026-11-03-knowledge-asset-inventory.csv)：逐项列出 knowledge/ 下 142 份 Markdown 的路径、Git Blob SHA、大小、文件类型、抽样深度、优先级和验收状态。2026-11-08对《主要厂商.md》同一资产行随§128.62–§128.64两轮内容更新刷新Blob SHA与UTF-8大小元数据；不代表全清单元数据均已刷新或该文档主张级验收完成。
 - [2026-11-03 机器人硬件与安全专项来源补充台账](2026-11-03-robot-safety-source-register.md)：记录标准组织、制造商官方规格页和版本边界。
 
+- [2026-11-15 功能安全与机械安全标准生命周期及主张边界增量审计](2026-11-15-functional-safety-standards-lifecycle-and-claim-boundary-addendum.md)：刷新 ISO 12100、ISO 3691-4、ISO 13849-1、ISO 13850、IEC 62061、IEC 60204-1 官方生命周期状态，并核验欧盟《机械法规》(EU) 2023/1230 一般适用日；更新功能安全知识页 §11。仅使用官方目录/摘要和法规合并文本，未审读标准全文、未评估具体产品或法规符合性；整篇文章仍待 claim-level 验收。
+
+- [2026-11-15 安全防护器件官方来源与主张边界增量审计](2026-11-15-safety-protective-devices-source-and-claim-boundary-addendum.md)：交叉核验 ANSI/A3 R15.06-2025 Part 3 发布状态与 A3 页面冲突、OSHA 法规/共识标准边界、ISO/DIS 3691-4 页面内部阶段字段冲突，以及 OS32C、SICK microScan3、3SK1、G9SE、PSENmlock 的响应与变体配置限制；整篇知识页仍待 claim-level 验收，未进行目标设备/现场验证。
+
 ## 审计状态
 
 - 00-01 全库资产盘点：进行中。2026-11-08交叉核查发现Stäubli专项记录在根计划、专项报告、厂商档案、本索引及第00章日志之间未同步；详见[专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)。在完成逐节同步和来源复核前，不以根计划摘要替代专项报告正文。
-- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 260 个 Blob、212 份 Markdown、142 份 knowledge Markdown、67 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
+- 结构统计：2026-11-15 对 main 基线 commit `aac8e08` 的完整递归 Git Tree 对账为 386 个 Blob；旧清单 187 条、补录 199 条、刷新 13 条旧 SHA/大小，无失效路径。该轮未重新计算 Markdown/knowledge/docs 的类型计数；详见 [2026-11-15 全仓库 Git Tree 对账报告](2026-11-15-full-repository-asset-tree-reconciliation.md)。
 - 标题/结构检查：原 112 份知识文件保留历史标题、章节结构和开篇检查记录；当前 142 份资产的统一结构扫描覆盖率尚未重新计算。后续新增文件存在专题审查/结构检查记录，但尚未统一汇总为当前覆盖率。
 - 全文结构扫描：96/120 是旧快照统计，不能作为当前 142 份资产的覆盖率；本轮只做 Git Tree/Blob 元数据对账，当前统一结构扫描需重新执行。结构扫描不等于专业审稿或 claim-level 验收。
 - README 最近一次扫描：既有目录 README 的正文结构检查记录保留；本轮只刷新清单涉及文件的 Git 元数据，不重新判定 README 正文质量。
 - 高风险 P0 定向处理：20/20 份资产已完成边界纠偏或内容修订；具体范围见基线审计第 14–16 节。定向处理不等于全文 claim-level 验收。
 - Claim-level 验收：142/142 份知识资产在当前清单中均保持未完成完整主张级验收；逐项来源、参数、法规和安全审查仍待完成。专题定向修订不等于整篇通过。
 - 外链、参数、标准/法规和安全关键结论：仍需逐项核验。
-- 项目公开披露：已对项目案例和首页中的本地绝对路径做首轮脱敏；代码许可证、项目授权和组织关系仍需核验。
+- 项目公开披露与许可证：已对项目案例和首页中的本地绝对路径做首轮脱敏；根目录 MIT LICENSE/Python 包元数据已核实，但 GitHub license detector 仍为 `NOASSERTION`，根许可覆盖知识文章、第三方来源和参考项目数据的范围尚未建立；项目授权、贡献者权利及组织关系仍需核验。
 
 ## 状态纪律
 
@@ -497,3 +519,19 @@
 ### §9.3.316｜SERVO-899：Runtime Evidence Bundle 深度完整性校验
 
 - [2026-11-11 Stäubli SocketV2 Runtime Evidence Bundle 深度完整性校验](2026-11-11-staubli-socket-v2-runtime-evidence-bundle-integrity-validation.md)：强化实际artifact字节数/SHA-256、规范相对路径/symlink防护、环境占位值拦截、RUN_PASS/RUN_FAIL快照门禁和environment/trace/snapshot跨工件身份绑定。新增必需`evidence_origin`，将合成fixture与observed execution显式区分；测试内可重复生成合成RUN_PASS/RUN_FAIL数据，CLI和JSON报告明确标记合成数据不是运行证据。CI #3518在Python 3.10/3.11/3.12通过，Ruff与所有81项pytest通过，Manifest/Catalog/证据包validator、OSV和SBOM成功；真实Stäubli Fake/C++/ROS执行仍NOT_RUN。
+
+### 2026-11-15｜电机与驱动器：驱动安全子功能、急停边界与标准生命周期增量审计
+
+- [电机与驱动器驱动安全子功能、急停边界与标准生命周期增量审计](2026-11-15-motor-drive-safety-subfunctions-and-standard-lifecycle-addendum.md)：补充 IEC 61800-5-1、IEC 60204-1 与 ISO 13850 生命周期快照；区分 STO/SS1/SS2/SOS/SBC/SLS 等驱动器子功能与机器级急停、机械制动和电气隔离；对照 Siemens SINAMICS S120、ABB ACS880 官方资料列示型号/选件/参数化边界。仅为公开来源增量审查，整篇 claim-level 验收和真实机器安全验证仍未完成。
+
+### 2026-11-15｜自动充电系统：EN 1175、ISO 3691-4 DIS 与 ABB F702 在线充电增量审计
+
+- [自动充电系统安全边界、标准生命周期与 ABB F702 厂商实例增量审计](2026-11-15-automatic-charging-standard-lifecycle-and-ABB-F702-safety-addendum.md)：核对 EN 1175:2025 对无人驾驶工业车辆自动运行功能的范围排除；核对 ISO 3691-4:2023 与第三版 DIS 草案中自动充电条款/充电站系统边界的区别；对照 ABB Flexley Stack AMR F702 Rev.A 手册，记录在线充电刷板短路/触电残余风险、停靠/CAN 握手与接触器上电/断开时序。仅为公开资料增量审查，整篇 claim-level 验收与目标充电器/AMR 实物验证仍未完成。
+
+### 2026-11-15｜减速器：扭矩等级、负载谱寿命算法与蜗轮蜗杆自锁边界增量审计
+
+- [减速器制造商目录参数、寿命模型与蜗轮蜗杆自锁边界增量审计](2026-11-15-reducer-rating-life-and-worm-self-lock-audit.md)：对照 Harmonic Drive CSG-GH/CSF-GH、Nabtesco RV-Original 和 Norelem 蜗轮蜗杆官方资料，拆分额定连续/重复峰值/平均负载/瞬时冲击/加减速扭矩的厂商定义；确认平均负载算法、寿命模型和自锁条件均不得跨系列泛化。仅为公开产品目录增量审查，没有对项目目标 SKU 做选型批准或实测。
+
+### 2026-11-15｜09-03 电子电气设计：保护联结、过电流保护、SCCR 与维护隔离增量审计
+
+- [09-03 电子电气设计：机器电气保护、SCCR 与验证证据增量审计](2026-11-15-09-03-electrical-protection-SCCR-verification-addendum.md)：按 IEC 60204-1 主题梳理 PE/FE、移动机器车载电源保护联结、各电源源头的供电隔离、过电流保护、SCCR 与断路器 Icu/Ics 区别及验证证据；补充 IEC 60947-2/-3/-4-1 与 IEC 61439-2 的现行目录版本和适用边界。仅为公开资料/条款主题增量核验，无项目原理图、器件 SKU、预期短路电流计算或电气测试。

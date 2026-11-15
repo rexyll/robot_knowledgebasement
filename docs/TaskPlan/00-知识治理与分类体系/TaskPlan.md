@@ -32,7 +32,7 @@
 - **严格禁止：** 不得依据旧 TaskPlan 统计或文件数量推断已完成；不得删除旧文档或把空目录计入知识覆盖。
 - **依赖：** 无。
 - **交付物与验收：** 提交可复核的资产清单、章节映射表和缺口报告。
-- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理，并对 ROS 2 发行版/计算平台、QoS/实时性/组件组合/中间件，以及市场/人形机器人部分主张开展 P1 官方来源定向复核；全库剩余 P1/P2 资产逐项来源审查、事实适用边界与授权核验仍未完成）
+- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已实际构建并生成逐文件 SHA-256 清单，确认均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；Run #43711114308 在 Python 3.12.16 上完成 sdist 独立解包/安装，两个测试文件10/10通过，CLI 输出 robot-kb 0.1.0，证据 artifact 14160845136；对13个实际发布源码/测试文件完成 Git 路径历史与静态内容复核，17条路径历史 commit 均为 rexyll 账号署名且未签名；chunker.py 与两个更早公开项目存在待确认的相似性线索；根 MIT 对11个模块和2个测试的权利人授权仍未验证，13/13 rights-holder 为 UNVERIFIED、redistribution 为 UNDETERMINED，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成）
 
 ### 00-02｜全行业分类树与章节边界
 
@@ -101,6 +101,9 @@
 
 | 日期 | 节点 | 记录与证据 |
 | --- | --- | --- |
+| 2026-11-15 | 00-01 | 对 wheel/sdist 实际发布的 11 个 Python 模块和 2 个测试文件逐路径读取 Git history、首次加入 patch、后续修改和正文；17 条路径历史 commit 均记录为 rexyll 账号作者/提交者，GitHub verification 均为 unsigned。代码搜索发现 chunker.py 与 2026-08-08 的 Camila20197 分块实现有相近控制流程/相同通用说明文字，另有 2026-08-19 vvadr 项目命中相同说明文字但实现不同；两候选仓库 license metadata 均为 null，已查根 LICENSE 路径为 404。此为相似性线索而非抄袭结论；13/13 权利人仍 UNVERIFIED、再分发仍 UNDETERMINED，详见 Python Toolkit 来源与相似性审计报告。 |
+| 2026-11-15 | 00-01 | 为 Python Toolkit sdist 增加独立解包、安装和测试 CI 门禁；Run #43711114308 在 PR head cfd55fd0c0d4667021e64d6e244c142223691332 上五项 job 全部成功。Python 3.12.16 从 sdist 临时解包安装到独立 venv，模块导入位置通过隔离断言，test_chunker.py 与 test_markdown.py 共10 passed in 0.03s，robot-kb --version 输出 robot-kb 0.1.0；smoke artifact 14160845136，digest sha256:070cb1c5fe2deb806bb6ed58102e4a530482d6a9b21c752f846c92807129b68d。两个早期试运行分别修复了遗漏 build 步骤与 GITHUB_ENV 同步可见性错误，具体见 History v6。授权仍未关闭。 |
+| 2026-11-15 | 00-01 | 在最新 PR HEAD 93a333fc1eba3476e8d54c8ec038f7dc4134ad10 上完成重新构建复验：Run #43711328493 五项 job 全部成功；Python 3.12.16 下 sdist 11,846 bytes、34 members、SHA-256 c8e461ba9e99701d03acda8064458d01f31902d94443b03e85ece64527119f0e，独立解包安装后两个测试文件10 passed，隔离导入断言和 robot-kb 0.1.0 CLI 通过。最新完整分发清单 artifact 14159849177/digest sha256:a9894fa73e5d4cec67c897307c316e7d7fbca0574681405cf29a1eb842390978；smoke evidence artifact 14160676005/digest sha256:f76b2924f89d1decbf84a089506dcf800ed16faf59bd9c60f74649447951d2cd。权利仍待确认。 |
 | 2026-11-03 | 00-01 | 基线快照：238 个 Git Tree 条目、171 个文件对象、147 个 Markdown；knowledge/ 110 份 Markdown，docs/TaskPlan 27 份 Markdown。完整结构快照见 docs/audits/2026-11-03-baseline-inventory.md。 |
 | 2026-11-03 | 00-01 | 更新资产清单：基线为 244 个 Git Tree 条目、175 个文件对象、151 个 Markdown、112 个 knowledge Markdown。112/112 已完成标题、章节结构和开篇检查；72/112 完成较详细正文结构/片段抽样，40/112 仍未完成全文专业审查。清单见 docs/audits/2026-11-03-knowledge-asset-inventory.csv；所有文件仍待 claim-level 来源核验。 |
 | 2026-11-03 | 00-01 | 第一批 P0 定向修订六篇：功能安全、电子电气、电池与电源、安全防护器件、充电系统、底盘与运动机构。移除不适用的通用 PL/Cat、保护区、保险/线径/接地、充电倍率和机械性能经验值；详见审计报告第 14 节。 |
@@ -734,3 +737,196 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.293 / SERVO-876）
 
 新增 [SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查](../../audits/2026-11-10-staubli-socket-v2-public-header-abi-and-udp-core-ownership-design.md)。固定上游审查 public declarations、PIMPL、CMake 安装/导出和 package metadata。确认当前没有专用 visibility/export macro 或显式 ABI policy；include/整体安装、SHARED target 导出并不等于跨平台 ABI 保证。设计独立 v2 public header 与 private Core；区分含 STL value types 的同工具链 source API 与稳定 binary ABI；明确 enum 固定 underlying/value、symbol visibility、legacy facade 独立保留、v2 facade 独占 Core、callback/worker shutdown 顺序、timeout 后 owner 保留及禁止 worker self-cycle/detach。新增 ABI-0至ABI-5切片和 ABI-01至ABI-16验收规格，全部NOT_RUN；未新增头文件/宏/Core/factory，未修改上游。未运行编译、gtest、nm/readelf、DLL smoke、TSan、loopback、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.294 / SERVO-877。
+
+### 2026-11-15｜00-01持续审计记录（完整 Git Tree 资产对账）
+
+新增 [全仓库 Git Tree 资产基线差异重建报告](../../audits/2026-11-15-full-repository-asset-tree-reconciliation.md)，并更新 [知识资产清单](../../audits/2026-11-03-knowledge-asset-inventory.csv)。
+
+- 固定基线为 `main` commit `aac8e081ca733265f34b08000647473d02e23e72`，Git Tree SHA `de8987f4d90924de1937bcc62efe38804c255fda`；Git Tree `recursive=1` 响应未截断。
+- 本次 Tree 包含 386 个 blob。对账前 CSV 只有 187 条有效路径，新增补录 199 条；旧记录无失效路径；13 条路径的 Blob SHA 和/或字节数已更新。对账后 CSV 为 386 条唯一文件路径，与 Tree 文件对象数一致。
+- 新增资产包含 26 个章节 TaskPlan/导航、79 个审计记录/数据、31 个源码/脚本/测试、12 个参考项目资产、12 个工程模板、7 个 Schema、13 个 TaskPlan 历史、8 个其他文档、1 个 CI workflow、3 个 data 占位/资产和 7 个根目录/工作区元数据对象。
+- 新增记录统一标记为 `tree_metadata_reconciled_content_source_claim_and_authorization_review_pending`；优先级仅作初步分流，不将元数据登记等同于技术审计。原有 claim-level 待审状态未升级。
+- 本轮没有审阅 199 个新文件的全部内容，没有完成 386 个文件的主张级来源核验，也没有对 LICENSE 的覆盖范围、第三方代码授权、项目案例授权或代码供应链作通过结论。
+- 没有修改任何外部工程源码，没有改变 MotionControlAlgorithms 合并延期状态；后续仍以新资产风险分流和主张级来源核验为主。
+
+**当前判断：** 00-01 的“全仓库文件对象—资产清单”结构元数据对账已完成；“每个资产的主题/来源/成熟度/可信度/重复性/授权边界”和“知识主张级审计”仍未完成，因此 00-01 继续保持进行中，不得验收关闭。下一步先审查新增的 LICENSE、31 个源码/脚本/测试资产、CI 工作流、项目数据与配置的来源和授权，再按 P0/P1 顺序推进主张级核验。
+
+### 2026-11-15｜00-01持续审计记录（参考项目资产与许可证边界抽样审查）
+
+新增 [参考项目资产与许可证边界审查报告](../../audits/2026-11-15-reference-project-content-and-license-boundary-review.md)，并在资产 CSV 中为本轮抽样覆盖的 16 项资产更新最近审查范围。
+
+- 根目录 `LICENSE` 与 `pyproject.toml` 声明 MIT；GitHub repository API 的 license detector 仍返回 `Other / NOASSERTION`。已登记为元数据不一致和许可覆盖范围待澄清，未擅自修改许可证。
+- 根 MIT 的存在不代表厂商文档、标准摘录、第三方代码、模型/数据、外部项目和历史贡献全部可按 MIT 再分发。需要按资产来源与权利人建立范围矩阵。
+- 对参考项目新增的 `05` 需求矩阵、`06` 方案比较、`07` 负载输入模板、`09` 初始风险登记完成内容抽查；Draft/TBD/Open 保留为未定状态，不视为需求批准、实测或风险评估完成。
+- 对参考项目新增的软件模块、测试和 JSON 白名单作限定静态审阅：只读采集器仅暴露注入 bus 的 `read()`，没有总线连接/配置/写入/断开入口；单位换算明确标记未校准，且不覆盖位置/速度；白名单固定 rustypot 源码版本并记录来源，但不等于实际设备运行时锁定。
+- 来源台账 #640/#641 给出 rustypot 固定源文件 SHA-256 与同 commit 仓库级 Apache-2.0 LICENSE 记录；其 NOTICE/第三方覆盖范围仍待审。FEETECH 通用 STS 教程历史记录见来源台账 #253，本轮官网 PDF 未能重新取回，相关单位依据继续待复核。
+- `pyproject.toml` 的 pytest testpaths 包含根 `tests/` 和参考项目 software tests 目录；PR #22 初始 head `894966e8` 的 Python 3.10/3.11/3.12 CI 均通过；随后追加审计文件的 head `814363be` 对应 run #43707062720 在日志记录时仍排队/运行。该软件证据不等于 SKU 校准、串口/总线、HIL 或实机验收。
+- 本轮没有审查完 31 个新增源码/脚本/测试的完整来源和版权，没有完成所有知识文章的逐条事实核验，也没有给全库许可范围作通过结论。
+
+**当前判断：** 这是 00-01 的受限内容和来源边界审查，帮助缩小了许可/来源/成熟度缺口；00-01 仍为进行中。下一步继续 P0 许可覆盖范围与新增源代码/脚本来源核验，再推进知识文章主张级核验。MotionControlAlgorithms 合并与 14-EXT-02 状态不变，仍不得启动导入。
+
+### 2026-11-15｜00-01持续审计记录（新增源码、脚本、测试与 CI 来源/副作用审查）
+
+新增 [源码、脚本、测试与 CI 来源/副作用审查报告](../../audits/2026-11-15-code-ci-provenance-and-side-effect-review.md)，并更新资产 CSV 中 35 项代码/自动化资产的最近审查范围。
+
+- 审查范围：`scripts/` 12 项、`src/robot_knowledgebase/` 11 项、`tests/` 10 项、`.github/workflows/` 2 项。限定静态源码、输入/输出、网络、子进程、文件/系统写入和测试证据边界。
+- 核心 Python Toolkit 当前仅实现本地 Markdown 读取、元数据解析、文本切块、值模型和 Embedding/Retrieval Protocol；本轮未发现包内网络、凭证或机器人总线访问。调用者仍须约束本地文件路径。
+- OSV 脚本访问公开 OSV API；其他验证器主要处理本地 JSON/CMake File API 并写出报告。CMake collector、runtime evidence validator 和 evidence packager 均包含路径边界检查；Manifest validator 是本仓库使用的 Schema 子集，不是通用完整 Draft 2020-12 实现。
+- 根 CI Actions 的 checkout v4、setup-python v5、setup-uv v10.3.3 和 upload-artifact v4 均固定完整 SHA；本轮分别核对官方 tag ref 解析到相同 SHA，四个 commit verification 均为 verified。Stäubli workflow 也固定 OSRF 容器 digest、Stäubli 验证仓库 commit，并检查 source checkout clean。
+- 发现 Stäubli `retry_apt_update.sh` 会写入系统 `/etc/apt` 源文件并运行 apt-get update，原本无显式启用门禁。已在本分支增加默认拒绝的 `ALLOW_APT_SOURCE_REWRITE=1` 检查、仅在固定临时 CI 容器安装步骤 opt-in，并增加负向测试确保无 opt-in 时以退出码 2 退出。同步更新 `scripts/README.md`，披露该工具仅适用于 disposable CI container。
+- **仍未关闭的供应链缺口：** apt 包版本与索引、rosdep 数据和解析出的 ROS/Ubuntu 系统依赖仍动态；环境指纹未包含完整 dpkg 包清单，现有 CycloneDX/OSV pipeline 只覆盖 Python 环境，不是 OSRF/Ubuntu/ROS 全构建依赖 SBOM。Evidence 包 SHA-256 不提供数字签名或来源身份认证。
+- 根 MIT LICENSE 与 Python package metadata 文本一致，但 GitHub license detector 仍为 NOASSERTION；本轮代码文件未发现独立 SPDX 头/逐文件版权清单，根 LICENSE 的代码/知识/第三方资料覆盖范围和贡献者权利证据仍需治理。
+- 该轮没有修改 Stäubli 外部仓库、MoveIt/rclcpp、控制器或机器人驱动源码；没有 HIL、CS9、VAL3 或实机测试。PR #22 本轮新增 APT 门禁与测试后必须以最新 head CI 结果为准。
+
+**当前判断：** 35 项代码/自动化资产已完成限定范围的来源/副作用静态审查；发现并修复一个 APT helper 默认可执行系统级修改的防误用缺口。系统包/rosdep provenance、系统级 SBOM、代码权利人映射和全库内容许可边界仍未完成。00-01 继续进行中；MotionControlAlgorithms 合并继续延期。
+
+### 2026-11-15｜00-01持续审计记录（CI 失败定位与 Node 24 兼容升级）
+
+- PR #22 head `eb4c9684ddc0b1757fa923edcddfa5a0a87af3f9` 首轮 APT opt-in 变更 CI 的 Python 3.11 job 在 Ruff lint 失败：新增断言 101 字符，超过项目 100 字符限制；pytest 阶段因 lint 前置失败而跳过。未发现 APT guard 行为测试失败。现已拆分该断言并提交修复。
+- 同一 CI 日志警告 `actions/checkout` v4、`actions/setup-python` v5 与 `actions/upload-artifact` v4 声明 Node 20，runner 正强制 Node 24。依据 GitHub 2026-09-23 Node 20 removal 公告，两个工作流已升级到 Node 24 支持版本并继续固定完整 SHA：
+  - checkout v7.0.1 `3d3c42e5aac5ba805825da76410c181273ba90b1`
+  - setup-python v6.2.0 `a309ff8b426b58ec0e2a45f0f869d46889d02405`
+  - upload-artifact v6.0.0 `b7c566a772e6b6bfb58ed0dc250532a479d7789f`
+- 三个 commit 均经 GitHub 官方 release tag ref 复核，commit verification 为 verified；setup-uv v10.3.3 pin 保持不变。
+- 新增 CI head `2072b0f5194fccf1cd93d263213027ef71f48edc` 后又升级工作流 action 引用，故以再后续最新 head CI 结果为最终验证依据；不沿用早先的 Node 20 warnings 或旧 head 成功记录。
+- 相关完整记录见 [源码、脚本、测试与 CI 来源/副作用审查报告](../../audits/2026-11-15-code-ci-provenance-and-side-effect-review.md)。
+
+**当前判断：** 本节记录当时 CI 尚待完成；后续已由下方“PR #22 最新审查 head CI 通过”记录更新：head `dfa7d7bb95d1340f50d7f4401c80d8d7bdc1c81d` 对应 Run #43708276393 的五项检查全部成功。该后续结果不关闭全库许可、主张级审计或系统级 SBOM 缺口。
+
+### 2026-11-15｜00-01持续审计记录（SO-101 控制板与舵机 SKU 适用边界 P0 审查）
+
+新增 [SO-101 控制板/舵机型号适用边界 P0 审查报告](../../audits/2026-11-15-so101-controller-board-servo-sku-boundary-review.md)，更新知识项目第12项计划及资产 CSV。
+
+- 重新核对 WaveShare 官方产品页、FAQ 与接线说明：SKU 25514 为候选板卡；官方规格列 9–12.6V，并说明 5–8.4V 也可输入且输入必须匹配舵机；FAQ 写最大承受电流 5A、舵机输出不稳压（等于输入）、CH343 USB-UART、无独立舵机功率驱动芯片，黑色 DC 与绿色端子“任选一种连接”；USB 模式跳帽 B、UART 模式 A。
+- 重新核对 Seeed 官方 SO-ARM101 Chapter 2/6：Standard/Pro 的 Follower 型号和电源不同；逐轴表为 Leader L1/L3=C044、L2=C001、L4–L6=C046；Follower F1–F6=C001（7.4V）或 C018/C047（12V），具体取决于版本/采购批次。Hugging Face LeRobot 官方装配页也确认 Follower 六个 1:345 舵机并区分 Leader 轴齿轮比。
+- 发现原文件 4.4 的 C046 保护寄存器计划未明确 Leader 轴位，可能导致读者误将 C046 套用于 Follower 六轴。已修正为 C046 Leader L4–L6 候选组；REG-01–REG-06 只适用于准确确认的 C046 组；REG-07 限定 Follower F1–F6 并按 C001/C018/C047、供电和固件分别分组。
+- C046 数据表为 Seeed 托管副本，原始审查记录指出其厂商审批栏未见签字，且目标采购批次/固件适用性待确认；FEETECH 通用 STS Wiki 也明确部分寄存器初始值因型号而异。不能把通用寄存器表当作 C046 或 Follower 实际固件默认值证明。
+- 板卡 FAQ 的 5A 是“最大可承受电流”表述，不能推断为持续额定；历史原理图局部 6A 标记与 FAQ 5A 口径仍需供应商解释。未将两者用于电源选型；也未连接硬件、上电、读回寄存器、做电气/故障注入或 HIL 测试。
+- 实物板卡身份、PCB Rev、两臂逐轴 SKU/批次/固件、受控 BOM、准确电气额定值和测试证据仍未确认。该节点为公开来源和适用范围审查，不是整机验收。
+
+**当前判断：** 已完成该资产一轮 P0 定向来源/型号边界审查并修正明确的适用范围歧义；该计划文档仍不能视为硬件设计或安全验证通过。00-01 继续进行中。
+
+### 2026-11-15｜00-01持续审计记录（电池与电源标准版本、运输勘误和能量预算边界 P0 审查）
+
+新增 [电池与电源标准版本、运输勘误和能量预算边界 P0 审查报告](../../audits/2026-11-15-battery-standards-and-energy-claim-boundary-review.md)，更新知识页和资产 CSV。
+
+- IEC 官方产品页复核：IEC 62619:2022 仍列 Edition 2.0（2022-05-24），适用于工业用途二次锂电芯/电池并举例 AGV 等牵引用途；IEC 63056:2020 仍列 Edition 1.0（2020-03-27），适用于最高额定 DC 1,500V 的电力储能系统。两页均列 stability date 2026，作为后续状态复核触发点，不自动等同失效。
+- 补充 IEC 63056:2020/COR1:2021 独立勘误页面；基础产品页说明勘误已包含在合并副本中。移动机器人电池包不能仅因使用锂电芯就自动套用固定式储能标准。
+- UNECE 当前版本页继续列 UN Manual Rev.8（2023）和 Rev.8 Amendment 1（2025-09-12）；Amendment 1 包含第38.3节锂电芯/电池测试和“rupture”定义修订。
+- 新增复核 2025-12-15 UNECE ST/SG/AC.10/C.3/134/Add.1：文本提取中的 Annex III 对 Rev.8/Amend.1 只列 Appendix 6 A6.3.1 和 Appendix 7 A7.1.2.3 更正，没有列第38.3节更正。PDF 截图访问因服务器 HTTP 403 未完成视觉复核；报告明确此限制，不把勘误描述成38.3再次修订或新合并版Manual。
+- 检查发现可用能量公式的文字说明提到温度、倍率和老化，但简式仅显示 SOC 与系统效率。已改为显式包含 f_SOC、f_temp、f_rate、f_age、η_system，并要求各因子来自具体电池包曲线和测试数据，不设跨型号常数。
+- 没有审读 IEC 标准全文，没有准确电芯/电池包/BMS/充电器型号、证书、UN38.3测试摘要，也没有进行热传播、短路、过充、振动/冲击、绝缘、EMC、续航或整机测试。
+
+**当前判断：** 本轮完成标准目录、运输版本与能量公式的 P0 定向核验；目标产品的合规适用性和实物验证仍未完成。整篇资产继续保持 claim-level pending；00-01 与第05章 05-03 相关节点继续进行中。
+
+### 2026-11-15｜00-01持续审计记录（PR #22 最新审查 head CI 通过）
+
+- PR #22 head `be974befae2e1c2d7841996dc50a84daa58e0cad` 对应 GitHub Actions [Run #43708136585](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43708136585) 已完成并成功。
+- 五项检查均为 success：Python 3.10、3.11、3.12 测试矩阵；锁定 Python 依赖 OSV 扫描；Python runtime/development SBOM 生成。
+- 该 CI head 已包含 APT 系统级修改的默认拒绝/显式 opt-in、Node24 Actions 版本升级、SO-101 控制板/伺服 SKU 适用边界 P0 修订，以及电池标准/运输勘误和能量预算公式边界修订。
+- PR #22 仍为 Draft/open/unmerged；该运行只覆盖知识库自动化/软件测试及 Python SBOM，不等同完整 Ubuntu/ROS 系统 SBOM、真实机器人/HIL/电池/电气安全验收。
+
+**当前判断：** 本批变更的自动化 CI 证据已通过；00-01 的全库主张级审计、授权与许可证覆盖范围、系统级依赖 SBOM、实物验证仍未完成。不得因此关闭 00-01 或提前启动 MotionControlAlgorithms 合并。
+
+
+
+### 2026-11-15｜00-01持续审计记录（知识资产许可证范围与逐路径权利登记基线）
+
+新增 [知识资产许可证范围审查报告](../../audits/2026-11-15-knowledge-asset-license-scope-audit.md)、[逐路径许可证/权利登记表](../../audits/2026-11-15-knowledge-asset-license-rights-register.csv) 和 [知识资产许可证与权利来源治理规范](../../engineering/Knowledge-Asset-License-and-Rights-Policy.md)，并更新本规范与审计索引。
+
+- 以 main 基线 commit `aac8e081ca733265f34b08000647473d02e23e72` / Tree `de8987f4d90924de1937bcc62efe38804c255fda` 的 386 个路径对象建立逐文件 rights register；保留每项路径、Blob SHA、文件大小、既有内容审查范围及后续权利审查动作。
+- 登记状态统计：根 MIT 文本 1 项；Python 包元数据引用根 MIT 1 项；35 项核心源码/脚本/测试/CI 仅有有限静态来源审查；8 项参考项目软件资产仅有有限来源审查；341 项没有资产级许可审查记录。
+- 全部 386 项的 rights-holder status 均为 `UNVERIFIED`，redistribution status 均为 `UNDETERMINED`；没有资产标记为 `REDISTRIBUTION_APPROVED`。技术文章定向复核、代码来源摘要、Git Blob SHA 和 CI 通过均不作为授权证明。
+- 新规范明确 Knowledge Vault 与 Python Toolkit 的许可边界必须分开核对；需取得贡献者权利/授权证据、逐文件识别第三方内容、核对 NOTICE/专利/分发限制，并以 wheel/sdist 实际文件清单确认包发布范围。
+- 根 `LICENSE` 保持不变，不批量添加 MIT SPDX 标记，不将全仓库描述为 MIT；GitHub `NOASSERTION` 单独作为元数据问题跟踪。
+- 未关闭 14-EXT-02；未复制、引入或集成 MotionControlAlgorithms 源码；该项目的第三方依赖许可/SBOM、目标仓库独立 CI 和用户授权仍是单独准入门禁。
+
+**当前判断：** 该轮建立了可追溯的权利审查底表和强制工作规则，但权利人、授权和再分发范围均未得到证明。00-01 继续进行中；所有未知资产在取得证据前不得复制或再分发。
+
+
+### 2026-11-15｜00-01持续审计记录（Python Toolkit wheel/sdist 发布范围与许可证元数据）
+
+新增 [Python Toolkit 分发物与许可证元数据审查报告](../../audits/2026-11-15-python-distribution-and-license-metadata-review.md) 和 [wheel/sdist 逐文件清单](../../audits/2026-11-15-python-distribution-file-manifest.json)，新增来源台账 #1759–#1761。
+
+- PR 源提交 `46050ad0d812d231f47b9e8a3f121b7fa88e131a` 的 CI Run #43709474246 全部成功：Python 3.10/3.11/3.12、OSV 与 Python SBOM 五个 job 均 success。Python 3.12.16 执行 `uv build --require-build-hashes`，artifact #14159916866 保存 wheel/sdist 逐文件清单。
+- Wheel `robot_knowledgebase-0.1.0-py3-none-any.whl` 为 10,772 bytes、SHA-256 `44c089a2712d9a27b85745d75cff5f768fac7813f52b240ebb1575616d52da1f`，共17个文件：11个包 Python 模块和6个dist-info/许可证元数据文件。
+- sdist `robot_knowledgebase-0.1.0.tar.gz` 为 11,840 bytes、SHA-256 `1db1633b687e004032625a3bf2a3488908bcaead015e21aa06ffee7901c89021`，共25个普通文件和9个目录；包含11个包模块、根 LICENSE/README/pyproject、生成元数据、MANIFEST.in和两个 Toolkit 测试。
+- 两种分发物均不含 `knowledge/`、`docs/`、`scripts/` 或 `.github/`。因此 Python Toolkit 发布物与 Knowledge Vault 内容边界已通过本次实际文件成员清单确认；不表示根 MIT 权利范围已得到证明。
+- 初次构建发现 sdist 自动带入10个根测试，其中8个依赖未随包发布的 `scripts/` 或 `.github/` 路径。新增 `MANIFEST.in` 的 prune/include 规则，仅保留 `test_chunker.py`、`test_markdown.py`；最新 Run #43709474246 验证新 sdist 由32个普通文件缩减为25个，wheel 保持不变。
+- 两个分发物都输出 Metadata 2.4、legacy `License` 自由文本和 `License-File: LICENSE`，未输出 `License-Expression`。PyPA Core Metadata 已将 legacy License 字段和 License classifier 弃用；PEP 639 使用 SPDX 表达式和 license-files。暂不将 pyproject 直接改为 `MIT` expression，因为11个包模块和2个保留测试文件的权利人/授权尚未确认。
+- 未执行从解包 sdist 环境单独安装和测试的 smoke test；未发布到 PyPI；未修改根 LICENSE 或宣称全仓库按 MIT 授权。
+
+**当前判断：** Python Toolkit 的实际构建分发范围已被精确记录，仓库级测试意外进入 sdist 的问题已修正。11 个源模块、两个保留测试的权利人与 MIT 再分发授权，及 legacy metadata 迁移仍为阻塞；00-01 继续进行中。
+
+### 00-01-PY-01｜Python Toolkit 发布文件来源与权利追溯
+
+- **任务范围：** 对 wheel 实际分发的 11 个 Python 模块和 sdist 额外分发的 2 个 Toolkit 测试逐路径梳理首次加入提交、修改历史、署名、签名状态、第三方/生成代码迹象和再分发权利。
+- **必做：** 记录每个文件的 Git history 与首个加入提交；检查首次 patch 和当前正文中的来源标记；对代码搜索相似性线索比较源内容、时间和许可信息；取得作者/权利人对创作来源、共同作者、雇佣/委托关系及发布授权的确认；把证据回填权利登记表。
+- **严格禁止：** 不得将 GitHub 账号、提交邮箱、commit 署名、unsigned commit、AI 生成或包 metadata 当作版权归属/许可授权证明；不得未经授权复制或重新分发第三方代码。
+- **依赖：** 00-01 的 main Git Tree 资产基线与 Python wheel/sdist 实测文件清单。
+- **交付物与验收：** 逐文件来源表、相似性审查报告、权利人/授权证据和更新后的逐路径权利登记；所有拟分发文件均有可核验的来源链和覆盖实际分发范围的再分发授权，方可关闭。
+- **状态：** 正在进行中（13 个文件的可见 Git 路径历史和静态正文审查已完成；17 条 commit 记录均未签名；chunker.py 存在待确认相似性线索；独立 sdist smoke test 已由 CI Run #43711114308 首次通过、并由当前 PR HEAD 的 Run #43711328493 复验，Python 3.12.16 下两个测试文件10/10通过且 CLI 入口验证成功；13/13 权利人仍未验证、再分发状态仍未确定）。
+
+
+### 2026-11-15｜00-01 持续审计记录（功能安全标准生命周期与市场法规边界增量复核）
+
+新增 [功能安全与机械安全标准生命周期及主张边界增量审计](../../audits/2026-11-15-functional-safety-standards-lifecycle-and-claim-boundary-addendum.md)，更新 [功能安全体系](../../../knowledge/architecture/workflows/功能安全体系.md) §11、来源台账 #1769–#1776、审计索引和资产清单。
+
+- 重新核验 ISO 12100:2010、ISO 3691-4:2023、ISO 13849-1:2023、ISO 13850:2015、ISO/WD 13850、IEC 62061:2021+AMD1:2024+AMD2:2026 CSV、IEC 60204-1:2016+AMD1:2021 CSV 的官方发布状态、版次和生命周期阶段；补充 Regulation (EU) 2023/1230 的一般适用日期 2027-01-20 与 Article 50(1) 的提前适用日期。
+- 明确“Published 但 To be revised”与 WD/DIS 草案之间的区别；ISO 3691-4 的工业无人驾驶车辆对象、应用场景排除项和“不覆盖电源要求”边界已写入知识页。
+- 更新知识页 §11 和审计报告；仅使用官方目录/公开摘要和法规合并文本，没有复制标准正文。
+- **未完成项：** 未审读标准全文，未完成地区采标/协调标准及产品法规适用性审查；未做具体机器风险评估、PLr/SIL分配、器件证书核验、急停/停止距离测试、HIL或实机验证。该页仍保持 unaccepted_claim_level_review_pending，不得将本轮定向增量审查视为整篇通过。
+- 资产主清单已更新最近审查范围；逐路径权利登记仅记录本轮内容审查范围，权利人仍 UNVERIFIED、再分发仍 UNDETERMINED。00-01 保持进行中；MotionControlAlgorithms 合并继续延期。
+
+
+
+### 2026-11-15｜00-01 持续审计记录（安全防护器件官方来源与主张边界增量复核）
+
+新增 [安全防护器件官方来源与主张边界增量审计](../../audits/2026-11-15-safety-protective-devices-source-and-claim-boundary-addendum.md)，更新《安全防护器件》§7.3、§8.2、§8.4、§10.2、§10.3、§11.4 和新增 §12；来源台账 #1777–#1786。
+
+- 核对 ANSI/A3 R15.06-2025 Parts 1/2 与 ANSI/A3 R15.06-3-2025 Part 3：A3 Store 出版物页记载三部分均于 2025-10-29 发布，但 A3 另一张标准概览页仍称 Part 3 “COMING SOON”；明确披露厂商页面不同步。OSHA 当前页面仍引用 R15.06-2012，且明确共识标准不是 OSHA 法规、State Plan 可能不同/更严格。
+- 重新检查 ISO/DIS 3691-4：当前官方页仍将其标为 Under development / DIS，但页面 Stage 40.60 与同页 40.99 FDIS 注册事件不一致；不把未发布草案误标为现行标准或精确当前阶段。
+- 复核 OS32C 官方规格页和用户手册，披露 PTM 6 ms/scan 规格描述与 PTM-RBM Table 2-5 的具体表值不可混成统一偏置。
+- 复核 SICK 官方手册，明确 4.0/5.5 m 与 9.0 m 量程变体扫描周期/最小响应时间不同；响应时间公式及 OSSD output processing term 应绑定配置。
+- 复核 3SK1、G9SE 和 PSENmlock 的启动、停止类别、接通/断开时间定义、非定期自诊断与 emergency release 版本限制。
+- 本轮没有取得目标机器人实际器件完整订货号/证书/配置，没有进行保护区计算、停止时间/距离测试、故障注入、HIL 或实机验证；文章仍为 unaccepted_claim_level_review_pending。逐路径权利人仍 UNVERIFIED，再分发仍 UNDETERMINED。00-01 继续进行中。
+
+
+### 2026-11-15｜00-01持续审计记录（电机与驱动器驱动安全子功能与标准生命周期增量复核）
+
+新增 [电机与驱动器驱动安全子功能、急停边界与标准生命周期增量审计](../../audits/2026-11-15-motor-drive-safety-subfunctions-and-standard-lifecycle-addendum.md)，更新《电机与驱动器》§9–§10、来源台账 #1787–#1793、资产主清单、逐路径权利登记、审计索引和第04章 TaskPlan。
+
+- 复核 IEC 61800-5-1:2022（官方页注明 Corrected Version 2025-12）、IEC 60204-1:2016+AMD1:2021 CSV（Edition 6.1，Edition 7 仍为 CD）、ISO 13850:2015（当前已发布）及 ISO/WD 13850 第4版（工作草案）的生命周期状态。
+- 对照 Siemens SINAMICS S120 2026-01 产品资料与 ABB ACS880 官方手册，区分 STO、SS1、SBC 等功能的产品选件、配置和参数依赖；明确 STO 后可能自由滑行、不会替代主/辅助回路隔离，且驱动器安全子功能不能自动代表机器级急停。
+- 本轮仅完成公开目录/摘要和制造商公开手册的增量复核；未审读完整标准正文，未取得目标电机/驱动器/制动器 SKU、证书和参数化文件，未进行整机风险评估、故障注入、停止时间/距离、HIL 或实机验证。
+- 资产仍保持 `unaccepted_claim_level_review_pending`；逐路径权利人仍 `UNVERIFIED`、再分发仍 `UNDETERMINED`。00-01 继续进行中，MotionControlAlgorithms 合并仍延期。
+
+### 2026-11-15｜00-01持续审计记录（自动充电系统标准边界与厂商安全实例增量复核）
+
+新增 [自动充电系统安全边界、标准生命周期与 ABB F702 厂商实例增量审计](../../audits/2026-11-15-automatic-charging-standard-lifecycle-and-ABB-F702-safety-addendum.md)，更新《充电桩与自动充电》§8、来源台账 #1794–#1798、资产主清单、逐路径权利登记、审计索引、05章 TaskPlan 和根 TaskPlan。
+
+- 核对 EN 1175:2025 的 CEN 发布状态及 UNI EN 1175:2026 国家采用页，重点明确 EN 1175 对无人驾驶工业车辆自动运行功能的范围排除及对 EN ISO 3691-4:2023 §4.1.3 的指向。
+- 核对 ISO 3691-4:2023 已发布版本的动力源范围边界，以及第三版 ISO/DIS 3691-4 仍处于 DIS 阶段；DIS 公开预览将充电站/在线充电纳入无人驾驶车辆系统辅助组件，并在目录中单列 §4.5 Automatic battery charging，但不能将草案当作现行规范。
+- 对照 ABB Flexley Stack AMR F702（3HAS00050-001 Rev.A, 2025）手册，记录在线充电短路/触电残余风险和产品特定的停靠、CAN 握手、接触器上电/运动时断开流程；明确不得将普通 CAN 或单一型号行为泛化为安全认证。
+- ABB PDF 文本提取成功，但截图工具获取相关页返回 HTTP 403；报告记录该限制。未复制标准或厂商手册正文，仅保留摘要与官方来源链接。
+- 未取得项目目标充电器、充电桩、BMS、触点和接触器准确 SKU/证书/接线图/配置；未开展绝缘、保护联锁、接触器单故障、温升、触点磨损、短路、电弧/触电、HIL 或实机测试。
+- 《充电桩与自动充电》继续保持 unaccepted_claim_level_review_pending；权利人 UNVERIFIED、再分发 UNDETERMINED。00-01 继续进行中，MotionControlAlgorithms 合并继续延期。
+
+### 2026-11-15｜00-01持续审计记录（减速器制造商扭矩/寿命定义与自锁边界复核）
+
+新增 [减速器制造商目录参数、寿命模型与蜗轮蜗杆自锁边界增量审计](../../audits/2026-11-15-reducer-rating-life-and-worm-self-lock-audit.md)，更新《减速器》§7、来源台账 #1799–#1802、资产主清单、逐路径权利登记、审计索引、第04章 TaskPlan 和根 TaskPlan。
+
+- 对照 Harmonic Drive CSG-GH/CSF-GH 目录，明确连续额定扭矩、重复峰值、平均负载扭矩、碰撞/急停瞬时扭矩的定义；记录其立方加权平均负载扭矩公式、波发生器轴承寿命模型及外部输出轴承力矩校核要求，禁止将其算法移植到其他系列。
+- 对照 Nabtesco RV-Original 官方产品指南，确认其分别列出额定扭矩、加减速允许扭矩、瞬时最大允许扭矩、输出速度/duty 条件、额定寿命与扭转刚度，所有指标应绑定准确 RV 型号及目录条件。
+- 对照 Norelem 蜗轮蜗杆技术说明和 USACE 工程手册，补充自锁受导程角、润滑、表面状态、温度、冲击/振动影响，不能替代机械制动器或安全保持装置。
+- 未取得目标项目减速器准确 SKU、完整负载谱、受控寿命计算、装配图和供应商质量资料；未进行寿命/热/刚度/传动误差/急停冲击或耐久验证。资产继续保持 unaccepted_claim_level_review_pending；权利人 UNVERIFIED、再分发 UNDETERMINED。00-01 继续进行中。
+
+### 2026-11-15｜00-01持续审计记录（09-03 电子电气设计保护与短路额定边界增量复核）
+
+新增 [09-03 电子电气设计：机器电气保护、SCCR 与验证证据增量审计](../../audits/2026-11-15-09-03-electrical-protection-SCCR-verification-addendum.md)，更新《09-03 电子电气设计》§10、来源台账 #1803–#1807、资产主清单、逐路径权利登记、审计索引、05章 TaskPlan 和根 TaskPlan。
+
+- 重新核对 IEC 60204-1:2016+AMD1:2021 CSV Edition 6.1 的官方目录状态；对照公开可访问条款预览的 §5.3、§7.2、§7.10、§8.1/§8.2.5 和 §18.2，补充供电隔离、移动机器保护联结、PE/FE 分层、短路分断能力、SCCR 确定方法和保护联结/故障回路验证边界。
+- 核对 IEC 60947-2:2024、IEC 60947-3:2020+AMD1:2025 CSV、IEC 60947-4-1:2023（2026-03 更正版本）和 IEC 61439-2:2020 官方出版物范围及版次；对照 ABB 官方说明区分断路器 Icu/Ics、隔离器件条件短路额定值与成套设备 SCCR。
+- 重要适用边界：带车载电源的移动机器也需按 IEC 60204-1 §8.2.5 审查内部保护联结端子与导电结构连接；有外部电源连接能力时还要审查外部 PE 接点。自包含电池机器不应被误解为需要无条件接外部 PE，也不能因此省略内部保护联结。
+- 未取得本项目原理图、BOM、准确电池包/断路器/隔离开关/接触器 SKU、额定值和配合表；未计算供电点/支路的预期短路电流、机器 SCCR 或断路器协调；未执行 PE 连续性、故障回路阻抗、保护动作、绝缘/耐压、残余电压、温升或 EMC 测试。整篇文章继续保持 claim-level pending。
+- IEC 标准全文未通过正式购买/授权文本逐条审读；本轮为公开目录、摘要和条款主题核验。报告说明可访问预览的核验范围和视觉页面截图限制。

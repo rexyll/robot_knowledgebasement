@@ -1,0 +1,271 @@
+{
+  "audit_scope": "Built Python wheel and sdist from the pull-request head in GitHub Actions; exact member hashes are SHA-256.",
+  "source_commit_sha": "46050ad0d812d231f47b9e8a3f121b7fa88e131a",
+  "base_commit_sha": "aac8e081ca733265f34b08000647473d02e23e72",
+  "workflow_sha": "e91e7d97d6186259bbbcf0e3c0b1a78e5afc2492",
+  "github_actions_run_id": 43709474246,
+  "github_actions_run_url": "https://github.com/rexyll/robot_knowledgebasement/actions/runs/43709474246",
+  "python_version": "3.12.16",
+  "build_command": "uv build --require-build-hashes",
+  "github_artifact": {
+    "id": 14159916866,
+    "sha256": "c9970ad3235158372cb7a3ee83cd0381581ef4052bf805281719db505665a2dc"
+  },
+  "license_metadata_observed": {
+    "metadata_version": "2.4",
+    "name": "robot-knowledgebase",
+    "version": "0.1.0",
+    "license_field": "Legacy free-text License field containing MIT License text",
+    "license_file": [
+      "LICENSE"
+    ],
+    "license_expression": null,
+    "interpretation": "Package metadata only; does not establish rights-holder authority or that the root license is authorized to cover each included file."
+  },
+  "distributions": [
+    {
+      "archive": "robot_knowledgebase-0.1.0-py3-none-any.whl",
+      "archive_size_bytes": 10772,
+      "archive_sha256": "44c089a2712d9a27b85745d75cff5f768fac7813f52b240ebb1575616d52da1f",
+      "member_file_count": 17,
+      "members": [
+        {
+          "path": "robot_knowledgebase-0.1.0.dist-info/METADATA",
+          "sha256": "8a298e1ef7cbca2e8e99380575a9289bb4cb8e6601a58cf461536ba914e51d2b",
+          "size_bytes": 5390
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0.dist-info/RECORD",
+          "sha256": "dd7446ad53e6aa6b98810a96966d878c533bbd188f92e530fa1a4ebd3134a941",
+          "size_bytes": 1570
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0.dist-info/WHEEL",
+          "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa",
+          "size_bytes": 91
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0.dist-info/entry_points.txt",
+          "sha256": "d7126903e88c7c91b64aaa23f8ce4637bb9a673a238f49bc9c7a7908ccc0e344",
+          "size_bytes": 58
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0.dist-info/licenses/LICENSE",
+          "sha256": "08be671e096fd9544ec79e530e2846ef9a11eb591fd9d9b1b0af8f6efe5267ec",
+          "size_bytes": 835
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0.dist-info/top_level.txt",
+          "sha256": "b55a3a3df00699742ca68b95acc6550e8bffbac72d138278a3e7d518ba07f706",
+          "size_bytes": 20
+        },
+        {
+          "path": "robot_knowledgebase/__init__.py",
+          "sha256": "ba4e966b10d78766572a53584b0868d9a00f3c6ba1e94e47bb2d7b20f9fdf938",
+          "size_bytes": 70
+        },
+        {
+          "path": "robot_knowledgebase/cli.py",
+          "sha256": "935bea0428c1fc7c7da485147b18109500e6bcb8cdc3d22d36938c0e667e8dc7",
+          "size_bytes": 2196
+        },
+        {
+          "path": "robot_knowledgebase/embeddings/__init__.py",
+          "sha256": "a4363251804e4ce446d481f19006d0369fd86f403e5181cbacde836e0f71d2bf",
+          "size_bytes": 137
+        },
+        {
+          "path": "robot_knowledgebase/embeddings/base.py",
+          "sha256": "96783bbf7bee2182b28173e7cf0f502df586400ae641456f0e029028eda7e894",
+          "size_bytes": 520
+        },
+        {
+          "path": "robot_knowledgebase/ingest/__init__.py",
+          "sha256": "b892373ae6555526311eafb0d82eeb0d3374fa3a5662dece397410d8fc336c17",
+          "size_bytes": 234
+        },
+        {
+          "path": "robot_knowledgebase/ingest/chunker.py",
+          "sha256": "19fef13208651beed86c8f40927ca8ff98aa810659fe208a73cefa1722a7c030",
+          "size_bytes": 1813
+        },
+        {
+          "path": "robot_knowledgebase/ingest/markdown.py",
+          "sha256": "f3103db18b7c5cc49b1db2c842eb9a85419f5262d56bd0a6f9dcefea279739c1",
+          "size_bytes": 2532
+        },
+        {
+          "path": "robot_knowledgebase/llm/__init__.py",
+          "sha256": "fc2d8e1ae0dbd5cc02bdace64d2d130a3e1811390687be3fa5664c9ce070eec0",
+          "size_bytes": 70
+        },
+        {
+          "path": "robot_knowledgebase/models.py",
+          "sha256": "2c9a8561aa99a68a2d87e22e384f575acfe35ebcd5d619203050865e35fbe99c",
+          "size_bytes": 799
+        },
+        {
+          "path": "robot_knowledgebase/retrieval/__init__.py",
+          "sha256": "d355080923f060930df32c214b629c4e8040af734325033a57ecbc707531a9d3",
+          "size_bytes": 111
+        },
+        {
+          "path": "robot_knowledgebase/retrieval/base.py",
+          "sha256": "059c324105e4356295da6c3f8a28820486c5f66650de374f160512915a9eaf7c",
+          "size_bytes": 475
+        }
+      ]
+    },
+    {
+      "archive": "robot_knowledgebase-0.1.0.tar.gz",
+      "archive_size_bytes": 11840,
+      "archive_sha256": "1db1633b687e004032625a3bf2a3488908bcaead015e21aa06ffee7901c89021",
+      "member_count_including_directories": 34,
+      "member_file_count": 25,
+      "member_directory_count": 9,
+      "members": [
+        {
+          "path": "robot_knowledgebase-0.1.0/LICENSE",
+          "sha256": "08be671e096fd9544ec79e530e2846ef9a11eb591fd9d9b1b0af8f6efe5267ec",
+          "size_bytes": 835
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/MANIFEST.in",
+          "sha256": "e0c325740bb21a6d4c1da1b8354730b83fc85c4a6f6e9063628a6bb189dab8ff",
+          "size_bytes": 302
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/PKG-INFO",
+          "sha256": "8a298e1ef7cbca2e8e99380575a9289bb4cb8e6601a58cf461536ba914e51d2b",
+          "size_bytes": 5390
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/README.md",
+          "sha256": "f857063b33921e4e749e4cfcf7581b840faa9a7346436b152e1a3c0a24965ff0",
+          "size_bytes": 3569
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/pyproject.toml",
+          "sha256": "15fb7ee6b89a6b09c11d6d35102fc3129b39ded2ced7e80da046b87fd916823c",
+          "size_bytes": 2030
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/setup.cfg",
+          "sha256": "1c473cbaee8da5fc46e7f0158794af5cea4414c34a3cf3f180c2001f5e38bd3e",
+          "size_bytes": 38
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase.egg-info/PKG-INFO",
+          "sha256": "8a298e1ef7cbca2e8e99380575a9289bb4cb8e6601a58cf461536ba914e51d2b",
+          "size_bytes": 5390
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase.egg-info/SOURCES.txt",
+          "sha256": "5b95ee59ce55db57448e64e83d5f39af3b76f9d5ae764c53126f7e37d54860f4",
+          "size_bytes": 820
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase.egg-info/dependency_links.txt",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "size_bytes": 1
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase.egg-info/entry_points.txt",
+          "sha256": "d7126903e88c7c91b64aaa23f8ce4637bb9a673a238f49bc9c7a7908ccc0e344",
+          "size_bytes": 58
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase.egg-info/requires.txt",
+          "sha256": "83809a5baeba905112a6c8ce096ea76a47569ae1c6f462947e82e5071dcb991f",
+          "size_bytes": 29
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase.egg-info/top_level.txt",
+          "sha256": "b55a3a3df00699742ca68b95acc6550e8bffbac72d138278a3e7d518ba07f706",
+          "size_bytes": 20
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/__init__.py",
+          "sha256": "ba4e966b10d78766572a53584b0868d9a00f3c6ba1e94e47bb2d7b20f9fdf938",
+          "size_bytes": 70
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/cli.py",
+          "sha256": "935bea0428c1fc7c7da485147b18109500e6bcb8cdc3d22d36938c0e667e8dc7",
+          "size_bytes": 2196
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/embeddings/__init__.py",
+          "sha256": "a4363251804e4ce446d481f19006d0369fd86f403e5181cbacde836e0f71d2bf",
+          "size_bytes": 137
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/embeddings/base.py",
+          "sha256": "96783bbf7bee2182b28173e7cf0f502df586400ae641456f0e029028eda7e894",
+          "size_bytes": 520
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/ingest/__init__.py",
+          "sha256": "b892373ae6555526311eafb0d82eeb0d3374fa3a5662dece397410d8fc336c17",
+          "size_bytes": 234
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/ingest/chunker.py",
+          "sha256": "19fef13208651beed86c8f40927ca8ff98aa810659fe208a73cefa1722a7c030",
+          "size_bytes": 1813
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/ingest/markdown.py",
+          "sha256": "f3103db18b7c5cc49b1db2c842eb9a85419f5262d56bd0a6f9dcefea279739c1",
+          "size_bytes": 2532
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/llm/__init__.py",
+          "sha256": "fc2d8e1ae0dbd5cc02bdace64d2d130a3e1811390687be3fa5664c9ce070eec0",
+          "size_bytes": 70
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/models.py",
+          "sha256": "2c9a8561aa99a68a2d87e22e384f575acfe35ebcd5d619203050865e35fbe99c",
+          "size_bytes": 799
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/retrieval/__init__.py",
+          "sha256": "d355080923f060930df32c214b629c4e8040af734325033a57ecbc707531a9d3",
+          "size_bytes": 111
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/src/robot_knowledgebase/retrieval/base.py",
+          "sha256": "059c324105e4356295da6c3f8a28820486c5f66650de374f160512915a9eaf7c",
+          "size_bytes": 475
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/tests/test_chunker.py",
+          "sha256": "27f657dccb24bf410f291a30729c205368081d3131f7df992a2195a177faf72b",
+          "size_bytes": 928
+        },
+        {
+          "path": "robot_knowledgebase-0.1.0/tests/test_markdown.py",
+          "sha256": "0949ee9a3a692dc493afda4aeb38cc47b1249df70f7eecbf553568d5d02650bc",
+          "size_bytes": 1004
+        }
+      ]
+    }
+  ],
+  "exclusion_check": {
+    "included_knowledge_tree": false,
+    "included_docs_tree": false,
+    "included_scripts_tree": false,
+    "included_github_workflows": false,
+    "included_repository_integration_tests": false,
+    "retained_toolkit_tests": [
+      "tests/test_chunker.py",
+      "tests/test_markdown.py"
+    ]
+  },
+  "notes": [
+    "This committed summary is derived from the GitHub Actions artifact and preserves each regular file's SHA-256.",
+    "The CI workflow records both pull-request source commit and base commit; workflow_sha identifies the workflow file revision used for this run.",
+    "Build output paths and metadata are observations for this exact build, not a promise that future releases will contain identical files."
+  ]
+}

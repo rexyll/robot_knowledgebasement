@@ -1,0 +1,6 @@
+# Restrict the Python source archive to the installable toolkit tests.
+# Repository-level Stäubli tests require scripts/ and .github/ assets that are
+# intentionally not part of the published Python package source distribution.
+prune tests
+include tests/test_chunker.py
+include tests/test_markdown.py

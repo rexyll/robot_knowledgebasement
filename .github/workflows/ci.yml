@@ -17,10 +17,10 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-      # actions/checkout v4 — pinned to the commit currently resolved by the official v4 tag.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      # actions/setup-python v5 — pinned to the commit currently resolved by the official v5 tag.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/checkout v7.0.1 — Node 24, pinned to the verified release commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # actions/setup-python v6.2.0 — Node 24, pinned to the verified release commit.
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: ${{ matrix.python-version }}
       # astral-sh/setup-uv v10.3.3 — pinned to its verified release commit.
@@ -37,7 +37,7 @@ jobs:
             --report "${RUNNER_TEMP}/staubli-manifest-validation.json"
       - name: Archive Stäubli lifecycle validation report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: staubli-lifecycle-validation-py${{ matrix.python-version }}
           path: ${{ runner.temp }}/staubli-manifest-validation.json
@@ -49,7 +49,7 @@ jobs:
             --report "${RUNNER_TEMP}/staubli-test-catalog-validation.json"
       - name: Archive Stäubli test catalog validation report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: staubli-test-catalog-validation-py${{ matrix.python-version }}
           path: ${{ runner.temp }}/staubli-test-catalog-validation.json
@@ -61,7 +61,7 @@ jobs:
             --report "${RUNNER_TEMP}/staubli-runtime-evidence-bundle-validation.json"
       - name: Archive Stäubli Runtime Evidence Bundle validation report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: staubli-runtime-evidence-bundle-validation-py${{ matrix.python-version }}
           path: ${{ runner.temp }}/staubli-runtime-evidence-bundle-validation.json
@@ -69,6 +69,243 @@ jobs:
           retention-days: 14
       - name: Build source and wheel with verified PEP 517 build dependency hashes
         run: uv build --require-build-hashes
+      - name: Smoke-test extracted Python source distribution in an isolated environment
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          smoke_root="${RUNNER_TEMP}/python-sdist-smoke"
+          rm -rf "${smoke_root}"
+          mkdir -p "${smoke_root}/extracted" "${smoke_root}/work"
+          python - <<'PY'
+          import os
+          import tarfile
+          from pathlib import Path
+
+          archives = sorted(Path("dist").glob("*.tar.gz"))
+          if len(archives) != 1:
+              raise SystemExit(f"Expected one sdist, found {len(archives)}")
+          archive = archives[0]
+          source_name = archive.name.removesuffix(".tar.gz")
+          with tarfile.open(archive, "r:gz") as package:
+              package.extractall(
+                  path=Path(os.environ["RUNNER_TEMP"]) / "python-sdist-smoke" / "extracted",
+                  filter="data",
+              )
+          smoke_root = Path(os.environ["RUNNER_TEMP"]) / "python-sdist-smoke"
+          source_root = smoke_root / "extracted" / source_name
+          required = (
+              source_root / "pyproject.toml",
+              source_root / "src/robot_knowledgebase/__init__.py",
+              source_root / "tests/test_chunker.py",
+              source_root / "tests/test_markdown.py",
+          )
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit(f"sdist is missing required files: {missing}")
+          (smoke_root / "source-root.txt").write_text(str(source_root), encoding="utf-8")
+          print(f"Extracted {archive} to {source_root}")
+          PY
+          export SDIST_SMOKE_ROOT="${smoke_root}"
+          export SDIST_SMOKE_SOURCE="$(cat "${smoke_root}/source-root.txt")"
+          export UV_PROJECT_ENVIRONMENT="${SDIST_SMOKE_ROOT}/venv"
+          uv sync --locked --extra dev --no-install-project
+          uv pip install --python "${SDIST_SMOKE_ROOT}/venv/bin/python" --no-deps "${SDIST_SMOKE_SOURCE}"
+          module_path="$("${SDIST_SMOKE_ROOT}/venv/bin/python" -c 'import robot_knowledgebase; print(robot_knowledgebase.__file__)')"
+          case "${module_path}" in
+            "${SDIST_SMOKE_ROOT}/venv/"*) ;;
+            *)
+              echo "Installed package resolved outside the isolated sdist environment: ${module_path}" >&2
+              exit 1
+              ;;
+          esac
+          export SDIST_SMOKE_MODULE_PATH="${module_path}"
+          (
+            cd "${SDIST_SMOKE_ROOT}/work"
+            env -u PYTHONPATH "${SDIST_SMOKE_ROOT}/venv/bin/python" -m pytest -q \
+              "${SDIST_SMOKE_SOURCE}/tests/test_chunker.py" \
+              "${SDIST_SMOKE_SOURCE}/tests/test_markdown.py" \
+              --import-mode=importlib
+          ) | tee "${SDIST_SMOKE_ROOT}/pytest-output.txt"
+          "${SDIST_SMOKE_ROOT}/venv/bin/robot-kb" --version | tee "${SDIST_SMOKE_ROOT}/cli-output.txt"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          from pathlib import Path
+
+          smoke_root = Path(os.environ["SDIST_SMOKE_ROOT"])
+          source_root = Path(os.environ["SDIST_SMOKE_SOURCE"])
+          archives = sorted(Path("dist").glob("*.tar.gz"))
+          if len(archives) != 1:
+              raise SystemExit(f"Expected one sdist, found {len(archives)}")
+          archive = archives[0]
+          installed_module = Path(os.environ["SDIST_SMOKE_MODULE_PATH"])
+          evidence = {
+              "result": "PASS",
+              "archive": archive.name,
+              "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+              "python_version": platform.python_version(),
+              "extracted_source_root": str(source_root),
+              "installed_module_path": str(installed_module),
+              "installed_module_isolated": installed_module.is_relative_to(smoke_root / "venv"),
+              "test_files": [
+                  "tests/test_chunker.py",
+                  "tests/test_markdown.py",
+              ],
+              "pytest_output": (smoke_root / "pytest-output.txt").read_text(encoding="utf-8"),
+              "console_entrypoint_output": (smoke_root / "cli-output.txt").read_text(encoding="utf-8"),
+              "note": "Tests ran from the extracted sdist outside the repository checkout; package import resolved inside the isolated virtual environment.",
+          }
+          if not evidence["installed_module_isolated"]:
+              raise SystemExit("Installed package did not resolve from the isolated virtual environment")
+          output = smoke_root / "smoke-evidence.json"
+          output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(f"Wrote {output}")
+          PY
+      - name: Archive isolated Python sdist smoke-test evidence
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: python-sdist-smoke-test-evidence
+          path: ${{ runner.temp }}/python-sdist-smoke/smoke-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Create file-level manifest for built Python distributions
+        if: matrix.python-version == '3.12'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/python-distribution-audit"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          import tarfile
+          import zipfile
+          from email import policy
+          from email.parser import BytesParser
+          from pathlib import Path
+
+          dist = Path("dist")
+          wheels = sorted(dist.glob("*.whl"))
+          sdists = sorted(dist.glob("*.tar.gz"))
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit(
+                  f"Expected exactly one wheel and one .tar.gz sdist; "
+                  f"found wheels={len(wheels)} sdists={len(sdists)}"
+              )
+
+          def digest(data: bytes) -> str:
+              return hashlib.sha256(data).hexdigest()
+
+          def metadata_fields(raw: bytes) -> dict:
+              message = BytesParser(policy=policy.default).parsebytes(raw)
+              keys = (
+                  "Name",
+                  "Version",
+                  "Metadata-Version",
+                  "Summary",
+                  "License",
+                  "License-Expression",
+                  "License-File",
+              )
+              return {
+                  key: message.get_all(key, [])
+                  for key in keys
+                  if message.get_all(key, [])
+              }
+
+          records = []
+          for archive in [*wheels, *sdists]:
+              record = {
+                  "archive": archive.name,
+                  "archive_sha256": digest(archive.read_bytes()),
+                  "archive_size_bytes": archive.stat().st_size,
+                  "members": [],
+                  "distribution_metadata": {},
+              }
+              if archive.suffix == ".whl":
+                  with zipfile.ZipFile(archive) as package:
+                      corrupt = package.testzip()
+                      if corrupt:
+                          raise SystemExit(f"Corrupt wheel member: {corrupt}")
+                      for member in sorted(package.infolist(), key=lambda x: x.filename):
+                          if member.is_dir():
+                              continue
+                          data = package.read(member.filename)
+                          record["members"].append({
+                              "path": member.filename,
+                              "size_bytes": len(data),
+                              "sha256": digest(data),
+                              "type": "file",
+                          })
+                          if member.filename.endswith(".dist-info/METADATA"):
+                              record["distribution_metadata"] = metadata_fields(data)
+              else:
+                  with tarfile.open(archive, "r:gz") as package:
+                      for member in sorted(package.getmembers(), key=lambda x: x.name):
+                          entry = {
+                              "path": member.name,
+                              "size_bytes": member.size,
+                              "type": (
+                                  "file" if member.isfile()
+                                  else "directory" if member.isdir()
+                                  else "symlink" if member.issym()
+                                  else "hardlink" if member.islnk()
+                                  else "other"
+                              ),
+                          }
+                          if member.isfile():
+                              source = package.extractfile(member)
+                              if source is None:
+                                  raise SystemExit(f"Could not read sdist member: {member.name}")
+                              data = source.read()
+                              entry["sha256"] = digest(data)
+                              if member.name.endswith("/PKG-INFO") or member.name == "PKG-INFO":
+                                  record["distribution_metadata"] = metadata_fields(data)
+                          elif member.issym() or member.islnk():
+                              entry["link_target"] = member.linkname
+                          record["members"].append(entry)
+              records.append(record)
+
+          manifest = {
+              "schema_version": 1,
+              "workflow_sha": os.environ.get("GITHUB_SHA"),
+              "source_commit_sha": os.environ.get("PR_HEAD_SHA"),
+              "base_commit_sha": os.environ.get("PR_BASE_SHA") or None,
+              "python_version": platform.python_version(),
+              "build_command": "uv build --require-build-hashes",
+              "scope": "exact files contained in the wheel and sdist built by this CI job",
+              "license_interpretation": (
+                  "Metadata fields are recorded as package declarations only; "
+                  "they do not prove rights-holder authority or license coverage "
+                  "for every file."
+              ),
+              "distributions": records,
+          }
+          output = Path(os.environ["RUNNER_TEMP"]) / "python-distribution-audit" / "distribution-manifest.json"
+          output.write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(f"Wrote {output}")
+          for record in records:
+              print(
+                  f"{record['archive']}: {len(record['members'])} members, "
+                  f"sha256={record['archive_sha256']}"
+              )
+          PY
+      - name: Archive built Python distribution manifest
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: python-distribution-file-manifest
+          path: ${{ runner.temp }}/python-distribution-audit/distribution-manifest.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Lint
         run: uv run --locked ruff check .
       - name: Verify STS3215 layout, encoding, and converter metadata against pinned rustypot source
@@ -88,8 +325,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Keep the SBOM job independent from the test matrix and scan two explicitly scoped environments.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.12"
       # astral-sh/setup-uv v10.3.3 — pinned to its verified release commit.
@@ -140,8 +377,8 @@ jobs:
           uv pip freeze --python "${RUNNER_TEMP}/sbom-generator/bin/python" > sbom/generator-tool-freeze.txt
           uv pip freeze --python "${RUNNER_TEMP}/sbom-build-tools/bin/python" > sbom/build-tool-freeze.txt
           (cd sbom && sha256sum * > SHA256SUMS)
-      # actions/upload-artifact v4 — pinned to the commit currently resolved by the official v4 tag.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      # actions/upload-artifact v6.0.0 — Node 24, pinned to the verified release commit.
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: python-sbom-cyclonedx-1.7
           path: sbom/
@@ -152,8 +389,8 @@ jobs:
     name: Audit locked Python dependencies against OSV
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.12"
       - name: Query OSV for every locked Python package version
@@ -163,7 +400,7 @@ jobs:
             --fail-on-findings
       - name: Archive machine-readable vulnerability report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: python-osv-vulnerability-report
           path: security-audit/python-osv-vulnerability-report.json
