@@ -91,7 +91,35 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 - CeCILL-C 对修改软件、集成贡献、衍生组合和通知/源码提供有具体条款；这些修改在特定分发方式下如何归类，需要由权利人/法律顾问根据实际组合与交付形态判断。本报告不构成法律意见，也不认定当前仓库已违反许可。
 - 不能仅凭当前 CI 编译/测试成功推断许可证义务已满足。
 
-## 5. 下一步整改顺序
+## 5. 构建 profile 静态清点（不是已解析的依赖闭包）
+
+本轮进一步读取父仓库根 CMakeLists、GitHub CI、KickCAT 的两个 Conan recipe、pyproject.toml、诊断脚本 requirements 和四个 ROS/Gazebo package.xml。由此可定义后续 SBOM 的实际 profile 切分，但目前仍是**声明级 inventory**，不是 resolved dependency graph。
+
+| Profile | 配置入口 / 条件 | 直接依赖与来源入口 | 当前边界 |
+|---|---|---|---|
+| MCA core / Linux CI | 根 CMake：MCA_BUILD_TESTS=ON、MCA_BUILD_BENCHMARKS=OFF、MCA_ENABLE_SOCKETCAN=ON；CI 使用 Ubuntu 系统包 | Eigen3 必需；测试使用 GoogleTest 与 Threads；Linux CI 安装 libeigen3-dev、libgtest-dev | vcan0 仅在 runner 能创建/启用时才执行 SocketCAN runtime 覆盖，否则会 skip |
+| MCA benchmark | MCA_BUILD_BENCHMARKS=ON，独立 Linux CI job | Google Benchmark（CI 安装 libbenchmark-dev） | 与默认核心测试 profile 分开，不应把 benchmark runtime 依赖算入每个默认构建 |
+| MCA SocketCAN | MCA_ENABLE_SOCKETCAN=ON，仅 Linux 支持 | Linux SocketCAN transport；可选 vcan0 kernel interface | 编译选项与运行时 vcan 能力需要分别记录 |
+| MCA IgH / KickCAT SIL | MCA_BUILD_IGH_KICKCAT_SIL=ON，仅 Linux | ecrt.h、libethercat、Threads；若设置 MCA_KICKCAT_SOURCE_DIR，还需 KickCAT libkickcat 和 rt | IgH 与 KickCAT SIL 是可选 profile；不能按默认项目依赖处理 |
+| MCA Windows CI | Windows workflow | Eigen3 通过 vcpkg；GoogleTest 从固定 commit 063de7e9578f82b369302001269680b4b1553359 构建安装 | 不包含 Linux SocketCAN / IgH profile |
+| ROS 2 adapter | ros2/mca_ros2_adapter | ament_cmake、rclcpp、std_msgs | ROS 2 Jazzy 具体发行包/系统依赖需由构建环境解析 |
+| ROS 2 control adapter | ros2/mca_ros2_control_adapter | ament_cmake、hardware_interface、pluginlib、rclcpp、rclcpp_lifecycle | 另有 ament_cmake_gtest 测试依赖 |
+| Gazebo Harmonic adapter | gazebo/mca_gazebo_adapter | cmake、libgz-sim8-dev、libgz-plugin2-dev、libgz-common5-dev、libgz-math7-dev、libgz-transport13-dev、libgz-msgs10-dev | 以 package.xml 声明为直接依赖入口，需核对实际 CMake target link closure |
+| Gazebo + ros2_control adapter | ros2/mca_gz_ros2_control_adapter | gz_ros2_control、gz_sim_vendor、hardware_interface、pluginlib、rclcpp、rclcpp_lifecycle | 与单独 Gazebo adapter 分开出 SBOM |
+| KickCAT local development | scripts/ethercat_sil/KickCAT/conan/conanfile.py 的 options | unit_tests→GTest 1.15.0；esi_parser→tinyxml2 11.0.0；simulation→nlohmann_json 3.12.0；tools/master_examples/simulation→argparse 3.2；eeprom_editor/kickui→imgui 1.92.6；Windows→Npcap 1.70 | 由 Conan options 决定，不能将所有条件依赖视为同时启用 |
+| KickCAT Conan package recipe | scripts/ethercat_sil/KickCAT/conan/all/conanfile.py | argparse 3.2；with_esi_parser=true 时 tinyxml2 11.0.0；recipe 声明 Linux/baremetal、GCC、C++17 | 与本地开发 recipe 分开记录，recipe 自身也有 Conan 版本约束 |
+| KickCAT Python wheel | pyproject.toml / cibuildwheel | build-system: scikit-build-core>=0.5.0、nanobind>=1.3.2、conan；CMake>=3.30；wheel targets CPython 3.10/3.11/3.12；wheel profile 打开 EEPROM editor | build-system 与运行时 Python 依赖应分离；构建环境还含 Linux GL/X11 等系统开发包 |
+| KickCAT diagnostics | tools/diagnosticsHelpers/requirements.txt | matplotlib 3.5.3、networkx 2.8.6、scipy 1.9.1 | 诊断脚本依赖，不应自动归入 C++ runtime |
+
+### 5.1 SBOM 输出应分层
+
+1. **源码/版权 SBOM：** 以实际被分发的源码、vendored、submodule、license text 和 patch manifest 为对象，记录来源 SHA、路径、许可、修改标记。
+2. **构建 profile SBOM：** 对上表每个可选 profile 在干净环境执行依赖解析，导出 resolved package URL/version/hash/license；系统包、Conan、Python、vcpkg、ROS/apt 来源分开记录。
+3. **制品 SBOM：** 对实际生成的 C++ binary、ROS/Gazebo plugin、KickCAT library 与 Python wheel 分别生成，与 build provenance、编译选项、工具链和 artifact hash 绑定。
+
+在依赖解析和 profile 构建实际运行前，不能把以上声明级矩阵冒充 SPDX/CycloneDX 完整 SBOM。
+
+## 6. 下一步整改顺序
 
 1. **DS402 patch manifest：** 在干净 pinned checkout 重放两文件补丁，对照 vendored blob SHA；把本地 JSON fixture 的来源、用途、维护者和测试关联补全。
 2. **LRW patch series：** 将 SimulatorControl / EmulatedNetwork / SimulatorControlServer / unit test 的提交整理为可重放补丁系列，附文件 blob SHA、目的、测试用例和测试执行记录。
@@ -100,6 +128,6 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 5. **包级许可：** 由权利人确认四个 ROS/Gazebo 包的 MIT 声明是否有意独立于根 Apache-2.0；确认前不自动更改。
 6. **供应链与 SBOM：** 分别为 Linux core、KickCAT simulation、unit tests/benchmarks、SocketCAN、IgH、ROS 2 Jazzy、Gazebo Harmonic、Windows/Npcap 等实际可选 profile 建立解析后依赖闭包；生成 CycloneDX 或 SPDX，执行 schema 校验、许可证策略扫描和漏洞扫描，并归档构建参数、工具版本与制品 provenance。
 
-## 6. 验证边界
+## 7. 验证边界
 
 本轮只完成 Git tree/blob 与代码/元数据静态审查。未运行 DS402 patch replay、KickCAT unit tests、Linux link-fault SIL、ROS 2/Gazebo build、全 profile dependency resolution、SBOM generation/validation、CVE scan、HIL 或物理 EtherCAT 测试；未修改 MotionControlAlgorithms 上游任何源码、LICENSE、NOTICE、package.xml、CI 或依赖声明。
