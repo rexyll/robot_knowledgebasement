@@ -169,6 +169,7 @@
 
 | 2026-11-15 | 00-01 / 14-06 / 14-EXT-01 | 对 MotionControlAlgorithms CANopen Bus-Off/restart 与 SDO/NMT 会话恢复做专项静态复核：SocketCAN transport 收到 CAN_ERR_RESTARTED 即置 Online，但没有 bus-off epoch/上层会话失效通知；CanopenVirtualNode::set_bus_recovered 仅清 communication_faulted，不清 segmented SDO transfer，也不改变 NMT/CiA-402 状态；NMT reset 路径也不清 SDO session。现有 recovery 测试只覆盖初始 PreOperational node，未覆盖 in-flight segmented SDO、Bus-Off 前 Operational/OperationEnabled、PDO/Controlword 恢复。明确 transport Online 不等于应用会话可恢复，新增知识页 §26 与分层修复/HIL 验收建议；未修改上游源码/测试/CI。 |
 
+| 2026-11-15 | 00-01 / 14-EXT-02 | 对 MotionControlAlgorithms 当前 vendored KickCAT 子树与固定上游 commit 执行逐 blob 对照，复算 471/482 完全一致、10 个现有路径 blob 差异（其中 foot.xml 仅换行格式）、1 个本地新增 DS402 fixture；追溯 DS402、LRW、网络断链仿真、ESI 配置的可见提交链；核验四个 ROS/Gazebo package.xml 均声明 MIT。完整静态差异和限制见 docs/audits/MotionControlAlgorithms-KickCAT-provenance-diff-review-2026-11-15.md 与知识页 §27.9。未运行补丁重放/测试/构建/SBOM/HIL，未修改上游源码或许可元数据。 |
 
 ### 14-EXT-02｜外部运动控制项目依赖许可与软件供应链审查
 
@@ -176,4 +177,4 @@
 - **必做：** 区分根项目 Apache-2.0 与第三方独立许可；记录 vendored/submodule/包管理依赖；核验版本 pin、许可证文本、再分发义务、包元数据和 SBOM 生成/验证证据。
 - **严格禁止：** 不得将第三方代码视为用户原创或被根许可证自动覆盖；不得在来源/许可不明时复制进知识库；不得把静态清单冒充完整依赖闭包、SBOM 或法律意见；不得未经授权修改上游源码、NOTICE、package.xml 或 CI。
 - **交付物与验收：** 依赖许可证审查报告、知识页专项结论、外部项目登记更新、可复现 SBOM 与许可证检查证据；发现冲突后须由项目权利人确认再修改上游元数据。
-- **状态：** 进行中（第一轮静态审查已发现 KickCAT CeCILL-C、嵌入 MIT/WTFPL-2.0 组件、argparse 子模块固定点、ROS/Gazebo package.xml MIT 元数据冲突，以及 SBOM/依赖锁定证据缺口；KickCAT 上游基线已追溯至 cb2e1a192ac11ffaa58f08945053b8129abf94cb，argparse 固定提交 MIT 已核验；当前 KickCAT 快照相对基线的10个文件差异/1个新增文件需逐项形成修改清单和版权/许可说明，ROS/Gazebo 包许可意图、可选构建依赖闭包、SBOM 生成/验证和分发场景仍待补齐）
+- **状态：** 进行中（已完成 KickCAT 当前 vendored 子树与固定上游 commit 的逐 blob 对照：482 个本地 blob 中 471 个完全一致；10 个现有路径 blob 不同，其中 foot.xml 仅换行格式差异、另 9 个存在内容差异；另有 1 个本地新增 DS402 fault fixture。差异已按 DS402 故障注入、LRW 故障注入、网络链路仿真和 ESI 配置分组并追溯可见父仓库提交；DS402 两文件有 pinned-base 脚本化重放入口，但尚未做生成 blob 等同性验证，LRW/network simulator patch series 尚待整理。四个 ROS/Gazebo package.xml 均声明 MIT，与根 Apache-2.0 的关系待权利人确认；CeCILL-C 分发适用、第三方通知、实际构建 profile 依赖闭包、CycloneDX/SPDX SBOM 生成/校验及漏洞扫描仍未完成）
