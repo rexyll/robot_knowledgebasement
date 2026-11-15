@@ -6664,6 +6664,7 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] Run [#79](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43581838083)（ID 43581838083，commit 2b53a2e0e2800b6a3027e07c3a6b30f8e88784aa）在不改变 overlay 源码的前提下将严格回归扩展到 5 轮，5/5 通过。
 - [x] Run [#80](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43584290417) 固定 Stäubli 临时构建输入到 PR #1 当时 head c74a70f76c642ee99809efc3bcd01740ba90e89d，5/5 通过。
 - [x] Run [#81](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586145715) 将临时构建输入固定到 PR #1 当前 head 7d9fa0d715db46060199eeca541514ddeed9c4c1 并逐轮校验实际 checkout SHA；5/5 通过。每轮均实际运行 MoveIt mock joint-goal planning 与 post-shutdown process-exit assertions，汇总 6 tests、0 errors、0 failures、0 skipped；artifact 14110644062：[实验日志](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586145715/artifacts/14110644062)。
+- [x] 进一步检查发现 Run #73–#81 的实验 workflow 在临时 Stäubli workspace 中修改了 PR 测试副本：在 planning 后通过 SwitchController 显式 deactivate joint_trajectory_controller，并等待其状态变为 inactive，再触发 launch shutdown。PR #1 实际提交的 test_moveit_mock_planning.launch.py 不包含该测试侧 deactivation；因此此前 5/5 结果不是与普通 PR CI 完全相同的 shutdown 输入。该额外因素在 #75–#81 各轮保持一致，#77 仍能说明 A/B/C 组合中 TEM cleanup 不可缺少，但必须单独验证 C=off。
 - [x] 确认 Run #81 workflow commit d61457a639d6aa083b44519680edde4f862ed7d5 仅更新隔离实验 workflow；MoveIt 与 rclcpp 源码修改由 CI 临时 overlay 生成，没有推送上游、没有改变 Stäubli 正式源码 pin。
 
 **状态：** combined MoveIt Jazzy source-overlay 修复在当前 Stäubli PR head 的 mock 环境中已取得 5/5 重复通过；#77 的隔离失败证明 TEM 显式清理不能删除。该证据只适用于此 CI mock / 临时源码 overlay，不等价于未修改系统 ROS Jazzy 二进制通过，也不代表 HIL、CS9 或真实机器人验收。
@@ -6674,19 +6675,29 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] 核验 Format Run [#51](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586144410) success。
 - [x] 核验普通 ROS Jazzy CI Run [#54](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586144415)，job 132424919066、attempt 2：ROS 环境、构建和前序测试步骤完成，MoveIt mock planning action 成功；退出时 move_group 在系统安装的 /opt/ros/jazzy/lib/librclcpp.so 路径 SIGSEGV，GDB wrapper exit 255，test_all_processes_exit_cleanly 严格退出码断言失败。整体 Summary: 73 tests, 0 errors, 2 failures, 0 skipped；未发现 setup/编译失败或 timeout 证据。
 - [x] 区分 Run #81 与 Run #54：Run #81 在 CI 中临时编译并应用 MoveIt Jazzy/rclcpp overlay 修复后通过；Run #54 使用默认安装的 ROS Jazzy/MoveIt 二进制，仍复现崩溃。overlay patch 没有进入 PR #1 的 5 个正式变更文件，也未发布为 MoveIt 上游修复。因此不能把 #81 的 5/5 解释为 PR #1 已通过普通 CI 或可以合并。
+- [x] 交叉核验测试输入差异：实验 workflow 对 PR 测试副本插入 SwitchController deactivate + inactive-state wait；PR #1 原始测试文件不含该步骤。故 Run #54（stock ROS Jazzy + 原始 PR 测试）与 Run #81（MoveIt overlay + 测试侧预先停控制器）同时改变了 MoveIt 实现和 teardown 输入，不能仅据 #54/#81 差异把全部结果归结为 MoveIt patch。
 - [x] 保持 PR #1 Draft、未合并；Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；SERVO-906/907、A1.1 继续 BLOCKED；不修改 MoveIt/rclcpp upstream、不连接真实 CS9、不发送真实运动命令、不宣称 HIL/实机验收。
 
 **状态：** 根因机制和 CI overlay 候选修复获得强证据及 5/5 mock 回归通过，但普通 PR CI 仍失败；生产修复尚未合入适当上游发布链。当前节点继续进行中，不得标记完成。
 
+### §9.3.381｜去除测试侧 controller deactivation 并重测 PR 原始 teardown 流程（2026-11-15）
+
+- [x] 建立三因素矩阵：A=MoveGroup 主作用域 / executor / PSM 生命周期清理；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。
+- [x] 现有结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78 恢复 A+B+C 后 3/3 PASS；#79–#81 在 A+B+C 下 5/5 PASS。#54 为 stock ROS Jazzy + 原始 PR 测试（A=off,B=off,C=off），teardown FAIL。
+- [x] 仅修改隔离实验 workflow，移除临时注入 SwitchController/deactivation 逻辑，保留 PR head 7d9fa0d715db46060199eeca541514ddeed9c4c1 原始测试文件；MoveIt overlay A+B 不变。workflow commit b49a934e16243b8c81039e5d3d9fd5876b76d046。
+- [x] 新实验 Run #102（ID 43673306520，job 132687888928）已创建，branch head b49a934e16243b8c81039e5d3d9fd5876b76d046；触发时为 in_progress，尚未取得 build、test 或最终结论证据：[Run #102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)。
+- [ ] 检查 Run #102 实际使用的 Stäubli test file 是否与 PR head 原样一致，并核对 source SHA 仍为 7d9fa0d715db46060199eeca541514ddeed9c4c1。
+- [ ] 读取 Run #102 所有 steps/logs/artifacts，记录 mock planning 结果、各进程退出码、GDB 栈、DSO unload/mapping、测试汇总与是否真实执行。
+- [ ] 若 A+B+C=off 仍通过，至少独立复跑一次；若失败，将首个异常拆为 TEM weak_ptr/plugin DSO、MoveGroup capability/main-node teardown、controller manager deactivation/launch race 三条路径分别复核，不放宽断言。
+- [ ] 保持 stock binary 对照和 overlay 候选分开报告；未修改 MoveIt/rclcpp 上游、不改变固定 pin、不合并 PR #1、不连接 CS9、不发送真实运动命令。
+
+**状态：** 当前仅证明 A+B+C 组合在实验 overlay 中 5/5 通过；原始 PR 测试条件 C=off 的 A+B 验证正在 Run #102 执行，尚无结论。PR #1 继续 Draft，普通 stock CI 仍 FAIL，SERVO-906/907 与 A1.1 继续 BLOCKED。
+
 ### 下一节点
 
-**§9.3.381｜形成 MoveIt Jazzy 上游候选补丁审查包与非硬件验证门槛**
+**§9.3.382｜TEM/MoveGroup teardown 候选补丁的最小化、所有权图与并发边界审查**
 
-- [ ] 将 Run #76/#78/#79/#80/#81 的实际临时 overlay diff 与 exact Jazzy source 逐 hunk 对齐，分离 TEM cleanup 必需改动、MoveGroup 主作用域改动和仅用于诊断/测试的插桩。
-- [ ] 为 TrajectoryExecutionManager::~TrajectoryExecutionManager() 制作最小候选变更说明：明确 callback/subscription 生命周期、private executor remove/join/reset、controller manager instance、controller node 与 plugin loader 的释放先后关系；不改变 plugin API，不放宽进程退出断言。
-- [ ] 审查 callback group / Waitable 所有权图和并发边界，证明 executor thread 已 join 后再 remove node/reset waitables；确认重复析构、异常构造、manage_controllers=false、无 plugin、Context 已 shutdown 等分支安全。
-- [ ] 在独立临时 overlay 中先做单变量和反向 A/B，再做普通 stock-binary 对照；所有轮次均须记录 planning、各进程退出码、GDB 栈、DSO mapping 和 sanitizer 结果。不可用 overlay 通过覆盖 stock-binary 失败。
-- [ ] 在用户另行授权之前，不向 MoveIt/rclcpp upstream 提交代码、不创建/更新 upstream PR、不改变固定源码 pin、不合并 Stäubli PR #1、不连接 CS9、不发送真实运动命令。
-- [ ] 只有普通 CI 对目标 ROS Jazzy 依赖链通过、严格重复回归通过、代码审查完成且依赖 pin 与发布来源可追溯后，才重新评估 PR #1 和 SERVO-906/907 的 BLOCKED 状态；HIL/实机仍须单独验收。
-
-**当前判断：** Stäubli mock teardown 根因指向 MoveIt Jazzy 的 TrajectoryExecutionManager 中 controller manager plugin DSO 与 controller_mgr_node_ / executor Waitable 的析构次序；CI overlay candidate 5/5 通过，普通安装版 CI 仍 FAIL。保持 Draft/BLOCKED，继续§9.3.381，不扩大到硬件动作。
+- [ ] 将实验 overlay 的 A/B 补丁与 MoveIt Jazzy 源码逐 hunk 对齐，去除 diagnostics 与 workflow-only 变更。
+- [ ] 结合 Run #102 结果确定最小必要代码路径，审查 executor thread join、remove_node、callback group / Waitable、plugin instance 与 loader 的所有权和释放顺序。
+- [ ] 验证重复析构、未启用 controller management、缺失 plugin、构造中途失败、Context 已 shutdown、controller update 仍在途等边界。
+- [ ] 不将候选补丁提交至 upstream 或生产 PR，除非用户单独授权。
