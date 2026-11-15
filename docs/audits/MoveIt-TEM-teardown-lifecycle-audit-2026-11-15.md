@@ -219,4 +219,27 @@ Run #102 did not start trajectory execution, so it has not dynamically validated
 
 ---
 
-**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102在PR原始输入C=off下A+B overlay五轮通过，但stock Run #54仍失败；Run #103独立复跑待核验；新增的TEM execution_thread_竞争窗口只是静态风险、尚未动态复现；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
+## 12. Original-input reruns and first real mock trajectory execution (Run #103–107)
+
+### 12.1 Independent C=off reruns
+
+- Run [#103](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43674935564), workflow commit `f99d3475fc37d55aa81604d3da31e0acaa0ca513`, completed successfully. Runtime checks confirmed PR #1 HEAD `7d9fa0d715db46060199eeca541514ddeed9c4c1` and original launch-test blob `2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`; no test-side controller deactivation was present. Five repetitions each reported 6 tests, 0 errors, 0 failures, 0 skipped; GDB inferiors exited normally. Artifact 14146697019, SHA-256 `3ecca283424de7b76e65c39d23fb21de2d39f48ba22b5d13a86c50b753eb3133`.
+- Run [#104](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43675449944), workflow commit `1c151888bcbac4a62125db62d8890c6aef6071a1`, also completed successfully with the same original HEAD/blob assertions and five clean repetitions. The workflow wording was corrected to clarify stock MoveIt Jazzy signal handling; no `sigwait` patch is applied. Artifact 14146433733, SHA-256 `3e237ebf0cd4856b2ccbb736d298184580c239e8383881689ce42aaa7b9d0c64`.
+
+### 12.2 First plan-and-execute mock regression
+
+The original PR launch test intentionally sets `planning_options.plan_only=true`; it never enters PlanExecution and does not create controller handles. A separate temporary CI-only test was added after the runtime original-blob check, leaving the PR source and its original test blob unchanged. It sends a MoveGroup goal with `plan_only=false` to the existing mock-hardware FollowJointTrajectory controller.
+
+- Run #105 failed closed at the test-injection step because the Python overlay script over-escaped the newline anchor. It did not compile or execute the test; no upstream/project source was changed.
+- Run [#106](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43676118015), workflow commit `15783991d8d8fcf07c0d805ba44bc5f397f5aa6f`, built successfully and executed the plan-and-execute path in all five repetitions. Logs show the controller accepted the action goal and reported `Goal reached, success!`; TEM logged `Completed trajectory execution with status SUCCEEDED`; MoveGroup logged `Solution was found and executed.`.
+- The new test nevertheless returned FAIL because it asserted that `MoveGroup.Result.executed_trajectory.joint_trajectory.points` must be non-empty. In this successful path that optional result member was empty; this assertion was invalid. The result error code was SUCCESS and the controller/TEM/MoveGroup logs independently confirmed execution. The launch post-shutdown process-exit test passed and all launched processes exited cleanly. Artifact 14147055556, SHA-256 `59ab7eade5bb17d5cf0f0d4fe87bf7b704358d73041fea27522903c9a597573a`.
+- The assertion has been corrected to check the returned non-empty `planned_trajectory`, while retaining the `plan_only=false` request and SUCCESS result check. The workflow also snapshots `execution_thread_ && execution_thread_->joinable()` under `execution_thread_mutex_`, and `active_handles_.size()` under `execution_state_mutex_`, after stopExecution/private-executor join in the temporary TEM destructor.
+- Run [#107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898), workflow commit `18fea00298ee542c304cbf73d652cd540262712e`, is in progress. It will show whether the corrected assertion passes and whether the normal-completion path leaves a joinable execution thread or residual active handles.
+
+### 12.3 Scope and interpretation
+
+Run #103 and #104 add two independent original-input A+B C=off 5/5 mock-planning/teardown passes (10 more repetitions). Run #106 is **not** counted as a passing workflow, even though all five mock controller goals were accepted and reached success: the test failed on an invalid optional-result-field assertion. Run #107 is the first corrected plan-and-execute + teardown regression.
+
+A Run #107 PASS would establish only normal mock trajectory execution and shutdown. It does not deterministically exercise the §8 check-lock-recheck race where natural completion overlaps stopExecution/destruction. A barrier-controlled concurrency test is still required before claiming that thread-join race is fixed. None of these overlay results fixes stock ROS Jazzy Run #54, and they do not unblock Stäubli PR #1.
+
+**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102–104在PR原始输入C=off下A+B overlay合计15次mock-planning/teardown repetitions通过，但stock Run #54仍失败；Run #106首次实际执行mock FollowJointTrajectory并观察到controller/TEM/MoveGroup成功，但自动化断言误判；Run #107正在验证修正后的plan-and-execute与TEM析构快照；新增的execution_thread_竞争窗口仍是静态风险，尚未动态复现；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
