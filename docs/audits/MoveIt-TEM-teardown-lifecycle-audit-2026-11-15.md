@@ -415,3 +415,18 @@ The cancel callback and goal execution work can run in separate execution contex
 5. Only then prepare a versioned MoveIt upstream patch proposal, with no direct upstream modifications until separately authorized.
 
 The current candidate remains a CI-only overlay. No upstream MoveIt/rclcpp or Stäubli product source was changed.
+
+## 12. Candidate always-join Run #43682618698 injection-template failure and correction
+
+Candidate workflow commit `065f2385f9519777db2af89924ad2520cd94a402` failed in the CI-only barrier injection step before compiling or running the candidate. The job log shows:
+
+`SyntaxError: unterminated triple-quoted string literal`
+
+The generated Python heredoc assigned a C++ function body to `stop_function = """...` but the workflow template omitted the closing triple quote before the next Python statement. The failure therefore belongs to the test/source-overlay generator, not the candidate C++ algorithm, MoveIt compilation, Stäubli driver, or product source.
+
+A workflow-only correction has been committed on the same isolated branch:
+- branch: `experiment/move-group-stop-execution-join-fix`
+- latest commit: `42392ccf20644541e9e2394ae1cdb18ba6f8cc83`
+- correction: close the Python triple-quoted function template after the C++ function closing brace; candidate semantics and required post-stop assertions are unchanged.
+
+The branch file was fetched after the update and confirms the closing quote, arm-marker barrier, and `join_performed=1` / `execution_thread_joinable=0` assertions are present. A fresh run for commit `42392ccf...` has not yet been observed at the time of this record. No product source or upstream repository was changed.
