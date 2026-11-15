@@ -191,12 +191,27 @@ This is a static source-derived risk, not an observed failure. The full set of r
 
 The experiment script had a stale message claiming a “structured signal-wait patch” was applied. Source inspection found no `sigwait`, `pthread_sigmask`, or `SignalHandlerOptions::None` implementation; the workflow only rejects such customization and retains MoveIt Jazzy's stock rclcpp signal handling. The experiment step name and output message have been corrected in workflow commit `1c151888bcbac4a62125db62d8890c6aef6071a1`. This is a description correction only; no signal-handler behavior or MoveIt source patch was added.
 
-## 9. 下一步验收条件
+## 10. `active_handles_` strong-owner chain reaches plugin-defined controller handles
+
+Additional Jazzy source inspection confirms that `active_handles_` can retain the last strong reference to a controller object implemented by the Simple Controller Manager plugin.
+
+1. `MoveItControllerHandle` is a polymorphic base with a virtual destructor ([header lines 102–116](https://github.com/moveit/moveit2/blob/jazzy/moveit_core/controller_manager/include/moveit/controller_manager/controller_manager.hpp#L102-L116)).
+2. The Jazzy Simple Controller Manager constructs `FollowJointTrajectoryControllerHandle` with `std::make_shared` ([source lines 216–221](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L216-L221)), stores handles in its `controllers_` map as `ActionBasedControllerHandleBasePtr` ([lines 327–331](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L327-L331)), and returns another shared-pointer owner from `getControllerHandle()` ([lines 252–258](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L249-L264)).
+3. The plugin-defined `ActionBasedControllerHandle` creates its action client using `rclcpp_action::create_client<T>()` in its constructor ([lines 82–90](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L75-L92)). The action client teardown therefore participates in the same custom-deleter / CallbackGroup Waitable lifecycle discussed earlier.
+4. TEM `executePart()` copies the returned owner into `active_handles_` at line 1412 and into a local `handles` vector at line 1414. The normal path clears `active_handles_` at lines 1577–1587; the local vector releases its references when `executePart()` returns.
+
+Consequently, `controller_manager_.reset()` alone is insufficient: it releases the manager map's shared pointers, but any remaining TEM or execution-thread copies retain the plugin-defined object. If the last release occurs after `controller_manager_loader_` unloads the plugin DSO, the object's deleter / virtual destruction path can point into unmapped code. This is directly relevant to the Run #73 vptr-to-DSO evidence, though the exact control-block dynamic type is still not RTTI-resolved.
+
+**Required candidate invariant:** join the execution thread (so the local vector is gone) → clear `active_handles_` while the manager and loader are still alive → reset the manager instance (releasing its map) → reset controller node / CallbackGroup (allowing action-client cleanup while mapped) → unload the plugin loader last.
+
+Run #102 did not start trajectory execution, so it has not dynamically validated this final-release sequence. A dedicated mock trajectory execution regression is still required.
+
+## 11. 下一步验收条件
 
 - [x] Run #102实际checkout SHA、原始PR launch test blob与未注入controller deactivation的约束已核验；五轮mock planning和严格进程退出均通过。
 - [ ] 核验独立重复Run #103的运行时test blob SHA guard、五轮执行摘要、GDB/进程退出结果与artifact；若出现不一致，不将结果并入通过统计。
-- [ ] 增加/验证 `active_handles_.empty()` invariant：在线程join后、controller-manager loader reset前检查；覆盖异常/早退、未启动执行线程、`auto_clear=false`、controller manager缺失和部分构造失败。
-- [ ] 覆盖 `trajectories_` 的未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等边界。
+- [ ] 把§10的owner chain落实为candidate teardown patch：execution thread join后清`active_handles_`，随后reset manager instance和node/group，loader最后卸载；在loader reset前断言`active_handles_.empty()`与manager为空。
+- [ ] 覆盖`trajectories_`未执行/auto_clear=false/已完成但thread未join等边界，并为多个controller、send fail、cancel、natural completion race与异常早退建立mock真实轨迹执行用例。
 - [ ] 将MoveIt overlay A/B有效改动与Jazzy upstream逐hunk最小化，对诊断marker、workflow-only和测试instrumentation做剥离，形成仅供审查的候选补丁说明。
 - [x] PAL statistics日志已归因到上游issue #28与内层WallRate sleep异常catch，不作为MoveGroup teardown失败；不修改该第三方上游。
 - [ ] stock ROS Jazzy Run #54仍失败；在生产PR/stock环境得到独立修复验证前，PR #1不得合并，SERVO-906/907及A1.1保持BLOCKED。
