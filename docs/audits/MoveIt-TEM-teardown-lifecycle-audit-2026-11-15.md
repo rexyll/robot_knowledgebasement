@@ -553,3 +553,20 @@ Run #73 and #107 differ in two lifetime factors, so their no-crash comparison is
 - Run #119 [#43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847), TEM-cleanup-only with original main owner lifetime; latest step was MoveIt source dependency install.
 
 Neither had started patched MoveIt build or mock teardown tests at the time of this update. Their results are required before assigning the no-SIGSEGV A/B effect to one factor.
+
+
+## 17. Run #117 always-join candidate passed; factorial branches compiling (2026-11-15)
+
+Run #117 [43683012297](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) is complete and successful. Artifact 14149782675 (ZIP SHA-256 `78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43`) was inspected:
+- all five barriers entered, the trajectory thread completed, and release was observed;
+- all five state files assert `join_performed=1`, `execution_thread_joinable=0`, `active_handles=0`;
+- five iterations each report `Ran 3 tests ... OK`, MoveGroup PREEMPTED on cancel, controller Goal reached, strict post-shutdown checks passed, colcon 8 tests / 0 failures, and no SIGSEGV;
+- overall `failures=0/5`.
+
+The candidate proves the injected always-join logic handles the specifically reproduced natural-completion-before-state-lock window in this mock/SIL test. It remains a workflow-injected source overlay and does not resolve the other unlocked state accesses or prove Run #54's exact DSO control-block root cause.
+
+The lifecycle factorial-isolation branches are now at patched MoveIt build:
+- Run #118 [43684020993](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993): main-owner early reset ON, TEM cleanup OFF.
+- Run #119 [43684023847](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847): TEM cleanup ON, main-owner early reset OFF.
+
+Both have passed rclcpp overlay build, MoveIt source preparation, CI-only barrier injection, and MoveIt dependency install. Both are currently at step 8, `Build patched MoveIt move_group`; Stäubli workspace build and mock teardown tests have not yet started.
