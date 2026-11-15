@@ -2,10 +2,10 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v11.96  
+版本：v11.97  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项当前推进至§9.3.380。Run #73 三轮确认 Waitable weak_ptr control-block vptr 均位于 libmoveit_simple_controller_manager.so 的相对偏移0x5ed88，且该 DSO 在崩溃前卸载；MoveIt Jazzy TrajectoryExecutionManager 成员声明/逆序析构关系与该生命周期故障吻合。隔离实验分支的 combined TEM explicit-cleanup + MoveGroup 主作用域 overlay 在 Run #76（3/3）、#78（3/3）、#79（5/5）、#80（PR head c74a70f，5/5）、#81（当前 PR head 7d9fa0d，5/5）通过；Run #77 禁用 TEM cleanup 后 3/3 重新失败，说明 TEM cleanup 是必要项。注意：这些是 CI 临时 MoveIt source-overlay 的 mock 验证，不是未修改 ROS Jazzy 二进制通过。PR #1 普通 CI #54 仍在系统 librclcpp.so teardown 时 SIGSEGV、GDB wrapper exit 255；Format #51 通过；PR #1 保持 Draft/open/unmerged，生产链路尚未包含 MoveIt TEM 修复。Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不修改 MoveIt/rclcpp 上游、不合并 PR、不连接真实 CS9、不发送真实运动命令；SERVO-906/907 与 A1.1 继续 BLOCKED。下一节点§9.3.381：整理 MoveIt Jazzy 候选补丁审查包、审查 callback group/Waitable ownership 和 executor teardown 并发边界。并行 EXT-001（MotionControlAlgorithms）已完成 DC 能力边界、CSP rearm latch、CANopen Bus-Off/SDO/NMT 会话恢复专项静态审查，知识页至§26；下一步提出 CSP fail-closed 与 CANopen session invalidation/rearm 上游修复方案（需具体授权），已完成第三方依赖许可证/来源/SBOM 第一轮静态审查：确认 KickCAT 嵌入源码为 CeCILL-C，含 MIT/WTFPL-2.0 组件；argparse 子模块固定 commit；ROS 2/Gazebo package.xml 的 MIT 元数据与根 Apache-2.0 声明不一致；未发现 SBOM/锁定依赖闭包，详见审计报告与知识页§27。下一步补齐 KickCAT 上游 commit/版本来源、argparse 许可、所有可选构建路径依赖闭包和真实 SBOM，再决定是否调整 NOTICE/包元数据。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项推进至§9.3.381。Run #73 三轮确认 Waitable weak_ptr control-block vptr 均位于 libmoveit_simple_controller_manager.so 相对偏移0x5ed88，且该 DSO 在崩溃前卸载；MoveIt Jazzy TrajectoryExecutionManager 成员逆序析构关系与该生命周期故障吻合。实验 overlay A+B+C（A=MoveGroup main/PSM/executor lifecycle，B=TEM explicit cleanup，C=测试侧预先 deactivate joint_trajectory_controller）在 #76 3/3、#78 3/3、#79–#81 5/5 通过；#75（A0/B1/C1）和 #77（A1/B0/C1）3/3 失败，说明 A、B 在 C=1 条件下都不可省略。重要边界：实验 workflow 临时修改测试副本以先停控制器，PR 原始测试不含此步骤；普通 stock ROS Jazzy PR CI #54（A0/B0/C0）仍 teardown SIGSEGV，PR #1 Format #51 通过但 PR #1 保持 Draft/open/unmerged。现已在隔离实验分支移除测试侧 controller deactivation，保持 PR head 7d9fa0d 与 A+B overlay，Run #102（43673306520，commit b49a934）正在验证原始 PR shutdown 流程 C=0。实验代码未提交至 MoveIt/rclcpp upstream；Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；不合并 PR、不连接真实 CS9、不发送真实运动命令；SERVO-906/907 与 A1.1 继续 BLOCKED。下一节点待 Run #102 后继续核对 A+B 与原始 PR 测试匹配度，再做补丁最小化、所有权/并发边界审查。并行 EXT-001（MotionControlAlgorithms）已完成 DC 能力边界、CSP rearm latch、CANopen Bus-Off/SDO/NMT 会话恢复专项静态审查，知识页至§26；下一步提出 CSP fail-closed 与 CANopen session invalidation/rearm 上游修复方案（需具体授权），已完成第三方依赖许可证/来源/SBOM 第一轮静态审查：确认 KickCAT 嵌入源码为 CeCILL-C，含 MIT/WTFPL-2.0 组件；argparse 子模块固定 commit；ROS 2/Gazebo package.xml 的 MIT 元数据与根 Apache-2.0 声明不一致；未发现 SBOM/锁定依赖闭包，详见审计报告与知识页§27。下一步补齐 KickCAT 上游 commit/版本来源、argparse 许可、所有可选构建路径依赖闭包和真实 SBOM，再决定是否调整 NOTICE/包元数据。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -398,7 +398,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.380：Run #73 将 control-block vptr 定位到已卸载的 libmoveit_simple_controller_manager.so；MoveIt Jazzy TEM 显式析构清理的 CI overlay 已在当前 PR head 上 mock 回归5/5通过，隔离掉 TEM cleanup 后3/3复现失败；但普通 ROS Jazzy PR CI #54 仍 teardown SIGSEGV，PR #1 保持 Draft，生产修复未进入上游依赖链；SERVO-203–756动态/集成验收、ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证仍未完成 |
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | 代表厂商P1静态审查持续推进；Stäubli专项已至§9.3.381：Run #73 将 control-block vptr 定位到已卸载的 libmoveit_simple_controller_manager.so；A+B+C 临时 overlay 在当前 PR head mock 回归5/5通过，但实验测试额外预先停控制器，普通 stock ROS Jazzy PR CI #54 仍 teardown SIGSEGV；Run #102 正以原始 PR 测试（C=off）验证 A+B；PR #1 保持 Draft，生产修复未进入上游依赖链；SERVO-203–756动态/集成验收、ROS/VAL3/CS9、场景同步、SRS/HIL与实机验证仍未完成 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -434,6 +434,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 3 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 4 |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
