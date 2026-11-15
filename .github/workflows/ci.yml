@@ -69,6 +69,136 @@ jobs:
           retention-days: 14
       - name: Build source and wheel with verified PEP 517 build dependency hashes
         run: uv build --require-build-hashes
+      - name: Create file-level manifest for built Python distributions
+        if: matrix.python-version == '3.12'
+        run: |
+          mkdir -p "${RUNNER_TEMP}/python-distribution-audit"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          import tarfile
+          import zipfile
+          from email import policy
+          from email.parser import BytesParser
+          from pathlib import Path
+
+          dist = Path("dist")
+          wheels = sorted(dist.glob("*.whl"))
+          sdists = sorted(dist.glob("*.tar.gz"))
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit(
+                  f"Expected exactly one wheel and one .tar.gz sdist; "
+                  f"found wheels={len(wheels)} sdists={len(sdists)}"
+              )
+
+          def digest(data: bytes) -> str:
+              return hashlib.sha256(data).hexdigest()
+
+          def metadata_fields(raw: bytes) -> dict:
+              message = BytesParser(policy=policy.default).parsebytes(raw)
+              keys = (
+                  "Name",
+                  "Version",
+                  "Metadata-Version",
+                  "Summary",
+                  "License",
+                  "License-Expression",
+                  "License-File",
+              )
+              return {
+                  key: message.get_all(key, [])
+                  for key in keys
+                  if message.get_all(key, [])
+              }
+
+          records = []
+          for archive in [*wheels, *sdists]:
+              record = {
+                  "archive": archive.name,
+                  "archive_sha256": digest(archive.read_bytes()),
+                  "archive_size_bytes": archive.stat().st_size,
+                  "members": [],
+                  "distribution_metadata": {},
+              }
+              if archive.suffix == ".whl":
+                  with zipfile.ZipFile(archive) as package:
+                      corrupt = package.testzip()
+                      if corrupt:
+                          raise SystemExit(f"Corrupt wheel member: {corrupt}")
+                      for member in sorted(package.infolist(), key=lambda x: x.filename):
+                          if member.is_dir():
+                              continue
+                          data = package.read(member.filename)
+                          record["members"].append({
+                              "path": member.filename,
+                              "size_bytes": len(data),
+                              "sha256": digest(data),
+                              "type": "file",
+                          })
+                          if member.filename.endswith(".dist-info/METADATA"):
+                              record["distribution_metadata"] = metadata_fields(data)
+              else:
+                  with tarfile.open(archive, "r:gz") as package:
+                      for member in sorted(package.getmembers(), key=lambda x: x.name):
+                          entry = {
+                              "path": member.name,
+                              "size_bytes": member.size,
+                              "type": (
+                                  "file" if member.isfile()
+                                  else "directory" if member.isdir()
+                                  else "symlink" if member.issym()
+                                  else "hardlink" if member.islnk()
+                                  else "other"
+                              ),
+                          }
+                          if member.isfile():
+                              source = package.extractfile(member)
+                              if source is None:
+                                  raise SystemExit(f"Could not read sdist member: {member.name}")
+                              data = source.read()
+                              entry["sha256"] = digest(data)
+                              if member.name.endswith("/PKG-INFO") or member.name == "PKG-INFO":
+                                  record["distribution_metadata"] = metadata_fields(data)
+                          elif member.issym() or member.islnk():
+                              entry["link_target"] = member.linkname
+                          record["members"].append(entry)
+              records.append(record)
+
+          manifest = {
+              "schema_version": 1,
+              "commit_sha": os.environ.get("GITHUB_SHA"),
+              "python_version": platform.python_version(),
+              "build_command": "uv build --require-build-hashes",
+              "scope": "exact files contained in the wheel and sdist built by this CI job",
+              "license_interpretation": (
+                  "Metadata fields are recorded as package declarations only; "
+                  "they do not prove rights-holder authority or license coverage "
+                  "for every file."
+              ),
+              "distributions": records,
+          }
+          output = Path(os.environ["RUNNER_TEMP"]) / "python-distribution-audit" / "distribution-manifest.json"
+          output.write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(f"Wrote {output}")
+          for record in records:
+              print(
+                  f"{record['archive']}: {len(record['members'])} members, "
+                  f"sha256={record['archive_sha256']}"
+              )
+          PY
+      - name: Archive built Python distribution manifest
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: python-distribution-file-manifest
+          path: ${{ runner.temp }}/python-distribution-audit/distribution-manifest.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Lint
         run: uv run --locked ruff check .
       - name: Verify STS3215 layout, encoding, and converter metadata against pinned rustypot source
