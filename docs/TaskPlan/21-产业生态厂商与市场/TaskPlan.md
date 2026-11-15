@@ -6684,28 +6684,28 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 ### §9.3.381｜去除测试侧 controller deactivation 并验证 PR 原始 teardown 流程（2026-11-15）
 
-- [x] 建立三因素矩阵：A=MoveGroup 主作用域 owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。#75–#81共同保留 stopPublishingPlanningScene 与 MoveGroupExe-before-executor 声明顺序。
+- [x] 建立三因素矩阵：A=MoveGroup主作用域owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TrajectoryExecutionManager显式cleanup；C=测试侧在shutdown前显式deactivate joint_trajectory_controller。#75–#81共同保留stopPublishingPlanningScene与MoveGroupExe-before-executor声明顺序。
 - [x] 对照历史结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78恢复A+B+C后3/3 PASS；#79–#81在A+B+C下5/5 PASS。#54为stock ROS Jazzy + 原始PR测试（A=off,B=off,C=off、无临时MoveIt overlay），teardown SIGSEGV。
-- [x] 在隔离实验 workflow commit `b49a934e16243b8c81039e5d3d9fd5876b76d046` 中移除测试副本的 SwitchController/deactivation 注入，固定 Stäubli PR #1 head `7d9fa0d715db46060199eeca541514ddeed9c4c1`，保留 MoveIt overlay A+B。
-- [x] Run [#102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)（ID 43673306520，job 132687888928）完成且 conclusion=success；实际 checkout 日志确认 HEAD 为 `7d9fa0d715db46060199eeca541514ddeed9c4c1`，执行了原始PR测试文件，没有测试侧 controller deactivation。该文件在 PR head 的 blob SHA 为 `2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`。
-- [x] Run #102 的 A+B、C=off native non-ASan regression 确实执行五轮；五轮均看到 MoveGroup planning request 与 “Motion plan was computed successfully”；`test_all_processes_exit_cleanly` 五轮均为 `ok`，GDB子进程均 clean exit。每轮 `Summary: 6 tests, 0 errors, 0 failures, 0 skipped`，且 `colcon_test=0`、`test_result=0`；最终 `failures=0/5`。日志未发现 MoveGroup SIGSEGV、GDB wrapper 255 或进程异常退出。
-- [x] Run #102 Lifecycle marker 显示五轮 TEM 析构探针均处于 `main_context_valid=0/controller_context_valid=0`，事件订阅与 callback group reset、controller node reset正常完成；MoveGroup侧先出现 Executor destructor body END，随后 MoveGroupExe析构依序清 capabilities、reset context、reset capability loader。当前 overlay中的 `remove_node()` 默认 notify=true 以及 Context 已失效后的 executor cancel 在这五轮中没有导致测试失败。
-- [x] 保存实验 artifact [moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520/artifacts/14145626553)，ID 14145626553，SHA-256 `f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
-- [x] 溯源多轮日志中的 `controller_manager.pal_statistics` ERROR：上游 [pal_statistics issue #28](https://github.com/pal-robotics/pal_statistics/issues/28) 与 `publisherThreadCycle()` 源码确认这是已知非致命shutdown日志；Context失效后WallRate sleep异常被内部catch记录，随后外层 `rclcpp::ok()` 检查使线程正常退出。“Aborting!”是误导性文案，不表示进程abort，不作为本项目阻塞项。
-- [ ] 对 A+B、C=off 做至少一次独立重复；Run #103已触发，待核验原始测试blob SHA guard、五轮退出码及artifact。
-- [x] 保持 stock binary 对照、overlay候选和 Stäubli PR 正式代码分开报告；Run #54 stock CI 仍失败，PR #1不合并，不改固定源码pin，不连接CS9、不发送真实运动命令。
+- [x] 在隔离实验workflow commit `b49a934e16243b8c81039e5d3d9fd5876b76d046`中移除测试副本的SwitchController/deactivation注入，固定Stäubli PR #1 head `7d9fa0d715db46060199eeca541514ddeed9c4c1`，保留MoveIt overlay A+B。
+- [x] Run [#102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)（ID 43673306520，job 132687888928）完成且success；运行时checkout确认HEAD为固定PR head，使用原始PR测试文件，无测试侧controller deactivation。测试文件PR head blob SHA为`2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`。
+- [x] Run #102 A+B、C=off native non-ASan regression实际执行五轮；每轮mock planning成功、`test_all_processes_exit_cleanly`为ok、GDB子进程clean exit。每轮`Summary: 6 tests, 0 errors, 0 failures, 0 skipped`，`colcon_test=0`、`test_result=0`；最终`failures=0/5`。日志未发现MoveGroup SIGSEGV、GDB wrapper 255或进程异常退出。
+- [x] Run #102 lifecycle marker五轮均显示TEM析构时main/controller context已invalid（valid=0），event subscription、callback group、controller node按序reset；MoveGroup Executor destructor body END后才进入MoveGroupExe，之后清capabilities、reset context和loader。
+- [x] 保存[实验artifact](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520/artifacts/14145626553)，ID 14145626553，SHA-256 `f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
+- [x] 将PAL statistics ERROR归因到上游[issue #28](https://github.com/pal-robotics/pal_statistics/issues/28)和publisherThreadCycle内层WallRate sleep：Context shutdown后sleep异常被catch，外层rclcpp::ok随后使线程正常退出；“Aborting!”是误导文案，不表示进程abort。
+- [ ] 对A+B、C=off做至少一次独立重复；Run #103已触发，待核验原始测试blob SHA guard、五轮退出码及artifact。
+- [x] 保持stock binary对照、overlay候选与Stäubli PR正式代码分开报告；Run #54 stock CI仍失败，PR #1不合并，不改固定源码pin，不连接CS9、不发送真实运动命令。
 
-**状态：** A+B overlay 在PR原始测试输入（C=off）下已取得5/5 mock planning + strict process teardown PASS；这是MoveIt/rclcpp CI临时源码overlay证据，不是安装版stock ROS Jazzy结果，也不是HIL/CS9验收。独立复跑Run #103待核验；PR #1继续Draft/open/unmerged；SERVO-906/907与A1.1继续BLOCKED。
+**状态：** A+B overlay在PR原始测试输入（C=off）下已取得5/5 mock planning + strict process teardown PASS；这是MoveIt/rclcpp CI临时源码overlay证据，不是安装版stock ROS Jazzy结果，也不是HIL/CS9验收。独立Run #103待核验；PR #1继续Draft/open/unmerged；SERVO-906/907与A1.1继续BLOCKED。
 
 ### §9.3.382｜TEM/MoveGroup teardown 所有权图与并发边界审查（2026-11-15）
 
-- [x] 对照 MoveIt Jazzy TEM 成员声明和析构源码，确认 controller manager instance / loader 的默认逆序析构先于 controller node、private executor、active_handles_ 等较早声明成员；Run #73 的 weak control-block vptr映射与这一危险顺序吻合。
-- [x] 复核 `active_handles_` 是 `MoveItControllerHandlePtr` vector，声明在 `controller_manager_loader_` 前；`executePart()` 的 handle 获取失败、sendTrajectory失败和正常收尾分支会清理 handles，但异常/早退路径仍需验证。复核 `clear()` 只清 `trajectories_` raw contexts，不清 `active_handles_`。
-- [x] 精确复核 `stopExecution(true)`：若进入时 `execution_complete_==false`，停止/取消、join 后按 auto_clear 调用 `clear()`；若进入时已为 true 但 execution thread 仍 joinable，则只 join/reset thread，不会触发 auto_clear。不能仅凭调用 stopExecution(true) 断言 handles 与 contexts 全部清空。
-- [x] 核验 rclcpp Jazzy `Executor::remove_node(node, notify=true)` 默认 notify=true；`trigger_entity_recollect()` 在executor已非spinning时会同步重建实体集合，但notify=true仍触发interrupt guard condition。join后可评估传入notify=false以避免无用唤醒；这不是已观察到的Run #102失败原因。
-- [x] 核验 `Executor::cancel()` 会触发interrupt guard condition，不以spinning flag为短路条件。Run #102五轮TEM dtor marker显示main/controller context均已invalid，当前overlay仍调用cancel与默认notify remove_node，但五轮都成功；当前RMW/CI配置下没有观察到该路径异常，未来最小化补丁仍应审查重复cancel与Context shutdown交错。
-- [ ] 对候选补丁增加或验证loader reset前 `active_handles_.empty()` 不变量；必要时在执行线程join并持有正确状态锁后释放残余handles，覆盖异常、未启动线程、`auto_clear=false`、controller manager缺失和部分构造失败。
-- [ ] 验证 `trajectories_` 在未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等路径均能先于loader安全释放。
+- [x] 对照MoveIt Jazzy TEM成员声明和析构源码，确认controller manager instance/loader的默认逆序析构先于controller node、private executor、active_handles_等较早声明成员；Run #73的weak control-block vptr映射与这一危险顺序吻合。
+- [x] 复核`active_handles_`是`MoveItControllerHandlePtr` vector，声明在`controller_manager_loader_`前；`executePart()`的handle获取失败、sendTrajectory失败和正常收尾分支会清理handles，但异常/早退路径仍需验证。`clear()`只清`trajectories_` raw contexts，不清`active_handles_`。
+- [x] 精确复核`stopExecution(true)`：若进入时`execution_complete_==false`，停止/取消、join后按auto_clear调用`clear()`；若进入时已为true但execution thread仍joinable，则只join/reset thread，不触发auto_clear。
+- [x] 核验rclcpp Jazzy `Executor::remove_node(node, notify=true)`默认notify=true；executor已非spinning时会同步重建实体集合，但notify=true仍触发interrupt guard condition。join后可评估传入notify=false以避免无用唤醒；这不是Run #102失败原因。
+- [x] 核验`Executor::cancel()`会触发interrupt guard condition，不以spinning flag为短路条件。Run #102五轮TEM dtor marker显示main/controller context均已invalid，当前overlay仍调用cancel与默认notify remove_node，但五轮都成功；当前RMW/CI配置下未观察到该路径异常。
+- [ ] 对候选补丁增加或验证loader reset前`active_handles_.empty()`不变量；必要时在线程join并持有正确状态锁后释放残余handles，覆盖异常、未启动线程、`auto_clear=false`、controller manager缺失和部分构造失败。
+- [ ] 验证`trajectories_`在未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等路径均能先于loader安全释放。
 - [x] 已通过pal_statistics issue #28与humble-devel 2.8.2源码确认PAL statistics shutdown ERROR属于已知非致命日志；本项目只记录，不修改pal_statistics上游。
 - [ ] 将CI overlay A/B有效代码逐hunk最小化，剥离diagnostics marker、workflow-only和测试instrumentation，形成候选补丁审查稿；不提交到MoveIt/rclcpp upstream或生产PR，除非用户另行授权。
 
