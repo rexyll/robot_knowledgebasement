@@ -6,6 +6,9 @@
 
 ## 当前记录
 
+- [2026-11-15 全仓库 Git Tree 资产基线重建](2026-11-15-full-repository-asset-tree-reconciliation.md)：以 main 基线 commit `aac8e08` 的完整递归 Git Tree 对账 386 个文件对象，补录旧清单遗漏的 199 项并刷新 13 项 SHA/大小；仅是元数据基线，不是正文/主张/授权验收。
+- [2026-11-15 参考项目资产与许可证边界抽样审查](2026-11-15-reference-project-content-and-license-boundary-review.md)：审查根 MIT 声明与 GitHub NOASSERTION 元数据差异、SO-101/STS3215 模板与只读工具的来源及边界；未将通用比例视为 SKU 校准或硬件验证。
+
 - [2026-11-11 Stäubli SERVO-900 C++17 Deterministic Fake Harness 契约与 Target 隔离规范](2026-11-11-staubli-socket-v2-servo-900-cpp17-fake-harness-contract.md)：定义C++17 FakeClock、Barrier/Latch、DeterministicExecutor、FaultInjector API语义，以及BUILD_TESTING隔离、production target零Fake依赖、install/ament export/plugin禁入规则；交付为接口规格和机器可读合同，不含C++实现，编译与运行验收均NOT_RUN。
 
 - [2026-11-11 Stäubli SocketV2 RACE/EXEC Test Case Catalog 与双向追踪验收](2026-11-11-staubli-socket-v2-race-exec-test-case-catalog.md)：新增RACE-01–16与EXEC-01–04共20项机器可读测试规格及Schema；为28条Manifest记录补齐所有20项测试引用的正向/反向映射，新增fail-closed双向校验器、负向测试和CI报告归档。CI #3477在Python 3.10/3.11/3.12全部通过，每个版本67项测试通过；所有测试case仍为NOT_RUN，C++/ROS/plugin/HIL/实机未执行。
@@ -53,14 +56,14 @@
 ## 审计状态
 
 - 00-01 全库资产盘点：进行中。2026-11-08交叉核查发现Stäubli专项记录在根计划、专项报告、厂商档案、本索引及第00章日志之间未同步；详见[专项审计记录同步性核查](2026-11-08-staubli-audit-record-synchronization.md)。在完成逐节同步和来源复核前，不以根计划摘要替代专项报告正文。
-- 结构统计：已建立，清单可从 Git Tree 复算；当前 main Git Tree 快照为 260 个 Blob、212 份 Markdown、142 份 knowledge Markdown、67 份 docs Markdown、26 份章节 TaskPlan；详见 Git Tree 对账报告。
+- 结构统计：2026-11-15 对 main 基线 commit `aac8e08` 的完整递归 Git Tree 对账为 386 个 Blob；旧清单 187 条、补录 199 条、刷新 13 条旧 SHA/大小，无失效路径。该轮未重新计算 Markdown/knowledge/docs 的类型计数；详见 [2026-11-15 全仓库 Git Tree 对账报告](2026-11-15-full-repository-asset-tree-reconciliation.md)。
 - 标题/结构检查：原 112 份知识文件保留历史标题、章节结构和开篇检查记录；当前 142 份资产的统一结构扫描覆盖率尚未重新计算。后续新增文件存在专题审查/结构检查记录，但尚未统一汇总为当前覆盖率。
 - 全文结构扫描：96/120 是旧快照统计，不能作为当前 142 份资产的覆盖率；本轮只做 Git Tree/Blob 元数据对账，当前统一结构扫描需重新执行。结构扫描不等于专业审稿或 claim-level 验收。
 - README 最近一次扫描：既有目录 README 的正文结构检查记录保留；本轮只刷新清单涉及文件的 Git 元数据，不重新判定 README 正文质量。
 - 高风险 P0 定向处理：20/20 份资产已完成边界纠偏或内容修订；具体范围见基线审计第 14–16 节。定向处理不等于全文 claim-level 验收。
 - Claim-level 验收：142/142 份知识资产在当前清单中均保持未完成完整主张级验收；逐项来源、参数、法规和安全审查仍待完成。专题定向修订不等于整篇通过。
 - 外链、参数、标准/法规和安全关键结论：仍需逐项核验。
-- 项目公开披露：已对项目案例和首页中的本地绝对路径做首轮脱敏；代码许可证、项目授权和组织关系仍需核验。
+- 项目公开披露与许可证：已对项目案例和首页中的本地绝对路径做首轮脱敏；根目录 MIT LICENSE/Python 包元数据已核实，但 GitHub license detector 仍为 `NOASSERTION`，根许可覆盖知识文章、第三方来源和参考项目数据的范围尚未建立；项目授权、贡献者权利及组织关系仍需核验。
 
 ## 状态纪律
 
