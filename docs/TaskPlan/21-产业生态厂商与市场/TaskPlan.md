@@ -6691,34 +6691,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [x] Run #102 的 A+B、C=off native non-ASan regression 确实执行五轮；五轮均看到 MoveGroup planning request 与 “Motion plan was computed successfully”；`test_all_processes_exit_cleanly` 五轮均为 `ok`，GDB子进程均 clean exit。每轮 `Summary: 6 tests, 0 errors, 0 failures, 0 skipped`，且 `colcon_test=0`、`test_result=0`；最终 `failures=0/5`。日志未发现 MoveGroup SIGSEGV、GDB wrapper 255 或进程异常退出。
 - [x] Run #102 Lifecycle marker 显示五轮 TEM 析构探针均处于 `main_context_valid=0/controller_context_valid=0`，事件订阅与 callback group reset、controller node reset正常完成；MoveGroup侧先出现 Executor destructor body END，随后 MoveGroupExe析构依序清 capabilities、reset context、reset capability loader。当前 overlay中的 `remove_node()` 默认 notify=true 以及 Context 已失效后的 executor cancel 在这五轮中没有导致测试失败。
 - [x] 保存实验 artifact [moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520/artifacts/14145626553)，ID 14145626553，SHA-256 `f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
-- [x] 溯源多轮日志中的 `controller_manager.pal_statistics` ERROR：上游 [pal_statistics issue #28](https://github.com/pal-robotics/pal_statistics/issues/28) 已报告同一ROS 2 Jazzy正常shutdown日志。其 `publisherThreadCycle()` 内层等待在Context shutdown后仍执行WallRate sleep，抛出的异常被线程内部catch记录，随后外层 `rclcpp::ok()` 检查使线程正常退出；“Aborting!”是误导性日志文案，不表示进程abort。该现象与MoveGroup Waitable SIGSEGV无关，不作为本项目当前阻塞项。
-- [ ] 对 A+B、C=off 做至少一次独立重复；若独立复跑通过，才能把临时 overlay 的 mock结论提升为可重复证据，仍不得声称 stock ROS 已修复。
-- [ ] 对 PAL statistics publisher thread 的失效Context异常追查其线程停止/析构语义，确认是否只是可控退出告警或存在独立的线程竞态。
-- [ ] 保持 stock binary 对照、overlay候选和 Stäubli PR 正式代码分开报告；Run #54 stock CI 仍失败，PR #1不合并，不改固定源码pin，不连接CS9、不发送真实运动命令。
+- [x] 溯源多轮日志中的 `controller_manager.pal_statistics` ERROR：上游 [pal_statistics issue #28](https://github.com/pal-robotics/pal_statistics/issues/28) 与 `publisherThreadCycle()` 源码确认这是已知非致命shutdown日志；Context失效后WallRate sleep异常被内部catch记录，随后外层 `rclcpp::ok()` 检查使线程正常退出。“Aborting!”是误导性文案，不表示进程abort，不作为本项目阻塞项。
+- [ ] 对 A+B、C=off 做至少一次独立重复；Run #103已触发，待核验原始测试blob SHA guard、五轮退出码及artifact。
+- [x] 保持 stock binary 对照、overlay候选和 Stäubli PR 正式代码分开报告；Run #54 stock CI 仍失败，PR #1不合并，不改固定源码pin，不连接CS9、不发送真实运动命令。
 
-**状态：** A+B overlay 在PR原始测试输入（C=off）下已取得5/5 mock planning + strict process teardown PASS；这是MoveIt/rclcpp CI临时源码overlay证据，不是安装版stock ROS Jazzy结果，也不是HIL/CS9验收。PR #1继续Draft/open/unmerged；SERVO-906/907与A1.1继续BLOCKED。
+**状态：** A+B overlay 在PR原始测试输入（C=off）下已取得5/5 mock planning + strict process teardown PASS；这是MoveIt/rclcpp CI临时源码overlay证据，不是安装版stock ROS Jazzy结果，也不是HIL/CS9验收。独立复跑Run #103待核验；PR #1继续Draft/open/unmerged；SERVO-906/907与A1.1继续BLOCKED。
 
 ### §9.3.382｜TEM/MoveGroup teardown 所有权图与并发边界审查（2026-11-15）
 
 - [x] 对照 MoveIt Jazzy TEM 成员声明和析构源码，确认 controller manager instance / loader 的默认逆序析构先于 controller node、private executor、active_handles_ 等较早声明成员；Run #73 的 weak control-block vptr映射与这一危险顺序吻合。
 - [x] 复核 `active_handles_` 是 `MoveItControllerHandlePtr` vector，声明在 `controller_manager_loader_` 前；`executePart()` 的 handle 获取失败、sendTrajectory失败和正常收尾分支会清理 handles，但异常/早退路径仍需验证。复核 `clear()` 只清 `trajectories_` raw contexts，不清 `active_handles_`。
 - [x] 精确复核 `stopExecution(true)`：若进入时 `execution_complete_==false`，停止/取消、join 后按 auto_clear 调用 `clear()`；若进入时已为 true 但 execution thread 仍 joinable，则只 join/reset thread，不会触发 auto_clear。不能仅凭调用 stopExecution(true) 断言 handles 与 contexts 全部清空。
-- [x] 核验 rclcpp Jazzy `Executor::remove_node(node, notify=true)` 默认 notify=true；`trigger_entity_recollect()` 在 executor 已非spinning时会同步重建实体集合，但 notify=true仍触发 interrupt guard condition。join后可评估传入 notify=false 以避免无用唤醒；这不是已观察到的Run #102失败原因。
-- [x] 核验 `Executor::cancel()` 会触发 interrupt guard condition，不以 spinning flag为短路条件。Run #102五轮 TEM dtor marker 显示main/controller context均已invalid，当前overlay仍调用cancel与默认notify remove_node，但五轮都成功；因此当前RMW/CI配置下没有观察到该路径异常，未来最小化补丁仍应审查重复cancel与Context shutdown交错。
-- [ ] 对候选补丁增加或验证 loader reset 前 `active_handles_.empty()` 不变量；必要时在执行线程join并持有正确状态锁后释放残余handles，覆盖异常、未启动线程、`auto_clear=false`、controller manager缺失和部分构造失败。
+- [x] 核验 rclcpp Jazzy `Executor::remove_node(node, notify=true)` 默认 notify=true；`trigger_entity_recollect()` 在executor已非spinning时会同步重建实体集合，但notify=true仍触发interrupt guard condition。join后可评估传入notify=false以避免无用唤醒；这不是已观察到的Run #102失败原因。
+- [x] 核验 `Executor::cancel()` 会触发interrupt guard condition，不以spinning flag为短路条件。Run #102五轮TEM dtor marker显示main/controller context均已invalid，当前overlay仍调用cancel与默认notify remove_node，但五轮都成功；当前RMW/CI配置下没有观察到该路径异常，未来最小化补丁仍应审查重复cancel与Context shutdown交错。
+- [ ] 对候选补丁增加或验证loader reset前 `active_handles_.empty()` 不变量；必要时在执行线程join并持有正确状态锁后释放残余handles，覆盖异常、未启动线程、`auto_clear=false`、controller manager缺失和部分构造失败。
 - [ ] 验证 `trajectories_` 在未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等路径均能先于loader安全释放。
-- [x] 已通过pal_statistics issue #28与humble-devel 2.8.2源码确认上述PAL statistics日志属于已知非致命shutdown行为；本项目只记录，不修改pal_statistics上游。
-- [ ] 将 CI overlay A/B有效代码逐hunk最小化，剥离诊断marker、workflow-only和测试instrumentation，形成候选补丁审查稿；不提交到 MoveIt/rclcpp upstream或生产PR，除非用户另行授权。
-- [ ] 不更改 Stäubli固定源码pin，不合并PR #1，不连接真实CS9，不发送真实运动命令，不宣称HIL/实机验收。
+- [x] 已通过pal_statistics issue #28与humble-devel 2.8.2源码确认PAL statistics shutdown ERROR属于已知非致命日志；本项目只记录，不修改pal_statistics上游。
+- [ ] 将CI overlay A/B有效代码逐hunk最小化，剥离diagnostics marker、workflow-only和测试instrumentation，形成候选补丁审查稿；不提交到MoveIt/rclcpp upstream或生产PR，除非用户另行授权。
 
-**状态：** Run #102为A+B、C=off提供了5/5 mock级验证；TEM成员释放边界与PAL statistics线程问题仍需补测。PR #1保持Draft，stock Run #54失败仍未解决。
-### 下一节点（§9.3.383）
-
-**§9.3.382｜TEM/MoveGroup teardown 候选补丁的最小化、所有权图与并发边界审查**
-
-- [ ] 将实验 overlay 的 A/B 补丁与 MoveIt Jazzy 源码逐 hunk 对齐，去除 diagnostics 与 workflow-only 变更。
-- [ ] 结合 Run #102 结果确定最小必要代码路径，审查 executor thread join、remove_node、callback group / Waitable、plugin instance 与 loader 的所有权和释放顺序。
-- [ ] 明确审计 TEM 的 active_handles_：它是 MoveItControllerHandlePtr 容器且声明在 controller_manager_loader_ 之前（因此隐式逆序析构时位于 loader 之后）。确认 stopExecution(true) 后 execution_thread_ 已 join、active_handles_ 在 loader reset 前为空；对异常/早退/未启动执行线程路径考虑在无并发访问的条件下显式清空并验证析构顺序，避免 plugin-owned handles 跨 DSO unload 存活。同步确认 trajectories_ 的 raw contexts 经 clear() 释放，不遗留 controller-handle 或回调对象。
-- [ ] 验证重复析构、未启用 controller management、缺失 plugin、构造中途失败、Context 已 shutdown、controller update 仍在途等边界。
-- [ ] 按源码精确区分 stopExecution(true) 的 clear 路径：execution_complete_ 已为 true 且 execution_thread_ 仍 joinable 时只 join/reset，不触发 auto_clear；clear() 仅删除 trajectories_，不清 active_handles_。executePart() 的正常收尾及部分失败分支会清 handles，但需覆盖异常/早退、auto_clear=false、线程未启动和 controller manager 缺失路径，并在 loader reset 前验证 handle vector 为空。
-- [ ] 不将候选补丁提交至 upstream 或生产 PR，除非用户单独授权。
+**状态：** Run #102为A+B、C=off提供了5/5 mock级验证；active_handles_与trajectories_异常路径、候选补丁最小化仍待完成。PAL statistics日志已溯源，不是阻塞项。PR #1保持Draft，stock Run #54失败仍未解决。
