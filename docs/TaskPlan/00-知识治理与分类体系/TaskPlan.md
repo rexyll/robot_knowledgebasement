@@ -32,7 +32,7 @@
 - **严格禁止：** 不得依据旧 TaskPlan 统计或文件数量推断已完成；不得删除旧文档或把空目录计入知识覆盖。
 - **依赖：** 无。
 - **交付物与验收：** 提交可复核的资产清单、章节映射表和缺口报告。
-- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理和多项 P1 官方来源复核；2026-11-15 已按 main 完整递归 Git Tree 将 386 个文件对象与资产清单逐项对账；另建立 386 项逐路径许可证/权利登记基线，其中 35 项核心源码/CI、8 项参考软件只有有限来源审查，341 项尚无资产级许可审查，全部资产的权利人仍未验证、再分发状态仍未确定，当前没有任何资产获准再分发；根 MIT 的权利人和覆盖范围仍未证实。上述工作均不等于完整内容/主张/授权验收；全库 P1/P2 来源审查、事实适用边界和权利核验仍未完成）
+- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理、多项 P1 官方来源复核、386 个路径的主分支 Git Tree 对账和逐路径权利登记；Python Toolkit wheel/sdist 已在 CI 实际构建并生成逐文件 SHA-256 清单，确认 wheel/sdist 均不包含 Knowledge Vault/docs，sdist 已剔除 8 个依赖仓库脚本/工作流的测试，仅保留 2 个 Toolkit 测试；根 MIT 对 11 个 Python 模块和 2 个保留测试的权利人授权仍未验证，legacy License metadata 尚待按 PEP 639 迁移，全部资产权利与主张级审计仍未完成）
 
 ### 00-02｜全行业分类树与章节边界
 
@@ -839,3 +839,18 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - 未关闭 14-EXT-02；未复制、引入或集成 MotionControlAlgorithms 源码；该项目的第三方依赖许可/SBOM、目标仓库独立 CI 和用户授权仍是单独准入门禁。
 
 **当前判断：** 该轮建立了可追溯的权利审查底表和强制工作规则，但权利人、授权和再分发范围均未得到证明。00-01 继续进行中；所有未知资产在取得证据前不得复制或再分发。
+
+
+### 2026-11-15｜00-01持续审计记录（Python Toolkit wheel/sdist 发布范围与许可证元数据）
+
+新增 [Python Toolkit 分发物与许可证元数据审查报告](../../audits/2026-11-15-python-distribution-and-license-metadata-review.md) 和 [wheel/sdist 逐文件清单](../../audits/2026-11-15-python-distribution-file-manifest.json)，新增来源台账 #1759–#1761。
+
+- PR 源提交 `46050ad0d812d231f47b9e8a3f121b7fa88e131a` 的 CI Run #43709474246 全部成功：Python 3.10/3.11/3.12、OSV 与 Python SBOM 五个 job 均 success。Python 3.12.16 执行 `uv build --require-build-hashes`，artifact #14159916866 保存 wheel/sdist 逐文件清单。
+- Wheel `robot_knowledgebase-0.1.0-py3-none-any.whl` 为 10,772 bytes、SHA-256 `44c089a2712d9a27b85745d75cff5f768fac7813f52b240ebb1575616d52da1f`，共17个文件：11个包 Python 模块和6个dist-info/许可证元数据文件。
+- sdist `robot_knowledgebase-0.1.0.tar.gz` 为 11,840 bytes、SHA-256 `1db1633b687e004032625a3bf2a3488908bcaead015e21aa06ffee7901c89021`，共25个普通文件和9个目录；包含11个包模块、根 LICENSE/README/pyproject、生成元数据、MANIFEST.in和两个 Toolkit 测试。
+- 两种分发物均不含 `knowledge/`、`docs/`、`scripts/` 或 `.github/`。因此 Python Toolkit 发布物与 Knowledge Vault 内容边界已通过本次实际文件成员清单确认；不表示根 MIT 权利范围已得到证明。
+- 初次构建发现 sdist 自动带入10个根测试，其中8个依赖未随包发布的 `scripts/` 或 `.github/` 路径。新增 `MANIFEST.in` 的 prune/include 规则，仅保留 `test_chunker.py`、`test_markdown.py`；最新 Run #43709474246 验证新 sdist 由32个普通文件缩减为25个，wheel 保持不变。
+- 两个分发物都输出 Metadata 2.4、legacy `License` 自由文本和 `License-File: LICENSE`，未输出 `License-Expression`。PyPA Core Metadata 已将 legacy License 字段和 License classifier 弃用；PEP 639 使用 SPDX 表达式和 license-files。暂不将 pyproject 直接改为 `MIT` expression，因为11个包模块和2个保留测试文件的权利人/授权尚未确认。
+- 未执行从解包 sdist 环境单独安装和测试的 smoke test；未发布到 PyPI；未修改根 LICENSE 或宣称全仓库按 MIT 授权。
+
+**当前判断：** Python Toolkit 的实际构建分发范围已被精确记录，仓库级测试意外进入 sdist 的问题已修正。11 个源模块、两个保留测试的权利人与 MIT 再分发授权，及 legacy metadata 迁移仍为阻塞；00-01 继续进行中。
