@@ -32,7 +32,7 @@
 - **严格禁止：** 不得依据旧 TaskPlan 统计或文件数量推断已完成；不得删除旧文档或把空目录计入知识覆盖。
 - **依赖：** 无。
 - **交付物与验收：** 提交可复核的资产清单、章节映射表和缺口报告。
-- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理，并对 ROS 2 发行版/计算平台、QoS/实时性/组件组合/中间件，以及市场/人形机器人部分主张开展 P1 官方来源定向复核；全库剩余 P1/P2 资产逐项来源审查、事实适用边界与授权核验仍未完成）
+- **状态：** 进行中（已完成资产结构基线、P0 高风险边界定向处理，并对 ROS 2 发行版/计算平台、QoS/实时性/组件组合/中间件，以及市场/人形机器人部分主张开展 P1 官方来源定向复核；2026-11-15 已按 main 完整递归 Git Tree 将 386 个文件对象与资产清单逐项对账，补录 199 个此前缺失资产并修正 13 条过期 Blob SHA/大小；该轮只完成元数据基线，不代表新增资产完成内容、主张、来源、授权或许可证审查；全库剩余 P1/P2 资产逐项来源审查、事实适用边界与授权核验仍未完成）
 
 ### 00-02｜全行业分类树与章节边界
 
@@ -734,3 +734,17 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 ### 2026-11-10｜00-01持续审计记录（Stäubli §9.3.293 / SERVO-876）
 
 新增 [SocketV2 public header / ABI surface 与 UDP Core ownership 设计审查](../../audits/2026-11-10-staubli-socket-v2-public-header-abi-and-udp-core-ownership-design.md)。固定上游审查 public declarations、PIMPL、CMake 安装/导出和 package metadata。确认当前没有专用 visibility/export macro 或显式 ABI policy；include/整体安装、SHARED target 导出并不等于跨平台 ABI 保证。设计独立 v2 public header 与 private Core；区分含 STL value types 的同工具链 source API 与稳定 binary ABI；明确 enum 固定 underlying/value、symbol visibility、legacy facade 独立保留、v2 facade 独占 Core、callback/worker shutdown 顺序、timeout 后 owner 保留及禁止 worker self-cycle/detach。新增 ABI-0至ABI-5切片和 ABI-01至ABI-16验收规格，全部NOT_RUN；未新增头文件/宏/Core/factory，未修改上游。未运行编译、gtest、nm/readelf、DLL smoke、TSan、loopback、ROS 2 Control、SIL/HIL、VAL3/CS9、FAT/SAT或实机验证；工程级验收未通过，TODO-EXT-001未授权。下一节点 §9.3.294 / SERVO-877。
+
+### 2026-11-15｜00-01持续审计记录（完整 Git Tree 资产对账）
+
+新增 [全仓库 Git Tree 资产基线差异重建报告](../../audits/2026-11-15-full-repository-asset-tree-reconciliation.md)，并更新 [知识资产清单](../../audits/2026-11-03-knowledge-asset-inventory.csv)。
+
+- 固定基线为 `main` commit `aac8e081ca733265f34b08000647473d02e23e72`，Git Tree SHA `de8987f4d90924de1937bcc62efe38804c255fda`；Git Tree `recursive=1` 响应未截断。
+- 本次 Tree 包含 386 个 blob。对账前 CSV 只有 187 条有效路径，新增补录 199 条；旧记录无失效路径；13 条路径的 Blob SHA 和/或字节数已更新。对账后 CSV 为 386 条唯一文件路径，与 Tree 文件对象数一致。
+- 新增资产包含 26 个章节 TaskPlan/导航、79 个审计记录/数据、31 个源码/脚本/测试、12 个参考项目资产、12 个工程模板、7 个 Schema、13 个 TaskPlan 历史、8 个其他文档、1 个 CI workflow、3 个 data 占位/资产和 7 个根目录/工作区元数据对象。
+- 新增记录统一标记为 `tree_metadata_reconciled_content_source_claim_and_authorization_review_pending`；优先级仅作初步分流，不将元数据登记等同于技术审计。原有 claim-level 待审状态未升级。
+- 本轮没有审阅 199 个新文件的全部内容，没有完成 386 个文件的主张级来源核验，也没有对 LICENSE 的覆盖范围、第三方代码授权、项目案例授权或代码供应链作通过结论。
+- 没有修改任何外部工程源码，没有改变 MotionControlAlgorithms 合并延期状态；后续仍以新资产风险分流和主张级来源核验为主。
+
+**当前判断：** 00-01 的“全仓库文件对象—资产清单”结构元数据对账已完成；“每个资产的主题/来源/成熟度/可信度/重复性/授权边界”和“知识主张级审计”仍未完成，因此 00-01 继续保持进行中，不得验收关闭。下一步先审查新增的 LICENSE、31 个源码/脚本/测试资产、CI 工作流、项目数据与配置的来源和授权，再按 P0/P1 顺序推进主张级核验。
+
