@@ -364,3 +364,52 @@ A new isolated branch, experiment/move-group-stop-execution-join-fix, tests a mi
 Latest candidate workflow commit: 065f2385f9519777db2af89924ad2520cd94a402. Run [#43682618698](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43682618698) is in progress. The candidate changes workflow-injected MoveIt source only; no upstream or product repository file is modified.
 
 **Remaining synchronization audit:** this candidate addresses the stopExecution outer unlocked check and missed join. It does not yet prove every execution_complete_ access in push(), executeThread(), executePart(), or MoveGroupMoveAction::preempt_requested_ is properly synchronized. These need a separate access/lock-domain review and TSAN or equivalent coverage. Do not mark the complete MoveIt lifecycle/data-race issue fixed based on this single candidate.
+
+## 11. Remaining synchronization access-domain inventory (2026-11-15)
+
+A targeted static pass over the MoveIt Jazzy source blobs (TEM cpp SHA 126469542aa546046e6e305b18b56213e91d69a8; MoveGroup action capability cpp SHA 0198a71b5be709bb1a5f62c97a8bb60961e948ac; header SHA 4306130dfc5d591d585696823e6c3af03670096e) found that the reproduced missed-join path is not the only synchronization concern.
+
+### 11.1 execution_complete_ accesses in TrajectoryExecutionManager
+
+| Source location | Access | Lock observation |
+|---|---|---|
+| push(), line 397 | read | No execution_state_mutex_ held at the read |
+| stopExecution(), line 1211 (stock) | read | Outer fast-path read is unlocked; the CI-only always-join candidate removes it |
+| stopExecution(), line 1214 (stock) | read | Re-check occurs while execution_state_mutex_ is held |
+| stopExecution(), line 1220 (stock) | write true | Under execution_state_mutex_ |
+| execute(), line 1281 | write false | Immediately before creating execution_thread_; not under state mutex |
+| waitForExecution(), line 1290 | read | Under execution_state_mutex_ |
+| clear(), line 1302 | read | Preliminary read occurs before taking execution_state_mutex_ |
+| executeThread(), line 1317 | read | No state lock at the read; thread creation ordering covers the initial false write, but concurrent stop requires separate analysis |
+| executeThread(), line 1337 | read | No state lock |
+| executeThread(), line 1348 | read | Under execution_state_mutex_ |
+| executeThread(), line 1358 | write true | Under execution_state_mutex_ |
+| executePart(), line 1379 | read | No state lock |
+| executePart(), line 1385 | read | Under execution_state_mutex_ |
+| executePart(), line 1542 | read | No state lock |
+| executePart(), line 1563 | read | No state lock |
+
+The same field therefore has a mixture of locked and unlocked accesses. The reproduced stopExecution missed-join branch is real, and the outer unlocked read removed by the candidate is one part of the concern; however, it is not sufficient to claim every access is race-free. A complete correction must either make the state flag atomic with a reviewed memory-order/state protocol, or consistently guard every concurrent access with the same mutex while avoiding holding that mutex across controller waits or thread join. Review condition-variable wakeup, active_handles_, last_execution_status_, time_index_, clear(), and callback ordering together.
+
+The pointer execution_thread_ also needs a complete ownership/lock audit: creation/assignment in execute() at line 1282 is outside execution_thread_mutex_, while join/reset paths use that mutex. The test path observes the pointer after the execution thread has been created, but it does not prove every possible concurrent creation/stop ordering.
+
+### 11.2 MoveGroup preempt_requested_
+
+In Jazzy move_action_capability:
+- the header declares preempt_requested_ as a plain bool (header line 74);
+- preemptMoveCallback() writes true (cpp line 283);
+- executeMoveCallbackPlanAndExecute() reads it (line 176);
+- executeMoveCallbackPlanOnly() reads it (line 198);
+- MoveGroup action completion resets it to false (line 127).
+
+The cancel callback and goal execution work can run in separate execution contexts. This field needs its own lock/atomic policy and tests; do not assume the TEM always-join change fixes it. It may be a separate race and is not established as a cause of the stock DSO Waitable SIGSEGV.
+
+### 11.3 Next validation sequence
+
+1. Finish Run #43682618698 and confirm the CI-only candidate asserts join_performed=1, execution_thread_joinable=0, active_handles=0 in all five natural-completion-before-state-lock repetitions.
+2. Review all execution_thread_ creation, read, join and reset sites under one coherent ownership rule.
+3. Resolve execution_complete_ access semantics consistently and run TSAN or an equivalent race-detection harness across natural completion, cancel, timeout, clear and action teardown.
+4. Resolve preempt_requested_ separately and test plan-only and plan-and-execute cancel paths.
+5. Only then prepare a versioned MoveIt upstream patch proposal, with no direct upstream modifications until separately authorized.
+
+The current candidate remains a CI-only overlay. No upstream MoveIt/rclcpp or Stäubli product source was changed.
