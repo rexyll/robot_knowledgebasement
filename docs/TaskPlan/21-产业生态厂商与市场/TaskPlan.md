@@ -6639,3 +6639,54 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 用独立对照确定 `ltt_probe_register` 警告与 teardown SIGSEGV 是否相关；任何诊断变化都不得放宽严格退出码断言。
 
 **状态：** 三轮严格回归均失败，MoveGroup teardown 根因未解决。当前最优先假设是 callback-group Waitable weak control block 生命周期/内存所有权问题；插件 DSO 卸载可能相关，但尚未证实。SERVO-906/907、A1.1 继续 BLOCKED；PR #1 保持 Draft；固定源码 pin `bd658e2d266e315d2ee35f985fb352ea88306b79` 不变；不修改上游 MoveIt/rclcpp，不连接真实 CS9、不发送真实运动命令；TODO-EXT-001 未授权。
+
+
+### §9.3.378｜Run #73 control-block vtable 与插件 DSO 映射关联确认（2026-11-15）
+
+- [x] 读取 Run [#73](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43452965703)（ID 43452965703，job 131979685436）完整日志与 artifact（14054405267）；ROS Jazzy / rclcpp / MoveIt / Stäubli mock workspace 编译与 mock planning 成功，严格 native teardown 3/3 失败，三轮均在 std::weak_ptr<rclcpp::Waitable> control-block weak-count release 阶段 SIGSEGV，GDB wrapper exit 255。
+- [x] 对三轮 control-block vptr、info proc mappings 与 LD_DEBUG unload 记录逐一对齐。三轮 vptr 分别为 0x7f579c08fd88、0x7fbcdc4ced88、0x7f4f60191d88；分别相对 libmoveit_simple_controller_manager.so 基址偏移均为 0x5ed88，且均在该 DSO fini / link-map 销毁后、weak_ptr teardown 崩溃时已不再映射。
+- [x] 将证据与准确 DSO 对齐，纠正前序泛化归因：崩溃 control-block vptr 落在 libmoveit_simple_controller_manager.so，不是仅凭时间先后出现的 libsequence_capability.so 或 libcommand_list_manager.so。后三者仍保留在 LD_DEBUG 历史中，但不能把它们说成该 control block 的所属 DSO。
+- [x] 结论升级为强生命周期机制证据：仍待 weak_ptr 析构的 control block 需要调用位于已卸载插件 DSO 的虚表函数/析构路径；这比“插件卸载与崩溃先后相关”更具体，但没有通过完整符号/RTTI 解析到 control-block 具体动态类型，故根因结论仍保留为高置信机制判断而非正式上游修复验收。
+- [x] 确认 Run #73 artifact：[moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43452965703/artifacts/14054405267)。
+
+**状态：** control-block vptr 所属映射已锁定到 libmoveit_simple_controller_manager.so，与 DSO 卸载时序三次一致；需要结合 TrajectoryExecutionManager 的成员声明/逆序析构关系和受控 A/B 验证具体存活对象。
+
+### §9.3.379｜TrajectoryExecutionManager 显式析构 A/B 与五轮 mock 回归（2026-11-15）
+
+- [x] 对照 MoveIt 2 Jazzy 固定分支源码：
+  - [trajectory_execution_manager.hpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp)，blob de453558b79662a2f473c0eb5c7999d7a6d34fa3；
+  - [trajectory_execution_manager.cpp](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp)，blob 126469542aa546046e6e305b18b56213e91d69a8。
+- [x] 证实 controller_mgr_node_ 在头文件成员列表中声明于 controller_manager_loader_ 之前，而 controller_manager_ 在 loader 之后；析构函数主体仅 stopExecution(true)、取消 private executor 并 join 线程。成员随后逆序销毁时，plugin instance/loader 会先于较早声明的 controller node 及其 executor/node callback/waitable 所有权对象销毁。
+- [x] 实验 workflow 对 MoveIt Jazzy 临时 overlay 增加显式 TEM teardown：stop/cancel/join 后释放 event subscription、callback handler / callback group；从 private executor 移除 controller node；依次释放 executor、controller manager instance、controller node；让 controller-manager plugin loader 在相关 node/executor/waitable 资源清理之后才自动销毁。MoveGroup 主作用域还保留 PSM publisher stop/join、main MoveIt owner reset 与 executor/MoveGroupExe 安全析构顺序。所有改动只发生在 Actions 临时工作目录，未提交至 MoveIt/rclcpp 上游。
+- [x] Run [#76](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43576339592)（ID 43576339592，commit ddc6baf5d5bf7e5d86d1744c8793fb86aa1ca0c9）combined overlay 3/3 严格 teardown 通过；每轮 mock test 汇总 6 tests、0 failures、0 skipped。
+- [x] Run [#77](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43578755368)（ID 43578755368，commit cc7f57255739eb7a56587675bd7dc5830c1cc5b1）保留 main-node/plugin ordering 但关闭 TEM explicit-cleanup；三轮重新复现 SIGSEGV / GDB wrapper 255。该隔离 A/B 证明 TEM cleanup 是组合修复中的必要项，不能只保留 MoveGroup main 层的生命周期调整。
+- [x] Run [#78](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43580444280)（ID 43580444280，commit 4bd325af43a2695d04a65ccc8ffaae4dc509ccb8）恢复完整 TEM cleanup 后 3/3 通过。
+- [x] Run [#79](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43581838083)（ID 43581838083，commit 2b53a2e0e2800b6a3027e07c3a6b30f8e88784aa）在不改变 overlay 源码的前提下将严格回归扩展到 5 轮，5/5 通过。
+- [x] Run [#80](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43584290417) 固定 Stäubli 临时构建输入到 PR #1 当时 head c74a70f76c642ee99809efc3bcd01740ba90e89d，5/5 通过。
+- [x] Run [#81](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586145715) 将临时构建输入固定到 PR #1 当前 head 7d9fa0d715db46060199eeca541514ddeed9c4c1 并逐轮校验实际 checkout SHA；5/5 通过。每轮均实际运行 MoveIt mock joint-goal planning 与 post-shutdown process-exit assertions，汇总 6 tests、0 errors、0 failures、0 skipped；artifact 14110644062：[实验日志](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586145715/artifacts/14110644062)。
+- [x] 确认 Run #81 workflow commit d61457a639d6aa083b44519680edde4f862ed7d5 仅更新隔离实验 workflow；MoveIt 与 rclcpp 源码修改由 CI 临时 overlay 生成，没有推送上游、没有改变 Stäubli 正式源码 pin。
+
+**状态：** combined MoveIt Jazzy source-overlay 修复在当前 Stäubli PR head 的 mock 环境中已取得 5/5 重复通过；#77 的隔离失败证明 TEM 显式清理不能删除。该证据只适用于此 CI mock / 临时源码 overlay，不等价于未修改系统 ROS Jazzy 二进制通过，也不代表 HIL、CS9 或真实机器人验收。
+
+### §9.3.380｜PR #1 正常 CI 仍复现 teardown SIGSEGV，保持 Draft / BLOCKED（2026-11-15）
+
+- [x] 核验 PR [#1](https://github.com/rexyll/staubli_driver_ros2_from_org/pull/1)：head 7d9fa0d715db46060199eeca541514ddeed9c4c1，base main=4f9a37e12038174a010a9ad1f4523807fbb1434b，Draft、open、未合并；变更范围为 Stäubli repo 的 5 个文件，不包含 MoveIt upstream 的 TEM 源码修复。
+- [x] 核验 Format Run [#51](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586144410) success。
+- [x] 核验普通 ROS Jazzy CI Run [#54](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43586144415)，job 132424919066、attempt 2：ROS 环境、构建和前序测试步骤完成，MoveIt mock planning action 成功；退出时 move_group 在系统安装的 /opt/ros/jazzy/lib/librclcpp.so 路径 SIGSEGV，GDB wrapper exit 255，test_all_processes_exit_cleanly 严格退出码断言失败。整体 Summary: 73 tests, 0 errors, 2 failures, 0 skipped；未发现 setup/编译失败或 timeout 证据。
+- [x] 区分 Run #81 与 Run #54：Run #81 在 CI 中临时编译并应用 MoveIt Jazzy/rclcpp overlay 修复后通过；Run #54 使用默认安装的 ROS Jazzy/MoveIt 二进制，仍复现崩溃。overlay patch 没有进入 PR #1 的 5 个正式变更文件，也未发布为 MoveIt 上游修复。因此不能把 #81 的 5/5 解释为 PR #1 已通过普通 CI 或可以合并。
+- [x] 保持 PR #1 Draft、未合并；Stäubli 固定源码 pin bd658e2d266e315d2ee35f985fb352ea88306b79 不变；SERVO-906/907、A1.1 继续 BLOCKED；不修改 MoveIt/rclcpp upstream、不连接真实 CS9、不发送真实运动命令、不宣称 HIL/实机验收。
+
+**状态：** 根因机制和 CI overlay 候选修复获得强证据及 5/5 mock 回归通过，但普通 PR CI 仍失败；生产修复尚未合入适当上游发布链。当前节点继续进行中，不得标记完成。
+
+### 下一节点
+
+**§9.3.381｜形成 MoveIt Jazzy 上游候选补丁审查包与非硬件验证门槛**
+
+- [ ] 将 Run #76/#78/#79/#80/#81 的实际临时 overlay diff 与 exact Jazzy source 逐 hunk 对齐，分离 TEM cleanup 必需改动、MoveGroup 主作用域改动和仅用于诊断/测试的插桩。
+- [ ] 为 TrajectoryExecutionManager::~TrajectoryExecutionManager() 制作最小候选变更说明：明确 callback/subscription 生命周期、private executor remove/join/reset、controller manager instance、controller node 与 plugin loader 的释放先后关系；不改变 plugin API，不放宽进程退出断言。
+- [ ] 审查 callback group / Waitable 所有权图和并发边界，证明 executor thread 已 join 后再 remove node/reset waitables；确认重复析构、异常构造、manage_controllers=false、无 plugin、Context 已 shutdown 等分支安全。
+- [ ] 在独立临时 overlay 中先做单变量和反向 A/B，再做普通 stock-binary 对照；所有轮次均须记录 planning、各进程退出码、GDB 栈、DSO mapping 和 sanitizer 结果。不可用 overlay 通过覆盖 stock-binary 失败。
+- [ ] 在用户另行授权之前，不向 MoveIt/rclcpp upstream 提交代码、不创建/更新 upstream PR、不改变固定源码 pin、不合并 Stäubli PR #1、不连接 CS9、不发送真实运动命令。
+- [ ] 只有普通 CI 对目标 ROS Jazzy 依赖链通过、严格重复回归通过、代码审查完成且依赖 pin 与发布来源可追溯后，才重新评估 PR #1 和 SERVO-906/907 的 BLOCKED 状态；HIL/实机仍须单独验收。
+
+**当前判断：** Stäubli mock teardown 根因指向 MoveIt Jazzy 的 TrajectoryExecutionManager 中 controller manager plugin DSO 与 controller_mgr_node_ / executor Waitable 的析构次序；CI overlay candidate 5/5 通过，普通安装版 CI 仍 FAIL。保持 Draft/BLOCKED，继续§9.3.381，不扩大到硬件动作。
