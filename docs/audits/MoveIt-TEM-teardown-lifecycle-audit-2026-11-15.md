@@ -135,6 +135,13 @@ Run #102证明：A+B临时MoveIt/rclcpp源码overlay在Stäubli PR原始launch�
 
 独立重复Run #103已由workflow commit `f99d3475fc37d55aa81604d3da31e0acaa0ca513`触发；该轮额外要求运行时checkout test blob SHA精确等于`2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`，并拒绝任何controller-deactivation逻辑。Run [#103](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43674935564)结果待验证。
 
+### PAL statistics shutdown message: confirmed upstream issue, non-fatal
+
+- 上游 [pal_statistics issue #28](https://github.com/pal-robotics/pal_statistics/issues/28) 于2026-09-10报告完全相同的ROS 2 Jazzy / Ubuntu 24.04消息：`Exception in publisher thread: context cannot be slept with because it's invalid!. Aborting!`。issue仍open。
+- 对照 `pal-robotics/pal_statistics` 的 `humble-devel` 源码，package version为2.8.2；`pal_statistics/src/pal_statistics.cpp` blob SHA `03a4037c0a4ab73af488ea984cd96e86e2f43530`，`StatisticsRegistry::publisherThreadCycle()` 位于342–367行。外层循环检查 `rclcpp::ok()`，但内层 `while (!is_data_ready_ && !interrupt_thread_)` 只执行 `rclcpp::WallRate(2000).sleep()`。Context shutdown后sleep抛runtime_error，由同函数catch记录ERROR；随后外层循环重新检查 `rclcpp::ok()`，返回并退出线程。
+- 因此日志中的“Aborting!”是误导性文本，不表示调用`abort()`或进程异常终止；上游issue说明进程退出码为0。Run #102中move_group与ros2_control_node均正常退出，与该上游已知行为一致。
+- 本项目不改pal_statistics源代码、不把此日志计作MoveGroup teardown失败；仅保留上游引用与日志归因。此issue仍可能影响log-based health checks，但不构成本轮mock退出回归blocker。
+
 ## 7. 下一步验收条件
 
 - 读取 Run #102 实际 checkout 步骤与 SHA 校验输出，确认 PR launch test 没有被改写。
