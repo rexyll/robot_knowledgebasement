@@ -6744,3 +6744,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 仅完成候选补丁和回归审查；未经用户单独授权，不修改MoveIt/rclcpp upstream或Stäubli生产PR #1。
 
 **状态：** shared_ptr owner chain与action-client依赖关系已由Jazzy源码确认；Run #102仅做planning+shutdown，没有运行真实轨迹执行，故尚未动态验证句柄last-release顺序。
+
+### §9.3.385｜原始测试独立复跑与真实 mock FollowJointTrajectory 执行（2026-11-15）
+
+- [x] Run #103与#104在固定Stäubli PR #1 HEAD `7d9fa0d715db46060199eeca541514ddeed9c4c1`、原始launch test blob SHA `2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`、C=off条件下分别5/5 PASS；运行时blob校验均通过，无controller-deactivation注入。两轮每次6 tests、0 errors、0 failures、0 skipped，GDB inferior正常退出。
+- [x] Run #105的测试overlay因换行锚点字符串过度转义，在测试注入阶段fail closed；没有进入编译与回归，原始PR文件未修改。
+- [x] 修正换行后Run #106成功构建并执行`plan_only=False` MoveGroup目标。五轮日志均显示FollowJointTrajectory action goal收到并被接受，controller报告`Goal reached, success!`，TEM报告`Completed trajectory execution with status SUCCEEDED`，MoveGroup报告`Solution was found and executed.`。这首次覆盖了TEM创建plugin controller handle、action client与executePart局部handles vector的正常生命周期。
+- [x] Run #106失败点仅为自动化测试错误要求`result.executed_trajectory.joint_trajectory.points`非空；MoveIt成功结果中该字段为空，且这与上面的controller/TEM/MoveGroup成功日志并不矛盾。post-shutdown process-exit测试通过，没有MoveGroup SIGSEGV或GDB 255。
+- [x] 将验收改为检查`result.error_code == SUCCESS`并确认`planned_trajectory`非空；计划执行仍明确`plan_only=False`。在TEM destructor的`stopExecution(true)`、private executor join之后增加诊断日志：受`execution_thread_mutex_`保护的thread joinable快照、受`execution_state_mutex_`保护的`active_handles_.size()`快照。
+- [ ] 核验Run [#107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898)的5轮plan-and-execute与严格process teardown结果；逐轮确认controller goal success、MoveGroup result SUCCESS、process exit clean；记录析构前`execution_thread_joinable`和`active_handles_after_stop`数值。
+- [ ] 若Run #107确认thread不再joinable且active_handles为0，记录这只覆盖正常执行完成路径；再设计屏障控制的自然完成/stop/destructor竞争测试，验证§9.3.383的check-lock-recheck窗口与plain-bool访问风险。
+- [ ] 如active_handles残留或execution thread仍joinable，继续在CI临时overlay中分析，不直接修改MoveIt upstream或Stäubli PR #1。
+
+**状态：** §9.3.385已首次完成mock FollowJointTrajectory的真实请求与controller成功执行观察；Run #106自动化字段断言已修正，Run #107待验证。正常执行路径不等价于析构竞争窗口已修复。
