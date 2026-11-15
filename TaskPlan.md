@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.19  
+版本：v12.20  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项：Run #113 5/5 确定性复现 TEM stopExecution check-lock-recheck 漏 join；Run #117（43683012297，workflow commit 42392ccf20644541e9e2394ae1cdb18ba6f8cc83）always-join CI overlay 候选已 5/5 通过，artifact 14149782675（SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮 state 均 join_performed=1、execution_thread_joinable=0、active_handles=0，未改 MoveIt upstream。Run #73/#107 无崩溃对照是复合干预（主 MoveItCpp/PSM/nh 提前 reset 与 TEM 内部 cleanup 同时变化），不能单独归因；Run #118 main-owner-only/TEM cleanup OFF 和 Run #119 TEM-cleanup-only/main reset OFF 两个因子隔离分支均已通过 rclcpp overlay、MoveIt source prep、barrier injection 和依赖安装，目前停留在 patched move_group 编译 step 8，结果待验。execution_complete_ 其它未锁访问、execution_thread_ 指针创建/访问所有权与 MoveGroup preempt_requested_ 同步/TSAN审查仍待完成；Run #54 的 Waitable/DSO 精确归属尚未证明。PR #1 保持 Draft；不修改 MoveIt/rclcpp upstream、Stäubli driver source、main 或固定 pin，不连接 CS9、不发送真实运动命令、不宣称 HIL/SAT。并行 EXT-001 已完成 KickCAT 固定上游基线、逐文件差异、DS402 文本重放与 Git blob SHA 对照、包级 MIT 元数据来源和 build-profile 清点；真实 Python patch 脚本在 pinned checkout 执行、LRW/network patch series、ESI 依据、许可意图、完整依赖闭包和 SBOM 仍待完成。
@@ -348,7 +348,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
-| 2026-11-15 | v12.19 | 完成 Stäubli TEM stopExecution 漏 join 5/5 确定性复现，并验证 always-join CI-only 候选 5/5 通过；新增 Run #118/#119 主对象提前 reset 与 TEM cleanup 单因子隔离实验；补齐 TEM/MoveGroup 状态字段同步风险清单；完成 KickCAT DS402 两文件重放及 Git blob SHA 独立复算，并追溯四个 ROS/Gazebo 包级 MIT 元数据首次提交。所有工程修复仍限 CI overlay，未修改 MoveIt/rclcpp 上游、Stäubli driver 产品源码、MotionControlAlgorithms 源码/许可或 main。 | Run #113/#117 artifact 14148018987/14149782675；Run #118/#119 pending；KickCAT upstream commit cb2e1a192ac11ffaa58f08945053b8129abf94cb 与 vendored blob SHA 对照；GitHub Actions / 静态代码审查 |
+| 2026-11-15 | v12.20 | 完成 Stäubli TEM stopExecution 漏 join 5/5 确定性复现，并验证 always-join CI-only 候选 5/5 通过；新增 Run #118/#119 主对象提前 reset 与 TEM cleanup 单因子隔离实验；补齐 TEM/MoveGroup 状态字段同步风险清单；完成 KickCAT DS402 两文件重放及 Git blob SHA 独立复算，并追溯四个 ROS/Gazebo 包级 MIT 元数据首次提交。所有工程修复仍限 CI overlay，未修改 MoveIt/rclcpp 上游、Stäubli driver 产品源码、MotionControlAlgorithms 源码/许可或 main。 | Run #113/#117 artifact 14148018987/14149782675；Run #118/#119 pending；KickCAT upstream commit cb2e1a192ac11ffaa58f08945053b8129abf94cb 与 vendored blob SHA 对照；GitHub Actions / 静态代码审查 |
 | 2026-11-14 | v11.93 | 完成 EtherCAT CSP rearm latch 状态变化专项复核：确认 staging 对 slave/scan 异常拒绝新命令，但 latch 置位条件缺少 online/operational/AL=OP 与 scan 完整性，可能不 inhibit stale 0x6040；新增知识页 §25、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 receive_process、CSP staging/rearm、fake IgH API 与现有回归测试静态对照 |
 | 2026-11-14 | v11.92 | 完成 EtherCAT IgH adapter Distributed Clocks 专项复核：确认通用 DC 元数据/状态机未连接到 adapter 的配置、IgH 周期同步 API、runtime health 或 CSP interlock；准确标记当前 adapter 不支持/未暴露 DC，新增知识页 §24、更新 EXT-001、第14章记录与每日归档。仅修改知识库文档，未修改上游源码/CI | MotionControlAlgorithms main `c11091b` 的 IgH adapter/header、通用 EtherCAT domain/state model、fake IgH API 与 PDO mapping 测试静态核对 |
 | 2026-11-14 | v11.91 | 完成 RelativeDegreeTwoCbfFilter 标准二阶 exponential CBF 级联公式复核；确认实现漏掉 alpha2*h_dot，并以非零导数解析反例证明现有零导数测试会漏检；知识页新增 §23，更新外部项目登记、第14章任务记录和每日归档。仅修改知识库工作分支，未修改上游算法源码 | MotionControlAlgorithms main `c11091b` 的 relative_degree_two_cbf_filter.hpp、multi_input_cbf_filter.hpp 与测试；级联公式手工推导及解析数值反例 |
@@ -398,7 +398,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | Run #113已5/5复现TEM漏join；Run #117 always-join CI-only候选已5/5通过。Run #118 main-owner-only/TEM cleanup OFF 与Run #119 TEM-cleanup-only/main reset OFF仍在patched move_group编译，因子结论待验。并发审计还发现last_execution_status_非原子结构体跨线程未统一加锁；execution_complete_、execution_thread_创建/访问所有权、preempt_requested_也仍需同步/TSAN审查。PR #1 Draft；未修改上游或真实产品源码。EXT-001 KickCAT来源和DS402 Git blob SHA已核验，完整SBOM/许可/patch series仍待完成。
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | Run #113已5/5复现TEM stopExecution漏join；Run #117 always-join CI-only候选已5/5通过。MoveGroupContext持有MoveItCpp/PSM/TEM shared_ptr；MoveGroupExe按capabilities_.clear → context_.reset → capability_plugin_loader_.reset析构，main局部shared_ptr可能推迟MoveItCpp/TEM最终析构到capability loader卸载之后。Run #118 main-owner-only/TEM cleanup OFF 与Run #119 TEM-cleanup-only/main reset OFF隔离实验正在patched move_group编译，结果待验。execution_complete_、last_execution_status_、execution_thread_所有权、preempt_requested_锁域/TSAN审查仍待做。PR #1 Draft；CS9/HIL/SAT未做。EXT-001 KickCAT差异/DS402 blob与包级许可来源已归档，完整SBOM/许可边界仍待确认。
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
