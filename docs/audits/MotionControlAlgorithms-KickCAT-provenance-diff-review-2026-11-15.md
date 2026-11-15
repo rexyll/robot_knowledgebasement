@@ -85,6 +85,22 @@ network_simulator.cc 改动则针对 Linux socket/veth 注入链路断开的错�
 
 它们与父仓库根 Apache-2.0 声明不一致。package.xml 的 license 字段是当前元数据证据，不足以单独认定包源码真实许可；不得自动将 MIT 改成 Apache-2.0。须由项目权利人确认包级许可意图、代码来源和是否含独立第三方贡献，再同步 package.xml、许可证文本及 NOTICE。
 
+
+### 3.1 MIT 元数据的创建时间与意图线索
+
+逐包追溯 package.xml 的首次引入提交后，确认四个 MIT 字段都是在各包创建时一并写入，而不是近期被后续维护提交误改：
+
+| 包 | 首次创建提交 | UTC 日期 | 首次提交是否包含 `<license>MIT</license>` |
+|---|---|---|---|
+| `gazebo/mca_gazebo_adapter` | `baa57d05b775ab60d4995b7df375e171e9af7628` | 2026-10-26 13:58:23 | 是 |
+| `ros2/mca_ros2_adapter` | `f68d8005a9fa805558f7a1b163c60e1f68b9decb` | 2026-10-26 10:38:44 | 是 |
+| `ros2/mca_gz_ros2_control_adapter` | `670a7d200757c1b71205646fafcc5a0fa1f7d8fa` | 2026-11-01 16:11:07 | 是 |
+| `ros2/mca_ros2_control_adapter` | `66f28d858caa10fcca3ac477b02fb4772b325b84` | 2026-11-01 07:26:42 | 是 |
+
+后续 package.xml 提交仅增加 Gazebo transport/messages 或测试依赖，没有改变 MIT 字段。对当前父仓库 tree 的包目录扫描未发现各包独立的 LICENSE、COPYING 或 NOTICE 文件。
+
+**审计结论修正：** MIT 字段是包创建时的原始作者声明，有历史证据支持“有意写入的包级许可元数据”，因此不应再仅称其为近期误改/漂移；但目前仍缺各包独立许可证文本、包源码版权/贡献者清单和与根 Apache-2.0 的明确授权边界。该历史事实本身不能证明包内全部文件均可按 MIT 再分发，也不能证明根项目 Apache-2.0 许可涵盖或不涵盖这些包。必须由项目权利人确认是否存在明确的双许可/子目录独立许可安排。未取得确认前，不自动更改任何 package.xml、根 LICENSE 或 NOTICE。
+
 ## 4. 许可证与分发判断边界
 
 - KickCAT 根目录自带 CeCILL-C v1.0；父仓库根 Apache-2.0 不会自动覆盖该目录。
