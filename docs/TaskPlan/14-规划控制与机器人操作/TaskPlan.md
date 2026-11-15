@@ -168,3 +168,12 @@
 | 2026-11-14 | 00-01 / 14-06 / 14-EXT-01 | 对 MotionControlAlgorithms CSP rearm latch 做运行中状态变化专项静态复核：发现首次 runtime-ready 检查 online/operational/AL=OP 和完整 scan，但运行后 latch 置位判据仅检查 master/link/scan-state-valid/slave-count 及 configured/state_valid/WKC，未检查 slave online/operational/AL 状态和 scan in-progress/count/index；CSP staging 虽拒绝新命令，旧 0x6040 仅在 latch 已置位时才被 inhibit。对照 fake API 现有 slave-offline/SAFEOP、scan、WKC 测试，确认缺少 managed CSP stale-controlword 组合回归。详见知识页 §25。仅静态审查，未执行本地测试或修改上游源码/CI；14-06状态不变。 |
 
 | 2026-11-15 | 00-01 / 14-06 / 14-EXT-01 | 对 MotionControlAlgorithms CANopen Bus-Off/restart 与 SDO/NMT 会话恢复做专项静态复核：SocketCAN transport 收到 CAN_ERR_RESTARTED 即置 Online，但没有 bus-off epoch/上层会话失效通知；CanopenVirtualNode::set_bus_recovered 仅清 communication_faulted，不清 segmented SDO transfer，也不改变 NMT/CiA-402 状态；NMT reset 路径也不清 SDO session。现有 recovery 测试只覆盖初始 PreOperational node，未覆盖 in-flight segmented SDO、Bus-Off 前 Operational/OperationEnabled、PDO/Controlword 恢复。明确 transport Online 不等于应用会话可恢复，新增知识页 §26 与分层修复/HIL 验收建议；未修改上游源码/测试/CI。 |
+
+
+### 14-EXT-02｜外部运动控制项目依赖许可与软件供应链审查
+
+- **任务范围：** 对 EXT-001 `MotionControlAlgorithms` 的第三方依赖、嵌入式源码、许可证、来源固定点、NOTICE、SBOM 与构建/分发路径进行静态核查。
+- **必做：** 区分根项目 Apache-2.0 与第三方独立许可；记录 vendored/submodule/包管理依赖；核验版本 pin、许可证文本、再分发义务、包元数据和 SBOM 生成/验证证据。
+- **严格禁止：** 不得将第三方代码视为用户原创或被根许可证自动覆盖；不得在来源/许可不明时复制进知识库；不得把静态清单冒充完整依赖闭包、SBOM 或法律意见；不得未经授权修改上游源码、NOTICE、package.xml 或 CI。
+- **交付物与验收：** 依赖许可证审查报告、知识页专项结论、外部项目登记更新、可复现 SBOM 与许可证检查证据；发现冲突后须由项目权利人确认再修改上游元数据。
+- **状态：** 进行中（第一轮静态审查已发现 KickCAT CeCILL-C、嵌入 MIT/WTFPL-2.0 组件、argparse 子模块固定点、ROS/Gazebo package.xml MIT 元数据冲突，以及 SBOM/依赖锁定证据缺口；KickCAT 精确上游 commit、argparse 许可证、可选构建依赖闭包、SBOM 生成/验证和分发场景仍待补齐）
