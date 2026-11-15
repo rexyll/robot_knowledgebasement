@@ -6682,20 +6682,37 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 **状态：** 根因机制和 CI overlay 候选修复获得强证据及 5/5 mock 回归通过，但普通 PR CI 仍失败；生产修复尚未合入适当上游发布链。当前节点继续进行中，不得标记完成。
 
-### §9.3.381｜去除测试侧 controller deactivation 并重测 PR 原始 teardown 流程（2026-11-15）
+### §9.3.381｜去除测试侧 controller deactivation 并验证 PR 原始 teardown 流程（2026-11-15）
 
-- [x] 建立三因素矩阵：A=MoveGroup 主作用域 owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。所有 #75–#81 实验还共同保留 stopPublishingPlanningScene、MoveGroupExe-before-executor 声明顺序。
-- [x] 现有结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78 恢复 A+B+C 后 3/3 PASS；#79–#81 在 A+B+C 下 5/5 PASS。这里 A/B 指新增 owner reset/TEM cleanup，stop PSM 与 MoveGroupExe-before-executor 是各次实验共同保留项。#54 为 stock ROS Jazzy + 原始 PR 测试（A=off,B=off,C=off，且无临时 MoveIt overlay），teardown FAIL。
-- [x] 仅修改隔离实验 workflow，移除临时注入 SwitchController/deactivation 逻辑，保留 PR head 7d9fa0d715db46060199eeca541514ddeed9c4c1 原始测试文件；MoveIt overlay A+B 不变。workflow commit b49a934e16243b8c81039e5d3d9fd5876b76d046。
-- [x] 新实验 Run #102（ID 43673306520，job 132687888928）已创建，branch head b49a934e16243b8c81039e5d3d9fd5876b76d046；触发时为 in_progress，尚未取得 build、test 或最终结论证据：[Run #102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)。
-- [ ] 检查 Run #102 实际使用的 Stäubli test file 是否与 PR head 原样一致，并核对 source SHA 仍为 7d9fa0d715db46060199eeca541514ddeed9c4c1。
-- [ ] 读取 Run #102 所有 steps/logs/artifacts，记录 mock planning 结果、各进程退出码、GDB 栈、DSO unload/mapping、测试汇总与是否真实执行。
-- [ ] 若 A+B、C=off 仍通过，至少独立复跑一次；若失败，将首个异常拆为 TEM weak_ptr/plugin DSO、MoveGroup main-owner teardown、controller manager deactivation/launch race 三条路径分别复核，不放宽断言。
-- [ ] 保持 stock binary 对照和 overlay 候选分开报告；未修改 MoveIt/rclcpp 上游、不改变固定 pin、不合并 PR #1、不连接 CS9、不发送真实运动命令。
+- [x] 建立三因素矩阵：A=MoveGroup 主作用域 owner reset（planning_scene_monitor / moveit_cpp / nh）；B=TrajectoryExecutionManager 显式 cleanup；C=测试侧在 shutdown 前显式 deactivate joint_trajectory_controller。#75–#81共同保留 stopPublishingPlanningScene 与 MoveGroupExe-before-executor 声明顺序。
+- [x] 对照历史结果：#75（A=off,B=on,C=on）3/3 FAIL；#76（A=on,B=on,C=on）3/3 PASS；#77（A=on,B=off,C=on）3/3 FAIL；#78恢复A+B+C后3/3 PASS；#79–#81在A+B+C下5/5 PASS。#54为stock ROS Jazzy + 原始PR测试（A=off,B=off,C=off、无临时MoveIt overlay），teardown SIGSEGV。
+- [x] 在隔离实验 workflow commit `b49a934e16243b8c81039e5d3d9fd5876b76d046` 中移除测试副本的 SwitchController/deactivation 注入，固定 Stäubli PR #1 head `7d9fa0d715db46060199eeca541514ddeed9c4c1`，保留 MoveIt overlay A+B。
+- [x] Run [#102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)（ID 43673306520，job 132687888928）完成且 conclusion=success；实际 checkout 日志确认 HEAD 为 `7d9fa0d715db46060199eeca541514ddeed9c4c1`，执行了原始PR测试文件，没有测试侧 controller deactivation。该文件在 PR head 的 blob SHA 为 `2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`。
+- [x] Run #102 的 A+B、C=off native non-ASan regression 确实执行五轮；五轮均看到 MoveGroup planning request 与 “Motion plan was computed successfully”；`test_all_processes_exit_cleanly` 五轮均为 `ok`，GDB子进程均 clean exit。每轮 `Summary: 6 tests, 0 errors, 0 failures, 0 skipped`，且 `colcon_test=0`、`test_result=0`；最终 `failures=0/5`。日志未发现 MoveGroup SIGSEGV、GDB wrapper 255 或进程异常退出。
+- [x] Run #102 Lifecycle marker 显示五轮 TEM 析构探针均处于 `main_context_valid=0/controller_context_valid=0`，事件订阅与 callback group reset、controller node reset正常完成；MoveGroup侧先出现 Executor destructor body END，随后 MoveGroupExe析构依序清 capabilities、reset context、reset capability loader。当前 overlay中的 `remove_node()` 默认 notify=true 以及 Context 已失效后的 executor cancel 在这五轮中没有导致测试失败。
+- [x] 保存实验 artifact [moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520/artifacts/14145626553)，ID 14145626553，SHA-256 `f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
+- [x] 记录剩余 shutdown 现象：多轮日志中 `ros2_control_node` 的 `controller_manager.pal_statistics` publisher thread 在 Context invalid 后输出 `context cannot be slept with because it's invalid!. Aborting!`；个别轮次还出现 rosout publisher context invalid。它没有使当前进程退出断言失败，也不是 Run #73 的 MoveGroup Waitable SIGSEGV；列为独立线程退出/关闭顺序问题。
+- [ ] 对 A+B、C=off 做至少一次独立重复；若独立复跑通过，才能把临时 overlay 的 mock结论提升为可重复证据，仍不得声称 stock ROS 已修复。
+- [ ] 对 PAL statistics publisher thread 的失效Context异常追查其线程停止/析构语义，确认是否只是可控退出告警或存在独立的线程竞态。
+- [ ] 保持 stock binary 对照、overlay候选和 Stäubli PR 正式代码分开报告；Run #54 stock CI 仍失败，PR #1不合并，不改固定源码pin，不连接CS9、不发送真实运动命令。
 
-**状态：** 当前仅证明 A+B+C 组合在实验 overlay 中 5/5 通过；原始 PR 测试条件 C=off 的 A+B 验证正在 Run #102 执行，尚无结论。PR #1 继续 Draft，普通 stock CI 仍 FAIL，SERVO-906/907 与 A1.1 继续 BLOCKED。
+**状态：** A+B overlay 在PR原始测试输入（C=off）下已取得5/5 mock planning + strict process teardown PASS；这是MoveIt/rclcpp CI临时源码overlay证据，不是安装版stock ROS Jazzy结果，也不是HIL/CS9验收。PR #1继续Draft/open/unmerged；SERVO-906/907与A1.1继续BLOCKED。
 
-### 下一节点
+### §9.3.382｜TEM/MoveGroup teardown 所有权图与并发边界审查（2026-11-15）
+
+- [x] 对照 MoveIt Jazzy TEM 成员声明和析构源码，确认 controller manager instance / loader 的默认逆序析构先于 controller node、private executor、active_handles_ 等较早声明成员；Run #73 的 weak control-block vptr映射与这一危险顺序吻合。
+- [x] 复核 `active_handles_` 是 `MoveItControllerHandlePtr` vector，声明在 `controller_manager_loader_` 前；`executePart()` 的 handle 获取失败、sendTrajectory失败和正常收尾分支会清理 handles，但异常/早退路径仍需验证。复核 `clear()` 只清 `trajectories_` raw contexts，不清 `active_handles_`。
+- [x] 精确复核 `stopExecution(true)`：若进入时 `execution_complete_==false`，停止/取消、join 后按 auto_clear 调用 `clear()`；若进入时已为 true 但 execution thread 仍 joinable，则只 join/reset thread，不会触发 auto_clear。不能仅凭调用 stopExecution(true) 断言 handles 与 contexts 全部清空。
+- [x] 核验 rclcpp Jazzy `Executor::remove_node(node, notify=true)` 默认 notify=true；`trigger_entity_recollect()` 在 executor 已非spinning时会同步重建实体集合，但 notify=true仍触发 interrupt guard condition。join后可评估传入 notify=false 以避免无用唤醒；这不是已观察到的Run #102失败原因。
+- [x] 核验 `Executor::cancel()` 会触发 interrupt guard condition，不以 spinning flag为短路条件。Run #102五轮 TEM dtor marker 显示main/controller context均已invalid，当前overlay仍调用cancel与默认notify remove_node，但五轮都成功；因此当前RMW/CI配置下没有观察到该路径异常，未来最小化补丁仍应审查重复cancel与Context shutdown交错。
+- [ ] 对候选补丁增加或验证 loader reset 前 `active_handles_.empty()` 不变量；必要时在执行线程join并持有正确状态锁后释放残余handles，覆盖异常、未启动线程、`auto_clear=false`、controller manager缺失和部分构造失败。
+- [ ] 验证 `trajectories_` 在未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等路径均能先于loader安全释放。
+- [ ] 对 PAL statistics publisher thread 在 Context invalid 后的异常退出做源码追踪与最小复现，区分可预期shutdown告警与实际线程泄漏/竞态。
+- [ ] 将 CI overlay A/B有效代码逐hunk最小化，剥离诊断marker、workflow-only和测试instrumentation，形成候选补丁审查稿；不提交到 MoveIt/rclcpp upstream或生产PR，除非用户另行授权。
+- [ ] 不更改 Stäubli固定源码pin，不合并PR #1，不连接真实CS9，不发送真实运动命令，不宣称HIL/实机验收。
+
+**状态：** Run #102为A+B、C=off提供了5/5 mock级验证；TEM成员释放边界与PAL statistics线程问题仍需补测。PR #1保持Draft，stock Run #54失败仍未解决。
+### 下一节点（§9.3.383）
 
 **§9.3.382｜TEM/MoveGroup teardown 候选补丁的最小化、所有权图与并发边界审查**
 
