@@ -32,7 +32,7 @@
 | 允许纳入知识库 | 独立撰写的驱动架构、接口控制文件、协议映射、生命周期设计、故障分析、Mock/SIL/HIL 方法、测试证据摘要、版本 pin 和已知限制 |
 | 不纳入知识库 | 未获许可的驱动源码、构建产物、完整日志/二进制、凭空推定的硬件参数，以及未经验证的安全功能声明 |
 | 安全边界 | Mock、CI、仿真或软件 teardown 通过，不等于真实 CS9/机器人 HIL、现场验收或安全认证；任何真实运动与安全回路验证均须按独立项目授权和专业程序执行 |
-| 最新生命周期证据 | 2026-11-15 Run #113 5/5 确定性复现 TEM stopExecution 漏 join，artifact 14148018987；另完成 Run #73/#107 TEM cleanup A/B：Run #73 显式清理关闭（if False）时 4 份测试 stdout 均在 Waitable weak_ptr/CallbackGroup 析构 SIGSEGV；Run #107 打开（if True）后 5 轮无 SIGSEGV，且日志显示 subscription/callback group/private executor/controller manager/controller node 先释放，manager DSO 后卸载。Jazzy TEM header 成员顺序显示 plugin loader 自动逆序析构早于 private executor/Node 成员。强烈指向 TEM 插件/Node/Waitable 生命周期顺序问题，但 Run #54 的具体控制块归属尚未完成符号级确认。 |
+| 最新生命周期证据 | Run #113 已 5/5 确定性复现 TEM stopExecution 漏 join；Run #73/#107 无崩溃对照属于复合干预（#73 主对象提前 reset OFF + TEM cleanup OFF，#107 两者 ON），不能单独归因。新增 #118 main-owner-only/TEM cleanup OFF 与 #119 TEM-cleanup-only/main reset OFF 两个隔离 workflow，正在 ROS Jazzy 初始化；见 MoveIt-TEM teardown audit §15。Run #54 Waitable 控制块的确切 DSO 归属仍未符号级确认。 |
 | 下一步 | 在分支 experiment/move-group-stop-execution-join-fix 验证 CI-only always-join 候选（最新 Run #43683012297，workflow commit 42392ccf20644541e9e2394ae1cdb18ba6f8cc83；Run #43682618698 仅因注入脚本三引号语法错误在编译前失败）；随后补齐 execution_complete_ 全部访问的锁域/TSAN 审查及 MoveGroup preempt_requested_ 独立同步审查；对照 stock Run #54 SIGSEGV 单独定位根因。继续维护厂商档案和证据链接，不复制驱动源码、不连接 CS9、不发送真实运动命令。 |
 
 ## 统一决策
