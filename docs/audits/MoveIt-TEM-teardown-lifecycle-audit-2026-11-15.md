@@ -1,7 +1,7 @@
 # MoveIt Jazzy TEM / MoveGroup teardown 生命周期审查
 
 **审查日期：** 2026-11-15  
-**状态：** 静态源码所有权审查已完成；Run #102 的 C=off overlay 回归仍在构建阶段，尚无测试结论。  
+**状态：** 静态源码所有权审查已完成；Run #102 的 C=off A+B overlay 五轮 mock 回归已通过；Run #103 独立重复正在执行。  
 **适用边界：** MoveIt 2 Jazzy + ROS 2 Jazzy 的 Stäubli mock CI teardown。本文不是上游修复，也不构成 CS9、HIL 或真实机器人验收。
 
 ## 1. 结论摘要
@@ -104,13 +104,38 @@ Jazzy 常见执行路径确实有清理逻辑：
 | Run #78 | A=on、B=on、C=on | 3/3 PASS |
 | Run #79–#81 | A+B+C overlay | 5/5 PASS |
 | Run #54 | stock ROS Jazzy + PR 原始测试，无 MoveIt overlay | teardown SIGSEGV |
-| Run #102 | A+B overlay、C=off、PR 原始测试输入 | **当前仍在 MoveIt build；测试未启动** |
+| Run #102 | A+B overlay、C=off、PR 原始测试输入 | **5/5 PASS；每轮6 tests、0 errors、0 failures、0 skipped** |
 
 其中 A 表示 MoveGroup 主作用域 owner / executor 顺序调整；B 表示 TEM 显式 cleanup；C 表示测试侧预先 deactivate joint_trajectory_controller。Run #75–#81 的 C=on 与 PR 原始 launch test 不同，所以其 5/5 通过不能替代 C=off 验证。
 
-Run #102 的 workflow commit 为 `b49a934e16243b8c81039e5d3d9fd5876b76d046`，实验分支为 `experiment/move-group-shutdown-order`，Actions run ID 为 `43673306520`，job ID 为 `132687888928`。workflow 将 Stäubli 临时 workspace 固定到 PR #1 head `7d9fa0d715db46060199eeca541514ddeed9c4c1`，并删除测试副本中此前的 controller-deactivation 注入。最近一次核验时，ROS Jazzy setup、rclcpp overlay build、MoveIt overlay patch 与依赖安装均已完成；patched MoveGroup build 正在进行，Stäubli workspace build 和 strict teardown repetitions 尚未开始；尚无 artifact 或最终结论。
+Run #102 的 workflow commit 为 `b49a934e16243b8c81039e5d3d9fd5876b76d046`，实验分支为 `experiment/move-group-shutdown-order`，Actions run ID 为 `43673306520`，job ID 为 `132687888928`。真实日志确认 checkout 到 PR #1 head `7d9fa0d715db46060199eeca541514ddeed9c4c1`，`git rev-parse HEAD`断言通过；测试文件原始 blob SHA `2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`已独立核验，workflow明确未对测试副本注入controller deactivation。rclcpp Jazzy诊断overlay、MoveIt A+B overlay和Stäubli mock workspace均成功构建；native non-ASan严格回归五轮均实际运行，每轮planning成功、`test_all_processes_exit_cleanly`为ok，GDB child clean exit，汇总6 tests/0 errors/0 failures/0 skipped，`colcon_test=0`、`test_result=0`，最终`failures=0/5`。无MoveGroup SIGSEGV、GDB wrapper 255或异常进程退出。Artifact 14145626553，SHA-256为`f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
 
-## 6. 下一步验收条件
+五轮TEM dtor probes均记录main/controller context已invalid（valid=0），事件订阅、callback group、controller node释放按序完成；MoveGroup Executor destructor body END先于MoveGroupExe dtor，随后依次clear capabilities、reset context和loader。当前overlay中的executor cancel与默认`remove_node(..., notify=true)`在这五轮未造成测试失败。另有`ros2_control_node`的`controller_manager.pal_statistics` publisher thread在Context invalid后报`context cannot be slept with because it's invalid!. Aborting!`，部分日志还显示rosout publisher context invalid；尽管进程退出测试通过，这仍是需独立分析的controller-manager shutdown线程现象，不能将其忽略或与MoveGroup Waitable SIGSEGV混为一谈。
+
+为满足独立复跑要求，workflow commit `f99d3475fc37d55aa81604d3da31e0acaa0ca513`（Run #103，ID `43674935564`）已新增运行时测试文件blob SHA校验与controller-deactivation负向检查；Run #103结果待核验。
+
+## 6. Run #102 原始 PR 测试条件 C=off 的五轮结果
+
+Run [#102](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520)（workflow commit `b49a934e16243b8c81039e5d3d9fd5876b76d046`，job `132687888928`）完成，run/job conclusion 均为 success。运行时日志显示 Stäubli source commit checkout 到 `7d9fa0d715db46060199eeca541514ddeed9c4c1`，并通过 `rev-parse HEAD`断言；运行前打印“Using the PR launch test file unchanged; no test-side controller deactivation overlay”。该 launch test 文件 blob SHA为`2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`，与PR head原始文件相符。
+
+五轮 native non-ASan strict regression均真实执行。每轮都记录到planning request与`Motion plan was computed successfully`；`test_all_processes_exit_cleanly`每轮均为`ok`，GDB子进程均clean exit；每轮测试汇总均为6 tests、0 errors、0 failures、0 skipped，`colcon_test=0`、`test_result=0`，最后`failures=0/5`。日志检索未发现MoveGroup SIGSEGV、Segmentation fault、GDB wrapper exit 255或测试失败。
+
+Artifact：[moveit-shutdown-order-experiment-logs](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43673306520/artifacts/14145626553)，ID 14145626553，SHA-256 `f08745fa82a6121649e8a6017f6eeb1fb9cb06e11e35b47b29b7efcf26198809`。
+
+### Lifecycle markers 与残余现象
+
+- 五轮TEM析构探针均记录`main_context_valid=0`、`controller_context_valid=0`；event subscription reset、callback group reset、controller node reset均执行完成。
+- 五轮MoveGroup侧均记录Executor destructor body END后才进入MoveGroupExe析构，之后依次执行`capabilities_.clear()`、`context_.reset()`、`capability_plugin_loader_.reset()`。
+- 当前overlay在Context invalid后执行private executor cancel、并以默认`notify=true`调用`remove_node`，本次五轮均未因此失败。由于executor线程已join、非spinning，未来最小化补丁可以评估将`remove_node(controller_mgr_node_, false)`作为明确的无通知收尾；这属于代码整洁/健壮性检查，不是本次已观测故障。
+- 五轮中多次出现`ros2_control_node`的`controller_manager.pal_statistics` publisher thread在Context invalid后报告`context cannot be slept with because it's invalid!. Aborting!`；某些轮次还报告rosout publisher context invalid。它没有导致当前进程退出断言失败，但应单列为controller-manager统计发布线程的shutdown顺序/退出边界；当前没有证据表明它与Run #73的MoveGroup Waitable control-block/DSO崩溃为同一原因。
+
+### 结论边界
+
+Run #102证明：A+B临时MoveIt/rclcpp源码overlay在Stäubli PR原始launch测试输入（C=off）下，取得五轮连续的native non-ASan mock planning与严格进程退出PASS。它没有证明未修改的`/opt/ros/jazzy` stock MoveIt/rclcpp通过；Run #54 stock CI仍有MoveGroup teardown SIGSEGV。因此这项结果提高了候选修复的可信度，但还不能解锁PR #1或SERVO-906/907。
+
+独立重复Run #103已由workflow commit `f99d3475fc37d55aa81604d3da31e0acaa0ca513`触发；该轮额外要求运行时checkout test blob SHA精确等于`2f23d471e2c2dd6ee9e6e5a9560bac88e5cdf14b`，并拒绝任何controller-deactivation逻辑。Run [#103](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43674935564)结果待验证。
+
+## 7. 下一步验收条件
 
 - 读取 Run #102 实际 checkout 步骤与 SHA 校验输出，确认 PR launch test 没有被改写。
 - 只有 mock planning 成功、严格 teardown 测试全部五轮真实执行且所有相关进程退出码为 0，才可记录该配置 PASS。
@@ -121,4 +146,4 @@ Run #102 的 workflow commit 为 `b49a934e16243b8c81039e5d3d9fd5876b76d046`，�
 
 ---
 
-**本报告的结论边界：** Run #73 对 control-block vptr 与 plugin DSO 的三次映射证据、Jazzy 源码所有权链和候选 teardown 顺序已核验；Run #102 的 C=off 回归仍未完成；PR #1 继续 Draft / BLOCKED。
+**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102在PR原始输入C=off下A+B overlay五轮通过，但stock Run #54仍失败；Run #103独立复跑待核验；PAL statistics线程异常为独立待审项；PR #1继续Draft / BLOCKED。
