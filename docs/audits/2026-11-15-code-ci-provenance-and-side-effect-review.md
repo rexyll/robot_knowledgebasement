@@ -83,7 +83,7 @@
 - 已完成 ROS 2 硬件接口 HIL、现场 FAT/SAT、运动安全验证；
 - 已复现或排除外部 MoveIt/rclcpp 生命周期竞态。
 
-PR #22 最新 head 在本轮 APT opt-in 代码变更前的 CI 已通过；本轮变更后的 head 必须等待新 CI 运行结束后再记录 PASS。
+PR #22 head `be974befae2e1c2d7841996dc50a84daa58e0cad` 的 GitHub Actions Run #43708136585 已于 2026-11-15 完成并成功：Python 3.10/3.11/3.12 测试、锁定 Python 依赖 OSV 扫描及 runtime/development SBOM 生成五项检查全部 success。该结果覆盖当时 head 中的 APT opt-in、Node24 Actions 升级和 SO-101/电池 P0 审查。后续若修改代码/工作流，仍须以新 head CI 为准。
 
 ## 6. GitHub Actions 与外部构建来源
 
@@ -133,7 +133,7 @@ PR #22 的第一次 APT opt-in 变更 CI 中，Python 3.11 job 在 Ruff lint 阶
 - setup-python v6.2.0：`a309ff8b426b58ec0e2a45f0f869d46889d02405`
 - upload-artifact v6.0.0：`b7c566a772e6b6bfb58ed0dc250532a479d7789f`
 
-新版本 tag ref 与完整 commit SHA 一致，且 GitHub commit verification 均为 verified。升级后的最新 head CI 仍待结果，不提前声明全部通过。
+新版本 tag ref 与完整 commit SHA 一致，且 GitHub commit verification 均为 verified。升级后的 head `be974befae2e1c2d7841996dc50a84daa58e0cad` 对应 Run #43708136585 已全部通过；所有后续提交仍须重新核对其 head CI。
 
 ## 7. 许可证、权利人和来源缺口
 
