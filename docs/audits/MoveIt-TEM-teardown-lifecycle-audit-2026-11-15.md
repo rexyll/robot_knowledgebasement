@@ -144,13 +144,15 @@ Run #102证明：A+B临时MoveIt/rclcpp源码overlay在Stäubli PR原始launch�
 
 ## 7. 下一步验收条件
 
-- 读取 Run #102 实际 checkout 步骤与 SHA 校验输出，确认 PR launch test 没有被改写。
-- 只有 mock planning 成功、严格 teardown 测试全部五轮真实执行且所有相关进程退出码为 0，才可记录该配置 PASS。
-- 若 Run #102 通过，至少再做一次独立重复；若失败，按首个异常、Waitable vptr/DSO mapping、MoveGroup main owners、TEM node/group/executor 和 controller lifecycle 分层定位。
-- 增加/验证 active_handles_ empty invariant、trajectories_ 清理及构造失败、缺失插件、未启用 controller management、Context 已 shutdown、controller update in-flight、重复 shutdown 等边界。
-- 先把 CI overlay 的有效代码 hunk 与上游 Jazzy 源码逐项对齐，移除诊断输出和 workflow-only 改动，形成最小候选补丁审查稿。
-- 不修改 MoveIt/rclcpp upstream，不改变 Stäubli pin，不合并 Stäubli PR #1，不连接真实 CS9，不发送真实运动命令，不宣称 HIL/实机验收。任何 upstream / 生产 PR 修改仍需单独授权。
+- [x] Run #102实际checkout SHA、原始PR launch test blob与未注入controller deactivation的约束已核验；五轮mock planning和严格进程退出均通过。
+- [ ] 核验独立重复Run #103的运行时test blob SHA guard、五轮执行摘要、GDB/进程退出结果与artifact；若出现不一致，不将结果并入通过统计。
+- [ ] 增加/验证 `active_handles_.empty()` invariant：在线程join后、controller-manager loader reset前检查；覆盖异常/早退、未启动执行线程、`auto_clear=false`、controller manager缺失和部分构造失败。
+- [ ] 覆盖 `trajectories_` 的未执行、执行已完成但thread未join、Context已shutdown、重复shutdown、controller update in-flight等边界。
+- [ ] 将MoveIt overlay A/B有效改动与Jazzy upstream逐hunk最小化，对诊断marker、workflow-only和测试instrumentation做剥离，形成仅供审查的候选补丁说明。
+- [x] PAL statistics日志已归因到上游issue #28与内层WallRate sleep异常catch，不作为MoveGroup teardown失败；不修改该第三方上游。
+- [ ] stock ROS Jazzy Run #54仍失败；在生产PR/stock环境得到独立修复验证前，PR #1不得合并，SERVO-906/907及A1.1保持BLOCKED。
+- [ ] 不修改MoveIt/rclcpp upstream，不改变Stäubli pin，不连接真实CS9，不发送真实运动命令，不宣称HIL/实机验收。任何production source/PR改动仍需单独授权。
 
 ---
 
-**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102在PR原始输入C=off下A+B overlay五轮通过，但stock Run #54仍失败；Run #103独立复跑待核验；PAL statistics线程异常为独立待审项；PR #1继续Draft / BLOCKED。
+**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102在PR原始输入C=off下A+B overlay五轮通过，但stock Run #54仍失败；Run #103独立复跑待核验；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
