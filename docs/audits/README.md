@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-15 电池与电源标准版本/运输勘误/能量预算边界 P0 审查](2026-11-15-battery-standards-and-energy-claim-boundary-review.md)：复核 IEC 62619:2022、IEC 63056:2020/COR1:2021、UN Manual Rev.8/Amend.1 与 2025-12-15 后续勘误；更新能量预算折减因子，强调标准全文、目标电池包和实测证据仍缺。
+
 - [2026-11-15 SO-101 控制板与舵机 SKU 适用边界 P0 审查](2026-11-15-so101-controller-board-servo-sku-boundary-review.md)：复核 WaveShare 官方产品/FAQ/接线资料及 Seeed SO-ARM101 Chapter 2/6、Hugging Face LeRobot SO-101 资料；纠正 C046 仅适用于公开映射 Leader L4–L6，不可套用到 Follower F1–F6；实际板卡、采购批次BOM、固件和实测仍待确认。
 
 - [2026-11-15 源码、脚本、测试与 CI 来源/副作用审查](2026-11-15-code-ci-provenance-and-side-effect-review.md)：限定审查 35 项代码/自动化资产，核验 Actions commit SHA 与官方 tag、固定容器/源码 pin，并为会改写 APT 源的 helper 增加显式 opt-in 门禁；apt/rosdep 动态系统依赖和系统级 SBOM 仍待关闭。
