@@ -6702,5 +6702,6 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 - [ ] 将实验 overlay 的 A/B 补丁与 MoveIt Jazzy 源码逐 hunk 对齐，去除 diagnostics 与 workflow-only 变更。
 - [ ] 结合 Run #102 结果确定最小必要代码路径，审查 executor thread join、remove_node、callback group / Waitable、plugin instance 与 loader 的所有权和释放顺序。
+- [ ] 明确审计 TEM 的 active_handles_：它是 MoveItControllerHandlePtr 容器且声明在 controller_manager_loader_ 之前（因此隐式逆序析构时位于 loader 之后）。确认 stopExecution(true) 后 execution_thread_ 已 join、active_handles_ 在 loader reset 前为空；对异常/早退/未启动执行线程路径考虑在无并发访问的条件下显式清空并验证析构顺序，避免 plugin-owned handles 跨 DSO unload 存活。同步确认 trajectories_ 的 raw contexts 经 clear() 释放，不遗留 controller-handle 或回调对象。
 - [ ] 验证重复析构、未启用 controller management、缺失 plugin、构造中途失败、Context 已 shutdown、controller update 仍在途等边界。
 - [ ] 不将候选补丁提交至 upstream 或生产 PR，除非用户单独授权。
