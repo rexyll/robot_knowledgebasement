@@ -209,7 +209,9 @@ Run #102 did not start trajectory execution, so it has not dynamically validated
 ## 11. 下一步验收条件
 
 - [x] Run #102实际checkout SHA、原始PR launch test blob与未注入controller deactivation的约束已核验；五轮mock planning和严格进程退出均通过。
-- [ ] 核验独立重复Run #103的运行时test blob SHA guard、五轮执行摘要、GDB/进程退出结果与artifact；若出现不一致，不将结果并入通过统计。
+- [x] Run #103与#104的运行时PR原始test blob SHA guard、五轮执行摘要、GDB/进程退出结果与artifact均已核验；两轮各5/5通过。
+- [x] Run #106已在CI临时副本中首次实际执行plan_only=false mock trajectory；五轮controller action均报告Goal reached、TEM status SUCCEEDED、MoveGroup返回成功日志，失败只由错误的可选executed_trajectory字段断言引起；修正后的Run #107待验证。
+- [ ] 核验Run #107的测试结果与TEM析构快照：execution_thread_joinable应为0，active_handles_after_stop应为0；若不是，分析残留引用和线程join路径。
 - [ ] 把§10的owner chain落实为candidate teardown patch：execution thread join后清`active_handles_`，随后reset manager instance和node/group，loader最后卸载；在loader reset前断言`active_handles_.empty()`与manager为空。
 - [ ] 覆盖`trajectories_`未执行/auto_clear=false/已完成但thread未join等边界，并为多个controller、send fail、cancel、natural completion race与异常早退建立mock真实轨迹执行用例。
 - [ ] 将MoveIt overlay A/B有效改动与Jazzy upstream逐hunk最小化，对诊断marker、workflow-only和测试instrumentation做剥离，形成仅供审查的候选补丁说明。
