@@ -2,10 +2,24 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.20  
+版本：v12.21  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
-> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01；第21章21-02并行推进。Stäubli专项：Run #113 5/5 确定性复现 TEM stopExecution check-lock-recheck 漏 join；Run #117（43683012297，workflow commit 42392ccf20644541e9e2394ae1cdb18ba6f8cc83）always-join CI overlay 候选已 5/5 通过，artifact 14149782675（SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮 state 均 join_performed=1、execution_thread_joinable=0、active_handles=0，未改 MoveIt upstream。Run #73/#107 无崩溃对照是复合干预（主 MoveItCpp/PSM/nh 提前 reset 与 TEM 内部 cleanup 同时变化），不能单独归因；Run #118 main-owner-only/TEM cleanup OFF 和 Run #119 TEM-cleanup-only/main reset OFF 两个因子隔离分支均已通过 rclcpp overlay、MoveIt source prep、barrier injection 和依赖安装，目前停留在 patched move_group 编译 step 8，结果待验。execution_complete_ 其它未锁访问、execution_thread_ 指针创建/访问所有权与 MoveGroup preempt_requested_ 同步/TSAN审查仍待完成；Run #54 的 Waitable/DSO 精确归属尚未证明。PR #1 保持 Draft；不修改 MoveIt/rclcpp upstream、Stäubli driver source、main 或固定 pin，不连接 CS9、不发送真实运动命令、不宣称 HIL/SAT。并行 EXT-001 已完成 KickCAT 固定上游基线、逐文件差异、DS402 文本重放与 Git blob SHA 对照、包级 MIT 元数据来源和 build-profile 清点；真实 Python patch 脚本在 pinned checkout 执行、LRW/network patch series、ESI 依据、许可意图、完整依赖闭包和 SBOM 仍待完成。
+> 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01（全仓库资产基线已完成386/386路径与Blob/字节数对账；claim-level和许可/授权审计未完成；Python Toolkit 13项权利人及再分发授权待确认）；第21章21-02并行推进（医疗/康复/腔镜机器人注册与标准证据继续补充，原始电子证照和适用范围附件仍有缺口）。Stäubli专项更新：Run #113 5/5确定性复现TEM stopExecution check-lock-recheck漏join；Run #117 always-join CI overlay 5/5通过（artifact 14149782675，SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮join_performed=1、execution_thread_joinable=0、active_handles=0；Run #118 main-owner-only/TEM cleanup OFF与Run #119 TEM-cleanup-only/main reset OFF已进入patched MoveIt move_group编译，结果待验。仍不修改MoveIt/rclcpp upstream、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。MotionControlAlgorithms源码集成继续DEFERRED，待00-01验收、14-EXT-02第三方许可/来源/SBOM及目标仓库兼容性门禁关闭并取得具体导入授权。
+
+> 2026-11-15 00-01增量（09-03电子电气设计P0证据复核）：已按 IEC 60204-1 公开目录/条款主题增量核验 PE/FE、移动机器车载电源保护联结端子、供电隔离、过电流保护、SCCR 和验证，并对照 IEC 60947-2/-3/-4-1、IEC 61439-2 及 ABB 说明区分断路器 Icu/Ics、隔离器件条件额定值和整机 SCCR。仅为资料/条款边界审查，无项目原理图、短路电流计算或实验室测试；详见 09-03 §10 与专项报告。
+
+> 2026-11-15 00-01增量（减速器P0证据复核）：已对照 Harmonic Drive CSG-GH/CSF-GH、Nabtesco RV-Original 和 Norelem 蜗轮蜗杆目录，区分连续额定/重复峰值/平均负载/瞬时冲击/加减速扭矩与专属负载谱算法，明确蜗轮蜗杆自锁不能作为安全制动器。详见《减速器》§7 和专项报告；仅为公开资料增量审计，不代表本项目减速器选型或耐久验证已完成。
+
+> 2026-11-15 00-01增量（自动充电系统P0证据复核）：已核对 EN 1175:2025 对无人驾驶工业车辆自动运行功能的范围排除、ISO 3691-4 第三版 DIS 的自动充电条款/系统组成预览，并对照 ABB F702 2025 手册补充在线充电刷板短路/触电残余风险和停靠/CAN/接触器时序。仅为公开资料增量审计，不代表本项目充电系统符合标准或通过现场验证；详见充电知识页 §8 与专项报告。
+
+> 2026-11-15 00-01增量（电机与驱动器P0证据复核）：已补充 STO/SS1/SS2/SOS/SBC/SLS 等驱动安全子功能与机器级急停、机械制动、电气隔离边界，核验 IEC 61800-5-1、IEC 60204-1、ISO 13850 版本状态及 Siemens S120/ABB ACS880 产品配置示例，详情见知识页 §9–§10 和专项报告。仅为公开来源增量审计；整篇 claim-level、准确器件 SKU/证书/参数和实际机器验证仍未完成。
+
+> 2026-11-15 00-01增量（安全防护器件P0证据复核）：已交叉核验 ANSI/A3 R15.06-2025 三部分发布状态、OSHA 对共识标准的说明、ISO/DIS 3691-4 生命周期字段、OS32C/SICK microScan3 配置响应、3SK1/G9SE/PSENmlock 的型号和时间语义；知识页 §12 与专项报告记录页面冲突和验证边界。仅为公开资料审计，不代表目标机器人器件适用、现场验证或整机安全通过。
+
+> 2026-11-15 00-01增量（功能安全标准生命周期复核）：已对《功能安全体系》增加 ISO/IEC 生命周期与适用边界、欧盟《机械法规》(EU) 2023/1230 适用日期的公开来源快照，详情见知识页 §11 和功能安全增量审计报告。该轮仅完成官方目录/摘要核验，整篇 claim-level、标准全文、目标市场法律适用性和产品验证仍未完成；00-01 继续进行中。
+
+> 2026-11-15 00-01增量：已完成 Python Toolkit 实际 wheel/sdist 的 13 个发布源码/测试文件 Git 路径历史与静态内容复核。17 条路径历史 commit 均显示 rexyll 为 author/committer，但均为 unsigned；chunker.py 存在与两个更早公开项目相似的重叠分块控制流程/说明文字线索，尚未确认来源关系。13/13 权利人仍未验证、再分发状态仍未确定；根 LICENSE 与 PEP 639 metadata 暂不变更，00-01 继续执行。
 
 > v11.29补充：CMake File API index.reply结构与codemodel/target jsonFile引用已加入路径边界保护；对应collector、负向测试及普通CI结果见文末2026-11-11记录。
 
@@ -348,7 +362,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
-| 2026-11-15 | v12.20 | 完成 Stäubli TEM stopExecution 漏 join 5/5 确定性复现，并验证 always-join CI-only 候选 5/5 通过；新增 Run #118/#119 主对象提前 reset 与 TEM cleanup 单因子隔离实验；补齐 TEM/MoveGroup 状态字段同步风险清单；完成 KickCAT DS402 两文件重放及 Git blob SHA 独立复算，并追溯四个 ROS/Gazebo 包级 MIT 元数据首次提交。所有工程修复仍限 CI overlay，未修改 MoveIt/rclcpp 上游、Stäubli driver 产品源码、MotionControlAlgorithms 源码/许可或 main。 | Run #113/#117 artifact 14148018987/14149782675；Run #118/#119 pending；KickCAT upstream commit cb2e1a192ac11ffaa58f08945053b8129abf94cb 与 vendored blob SHA 对照；GitHub Actions / 静态代码审查 |
+| 2026-11-15 | v11.94 | 完成 CANopen Bus-Off/restart 与 SDO/NMT 会话恢复专项复核：SocketCAN Restarted→Online 不等于应用会话恢复；virtual node bus recovery 未清分段 SDO/NMT/CiA-402 状态，现有测试缺少中断会话与运行态恢复组合。新增知识页 §26、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 socketcan_transport.hpp、canopen.hpp、CANopen tests 与 P12_SOCKETCAN 文档静态核对 |
 | 2026-11-14 | v11.93 | 完成 EtherCAT CSP rearm latch 状态变化专项复核：确认 staging 对 slave/scan 异常拒绝新命令，但 latch 置位条件缺少 online/operational/AL=OP 与 scan 完整性，可能不 inhibit stale 0x6040；新增知识页 §25、更新 EXT-001、第14章记录和每日归档。仅修改知识库文档，未修改上游源码/测试/CI | MotionControlAlgorithms main `c11091b` 的 receive_process、CSP staging/rearm、fake IgH API 与现有回归测试静态对照 |
 | 2026-11-14 | v11.92 | 完成 EtherCAT IgH adapter Distributed Clocks 专项复核：确认通用 DC 元数据/状态机未连接到 adapter 的配置、IgH 周期同步 API、runtime health 或 CSP interlock；准确标记当前 adapter 不支持/未暴露 DC，新增知识页 §24、更新 EXT-001、第14章记录与每日归档。仅修改知识库文档，未修改上游源码/CI | MotionControlAlgorithms main `c11091b` 的 IgH adapter/header、通用 EtherCAT domain/state model、fake IgH API 与 PDO mapping 测试静态核对 |
 | 2026-11-14 | v11.91 | 完成 RelativeDegreeTwoCbfFilter 标准二阶 exponential CBF 级联公式复核；确认实现漏掉 alpha2*h_dot，并以非零导数解析反例证明现有零导数测试会漏检；知识页新增 §23，更新外部项目登记、第14章任务记录和每日归档。仅修改知识库工作分支，未修改上游算法源码 | MotionControlAlgorithms main `c11091b` 的 relative_degree_two_cbf_filter.hpp、multi_input_cbf_filter.hpp 与测试；级联公式手工推导及解析数值反例 |
@@ -398,7 +412,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 14 规划控制与操作 | 14-04、14-05 | 已有零基础机械臂教材；完整 3D 运动学/动力学、冗余求解、控制接口和硬件实测待补 |
 | 17 多机器人调度 | 17-07 | 已建立 ISO 21423:2026 标准入口；对象/消息映射、异常和多供应商互操作测试待做 |
 | 18 BOM/供应链/成本 | 18-07、18-08 | 桌面机械臂 NPI 草案包含 EBOM/MBOM 与供应商质量流程；真实 BOM、报价、供应商审核和来料记录待补 |
-| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | Run #113已5/5复现TEM stopExecution漏join；Run #117 always-join CI-only候选已5/5通过。MoveGroupContext持有MoveItCpp/PSM/TEM shared_ptr；MoveGroupExe按capabilities_.clear → context_.reset → capability_plugin_loader_.reset析构，main局部shared_ptr可能推迟MoveItCpp/TEM最终析构到capability loader卸载之后。Run #118 main-owner-only/TEM cleanup OFF 与Run #119 TEM-cleanup-only/main reset OFF隔离实验正在patched move_group编译，结果待验。execution_complete_、last_execution_status_、execution_thread_所有权、preempt_requested_锁域/TSAN审查仍待做。PR #1 Draft；CS9/HIL/SAT未做。EXT-001 KickCAT差异/DS402 blob与包级许可来源已归档，完整SBOM/许可边界仍待确认。
+| 21 产业生态/厂商/市场 | 21-01、21-02、21-04、21-05 | Run #113已5/5复现TEM stopExecution漏join；Run #117 always-join CI-only候选已5/5通过。MoveGroupContext持有MoveItCpp/PSM/TEM shared_ptr；MoveGroupExe按capabilities_.clear → context_.reset → capability_plugin_loader_.reset析构，main局部shared_ptr可能推迟MoveItCpp/TEM最终析构到capability loader卸载之后。Run #118 main-owner-only/TEM cleanup OFF 与Run #119 TEM-cleanup-only/main reset OFF隔离实验正在patched move_group编译，结果待验。execution_complete_、last_execution_status_、execution_thread_所有权、preempt_requested_锁域/TSAN审查仍待做。PR #1 Draft；CS9/HIL/SAT未做。EXT-001 KickCAT差异/DS402 blob与包级许可来源已归档，完整SBOM/许可边界仍待确认；医疗/康复/腔镜手术机器人注册与标准的新增线索已分主体、型号和证号记录，现行电子证照、适用范围附件、重庆生产许可及CAPA闭环仍待原始材料。 |
 | 19 测试与验证 | 19-06、19-08 | 故障诊断/FRACAS/CAPA 方法和模板已建立；真实产品故障库、量产质量统计和案例待补 |
 | 20 安全与法规 | 20-03、20-07 | 初始危险源清单已建立，标准声明定向复核已进行；正式风险估计、专业评审和逐项主张核验待做 |
 | 22 项目集成与生命周期 | 22-05、22-07、22-08、22-09 | 故障闭环及 NPI/质量/交付流程草案已建立；真实工厂、批次、良率、放行和客户交付数据待补 |
@@ -434,6 +448,6 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-12 | [TaskPlan-2026-11-12.md](TaskPlan_History/TaskPlan-2026-11-12.md) | 35 |
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
-| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 26 |
+| 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 记录持续追加（已汇总 PR #18–#21 专项记录） |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
