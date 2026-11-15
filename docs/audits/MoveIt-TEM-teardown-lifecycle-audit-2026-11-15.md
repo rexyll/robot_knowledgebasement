@@ -277,4 +277,22 @@ An adjacent issue exists in `MoveGroupMoveAction`: `preempt_requested_` is also 
 
 The Jazzy `trajectory_execution_manager/test/test_execution_manager.cpp` retrieved from the upstream branch still includes ROS 1 `ros/ros.h`. The package `CMakeLists.txt` keeps its old catkin/rostest test registration commented out under `CATKIN_ENABLE_TESTING`. Its adjacent `test_moveit_controller_manager.hpp` is rclcpp-shaped, but the existing cpp test is not a ready-to-run Jazzy ament test target. Therefore a dedicated Jazzy ament test target or isolated temporary test executable is needed for the barrier-controlled test; do not claim an existing Jazzy GTest already covers this case.
 
-**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102–104在PR原始输入C=off下A+B overlay合计15次mock-planning/teardown repetitions通过，但stock Run #54仍失败；Run #106首次实际执行mock FollowJointTrajectory并观察到controller/TEM/MoveGroup成功，但自动化断言误判；Run #107正在验证修正后的plan-and-execute与TEM析构快照；新增的execution_thread_竞争窗口仍是静态风险，尚未动态复现；PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
+## 14. Normal mock trajectory execution and five teardown snapshots (Run #107)
+
+Run [#107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898), workflow commit 18fea00298ee542c304cbf73d652cd540262712e, completed successfully with the temporary A+B MoveIt/rclcpp overlay and the fixed Stäubli PR #1 head. It ran both the original plan-only test and the separate plan_only=false FollowJointTrajectory execution test, then the strict process-shutdown assertion.
+
+Artifact [14147826279](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898/artifacts/14147826279), SHA-256 b0e13044c3b51e9e7da2bd2b5653e5ed30a9e09692ab3677d206ef8c6250697a, contains five separate launch-test stdout directories. Each shows:
+- test_move_group_plans_joint_goal_without_execution and test_z_move_group_executes_joint_goal_on_mock_controller: Ran 2 tests ... OK.
+- test_all_processes_exit_cleanly: Ran 1 test ... OK.
+- Controller: Goal reached, success!; TEM: Completed trajectory execution with status SUCCEEDED; MoveGroup: Solution was found and executed.
+- TEM destructor snapshots: execution_thread_joinable=0 and active_handles_after_stop=0.
+
+Thus all five normal mock trajectory executions completed and were followed by a clean TEM join / active-handle teardown. This complements the 15/15 plan-only original-input C=off repetitions from Runs #102–104. It does not prove the stopExecution check-lock-recheck race safe: in the normal successful path, PlanExecution's wait path has already joined the TEM execution thread before the destructor snapshot.
+
+### Deterministic barrier harness status
+
+- Run [#111](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43678571443) failed closed in the CI-only injection step because the source slice for stopExecution() retained an extra blank line after its closing brace; the script required an exact newline-plus-closing-brace suffix. No MoveIt build or test ran, and no product source was modified.
+- Run [#112](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43678885235), workflow commit e61fd811175ad78b3d226b357e668aea8d0a5a3b, now trims the function slice before locating the final closing brace and re-inserting the state marker. It is in progress.
+- For a valid reproduction, the test must record entered, thread_finished, released, and state; the post-barrier state should be execution_thread_joinable=1, active_handles=0 before MoveGroup teardown, followed by a clean process exit as the TEM destructor joins the leftover completed thread.
+- A failure before those markers (e.g. no MONITOR feedback, trajectory completed before cancel, barrier not entered, or timeout) is a harness/trigger failure, not evidence that the race does not exist.
+**本报告的结论边界：** Run #73 对control-block vptr与plugin DSO的三次映射证据、Jazzy源码所有权链已核验；Run #102–104在PR原始输入C=off下A+B overlay合计15次mock-planning/teardown repetitions通过；Run #107正常mock FollowJointTrajectory执行与析构快照5/5通过，五轮execution_thread_joinable=0、active_handles=0。Run #111屏障注入因函数尾部空白校验失败，Run #112正在验证修正后的barrier；execution_thread_竞态尚未动态复现；stock Run #54仍失败，PAL statistics日志已确认是非致命上游shutdown现象；PR #1继续Draft / BLOCKED。
