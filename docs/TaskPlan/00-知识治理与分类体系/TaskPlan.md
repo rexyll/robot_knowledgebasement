@@ -816,3 +816,12 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 
 **当前判断：** 本轮完成标准目录、运输版本与能量公式的 P0 定向核验；目标产品的合规适用性和实物验证仍未完成。整篇资产继续保持 claim-level pending；00-01 与第05章 05-03 相关节点继续进行中。
 
+### 2026-11-15｜00-01持续审计记录（PR #22 最新审查 head CI 通过）
+
+- PR #22 head `be974befae2e1c2d7841996dc50a84daa58e0cad` 对应 GitHub Actions [Run #43708136585](https://github.com/rexyll/robot_knowledgebasement/actions/runs/43708136585) 已完成并成功。
+- 五项检查均为 success：Python 3.10、3.11、3.12 测试矩阵；锁定 Python 依赖 OSV 扫描；Python runtime/development SBOM 生成。
+- 该 CI head 已包含 APT 系统级修改的默认拒绝/显式 opt-in、Node24 Actions 版本升级、SO-101 控制板/伺服 SKU 适用边界 P0 修订，以及电池标准/运输勘误和能量预算公式边界修订。
+- PR #22 仍为 Draft/open/unmerged；该运行只覆盖知识库自动化/软件测试及 Python SBOM，不等同完整 Ubuntu/ROS 系统 SBOM、真实机器人/HIL/电池/电气安全验收。
+
+**当前判断：** 本批变更的自动化 CI 证据已通过；00-01 的全库主张级审计、授权与许可证覆盖范围、系统级依赖 SBOM、实物验证仍未完成。不得因此关闭 00-01 或提前启动 MotionControlAlgorithms 合并。
+
