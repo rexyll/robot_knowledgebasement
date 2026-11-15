@@ -901,3 +901,13 @@ Stäubli专项§9.3.210–279的连续审计记录已在根目录TaskPlan.md和d
 - 本轮仅完成公开目录/摘要和制造商公开手册的增量复核；未审读完整标准正文，未取得目标电机/驱动器/制动器 SKU、证书和参数化文件，未进行整机风险评估、故障注入、停止时间/距离、HIL 或实机验证。
 - 资产仍保持 `unaccepted_claim_level_review_pending`；逐路径权利人仍 `UNVERIFIED`、再分发仍 `UNDETERMINED`。00-01 继续进行中，MotionControlAlgorithms 合并仍延期。
 
+### 2026-11-15｜00-01持续审计记录（自动充电系统标准边界与厂商安全实例增量复核）
+
+新增 [自动充电系统安全边界、标准生命周期与 ABB F702 厂商实例增量审计](../../audits/2026-11-15-automatic-charging-standard-lifecycle-and-ABB-F702-safety-addendum.md)，更新《充电桩与自动充电》§8、来源台账 #1794–#1798、资产主清单、逐路径权利登记、审计索引、05章 TaskPlan 和根 TaskPlan。
+
+- 核对 EN 1175:2025 的 CEN 发布状态及 UNI EN 1175:2026 国家采用页，重点明确 EN 1175 对无人驾驶工业车辆自动运行功能的范围排除及对 EN ISO 3691-4:2023 §4.1.3 的指向。
+- 核对 ISO 3691-4:2023 已发布版本的动力源范围边界，以及第三版 ISO/DIS 3691-4 仍处于 DIS 阶段；DIS 公开预览将充电站/在线充电纳入无人驾驶车辆系统辅助组件，并在目录中单列 §4.5 Automatic battery charging，但不能将草案当作现行规范。
+- 对照 ABB Flexley Stack AMR F702（3HAS00050-001 Rev.A, 2025）手册，记录在线充电短路/触电残余风险和产品特定的停靠、CAN 握手、接触器上电/运动时断开流程；明确不得将普通 CAN 或单一型号行为泛化为安全认证。
+- ABB PDF 文本提取成功，但截图工具获取相关页返回 HTTP 403；报告记录该限制。未复制标准或厂商手册正文，仅保留摘要与官方来源链接。
+- 未取得项目目标充电器、充电桩、BMS、触点和接触器准确 SKU/证书/接线图/配置；未开展绝缘、保护联锁、接触器单故障、温升、触点磨损、短路、电弧/触电、HIL 或实机测试。
+- 《充电桩与自动充电》继续保持 unaccepted_claim_level_review_pending；权利人 UNVERIFIED、再分发 UNDETERMINED。00-01 继续进行中，MotionControlAlgorithms 合并继续延期。

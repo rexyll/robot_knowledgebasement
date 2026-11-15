@@ -524,3 +524,6 @@
 
 - [电机与驱动器驱动安全子功能、急停边界与标准生命周期增量审计](2026-11-15-motor-drive-safety-subfunctions-and-standard-lifecycle-addendum.md)：补充 IEC 61800-5-1、IEC 60204-1 与 ISO 13850 生命周期快照；区分 STO/SS1/SS2/SOS/SBC/SLS 等驱动器子功能与机器级急停、机械制动和电气隔离；对照 Siemens SINAMICS S120、ABB ACS880 官方资料列示型号/选件/参数化边界。仅为公开来源增量审查，整篇 claim-level 验收和真实机器安全验证仍未完成。
 
+### 2026-11-15｜自动充电系统：EN 1175、ISO 3691-4 DIS 与 ABB F702 在线充电增量审计
+
+- [自动充电系统安全边界、标准生命周期与 ABB F702 厂商实例增量审计](2026-11-15-automatic-charging-standard-lifecycle-and-ABB-F702-safety-addendum.md)：核对 EN 1175:2025 对无人驾驶工业车辆自动运行功能的范围排除；核对 ISO 3691-4:2023 与第三版 DIS 草案中自动充电条款/充电站系统边界的区别；对照 ABB Flexley Stack AMR F702 Rev.A 手册，记录在线充电刷板短路/触电残余风险、停靠/CAN 握手与接触器上电/断开时序。仅为公开资料增量审查，整篇 claim-level 验收与目标充电器/AMR 实物验证仍未完成。
