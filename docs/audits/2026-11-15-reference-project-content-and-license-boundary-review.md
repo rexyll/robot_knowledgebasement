@@ -13,7 +13,7 @@
 3. 参考项目新增的 4 个 CSV 是草案/输入模板：需求验收判据、方案选型证据、负载数值、风险评级均保留 Draft/TBD/Open，没有被包装成已批准需求、实测性能或完成的风险评估。
 4. 参考项目新增的 8 个软件/配置资产采用明确的外部来源基线：rustypot v1.13.1 固定 commit、LeRobot 版本提示和 FEETECH 通用教程来源。只读采集器限定为注入的 `read()` 接口，未提供连接、配置、写入或断开能力；但这不等于真实总线或硬件安全验收。
 5. FEETECH 官方通用 STS 教程 PDF 的链接已在旧来源台账 #253 登记为曾经读取；本轮重新访问时未能从官网取回，因此此处不把它提升为本轮重新核验通过。通用单位换算继续标记为未校准、非 SKU 专属。
-6. 现有 CI 的 pytest 配置明确包含根 `tests/` 与 `knowledge/projects/reference-desktop-manipulator/software/tests/` 两个 testpaths；PR #22 当前 Python 3.10/3.11/3.12 矩阵通过，故参考项目的三组测试位于该测试发现范围内。此项仍只是软件测试证据，不是实机、SKU 校准或串口协议验收。
+6. 现有 CI 的 pytest 配置明确包含根 `tests/` 与 `knowledge/projects/reference-desktop-manipulator/software/tests/` 两个 testpaths。PR #22 初始 head `894966e8bcc349bcad254656c7ef3ea774baae7b` 的 Python 3.10/3.11/3.12 矩阵通过；追加审计报告与索引后，head `814363becff3672972b283d7bbc4755e59f2ec69` 的 CI run #43707062720 在记录时仍为排队/运行状态。此项仍只是软件测试证据，不是实机、SKU 校准或串口协议验收。
 
 ## 2. 许可证与再分发边界
 
@@ -79,7 +79,7 @@ JSON 白名单固定了 rustypot 版本/commit，并区分可读字段、地址/
 
 ### 4.4 测试与工程证据边界
 
-根 `pyproject.toml` 的 pytest `testpaths` 显式包括上述参考项目软件测试目录。PR #22 的 Python 3.10、3.11、3.12 测试矩阵已通过。该结果只说明仓库内可执行的软件测试范围通过，不证明真实设备通信、寄存器读值、单位校准、故障安全或实机抓取动作通过。
+根 `pyproject.toml` 的 pytest `testpaths` 显式包括上述参考项目软件测试目录。PR #22 初始 head `894966e8bcc349bcad254656c7ef3ea774baae7b` 的 Python 3.10、3.11、3.12 测试矩阵已通过；后续追加文档后的 head `814363becff3672972b283d7bbc4755e59f2ec69` 对应 CI run #43707062720 在记录时仍排队/运行。该软件测试证据不证明真实设备通信、寄存器读值、单位校准、故障安全或实机抓取动作通过。
 
 ## 5. 尚未解决的资产缺口与行动
 
