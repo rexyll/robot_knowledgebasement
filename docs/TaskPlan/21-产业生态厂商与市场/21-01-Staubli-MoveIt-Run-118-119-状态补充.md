@@ -335,3 +335,8 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 静态审计报告 §2.4 新增一项高优先级 shutdown 风险：`MoveGroupMoveAction::initialize()` 的 accepted callback 启动捕获裸 `this` 的 detached worker；`MoveGroupExe::~MoveGroupExe()` 随后执行 `capabilities_.clear()`、`context_.reset()`、`capability_plugin_loader_.reset()`，目前未发现该 capability 对 worker 建立可join的线程句柄、活动计数或 completion barrier。若活动 goal 与 shutdown 重叠，worker可能继续访问已销毁的 capability/context，甚至在 plugin DSO卸载后继续执行其代码。此为静态生命周期风险，不是已复现的use-after-free或崩溃。
 
 新增确定性测试门禁：barrier固定 worker处于plan-only/planning/execution阶段，在worker仍存活时触发shutdown；记录worker start/finish/join与capability/context/loader析构时序；验证先停止新goal接纳、请求worker退出并drain/join，再清除capability/reset context/unload loader。TSAN检查数据竞争；ASan单独辅助检查use-after-free，不与TSAN混用。本轮未修改上游或产品源码，未执行动态复现。
+
+
+### 多goal共享状态补充
+
+MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启动detached worker；但Action capability类中只有单份 `goal_`、`move_state_`、`preempt_requested_` 成员。两个goal若重叠accepted，可能产生goal状态/feedback/result串扰和共享成员竞态；当前源码未显示single-active-goal门禁。将双goal并发、分别cancel/natural completion、结果UUID与feedback归属验证加入后续mock测试，具体风险级别以目标rclcpp_action实际执行和TSAN结果为准。
