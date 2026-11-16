@@ -587,3 +587,11 @@ ROS 2 Jazzy源码复核发现：
 这构成当前最强的**静态生命周期解释**，但仍不能单靠源码确定Run #136/#137现场的Node确实是TransformListener的`optional_default_node_`。Run #138需用`NodeServices::add_service`的NodeBase/service name、`CallbackGroup::add_service`的group/service address，以及PSM的`node_`/`pnode_`/`tf_listener_`/TF internal Node指针作同一进程关联。
 
 此外，当前可解释“为什么恰有一个weak entry”，但尚未解释control-block vptr为何落到未映射地址；若运行时确认服务为`~/get_type_description`且vptr在librclcpp/其编译单元地址范围，则需进一步检查control-block内存损坏、ABI/对象布局、弱计数生命周期和实际vptr归属。不可仅凭本静态链把DSO unload宣布为根因。
+
+
+### Run #138环境阶段失败及Run #139重试
+
+- Run #138（[Actions #43839729557](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43839729557)，commit `8680810cfe15152ce5b9cd6ed21cbc196e2baaad`）完成ROS Jazzy setup，但step 4 `rosdep update --rosdistro jazzy`在请求`https://raw.githubusercontent.com/ros/rosdistro/master/rosdep/base.yaml`时出现`Connection reset by peer`，随后报告not all sources updated并exit 1。
+- MoveIt/rclcpp构建、Stäubli mock build和GDB 10轮均被跳过。该失败属于外部依赖索引网络中断，不是代码编译错误，也没有新的teardown结论。
+- 已在同一workflow加入5次有限重试，每次间隔8秒；五次仍失败则明确exit 1，不忽略rosdep错误。
+- Run #139（[Actions #43840240632](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43840240632)，commit `5332c79ead53d811bc7b5820d10e269eeaddff66`）已触发，当前容器初始化中；待确认重试步骤以及后续诊断是否能真正运行。
