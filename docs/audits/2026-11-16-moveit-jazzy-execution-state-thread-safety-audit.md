@@ -99,3 +99,19 @@
 - 记录worker数量、线程ID、capability destructor BEGIN/END、context destructor、plugin loader reset/DSO fini时间；不得使用只记录accepted callback返回的marker替代worker完成证据。
 - TSAN用于检测共享状态访问；ASan或等价生命周期检查用于辅助捕捉use-after-free。两种sanitizer分别运行，不把一个工具的阴性结果当作另一个问题已关闭。
 - 关闭门禁应要求：停止新goal接纳 → 取消/请求worker退出 → 等待所有worker退出 → clear capability → reset context → reset loader；具体顺序仍需按rclcpp action server 与MoveIt资源依赖验证，不能未经验证直接改产品源码。
+
+
+## 2.5 多个 accepted goal 的共享成员状态冲突
+
+同一 action server 的 goal callback 当前无序列化/活动goal上限判断：GoalResponse callback直接返回 `ACCEPT_AND_EXECUTE`（`move_action_capability.cpp` L70-L73），accepted callback每次创建一个新的 detached worker（L79-L82）。但 `MoveGroupMoveAction` 只有单份成员 `goal_`、`move_state_` 与 `preempt_requested_`（`move_action_capability.hpp` L71-L75）。
+
+每个worker在 `executeMoveCallback()` 开头覆盖 `goal_ = goal`（`move_action_capability.cpp` L85-L90），之后部分反馈状态通过成员 `goal_` 路由；完成时将 `goal_` reset、状态改回IDLE及preempt位清零（L123-L129）。如两个goal被重叠accept，多个worker便可能并发读写同一组成员，造成：
+
+- 普通shared_ptr成员 `goal_` 的并发赋值/读取/reset，潜在数据竞争；
+- 一个worker可能重置另一个worker当前使用的goal或向错误goal发布feedback；
+- `move_state_`、`preempt_requested_` 被不同goal的worker/cancel callback共享，可能发生状态串扰；
+- 一个goal取消时，`preempt_requested_` 作为capability级全局标志可能影响另一个goal。
+
+**静态判断：** 是否允许多goal并行以及是否由上层/Action Server默认策略限制，需要通过目标ROS发行版的rclcpp_action语义和集成测试确认；当前MoveGroup action源码本身未显示单活动goal门禁，也未将这些worker私有状态封装进每个goal上下文。将其列为高优先级并发/状态机风险，不直接断言生产环境一定会并发接纳多个goal。
+
+**测试门禁：** 在mock环境中以两个不同目标同时发送goal，固定两个worker在barrier上并发；分别取消goal A、自然完成goal B，检查feedback/result UUID是否正确、goal_是否串线、A的preempt是否影响B；再测试A完成时reset是否破坏B仍在执行的上下文。无活动goal串扰与TSAN clean report前不关闭。
