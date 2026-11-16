@@ -126,3 +126,17 @@ MoveIt Jazzy `trajectory_execution_manager.hpp` 的成员声明顺序把 `contro
 - [ ] execution state 字段的锁域与 TSAN 仍未完成；不修改 upstream/产品源码，不连接 CS9、不做真实机器人动作，不宣称 HIL/SAT/实机验收。
 
 全局最高优先级仍是根 TaskPlan 00-01；第21章 21-01 仍为进行中。
+
+
+## 2026-11-16 补充｜A+B 实际析构诊断已触发（Run #122）
+
+MoveIt Jazzy TEM initialize() 的实际构造顺序已核实：先创建 controller-manager ClassLoader（trajectory_execution_manager.cpp L114–117），再创建 controller_mgr_node_（L164–171），通过 createUniqueInstance() 装载 plugin 并调用 plugin initialize(controller_mgr_node_)（L177–178），随后创建 private_executor_、add_node(controller_mgr_node_) 并启动 spin thread（L179–183）。这证明 plugin manager 的 callback/waitable 资源依附 controller node 的 NodeBase/default callback group，且由 private executor 驱动。
+
+为直接验证 K-only 的 DSO/NodeBase 析构顺序，已在 A+B 正向候选追加 CI-only 诊断：NodeBase dtor 入口/主体结束标记；CallbackGroup 中每条 Waitable weak_ptr 的槽位、expired、use_count 与释放前后标记；controller_mgr_node_ reset 前 use_count；以及 node reset 后显式释放 controller_manager_loader_。
+
+- workflow commit：c81546100ed5a91110e57ca56488f7d6911fa31f
+- [Actions Run #122](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)
+- 当前状态：容器初始化已完成，ROS Jazzy setup 仍在执行；rclcpp 编译、MoveIt 构建、mock teardown 尚未开始。
+- 逐项 weak_ptr reset 属 CI-only 诊断插桩，可能轻微改变 destructor 内部时序；必须与原始 A+B Run #107 5/5 PASS 对照解释。
+
+尚未确认具体 Waitable 动态类型或 control-block destroy/deallocate 函数归属；本轮不作超出日志证据的推断。
