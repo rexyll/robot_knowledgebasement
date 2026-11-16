@@ -464,3 +464,22 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 **Run #136下一步GDB现场检查：** 在`CallbackGroup::~CallbackGroup()`的崩溃现场读取`this`、`service_ptrs_.size()`、每个`weak_ptr`的`_M_pi`地址，以及故障时的PC/共享库映射。再将vector条目地址和控制块manager/vtable代码地址与加载/未加载的DSO区间比较；如需确认具体service名称，可在后续单独CI-only NodeServices::add_service日志中记录node FQN、group地址和service地址，不改变rclcpp特殊成员函数/析构语义。
 
 **源码入口：** [NodeOptions default parameter services](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/node_options.hpp)、[NodeParameters creates ParameterService](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp)、[ParameterService six endpoints](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/parameter_service.cpp)、[NodeServices::add_service](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_services.cpp)、[PSM GetPlanningScene service](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp)。
+
+
+### DSO归属边界更正：ServiceBase 创建点与 MoveIt 链接关系
+
+不能因为MoveGroup capability plugin loader在PSM pnode_最终销毁前reset，就直接推断`ServiceBase` weak control block的`_M_destroy()`代码位于该capability plugin DSO。进一步核对固定MoveIt Jazzy / ROS 2 Jazzy源码：
+
+- 六个参数服务由`rclcpp/src/rclcpp/parameter_service.cpp`中的`ParameterService`构造创建，模板实例化/调用点属于rclcpp代码。
+- `GetPlanningScene` service由`moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp`中的`PlanningSceneMonitor::providePlanningSceneService()`创建。
+- `moveit_planning_scene_monitor`目标是`SHARED` library；`moveit_cpp` CMake target明确`target_link_libraries(moveit_cpp moveit_planning_scene_monitor ...)`；`moveit_ros_move_group` package对`moveit_ros_planning`有直接依赖，后者导出planning相关library targets。
+
+因此目前有理由预期这些ServiceBase control-block管理函数分别在rclcpp与moveit_planning_scene_monitor的代码/数据段中，而这两者属于move_group的依赖链；至少不能假定它们与`moveit_move_group_default_capabilities`插件DSO相同。实际运行进程中这些DSO是否在故障时仍映射、control block vtable/manager具体落在哪个地址，仍以Run #136的`info sharedlibrary`、`info proc mappings`、PC和反汇编为准。若这些库仍驻留，插件卸载假设就应降级，转而检查具体weak_ptr控制块地址、weak_count、对象生命周期和内存破坏。
+
+源码入口：
+
+- [moveit_ros/planning CMake](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/CMakeLists.txt) 与 [moveit_cpp target link](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/CMakeLists.txt)
+- [moveit_ros_move_group CMake](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/CMakeLists.txt)
+- [rclcpp ParameterService construction](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/parameter_service.cpp)、[create_service template](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/create_service.hpp)
+- [PSM GetPlanningScene service creation](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp)
+
