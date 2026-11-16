@@ -246,6 +246,8 @@ Run #121 五轮 GDB/LD_DEBUG 日志均有如下顺序：
 
 ## 12. MoveIt Jazzy TEM 成员逆序析构：源码缺陷链
 
+构造路径补充（Jazzy源码 trajectory_execution_manager.cpp L111–183）：initialize() 先创建 controller_manager_loader_（L114–117），然后创建独立 controller_mgr_node_（L164–171），通过 createUniqueInstance() 装载 plugin 并将该 node 传入 plugin initialize()（L177–178），之后创建 private_executor_、add_node(controller_mgr_node_) 并启动独立 spin thread（L179–183）。这确认 plugin manager 的 callback/waitable 资源与 controller node 的 NodeBase/default callback group 绑定，private executor 则持有该 node 的执行上下文。
+
 读取 MoveIt `jazzy` 源码：
 
 - [`trajectory_execution_manager.hpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp) 声明顺序为：`node_`（约第302行）、`controller_mgr_node_`（304）、`private_executor_`（305）、`event_topic_subscriber_`（309）、`controller_manager_loader_`（331）、`controller_manager_`（332），`callback_handler_` 位于更后部。
@@ -257,7 +259,16 @@ C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之�
 
 **当前最强根因判断：** TEM 原始成员声明顺序允许 controller-manager DSO 在其 NodeBase/default callback group/WaitSet 相关对象完成析构之前卸载；外层 MoveGroup owner 生命周期（A）又决定 TEM/MoveItCpp 最终析构是否推迟到 capability loader teardown 之后。A 与 B 分别治理外层 owner 时机和 TEM 内部资源顺序，二者组合才在当前 mock CI 下通过。
 
-## 13. 下一步最小变量实验
+## 13. A+B 实际析构诊断（Run #122）
+
+在 A+B 正向候选中新增 CI-only rclcpp 诊断：NodeBase destructor 入口/主体结束标记；CallbackGroup destructor 对 waitable_ptrs_ 中每个 weak_ptr 逐项打印槽位、expired 状态和 use_count，并分别输出释放前/后的标记；TEM cleanup 在 controller_mgr_node_.reset() 前打印 use_count，并在 node reset 返回后显式 reset controller_manager_loader_。此运行旨在验证 NodeBase/default callback group/Waitable weak entries 是否真正先于 plugin DSO unload 释放；若发生崩溃，可从最后一个 BEGIN 而没有 END 的槽位确定具体 weak entry。
+
+- [Actions Run #122](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)
+- workflow commit：c81546100ed5a91110e57ca56488f7d6911fa31f
+- 当前状态：容器初始化完成，ROS Jazzy setup 尚在执行；尚未进入 rclcpp 编译或 mock 运行阶段。
+- 该逐项 weak_ptr reset 仅用于 CI 观测，可能轻微改变 destructor 内部时序；必须与未插桩 A+B Run #107 的 5/5 正向结果共同解释。
+
+## 14. 下一步最小变量实验
 
 1. 先在 A+B 正向候选加 CI-only destructor markers，记录 `controller_manager_` instance dtor、private executor/WaitSet 完成、`controller_mgr_node_`/NodeBase/default callback group 完成、`controller_manager_loader_` reset/DSO unload 的真实顺序。对最后一个强 owner 释放使用 `use_count` 和 destructor marker 双重检查。
 2. 固定 A=ON、K=ON，先验证 B 中 controller-manager 核心生命周期链的最小集合：停止并 join private executor、从 executor 移除 node、销毁 executor/WaitSet、销毁 controller-manager instance、销毁 controller-manager node，确保所有上述步骤在 loader unload 前完成；保留 event subscription/callback group 清理为独立变量，不一次性全部捆绑。
