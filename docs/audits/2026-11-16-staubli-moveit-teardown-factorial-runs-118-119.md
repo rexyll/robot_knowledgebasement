@@ -399,3 +399,35 @@ GitHub Actions 的每个 step 都是独立 shell。Run #126 test step 虽 source
 ### 16.4 有效反证判据
 
 每轮必须真实发现并执行 `staubli_moveit_config` launch test；不得接受 `0 packages` 或 `0 tests`。每轮须记录 action `SUCCEEDED`、teardown exit status、至少一个 pruning marker，并核查 pruning 的 group address 是否对应目标 NodeBase default CallbackGroup。缺少任一证据则该轮不是有效反证。K-only pruning 成功也仅限当前 mock CI，不等同 upstream/产品修复。
+
+
+## 17. Run #127：CallbackGroup pruning 单点反证失败，崩溃进一步收敛到 WaitSet DynamicStorage
+
+### 17.1 运行有效性与业务动作
+
+[Run #127](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)（commit `2c578fa670b0d5c9bf845c53591cbc334f952438`）已完成。rclcpp overlay、patched MoveIt与Stäubli mock workspace均构建成功；test step切换至`/tmp/staubli_ws`，`ros2 pkg prefix staubli_moveit_config`和`colcon list`预检通过，确认测试真实执行。五轮每轮均执行一次launch test，mock plan-and-execute均报告`Completed trajectory execution with status SUCCEEDED`，并非规划或执行动作失败。
+
+每轮共18条CallbackGroup pruning marker，五轮合计90条。五轮均在`move_group`退出时SIGSEGV，进程exit code -11；`test_all_processes_exit_cleanly`因unexpected exit code失败。汇总`failures=5/5`。Artifact ID `14195749180`；SHA-256 `4968dad7534527d8eb44212621ad6b287042da0ef8e754e39854914cf215f21d`。
+
+### 17.2 崩溃点与两份独立 weak-reference 容器
+
+五轮栈迹一致，关键链为：
+
+1. `TrajectoryExecutionManager`持有的private executor在析构；
+2. `Executor/WaitSetTemplate`析构其`DynamicStorage`；
+3. `DynamicStorage::WeakWaitableEntry` vector销毁；
+4. `std::weak_ptr`析构进入`_M_weak_release`，最后进入`_M_destroy`，随后SIGSEGV。
+
+ROS 2 Jazzy `dynamic_storage.hpp`中的`WeakWaitableEntry`与CallbackGroup的`waitable_ptrs_`并非同一容器：前者每项同时持有`weak_ptr<Waitable>`和`weak_ptr<void> associated_entity`；后者只保留CallbackGroup登记的Waitable weak reference。Run #127的唯一功能处理只在CallbackGroup::remove_waitable()清理expired entry，因此不会自动清空已由Executor WaitSet持有的独立weak entries。故本轮**有效反证结论**是：CallbackGroup expired-entry pruning单点不足以解决K-only teardown；不能据此推断WaitSet weak entry自身必然属于MoveIt plugin DSO，也不能确认两条weak reference中哪一个触发最后崩溃。
+
+### 17.3 下一最小变量实验：A+K+B-core
+
+在现有隔离分支`experiment/moveit-main-owner-lifetime-only`开展单独A+K+B-core验证；不新建分支、不修改产品源码或upstream。
+
+- A=ON：Context shutdown后释放main()持有的PSM、MoveItCpp、node owner。
+- K固定：停止并join PSM scene publisher；MoveGroupExe在executor之前声明，使main executor WaitSet先于capability plugin loader销毁。
+- B-core=ON：TEM先stop/cancel/join private executor thread；从executor移除controller node；reset private executor/WaitSet；然后reset controller-manager instance、controller node，最后reset controller-manager loader。
+- 本轮故意不显式reset event subscription、parameter callback或event callback group，以保留它们为下一独立变量，避免把全部B处理捆绑在一起。
+- 临时rclcpp overlay恢复stock CallbackGroup::remove_waitable()，只给`DynamicStorage::WeakWaitableEntry`析构加入三组marker：entry dtor BEGIN、associated_entity reset END、waitable reset END，用于识别具体释放阶段。
+
+Workflow commit `123d4c9e5c1f575e749885ba24a46be28e0ba917`触发Run #128；后续仅修正过时日志说明/重复写入的commit为`ce96063ca9fb5f4c37c565f82fe24e83d0d991bf`并触发Run #129。运行必须核验每轮测试真实执行、mock action成功、Marker位于private_executor_.reset() BEGIN/END之间、释放次序与最终process exit code。该试验只有在5/5真实通过时才可称mock CI下B-core候选通过；不等同上游修复、产品验证或HIL/SAT。
