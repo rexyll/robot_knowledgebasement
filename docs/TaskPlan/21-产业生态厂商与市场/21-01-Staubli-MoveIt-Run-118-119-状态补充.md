@@ -696,3 +696,29 @@ Run #139 job `133206807886`当前状态：
 - [ ] 在真实 terminate 门禁和压力/TSAN 证据完成前，SequenceService callback-group 拆分仍是 CI 实验候选，不合并到上游或 Stäubli 正式产品。
 
 **边界：** 全部验证仍限 CI temporary MoveIt/Pilz source overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock；未修改 MoveIt/rclcpp 上游、Stäubli 正式源码、PR 或 pin；不连接 CS9、不执行 HIL/SAT/实机运动。PR #1 保持 OPEN。根计划00-01仍为最高优先级，MotionControlAlgorithms 集成继续 DEFERRED。
+
+## 2026-11-16 MoveItCpp terminate wrapper gate｜源码审计与CI状态
+
+### 固定版本源码确认
+
+Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f5f969`。该固定版本的`MoveItCpp::terminatePlanningPipeline()`先按名称取pipeline，再仅在`planning_pipeline->isActive()`为true时调用`planning_pipeline->terminate()`，不论是否执行底层terminate，wrapper在pipeline存在时都会返回true。`PlanningPipeline::isActive()`直接返回`active_`，字段类型是`std::atomic<bool>`。因此，结合Run #149已验证的“同一个pipeline中仍有slow generatePlan调用在途，但fast调用已使active_=false”，确实存在wrapper跳过底层terminate的风险路径。
+
+这条静态路径与并发动态反例拼接后，足以将terminate漏取消列为高优先级待证问题，但在真实wrapper测试日志出现前仍不能写作“漏取消已动态证实”。
+
+### 临时CI wrapper gate
+
+- [x] 同一实验分支新增三次workflow提交：`c58d1c8c3994d8883fd20ef672db60e79ee01e84`（MoveGroup test-only Trigger服务及PlanningPipeline terminate入口marker）、`0b218b99a68472fd37a24da2953040b348048c86`（测试客户端在slow hold窗口调用真实MoveItCpp wrapper）、`ee8d1a819d6e269b921b729039905c8d53648db4`（增加marker顺序和fail-closed验收）。没有新建分支。
+- [x] 临时service仅在`STAUBLI_TERMINATE_PROBE=1`时创建；客户端等待slow请求设置held参数后，调用`/staubli_test_terminate_ompl`；服务回调执行`moveit_cpp->terminatePlanningPipeline("ompl")`，读出调用前`active_before`，然后设置slow release参数。
+- [x] 临时`PlanningPipeline::terminate()`入口增加`PIPELINE_TERMINATE_ENTER` marker；验收要求wrapper调用前active=0、wrapper返回true、且该marker不出现；如果底层terminate实际进入，则本假设被证伪并使门禁失败。
+- [x] shutdown前显式reset临时Trigger service handle，再reset MoveItCpp/Node owner，避免探针service改变原本析构生命周期。
+
+### GitHub Actions状态
+
+- [ ] Run #150（[Actions 43880623915](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880623915)）当前仍处`Set up ROS Jazzy`，job 133345210646。
+- [ ] Run #151（[Actions 43880751582](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880751582)）当前仍处`Set up ROS Jazzy`，job 133345662109。
+- [ ] Run #152（[Actions 43880873865](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880873865)）当前仍处`Set up ROS Jazzy`，job 133346092746；该版本为当前最终门禁候选。
+- [ ] 三个job状态均为in_progress，但当前日志接口返回BlobNotFound，故无编译、测试或terminate运行时结论。后续重点读取#152最终日志，严格检查slow hold、wrapper marker、底层terminate marker和release marker顺序；不得因日志暂不可用推断成功或失败。
+
+**下一步：** 取得Run #152实际运行日志后，若通过则只在CI mock范围内认定`MoveItCpp::terminatePlanningPipeline()`在`active_=false`且仍有请求在途时跳过底层terminate；若失败，按源码/日志修复注入或测试时序，不放宽验收。随后才比较同pipeline串行化/锁、在途请求计数或逐请求取消句柄等方案。
+
+**边界继续不变：** 不修改MoveIt/rclcpp upstream、Stäubli正式源码/PR/pin；不连接CS9，不执行HIL/SAT/实机运动。PR #1保持OPEN。根计划00-01优先级不变，MotionControlAlgorithms集成继续DEFERRED。
