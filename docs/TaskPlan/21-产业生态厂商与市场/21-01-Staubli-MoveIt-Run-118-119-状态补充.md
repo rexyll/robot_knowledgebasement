@@ -726,3 +726,13 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 ### Actions job进度补充（2026-11-16）
 
 截至最新API轮询，#150/#151/#152三个job均已完成ROS Jazzy setup和workspace tooling，进入stock rclcpp overlay构建步骤；均为`in_progress`。日志接口此时对运行中的job返回BlobNotFound，因此尚无构建输出或mock执行数据。#152包含最新完整wrapper gate，继续作为主要验收对象；不得将启动/环境准备通过写成测试成功。
+
+### Run #150–#152失败根因及Run #153修复验证（2026-11-16）
+
+取回三个失败job的原始日志后，确认Run #150/#151/#152均在MoveIt源码patch步骤发生同一个Python语法错误：`File "<stdin>", line 94`，`SyntaxError: invalid syntax`，定位到`"""    rclcpp::shutdown();`。三次stock rclcpp overlay构建均成功；MoveIt patch之后的依赖安装、编译、mock测试全部skipped。故这些失败只说明CI脚本字符串边界错误，不说明MoveIt构建失败，也不说明terminate行为。
+
+根因是新增`terminate_service_patch`在Python heredoc中开启了`"""`却未闭合，吞并后续Python语句。现已将新增patch字符串改为独立`'''...'''`，并在source.replace前显式闭合。修复提交：`29118422ee2963fd379bf03da3fceee6838dcd55`。
+
+- [ ] [Run #153](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43887863524)：使用修复后的workflow，当前job初始化中；等待步骤6 Python patch验证和后续MoveIt build/mock结果。
+
+后续验收必须先确认步骤6无SyntaxError并完成静态patch assertions，再看MoveIt build、mock启动、slow hold、真实MoveItCpp wrapper返回及底层terminate入口marker。
