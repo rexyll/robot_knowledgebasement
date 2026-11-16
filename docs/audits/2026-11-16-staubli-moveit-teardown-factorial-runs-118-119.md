@@ -444,3 +444,12 @@ Workflow commit `123d4c9e5c1f575e749885ba24a46be28e0ba917`触发Run #128；后�
 这意味着Run #127的90条marker只能证明多个CallbackGroup中的expired entry被清理过，不能证明每轮都清理了`controller_mgr_node_`目标组。也不能反向证明目标组未被清理，因为MoveIt进程中的其他组地址尚未按node name映射。下一次若需要单独评价CallbackGroup pruning，必须在CI-only `NodeWaitables::add_waitable/remove_waitable`中打印NodeBase FQN、NodeBase地址、所选group地址和Waitable地址，再与`[PRUNE]`记录逐项关联。
 
 本次A+K+B-core实验不再把CallbackGroup pruning作为功能处理；它直接改变TEM private executor/WaitSet的销毁时机，并用WeakWaitableEntry内部的两条weak reference release markers定位析构位置。这样可独立验证B-core，不依赖#127未闭合的group映射。
+
+
+## 18. Run #128/#129 Python补丁脚本失败与 #130 修正
+
+Run #128（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803282990)）成功完成rclcpp overlay build，但MoveIt patch step在解析内嵌Python `tem_replacement = (`时触发`SyntaxError: '(' was never closed`。检查 workflow 文件发现TEM日志C++字符串中的双引号在Python代码中被双重转义，使字符串提前结束。Run #128 Artifact `14197288310`，SHA-256 `3f610a0cd6cb92041bfa0fb76c277e15cf56e82e75f9631fceae63591f59c073`。
+
+Run #129（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803323983)）仅修正过时输出文本与重复write，未修改该双重转义，因此同样在MoveIt patch step失败；未进入MoveIt build/mock test。Artifact `14196704905`，SHA-256 `f70887de5ce9f26a0c96082e288c368b0aa015d5960b303bc0e58eb199bc58d4`。
+
+在同一实验分支修正TEM cleanup marker C++字符串的Python转义，并将步骤名称改为A+K+B-core cleanup probe。workflow commit `9d9f33b8281fdf7d412153100666318470d0b9af`触发[Run #130](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803660660)。只有#130通过MoveIt patch、MoveIt build、mock workspace build及package preflight，且真实执行5轮并记录WaitSet weak-entry release marker和process exit code，才可评价B-core。
