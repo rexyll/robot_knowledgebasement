@@ -238,3 +238,20 @@ pruning marker每轮原始日志出现18条，但其中有9条是`colcon test-re
 ### Run #127 pruning marker重复输出去重
 
 Run #127每轮exit summary报告`expired_entries_pruned=18`，但workflow先将`colcon test`的完整输出写入日志，随后`colcon test-result --verbose`又打印同一份launch-test output。逐轮按process/group/target/remaining去重后，18条日志出现对应9条不同marker；五轮共45条不同记录，而非90次实际清理。原始workflow汇总数是日志行数，后续不得按实际pruning操作次数引用。
+
+
+## 2026-11-16 补充｜Run #130 A+K+B-core 5/5 正向候选
+
+Run #130（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803660660)，commit `9d9f33b8281fdf7d412153100666318470d0b9af`）的rclcpp overlay、patched MoveIt和Stäubli mock workspace均构建成功；test package preflight通过。A=ON、K固定、B-core=ON五轮均完成mock plan-and-execute（5/5 SUCCEEDED），每轮launch test汇总7 tests、0 errors、0 failures、0 skipped，teardown/顺序检查均exit 0，五轮无SIGSEGV。
+
+B-core日志顺序为private executor reset BEGIN → remove controller node → private executor reset END → controller manager reset → controller node reset（开始前use_count=1）→ controller-manager loader reset。每轮private executor reset窗口中出现8次WaitSet WeakWaitableEntry析构入口及8组associated_entity/waitable释放END marker；每轮Waitable为5个expired/use_count=0及3个live entries，associated_entity均expired/use_count=0。
+
+Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf10815a6c6aef89d8a5be7`。该结果是A+K+B-core正向候选，但由于本轮临时rclcpp overlay插入了析构探针，仍需排除探针时序效应。
+
+### 下一步：无插桩10轮复核
+
+- [x] 原隔离分支已提交`4154ebdd00d04c98d510aedb3fd1e15ed3e18823`，rclcpp源树恢复stock，构建前执行git diff与marker扫描；A+K+B-core处理不变。
+- [ ] Run #131做10轮真实mock execution/launch test，核对每轮TEM清理顺序及exit code。
+- [ ] 若无插桩10/10通过，再固定B-core，按单变量拆分A中的PSM owner、MoveItCpp owner、main Node owner，并进一步确认event/parameter callback资源无需额外reset的条件。
+
+结论仍限CI temporary MoveIt patch与Stäubli mock，不等同upstream修复、产品验证、HIL/SAT或实机验收；全局优先级仍为00-01。
