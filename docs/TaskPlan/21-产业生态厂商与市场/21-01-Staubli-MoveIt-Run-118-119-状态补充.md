@@ -17,6 +17,9 @@
 | #119 | TEM-cleanup-only（A=OFF、B=ON） | **5/5 FAIL** | 每轮 TEM subscription/group/manager/node reset 记录完成后，仍在 shared_ptr 释放路径 SIGSEGV |
 | #121 | K-only（A=OFF、B=OFF） | **5/5 FAIL** | 五轮 action 均 SUCCEEDED；五轮 DSO unload 后在 controller-manager NodeBase/CallbackGroup Waitable weak-list teardown SIGSEGV |
 | #122 | A+B lifecycle-marker 正向诊断 | **5/5 PASS** | 五轮 mock execution 成功；controller node NodeBase/default CallbackGroup expired weak Waitables 清理后才卸载 controller-manager DSO；未取得 control-block vtable 地址归属 |
+| #132 | stock rclcpp 无插桩 A+K+B-core（10轮） | **10/10 PASS** | 每轮一次mock plan-and-execute成功、7项launch assertions通过、B-core顺序与进程退出码均通过；CI-only正向基线 |
+| #134 | A-PSM-retained + K + B-core（10轮） | **10/10 SIGSEGV** | PSM弱引用探针每轮use_count=1；MoveGroupExe capability/context/plugin loader清理完成后，保留的main() PSM owner才释放，随后PSM/Node teardown段错误。每轮执行次数统计显示2是colcon test-result verbose重复采集误报，原始测试流实际每轮仅一次mock执行成功 |
+| #135 | PSM析构阶段marker + 显式reset边界 + 独立test-result日志 | **执行中** | 在临时MoveIt overlay中标记PSM析构各阶段，确定崩溃在析构函数体、PSM隐式成员/Node析构还是reset调用之后；主测试日志与colcon test-result汇总日志分开保存 |
 
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
@@ -340,3 +343,30 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 ### 多goal共享状态补充
 
 MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启动detached worker；但Action capability类中只有单份 `goal_`、`move_state_`、`preempt_requested_` 成员。两个goal若重叠accepted，可能产生goal状态/feedback/result串扰和共享成员竞态；当前源码未显示single-active-goal门禁。将双goal并发、分别cancel/natural completion、结果UUID与feedback归属验证加入后续mock测试，具体风险级别以目标rclcpp_action实际执行和TSAN结果为准。
+
+## 2026-11-16 补充｜Run #134 PSM-retained 失败定位与 Run #135 析构边界实验
+
+### Run #134 最终结果
+
+[Run #134](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816245159) 使用 commit `5abf808424049dec78e2dc6247f453af59be0e29`，固定 K 与 B-core，只取消 main() 中提前释放 PSM shared owner 的步骤，MoveItCpp 与 main Node owner 仍按原方案 reset。步骤1–9（stock rclcpp无插桩构建、MoveIt静态校验/依赖/构建、Stäubli mock工作区构建）均通过；第10步10轮回归10/10失败，均在move_group shutdown/teardown出现SIGSEGV（exit -11）。
+
+- [x] 10/10 轮 weak_ptr 探针均显示 `use_count=1`：MoveGroupExe/executor作用域退出后，PSM仅剩main()保留的强引用。
+- [x] 10/10 轮均在MoveGroupExe析构完成capabilities_.clear()、context_.reset()和capability_plugin_loader_.reset()之后，才进入保留PSM的最终析构路径；日志到达 `Stopping world geometry monitor` 后段错误。当前仅能将“PSM析构被延迟到MoveGroup capability plugin loader卸载之后”列为高优先级生命周期风险候选，尚未由析构逐阶段marker确认具体崩溃指令/成员。
+- [x] 更正workflow统计误报：失败日志中的mock execution成功行被 `colcon test-result --verbose` 追加重复打印，故计数2不是两次真实动作；从单独的 `colcon test` 主输出流核对，每轮只有一次mock plan-and-execute成功。这个计数误报不改变10/10 SIGSEGV的真实失败结论。
+- [ ] 不得据此宣布“PSM owner保留后一定导致NodeBase/UAF”或认定已找到唯一根因；还需区分PSM析构函数体、其隐式成员析构和Node/CallbackGroup析构阶段。
+
+### Run #135 正在执行
+
+[Run #135](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43823418805)，workflow commit `ac87221956b3d946d93fb1732fb12ea4e59e8094`，仍使用既有分支 `experiment/moveit-main-owner-lifetime-only`，只改CI workflow中的临时MoveIt overlay：
+
+1. 使main() PSM local owner可显式reset，在MoveGroupExe/executor作用域结束、weak_ptr use_count记录完成后，记录reset BEGIN/END。
+2. 在临时 `planning_scene_monitor.cpp` 对析构各阶段加marker：停止publisher/state/world/scene monitor、private executor取消与join、PSM内部scene/model/loader reset、析构函数体结束。marker不更改原有清理调用顺序。
+3. 将 `colcon test-result --verbose` 输出写到独立artifact日志，避免重复计数动作成功marker。
+4. 继续10轮mock回归；以完整构建、每轮action、launch assertions、teardown顺序及进程退出为联合验收，不以单个marker判断通过。
+
+### 当前判定与约束
+
+- Run #132 stock rclcpp无插桩A+K+B-core 10/10 PASS仍是可靠正向基线；Run #134说明A-PSM-retained不是安全替代顺序。
+- 优先比较Run #132的PSM生命周期与Run #134的差异：前者在MoveGroupExe teardown前释放main() PSM alias，使PSM最后owner在context仍持有期间释放；后者将最后owner延迟到plugin loader已reset后。此顺序相关性尚需Run #135析构marker验证，不能只凭相关性推断loader是直接原因。
+- 若Run #135确认崩溃发生在PSM析构函数体之外，则下一步拆分PSM的 `node_` / `pnode_` 与其拥有的subscription、timer、private executor成员释放关系；如崩溃发生在函数体内，则依据最后一个marker再拆分相应资源。一次仍只改变一个生命周期因素。
+- 所有结果限CI temporary MoveIt overlay + stock rclcpp + Stäubli mock；不改MoveIt/rclcpp upstream或Stäubli产品源码，不连接CS9，不发送真实运动，不宣称HIL/SAT或实机验收。全局最高优先级仍为根TaskPlan 00-01；MotionControlAlgorithms合并继续DEFERRED。
