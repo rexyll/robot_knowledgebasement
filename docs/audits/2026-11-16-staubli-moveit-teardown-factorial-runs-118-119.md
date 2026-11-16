@@ -287,6 +287,8 @@ C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之�
 - 当前状态：容器初始化与 ROS Jazzy setup 已完成，正在构建带生命周期标记的 rclcpp overlay；尚未进入 MoveIt/mock build 或运行时测试阶段。
 - 该逐项 weak_ptr reset 仅用于 CI 观测，可能轻微改变 destructor 内部时序；必须与未插桩 A+B Run #107 的 5/5 正向结果共同解释。
 
+若 Run #122 证明最后 weak release 与 controller-manager DSO 卸载有关，下一项反证实验将固定 K-only（A=OFF/B=OFF），只在临时 rclcpp overlay 的 CallbackGroup::remove_waitable() 中增加 expired weak_ptr pruning：对 weak_ptr.lock() 失败的条目执行 erase，再按原逻辑匹配 live target。该修改只清理已经失去 strong owner 的 Waitable 记录，目标是让其 control block 在 plugin custom deleter 返回前释放，从而测试此单点是否足以消除 K-only teardown SIGSEGV；不提交上游，不修改产品源码。
+
 ## 14. 下一步最小变量实验
 
 1. 先在 A+B 正向候选加 CI-only destructor markers，记录 `controller_manager_` instance dtor、private executor/WaitSet 完成、`controller_mgr_node_`/NodeBase/default callback group 完成、`controller_manager_loader_` reset/DSO unload 的真实顺序。对最后一个强 owner 释放使用 `use_count` 和 destructor marker 双重检查。
