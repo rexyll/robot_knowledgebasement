@@ -23,7 +23,7 @@
 | #136 | PSM teardown链Node/NodeBase/CallbackGroup + GDB DSO/memory-map诊断（Node身份待定） | **10/10 SIGSEGV；Node身份未确认** | 10轮均在CallbackGroup析构weak_ptr<ServiceBase>时SIGSEGV；fault PC位于仍映射的librclcpp，间接调用所用vptr不在进程映射中；librclcpp、libmoveit_planning_scene_monitor及MoveGroup capability相关DSO仍映射。尚不能区分已卸载的其他DSO与control block/vptr内存破坏；另修正test-result汇总解析路径 |
 | #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **10/10 SIGSEGV；GDB脚本第22行中断** | mock构建成功；10轮均复现teardown SIGSEGV。每轮Summary 7 tests、0 errors、2 failures。GDB对未映射$rax执行x/8gx后中止，未运行service_ptrs_ size/逐项weak检查；不能据此识别服务或Node |
 | #138 | GDB安全取证与Node/service/group身份关联 | **环境阶段失败，不计代码结果** | ROS setup成功；第4步rosdep update请求rosdistro/base.yaml时Connection reset by peer；后续构建/测试全部跳过 |
-| #139 | Run137 GDB修复 + TypeDescription Node归属核验 + rosdep retry | **执行中** | rosdep update添加5次有限重试（每次间隔8秒，最终fail-closed）；当前容器初始化/ROS setup尚未完成 |
+| #139 | Run137 GDB修复 + TypeDescription Node归属核验 + rosdep retry | **执行中：MoveIt build** | rosdep重试/工具安装成功；stock rclcpp无插桩overlay、MoveIt临时补丁/静态校验、MoveIt依赖安装成功；第8步patched move_group build进行中，第9步mock build和第10步GDB 10轮回归待执行 |
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
 - `docs/audits/2026-11-16-staubli-moveit-teardown-factorial-runs-118-119.md`
@@ -616,3 +616,18 @@ pnode_的GetPlanningScene + 6个ParameterService静态登记路径保留为该�
 - 因而Type Description唯一Service路径并非根据“可能选择某个重载”作出的猜测，而是MoveIt PSM当前源码确实采用的重载。
 
 结合已核验的成员/Node析构顺序，静态路径可完整解释一个weak ServiceBase entry为何留到CallbackGroup析构时最后释放。Run #139仍须用运行时日志把崩溃NodeBase/CallbackGroup/service name与`tf_listener_->optional_default_node_`地址对应，不能把静态源链升级为运行时根因定论。
+
+
+### Run #139进度更新（2026-11-16）
+
+Run #139 job `133206807886`当前状态：
+
+- [x] Step 1–4：job/container/ROS Jazzy/workspace tooling与rosdep retry全部成功。
+- [x] Step 5：stock ROS 2 Jazzy rclcpp overlay构建成功，保持no ASan、no source instrumentation。
+- [x] Step 6：MoveIt Jazzy源码获取及A+K+B-core临时cleanup probe应用/静态校验成功。
+- [x] Step 7：MoveIt源码依赖安装成功。
+- [ ] Step 8：patched MoveIt `move_group`正在构建。
+- [ ] Step 9：Stäubli mock workspace尚未开始。
+- [ ] Step 10：10轮GDB teardown回归尚未开始。
+
+因此当前只能报告准备和两个上游依赖构建/校验成功，尚无新的运行时Node身份、服务名、control-block vptr或teardown结论。
