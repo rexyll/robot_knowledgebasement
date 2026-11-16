@@ -209,15 +209,21 @@ Run #126 的 rclcpp overlay、patched MoveIt build（7 packages）和 Stäubli m
 
 ## 2026-11-16 补充｜Run #127 pruning 单点反证与 A+K+B-core 继续验证
 
-Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)）已完成有效测试：工作区/package preflight通过，五轮mock plan-and-execute全部SUCCEEDED；CallbackGroup expired Waitable pruning每轮18次、总计90次，但五轮均在TEM private Executor的WaitSet/DynamicStorage::WeakWaitableEntry弱引用释放阶段SIGSEGV（exit -11）。因此CallbackGroup weak-list pruning不是充分修复。
+Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)）已完成有效测试：工作区/package preflight通过，五轮mock plan-and-execute全部SUCCEEDED；CallbackGroup expired Waitable pruning每轮18次、总计90次，但五轮均在TEM private Executor的WaitSet/DynamicStorage::WeakWaitableEntry弱引用释放阶段SIGSEGV（exit -11）。但group=%p尚未与MoveIt内部controller_mgr_node_的NodeBase/default CallbackGroup建立映射，因此不能断言目标组pruning已经命中，更不能把它作为目标组pruning的有效失败反证。
 
 关键源码区分：CallbackGroup::waitable_ptrs_与Executor DynamicStorage::waitables_是独立weak-reference容器；后者的WeakWaitableEntry还同时持有`weak_ptr<Waitable>`与`weak_ptr<void> associated_entity`。Run #127只改前者，而栈在WaitSet/DynamicStorage析构的`std::weak_ptr::_M_weak_release/_M_destroy`中崩溃；具体是associated entity还是Waitable的弱引用最后释放触发无效访问仍待分辨。
 
-下一项在原隔离分支固定A=ON、K=ON，单独打开B-core：join executor thread、remove controller node、reset private Executor/WaitSet、reset controller manager、reset controller node、最后reset loader；暂不reset event subscription、parameter callback或event callback group。临时overlay为WaitSet WeakWaitableEntry的两条weak reference分别增加析构/释放marker。
+下一项不再使用CallbackGroup pruning作为功能处理，而在原隔离分支固定A=ON、K=ON，单独打开B-core：join executor thread、remove controller node、reset private Executor/WaitSet、reset controller manager、reset controller node、最后reset loader；暂不reset event subscription、parameter callback或event callback group。临时overlay为WaitSet WeakWaitableEntry的两条weak reference分别增加析构/释放marker。
 
 - [x] Run #127每轮真实执行、五轮plan-and-execute成功、五轮teardown fail的证据归档。
 - [x] callback group和waitset各自weak-reference vector的职责边界已补充说明。
-- [ ] Run #128/#129验证A+K+B-core的五轮mock action及WaitSet析构日志。
+- [x] 追加检查#127 group=%p：marker来自多个move_group组和ros2_control组，尚未通过NodeWaitables的node-name/NodeBase地址映射到controller_mgr_node_，目标组覆盖未知。
+- [ ] Run #128/#129验证A+K+B-core的五轮mock action及WaitSet析构日志；若仍需判断CallbackGroup pruning，另加NodeWaitables node-FQN/NodeBase/group/Waitable地址映射。
 - [ ] 如B-core通过，继续独立拆分event subscription/callback/parameter callback及A的PSM/MoveItCpp/main Node owner；如失败，按具体weak release marker继续定位。
 
 所有结论限CI temporary overlay/mock；不修改upstream/产品源码，不连接CS9、不发送真实运动指令、不宣称HIL/SAT/实机验收。全局主优先级仍为00-01。
+
+
+### Run #127地址映射核查更正
+
+pruning marker每轮18条，但marker不只来自一个CallbackGroup。原始日志显示`move_group`进程存在多个不同group地址，`ros2_control_node`进程的某一组地址可与其NodeBase default group对应；现有NodeBase析构marker没有覆盖MoveIt内部的`controller_mgr_node_`，因为它在TEM private executor/WaitSet崩溃前尚未析构。因此Run #127不能确认目标controller-manager group是否实际被pruning，目标组覆盖状态更正为**未证实**。如需重新做该单点反证，必须给`NodeWaitables::add_waitable/remove_waitable`增加CI-only node FQN、NodeBase、group和Waitable指针关联marker。
