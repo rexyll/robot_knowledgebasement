@@ -180,7 +180,7 @@ K-only + expired-entry pruning 已在原有隔离分支 `experiment/moveit-main-
 |---|---|---|---|
 | #123 | `d86c0078c06ed2029f7581a3087f4b476dc8da9a` | 配置无效，不计结果 | 内嵌 Python 补丁字符串 SyntaxError，未进入编译或 mock 测试 |
 | #124 | `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763` | 配置失败，不计反证 | rclcpp overlay build 成功；MoveIt step 因跨 Actions step 的 callback_group_source 未定义触发 NameError，未进入 MoveIt build/mock test |
-| #125 | `3f85d2a9063083e895a3dee2f67f8c353a09f840` | 配置失败，不计反证 | 同一跨步骤 NameError；归档日志但未进入 MoveIt build/mock test |
+| #125 | `3f85d2a9063083e895a3dee2f67f7c353a09f840` | 配置失败，不计反证 | 同一跨步骤 NameError；归档日志但未进入 MoveIt build/mock test |
 | #126 | `7d0aa0d6b571323d85a181d5ec7d24371288fed9` | 运行中 | 改为从磁盘读取持久化 overlay；K 固定、A/B 关闭、仅增加 expired-entry pruning，保留逐轮日志 |
 
 核心处理只发生在临时 rclcpp overlay 的 `CallbackGroup::remove_waitable()`：当遍历到的 weak Waitable 无法 `lock()` 时，erase 该 expired entry，再继续遍历并按原逻辑比较 live target。每轮必须观测到 pruning marker；未命中该路径不视为有效反证。
