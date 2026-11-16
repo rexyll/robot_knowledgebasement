@@ -16,6 +16,7 @@
 | #118 | main-owner-only（A=ON、B=OFF） | **5/5 FAIL** | 每轮 mock action 完成后，在 move_group teardown 的 shared_ptr 释放路径 SIGSEGV |
 | #119 | TEM-cleanup-only（A=OFF、B=ON） | **5/5 FAIL** | 每轮 TEM subscription/group/manager/node reset 记录完成后，仍在 shared_ptr 释放路径 SIGSEGV |
 | #121 | K-only（A=OFF、B=OFF） | **5/5 FAIL** | 五轮 action 均 SUCCEEDED；五轮 DSO unload 后在 controller-manager NodeBase/CallbackGroup Waitable weak-list teardown SIGSEGV |
+| #122 | A+B lifecycle-marker 正向诊断 | **5/5 PASS** | 五轮 mock execution 成功；controller node NodeBase/default CallbackGroup expired weak Waitables 清理后才卸载 controller-manager DSO；未取得 control-block vtable 地址归属 |
 
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
@@ -162,3 +163,30 @@ MoveItSimpleControllerManager 的析构函数是 defaulted；其 node_ 成员在
 所以 controller manager plugin dtor 会先销毁 handle 和 Action Client。此时 TEM 自己仍持有 controller_mgr_node_，deleter 的 weak_node.lock() 成功，继而尝试 remove_waitable；但原 Waitable weak_ptr 已因 strong count 归零而 lock 失败，expired entry 留在默认 CallbackGroup。随后 controller_manager_ owner 释放、ClassLoader unload DSO；TEM 更后面才释放 controller_mgr_node_，触发 CallbackGroup 最后的 weak release。
 
 这把 plugin dtor → action client custom deleter → expired weak entry → TEM loader unload → NodeBase/CallbackGroup cleanup 连接成一条连贯生命周期链。剩余确认项是 Run #122 中 control-block vtable / destroy 地址的实际映射归属。
+
+## 2026-11-16 补充｜Run #122 完成与 K-only pruning 反证运行
+
+Run #122（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)，commit `c81546100ed5a91110e57ca56488f7d6911fa31f`）已完成：
+
+- 5/5 mock plan-and-execute 均成功，5/5 teardown 均通过；workflow test summary 为 7 tests、0 errors、0 failures。
+- 五轮日志均显示：TEM 执行 `controller_mgr_node_.reset()` 后，相关 NodeBase/default CallbackGroup 的 expired weak Waitable slots 逐项完成释放；其后才触发 `controller_manager_loader_.reset()` 与 `libmoveit_simple_controller_manager.so` 的 `fini` / link-map destruction。
+- 这验证 A+B 候选把 controller node/group 清理移动到 plugin DSO unload 之前；但 Run #122 没有输出 control-block vtable、`_M_destroy` 或 deallocate 地址，不能据此断言最终释放函数位于该 DSO。
+
+### 当前反证实验
+
+K-only + expired-entry pruning 已在原有隔离分支 `experiment/moveit-main-owner-lifetime-only` 上启动，未创建新分支：
+
+| Run | commit | 状态 | 说明 |
+|---|---|---|---|
+| #123 | `d86c0078c06ed2029f7581a3087f4b476dc8da9a` | 配置无效，不计结果 | 首次 patch 字符串锚点编码错误 |
+| #124 | `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763` | 运行中 | K 固定；A/B 关闭；仅增加 expired-entry pruning |
+| #125 | `3f85d2a9063083e895a3dee2f67f7c353a09f840` | 运行中 | 与 #124 功能处理相同，另归档每轮 pruning 原始日志 |
+
+核心处理只发生在临时 rclcpp overlay 的 `CallbackGroup::remove_waitable()`：当遍历到的 weak Waitable 无法 `lock()` 时，erase 该 expired entry，再继续遍历并按原逻辑比较 live target。每轮必须观测到 pruning marker；未命中该路径不视为有效反证。
+
+### 下一步判定
+
+- [ ] 对 #124/#125 检查编译、5轮 action 结果、teardown 结果与每轮 pruning marker。
+- [ ] 若有效 pruning 下 K-only 5/5 通过，追加更高重复数并验证 live Waitable 条目未误删；结论限 mock CI。
+- [ ] 若仍 5/5 失败，拒绝把 pruning 单点当作充分修复，回到 control-block/DSO/WaitSet 生命周期定位。
+- [ ] 单独追踪 control-block destroy/deallocate 地址映射；该问题尚未完成。
