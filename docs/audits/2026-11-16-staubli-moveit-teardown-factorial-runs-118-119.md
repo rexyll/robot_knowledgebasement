@@ -407,7 +407,7 @@ GitHub Actions 的每个 step 都是独立 shell。Run #126 test step 虽 source
 
 [Run #127](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)（commit `2c578fa670b0d5c9bf845c53591cbc334f952438`）已完成。rclcpp overlay、patched MoveIt与Stäubli mock workspace均构建成功；test step切换至`/tmp/staubli_ws`，`ros2 pkg prefix staubli_moveit_config`和`colcon list`预检通过，确认测试真实执行。五轮每轮均执行一次launch test，mock plan-and-execute均报告`Completed trajectory execution with status SUCCEEDED`，并非规划或执行动作失败。
 
-每轮共18条CallbackGroup pruning marker，五轮合计90条。五轮均在`move_group`退出时SIGSEGV，进程exit code -11；`test_all_processes_exit_cleanly`因unexpected exit code失败。汇总`failures=5/5`。Artifact ID `14195749180`；SHA-256 `4968dad7534527d8eb44212621ad6b287042da0ef8e754e39854914cf215f21d`。
+每轮日志出现18条CallbackGroup pruning marker，但`colcon test-result --verbose`重复打印了同一组测试输出；按process/group/target/remaining去重后，每轮9条不同记录，五轮合计45条。五轮均在`move_group`退出时SIGSEGV，进程exit code -11；`test_all_processes_exit_cleanly`因unexpected exit code失败。汇总`failures=5/5`。Artifact ID `14195749180`；SHA-256 `4968dad7534527d8eb44212621ad6b287042da0ef8e754e39854914cf215f21d`。
 
 ### 17.2 崩溃点与两份独立 weak-reference 容器
 
@@ -441,7 +441,7 @@ Workflow commit `123d4c9e5c1f575e749885ba24a46be28e0ba917`触发Run #128；后�
 - `ros2_control_node`进程中可见的pruning group与其一个NodeBase default group地址相符，说明marker至少部分来自该进程自身的waitable清理。
 - `controller_mgr_node_`是MoveIt进程内部另外创建的Node。进程在TEM private executor/WaitSet析构时崩溃，尚未走到该node的NodeBase destructor，因此其default group没有被现有marker直接记录。
 
-这意味着Run #127的90条marker只能证明多个CallbackGroup中的expired entry被清理过，不能证明每轮都清理了`controller_mgr_node_`目标组。也不能反向证明目标组未被清理，因为MoveIt进程中的其他组地址尚未按node name映射。下一次若需要单独评价CallbackGroup pruning，必须在CI-only `NodeWaitables::add_waitable/remove_waitable`中打印NodeBase FQN、NodeBase地址、所选group地址和Waitable地址，再与`[PRUNE]`记录逐项关联。
+这意味着Run #127日志中的90次marker出现（去重45条）只能证明多个CallbackGroup中的expired entry被清理过，不能证明每轮都清理了`controller_mgr_node_`目标组。也不能反向证明目标组未被清理，因为MoveIt进程中的其他组地址尚未按node name映射。下一次若需要单独评价CallbackGroup pruning，必须在CI-only `NodeWaitables::add_waitable/remove_waitable`中打印NodeBase FQN、NodeBase地址、所选group地址和Waitable地址，再与`[PRUNE]`记录逐项关联。
 
 本次A+K+B-core实验不再把CallbackGroup pruning作为功能处理；它直接改变TEM private executor/WaitSet的销毁时机，并用WeakWaitableEntry内部的两条weak reference release markers定位析构位置。这样可独立验证B-core，不依赖#127未闭合的group映射。
 
