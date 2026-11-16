@@ -6,6 +6,8 @@
 
 ## 当前记录
 
+- [2026-11-16 MoveIt Jazzy 执行状态与取消路径线程安全静态审计](2026-11-16-moveit-jazzy-execution-state-thread-safety-audit.md)：固定审查Jazzy的MoveGroupMoveAction detached worker/cancel callback普通bool、TEM执行完成标志/状态/线程指针的同步访问路径，并与MoveIt main快照比较；发现静态并发风险候选，但未运行TSAN/动态复现，不能记为运行时竞态结论。
+
 - [2026-11-15 LiDAR 型号参数、ROS 2 数据时序与安全扫描仪边界专项复核](2026-11-15-LiDAR-ROS2-timing-and-safety-scanner-boundary-review.md)：核对 ROS 2 Jazzy LaserScan/PointCloud2 时序与内存布局、Livox Mid-360 参数脚注、SICK TiM1xx 普通传感器与 nanoScan3 安全扫描仪的输出用途，以及 IEC 60825-1/61496-3 的范围差异；没有目标设备点云、去畸变和安全链实测，文章仍保持 claim-level pending。
 
 - [2026-11-15 IMU 物理误差模型与代表型号数据表口径专项复核](2026-11-15-IMU-physical-model-and-datasheet-claim-boundary-review.md)：核验白噪声/偏置随机游走单位、Allan与Kalibr读图假设、Qd/OU离散公式，并对 BMI088/ADIS16470 官方型号数据进行版本和带宽条件对照；发现需要向厂商确认的噪声密度差异。没有目标IMU实测数据，文章仍保持 claim-level pending。
