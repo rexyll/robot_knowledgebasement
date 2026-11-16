@@ -517,3 +517,22 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 Run #130为`DynamicStorage::WeakWaitableEntry`新增用户声明析构函数。stock结构体包含`weak_ptr<Waitable> waitable`、`weak_ptr<void> associated_entity`并未自定义析构/移动构造。新增用户声明析构会抑制隐式move constructor；因为copy仍可用，`std::vector<WeakWaitableEntry>`在重分配时可能改变move/copy策略，进而改变weak control block引用计数、对象复制/释放时机。虽然探针中的析构体按`associated_entity.reset()`后`waitable.reset()`释放，与字段声明顺序对应的隐式成员逆序析构相同，仍无法排除vector relocation semantics的变化。
 
 故Run #130是5/5强正向候选，但不是最终无插桩确认。Run #131恢复stock rclcpp全部源文件（git diff必须为空，且marker扫描通过），将A+K+B-core测试做10轮。只有10/10真实通过才排除这项主要探针副作用。
+
+
+## 21. Run #131 stock-rclcpp 复核：workflow校验矛盾与修复
+
+[Run #131](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43808189052)，workflow commit 4154ebdd00d04c98d510aedb3fd1e15ed3e18823，目标是以stock无插桩rclcpp复核A+K+B-core cleanup。该轮在测试前即失败，不能归类为teardown失败。
+
+### 21.1 失败定位
+
+- 第5步克隆ROS 2 Jazzy rclcpp后执行 git diff --exit-code 成功，并打印无Executor、CallbackGroup、NodeBase和DynamicStorage诊断插桩的确认消息。
+- 第6步MoveIt补丁脚本完成A、K、B-core修改后执行最终静态校验；该校验仍包含旧条件：必须在stock dynamic_storage.hpp 找到 WaitSet WeakWaitableEntry dtor BEGIN。这是Run #130诊断overlay才添加的用户声明析构marker，stock source按设计不应存在。
+- 因此最终校验与实验约束冲突，抛出 A+K+B-core final static validation failed。第7–10步均跳过：没有MoveIt构建、mock工作区构建、mock action或10轮teardown数据。
+
+### 21.2 修复与重跑
+
+在原实验分支 experiment/moveit-main-owner-lifetime-only 修改 .github/workflows/experiment-moveit-shutdown-order.yml：新增“marker必须不存在”的显式检查，移除最终静态断言中的旧marker存在条件，保留A与B-core cleanup token检查。提交 4d58b7e6d3b83363d6e595400a1bb1a5e1ea6a72；仅变更workflow，不新建分支或改动上游/产品源代码。
+
+修复后触发[Run #132](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43812432706)。最近一次查询其状态为 in_progress，未取得后续构建、mock执行或10轮结果。#131只登记为CI配置校验失败，不能纳入功能性实验矩阵。
+
+**下一验收门：** #132必须依次通过stock rclcpp overlay、最终静态检查、patched MoveIt构建、Stäubli mock构建和package preflight；随后对每轮核对一个真实mock plan-and-execute、7项launch assertions、TEM B-core清理顺序与进程退出状态。只有10/10全通过，才能排除#130诊断析构探针的一项主要时序扰动疑虑。结果仍仅限CI temporary MoveIt patch + stock rclcpp + mock workspace。
