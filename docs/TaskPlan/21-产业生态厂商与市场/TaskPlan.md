@@ -6874,3 +6874,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] Run #141（Actions `43855570879`）仍在前一版patched MoveIt build，不把其GDB section parser结果与Run #144新候选混合。
 
 **状态：** Run #143只是临时脚本源码锚点失配，不是底层软件/teardown测试；Run #144为修复缩进后的有效重试。正式MoveIt/rclcpp和Stäubli产品代码保持不变；CI mock结果不等于CS9/HIL/SAT/实机验收。
+
+### §9.3.391｜SequenceService专属callback group的MoveIt/rclcpp所有权链静态复核（2026-11-16）
+
+- [x] 固定 MoveIt Jazzy `f11204b8a9b98e4ba28e564721d24a7077f5f969`中`MoveGroupExe::~MoveGroupExe()`顺序：`capabilities_.clear()` → `context_.reset()` → `capability_plugin_loader_.reset()`。capability destructor发生在plugin loader卸载DSO之前。
+- [x] K 临时overlay中MoveGroupExe局部变量在executor之前声明，按C++逆序销毁使outer executor/WaitSet先于MoveGroupExe与plugin loader析构。
+- [x] 固定 ROS 2 Jazzy `NodeBase::create_callback_group()`：group通过shared_ptr创建，但NodeBase的`callback_groups_`成员类型为`vector<CallbackGroup::WeakPtr>`，NodeBase不会长期强持有非默认group。
+- [x] 固定 ROS 2 Jazzy `ExecutorEntitiesCollector`：`CallbackGroupCollection`为`set<CallbackGroup::WeakPtr>`，自动/手动group collector表均是弱引用；outer executor生命周期结束后不再保有其collection/WaitSet对group的临时强引用。
+- [x] `Node::create_callback_group()`默认`automatically_add_to_executor_with_node=true`；专属group仍按正常路径自动加入MoveItCpp节点对应executor，不需要禁用service callback调度。
+- [x] 所以在Run #144候选中，capability成员`sequence_callback_group_`是outer executor结束后的长期强owner。capability destructor先reset `sequence_service_`再reset `sequence_callback_group_`，其最后weak ServiceBase control-block释放发生于`capabilities_.clear()`阶段，而`capability_plugin_loader_.reset()`尚未执行；这是将DSO代码卸载时序与control-block final-release时序分离的最小生命周期调整候选。
+- [x] Run #144前静态重构workflow中的`old_sequence_create`字符串，与固定MoveIt Jazzy源码create_service代码块逐字一致，避免重复Run #143的锚点缩进失配。
+- [ ] Run #144尚需验证patch应用、source-overlay Pilz插件构建与运行时加载路径、mock execution和10轮teardown；本节为静态源码所有权证明，不代替运行时PASS。
+
+**依据：** MoveIt Jazzy `moveit_ros/move_group/src/move_group.cpp`（MoveGroupExe析构顺序）；ROS 2 Jazzy `rclcpp/src/rclcpp/node_interfaces/node_base.cpp`、`rclcpp/include/rclcpp/executors/executor_entities_collector.hpp`与`rclcpp/src/rclcpp/executors/executor_entities_collector.cpp`（Node/Executor callback-group弱引用登记）；`rclcpp/include/rclcpp/node.hpp`（自动关联executor参数默认值）。
+
+**限制：** 不修改MoveIt/rclcpp upstream或Stäubli正式产品源码，不更改PR #1/pin；只在临时CI overlay做候选验证，不连接CS9，不宣称HIL/SAT/实机验收。
