@@ -63,3 +63,17 @@
 - [ ] 每轮固定 Stäubli source pin、mock plan-and-execute 输入、重复次数、GDB/LD_DEBUG 和 strict process exit assertion；保留 Run #107 A+B 5/5 正向对照。
 
 **详细更正与实验设计：** `docs/audits/2026-11-16-staubli-moveit-teardown-factorial-runs-118-119.md`。本补充只更新知识库审计与计划，不触发 driver workflow，不创建实验分支，不修改上游或产品源码。
+
+
+## 2026-11-16 补充｜K-only 对照已触发，结果待验
+
+为补齐共同背景 K 下 A=OFF/B=OFF 的对照，已复用已有分支 `experiment/moveit-main-owner-lifetime-only`，只修改临时 CI workflow 文件，不新建分支、不改 driver main、不触碰 MoveIt/rclcpp/Stäubli 产品源码。
+
+- workflow commit：`739afbbe2722ebd494326272ec298d896ab193c4`
+- Actions：[Run #43789238751](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43789238751)
+- 实验配置：K=ON、A=OFF、B=OFF。
+- 已静态检查 workflow 内容：A 的三个外部 owner reset 全部不存在；B 的 TEM cleanup gate 关闭；共同的 PSM publisher stop 与 MoveGroupExe-before-executor 声明顺序保留。
+
+首次状态查询时 job 处于运行中、容器初始化尚未结束，尚无可下载的 job logs/artifact。**该运行暂不记 PASS/FAIL，也不改变 A+B 当前是唯一已通过候选的判断。**
+
+后续根据同一 mock 输入和 strict teardown 的结果更新本节点；在 Run #43789238751 完成前，不进一步宣称完整 2×2 结论。
