@@ -140,3 +140,17 @@ MoveIt Jazzy TEM initialize() 的实际构造顺序已核实：先创建 control
 - 逐项 weak_ptr reset 属 CI-only 诊断插桩，可能轻微改变 destructor 内部时序；必须与原始 A+B Run #107 5/5 PASS 对照解释。
 
 尚未确认具体 Waitable 动态类型或 control-block destroy/deallocate 函数归属；本轮不作超出日志证据的推断。
+
+## 2026-11-16 补充｜rclcpp_action expired Waitable weak entry 根因链
+
+源码进一步确认 moveit_simple_controller_manager 的 FollowJointTrajectory handle 在 action_based_controller_handle.hpp L84–89 调用 rclcpp_action::create_client<T>(node, action_name)，不显式传 callback group；ClientBase 是 rclcpp::Waitable。rclcpp_action/create_client.hpp 为其配置自定义 shared_ptr deleter：最后一个强引用释放时，deleter 先构造 no-op fake_shared_ptr，再调用 NodeWaitablesInterface::remove_waitable，然后 delete Client。
+
+NodeWaitables::add_waitable 在 group=null 时选择 NodeBase default callback group，并将 Waitable weak_ptr 加入 group。销毁时原 action_client strong count 已经归零，CallbackGroup::remove_waitable 对存储的原 weak_ptr 调用 lock() 会失败；该函数只有在 lock 成功且 raw pointer 相等时才 erase，没有清理 expired entry 的分支。因此 plugin Client 销毁后会留下 expired weak_ptr，直到 controller node 的 default CallbackGroup 清理 waitable_ptrs_ 时才释放最后 weak count。
+
+源码链接：
+- https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L84-L90
+- https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp_action/include/rclcpp_action/create_client.hpp#L53-L92
+- https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/node_interfaces/node_waitables.cpp#L29-L65
+- https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L218-L228
+
+expired weak entry 留存机制已由源码调用顺序确认；其 shared control block 的析构/释放函数是否位于 libmoveit_simple_controller_manager.so，仍须等 Run #122 GDB 打印 control-block vtable 地址并对照映射验证。
