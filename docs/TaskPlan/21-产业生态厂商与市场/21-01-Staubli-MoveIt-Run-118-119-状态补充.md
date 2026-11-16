@@ -537,3 +537,38 @@ Run #136（[Actions #43832589348](https://github.com/rexyll/staubli_driver_ros2_
 ### Run #137 当前进度更正
 
 Run #137（[Actions #43836147761](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43836147761)，commit 4aa4539a9adfd5efe0adea52753ba1847abf8a53）当前job第1–7步成功，第8步Build patched MoveIt move_group正在执行；第9步Stäubli mock workspace build、第10步10轮GDB teardown regression尚未开始。尚无Run #137 PASS/FAIL结论。实验仍限于CI temporary MoveIt overlay + stock rclcpp + Stäubli mock；不触碰上游/产品源码，不连接CS9，不做真实运动、HIL或SAT。
+
+
+### Run #137最终结果更正：底层崩溃复现，GDB取证脚本中断
+
+Run #137（[Actions #43836147761](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43836147761)，commit 4aa4539a9adfd5efe0adea52753ba1847abf8a53）已完成：
+
+- [x] MoveIt patched move_group构建成功（step 8）。
+- [x] Stäubli mock workspace构建成功（step 9）。
+- [x] 10/10轮均复现move_group teardown SIGSEGV，故障栈仍位于CallbackGroup析构的weak_ptr<ServiceBase> control-block weak-count release。
+- [x] 10轮测试汇总均为`Summary: 7 tests, 0 errors, 2 failures, 0 skipped`；严格进程退出测试失败，不能计PASS。
+- [x] 日志归档和容器清理成功（step 11及cleanup）。
+
+**诊断工具自身的失败：** GDB脚本第22行执行`x/8gx $rax`，但$rax指向未映射地址（例如`0x75fa818a12e0`），并返回`Cannot access memory`，使GDB sourced command file中止。因中断发生在`frame 10`和`service_ptrs_.size()`之前，Run #137没有实际输出group size、weak entry、control block vptr或所属Node；日志中的`[GDB-WEAK]`仅是脚本源代码行，不是运行时entry输出。应区分“10/10真实teardown崩溃”与“诊断脚本无法继续”，不能将后者描述为功能测试通过。
+
+### 单元素CallbackGroup的新候选：TransformListener内部Node的Type Description服务
+
+ROS 2 Jazzy源码复核发现：
+
+- `rclcpp::NodeTypeDescriptions`默认启用参数`start_type_description_service=true`，并在启用时创建`~/get_type_description`，通过`NodeServices::add_service(..., nullptr)`注册到节点默认CallbackGroup。
+- Jazzy `tf2_ros::TransformListener`创建`optional_default_node_`时显式关闭`start_parameter_services`和`start_parameter_event_publisher`，但没有关闭`start_type_description_service`。
+- MoveIt PSM持有`tf_listener_`，且该成员在析构顺序中先于`pnode_`销毁。TransformListener内部Node因此可能在PSM析构链中先被释放；其默认CallbackGroup可能恰有一个Type Description Service弱引用。
+
+这条路径与Run #136/137观察到的单元素vector数量吻合，是当前优先核验候选，不是已证实根因。必须通过NodeBase地址、CallbackGroup地址、服务名和PSM成员指针在同一轮GDB日志中关联确认；不能仅凭数量认定为`get_type_description`。
+
+### Run #138｜修复GDB取证并绑定服务/Node/CallbackGroup身份（执行中）
+
+- workflow commit：`8680810cfe15152ce5b9cd6ed21cbc196e2baaad`，仍复用`experiment/moveit-main-owner-lifetime-only`，没有新建分支。
+- [Actions Run #43839729557](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43839729557)。
+- 移除对无效`$rax`目标的内存解引用；保留faulting PC、$rax值和$ rdi control-block地址，并从control block读取vptr。
+- 增加`gdb.events.free_objfile`事件输出，直接记录正在从GDB移除的objfile路径；避免Run #137每次unload仅重复输出全库列表而无法识别具体DSO。
+- 在`NodeServices::add_service`和`CallbackGroup::add_service`设置CI-only GDB断点，分别记录NodeBase/service地址与CallbackGroup/service地址/服务名，通过service地址关联所有者、组和名称。
+- 崩溃现场读取CallbackGroup实际size和每个weak object/control block/vptr；再将析构Node与PSM的`node_`、`pnode_`、`tf_listener_`及TransformListener的内部Node地址进行比对。
+- 当前状态：Actions第1–2步成功，第3步ROS Jazzy环境setup运行中；MoveIt build、mock workspace build和10轮回归尚未开始。
+
+**约束：** 仅CI临时MoveIt overlay、stock rclcpp与Stäubli mock；不修改MoveIt/rclcpp upstream、不修改Stäubli产品源码、不连接CS9、不发送真实运动命令、不做HIL/SAT/实机验收。
