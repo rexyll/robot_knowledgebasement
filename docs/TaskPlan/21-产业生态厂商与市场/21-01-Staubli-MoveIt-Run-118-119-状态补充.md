@@ -181,14 +181,27 @@ K-only + expired-entry pruning 已在原有隔离分支 `experiment/moveit-main-
 | #123 | `d86c0078c06ed2029f7581a3087f4b476dc8da9a` | 配置无效，不计结果 | 内嵌 Python 补丁字符串 SyntaxError，未进入编译或 mock 测试 |
 | #124 | `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763` | 配置失败，不计反证 | rclcpp overlay build 成功；MoveIt step 因跨 Actions step 的 callback_group_source 未定义触发 NameError，未进入 MoveIt build/mock test |
 | #125 | `3f85d2a9063083e895a3dee2f67f7c353a09f840` | 配置失败，不计反证 | 同一跨步骤 NameError；归档日志但未进入 MoveIt build/mock test |
-| #126 | `7d0aa0d6b571323d85a181d5ec7d24371288fed9` | 运行中 | 改为从磁盘读取持久化 overlay；K 固定、A/B 关闭、仅增加 expired-entry pruning，保留逐轮日志 |
+| #126 | `7d0aa0d6b571323d85a181d5ec7d24371288fed9` | 无效空跑，不计反证 | rclcpp/MoveIt/mock workspace build 均成功；test step 未进入 `/tmp/staubli_ws`，五轮均 0 packages/0 tests/0 pruning |
+| #127 | `2c578fa670b0d5c9bf845c53591cbc334f952438` | 运行中 | 增加 `cd /tmp/staubli_ws`、`ros2 pkg prefix` 与 `colcon list` 预检后重跑 K-only pruning |
 
 核心处理只发生在临时 rclcpp overlay 的 `CallbackGroup::remove_waitable()`：当遍历到的 weak Waitable 无法 `lock()` 时，erase 该 expired entry，再继续遍历并按原逻辑比较 live target。每轮必须观测到 pruning marker；未命中该路径不视为有效反证。
 
 ### 下一步判定
 
 - [x] #124/#125 由于 workflow 跨 step Python 局部变量 NameError 在 MoveIt patch step 退出，未进入 mock test，不计功能性结果。
-- [ ] 对 #126 检查编译、5轮 action 结果、teardown 结果、每轮 pruning marker，以及 group=%p 是否匹配目标 NodeBase default group。
+- [x] #126 的 MoveIt 与 mock workspace build 成功，但测试 step 未进入 `/tmp/staubli_ws`，五轮均 0 tests/0 pruning，判定 no-op，不计反证。
+- [ ] 对 #127 检查 workspace/package preflight、5轮 action 结果、teardown 结果、每轮 pruning marker，以及 group=%p 是否匹配目标 NodeBase default group。
 - [ ] 若有效 pruning 下 K-only 5/5 通过，追加更高重复数并验证 live Waitable 条目未误删；结论限 mock CI。
 - [ ] 若仍 5/5 失败，拒绝把 pruning 单点当作充分修复，回到 control-block/DSO/WaitSet 生命周期定位。
 - [ ] 单独追踪 control-block destroy/deallocate 地址映射；该问题尚未完成。
+
+
+## 2026-11-16 补充｜Run #126 工作目录空跑与 #127 修正
+
+Run #126 的 rclcpp overlay、patched MoveIt build（7 packages）和 Stäubli mock workspace build（5 packages）均成功；其中 package `staubli_moveit_config` 已在 build 日志中成功完成。但 GitHub Actions 每个 step 使用独立 shell，test step 未重新执行 `cd /tmp/staubli_ws`，所以 colcon 从默认 runner 目录扫描不到 package。五轮均为 `0 packages / 0 tests / 0 pruning`，属于 no-op，不是 teardown 成败证据。
+
+[Run #127](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700) 已在原有实验分支重跑。测试步骤现在先切换到 `/tmp/staubli_ws`，再通过 `ros2 pkg prefix staubli_moveit_config` 与 `colcon list --base-paths src` 确认目标包可见；任一预检失败则停止测试而不是空跑。
+
+- [ ] 核验 #127 package preflight 与五轮真实测试结果。
+- [ ] 逐轮核对 mock action、teardown exit status、pruning marker 数量和 group 地址。
+- [ ] 即使 K-only pruning 通过，也仅形成 mock CI 单点证据；继续核验 live Waitables 未误删及 control-block destroy/deallocate 地址归属。
