@@ -154,3 +154,11 @@ NodeWaitables::add_waitable 在 group=null 时选择 NodeBase default callback g
 - https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L218-L228
 
 expired weak entry 留存机制已由源码调用顺序确认；其 shared control block 的析构/释放函数是否位于 libmoveit_simple_controller_manager.so，仍须等 Run #122 GDB 打印 control-block vtable 地址并对照映射验证。
+
+## 2026-11-16 补充｜plugin manager handle 析构与 expired weak entry 连接
+
+MoveItSimpleControllerManager 的析构函数是 defaulted；其 node_ 成员在源文件 L328，controllers_ map 在 L329，因此 controllers_ map 先析构。map 中的 FollowJointTrajectory handle 持有 Action Client，handle 的 node_ 在 action_based_controller_handle.hpp L189，controller_action_client_ 在 L270；Action Client 在 L88 用 rclcpp_action::create_client 创建。
+
+所以 controller manager plugin dtor 会先销毁 handle 和 Action Client。此时 TEM 自己仍持有 controller_mgr_node_，deleter 的 weak_node.lock() 成功，继而尝试 remove_waitable；但原 Waitable weak_ptr 已因 strong count 归零而 lock 失败，expired entry 留在默认 CallbackGroup。随后 controller_manager_ owner 释放、ClassLoader unload DSO；TEM 更后面才释放 controller_mgr_node_，触发 CallbackGroup 最后的 weak release。
+
+这把 plugin dtor → action client custom deleter → expired weak entry → TEM loader unload → NodeBase/CallbackGroup cleanup 连接成一条连贯生命周期链。剩余确认项是 Run #122 中 control-block vtable / destroy 地址的实际映射归属。
