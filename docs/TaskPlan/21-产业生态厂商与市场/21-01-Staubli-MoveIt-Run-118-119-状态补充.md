@@ -328,3 +328,10 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 ### Run #134 状态
 
 [Run #134](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816245159) 已通过 stock rclcpp 无插桩构建及MoveIt patch静态校验；最新一次核验处于 MoveIt 源码依赖安装步骤。MoveIt build、Stäubli mock build、PSM weak-owner marker及10轮测试尚未执行，不能提前登记结果。
+
+
+### 2026-11-16补充｜MoveGroupMoveAction detached worker 生命周期风险
+
+静态审计报告 §2.4 新增一项高优先级 shutdown 风险：`MoveGroupMoveAction::initialize()` 的 accepted callback 启动捕获裸 `this` 的 detached worker；`MoveGroupExe::~MoveGroupExe()` 随后执行 `capabilities_.clear()`、`context_.reset()`、`capability_plugin_loader_.reset()`，目前未发现该 capability 对 worker 建立可join的线程句柄、活动计数或 completion barrier。若活动 goal 与 shutdown 重叠，worker可能继续访问已销毁的 capability/context，甚至在 plugin DSO卸载后继续执行其代码。此为静态生命周期风险，不是已复现的use-after-free或崩溃。
+
+新增确定性测试门禁：barrier固定 worker处于plan-only/planning/execution阶段，在worker仍存活时触发shutdown；记录worker start/finish/join与capability/context/loader析构时序；验证先停止新goal接纳、请求worker退出并drain/join，再清除capability/reset context/unload loader。TSAN检查数据竞争；ASan单独辅助检查use-after-free，不与TSAN混用。本轮未修改上游或产品源码，未执行动态复现。
