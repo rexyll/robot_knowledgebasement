@@ -209,7 +209,7 @@ Run #126 的 rclcpp overlay、patched MoveIt build（7 packages）和 Stäubli m
 
 ## 2026-11-16 补充｜Run #127 pruning 单点反证与 A+K+B-core 继续验证
 
-Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)）已完成有效测试：工作区/package preflight通过，五轮mock plan-and-execute全部SUCCEEDED；CallbackGroup expired Waitable pruning每轮18次、总计90次，但五轮均在TEM private Executor的WaitSet/DynamicStorage::WeakWaitableEntry弱引用释放阶段SIGSEGV（exit -11）。但group=%p尚未与MoveIt内部controller_mgr_node_的NodeBase/default CallbackGroup建立映射，因此不能断言目标组pruning已经命中，更不能把它作为目标组pruning的有效失败反证。
+Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)）已完成有效测试：工作区/package preflight通过，五轮mock plan-and-execute全部SUCCEEDED；CallbackGroup expired Waitable pruning每轮在原始日志中出现18条（`colcon test-result --verbose`重复打印同一输出），去重后每轮9条不同记录、五轮45条，但五轮均在TEM private Executor的WaitSet/DynamicStorage::WeakWaitableEntry弱引用释放阶段SIGSEGV（exit -11）。但group=%p尚未与MoveIt内部controller_mgr_node_的NodeBase/default CallbackGroup建立映射，因此不能断言目标组pruning已经命中，更不能把它作为目标组pruning的有效失败反证。
 
 关键源码区分：CallbackGroup::waitable_ptrs_与Executor DynamicStorage::waitables_是独立weak-reference容器；后者的WeakWaitableEntry还同时持有`weak_ptr<Waitable>`与`weak_ptr<void> associated_entity`。Run #127只改前者，而栈在WaitSet/DynamicStorage析构的`std::weak_ptr::_M_weak_release/_M_destroy`中崩溃；具体是associated entity还是Waitable的弱引用最后释放触发无效访问仍待分辨。
 
@@ -227,9 +227,14 @@ Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/acti
 
 ### Run #127地址映射核查更正
 
-pruning marker每轮18条，但marker不只来自一个CallbackGroup。原始日志显示`move_group`进程存在多个不同group地址，`ros2_control_node`进程的某一组地址可与其NodeBase default group对应；现有NodeBase析构marker没有覆盖MoveIt内部的`controller_mgr_node_`，因为它在TEM private executor/WaitSet崩溃前尚未析构。因此Run #127不能确认目标controller-manager group是否实际被pruning，目标组覆盖状态更正为**未证实**。如需重新做该单点反证，必须给`NodeWaitables::add_waitable/remove_waitable`增加CI-only node FQN、NodeBase、group和Waitable指针关联marker。
+pruning marker每轮原始日志出现18条，但其中有9条是`colcon test-result --verbose`重复打印；去重后每轮9条不同记录。marker不只来自一个CallbackGroup。原始日志显示`move_group`进程存在多个不同group地址，`ros2_control_node`进程的某一组地址可与其NodeBase default group对应；现有NodeBase析构marker没有覆盖MoveIt内部的`controller_mgr_node_`，因为它在TEM private executor/WaitSet崩溃前尚未析构。因此Run #127不能确认目标controller-manager group是否实际被pruning，目标组覆盖状态更正为**未证实**。如需重新做该单点反证，必须给`NodeWaitables::add_waitable/remove_waitable`增加CI-only node FQN、NodeBase、group和Waitable指针关联marker。
 
 
 ### Run #128/#129 workflow脚本问题
 
 #128在rclcpp overlay build后，MoveIt patch step的Python `tem_replacement`字符串因双重转义导致`SyntaxError: '(' was never closed`；#129只改了旧日志文字，未修复转义，故重复失败。两轮都未运行MoveIt build或Stäubli mock test，不计功能结果。#130已把C++日志字面量改为Python单层转义，并更新step名称，当前执行中。
+
+
+### Run #127 pruning marker重复输出去重
+
+Run #127每轮exit summary报告`expired_entries_pruned=18`，但workflow先将`colcon test`的完整输出写入日志，随后`colcon test-result --verbose`又打印同一份launch-test output。逐轮按process/group/target/remaining去重后，18条日志出现对应9条不同marker；五轮共45条不同记录，而非90次实际清理。原始workflow汇总数是日志行数，后续不得按实际pruning操作次数引用。
