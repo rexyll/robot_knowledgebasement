@@ -255,3 +255,10 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 - [ ] 若无插桩10/10通过，再固定B-core，按单变量拆分A中的PSM owner、MoveItCpp owner、main Node owner，并进一步确认event/parameter callback资源无需额外reset的条件。
 
 结论仍限CI temporary MoveIt patch与Stäubli mock，不等同upstream修复、产品验证、HIL/SAT或实机验收；全局优先级仍为00-01。
+
+
+### A 因子 shared-owner 链边界
+
+源码复核发现，A中的`planning_scene_monitor.reset()`、`moveit_cpp.reset()`和`nh.reset()`只释放main()局部shared owner，不能直接视为对应对象在该行析构。MoveGroupExe持有MoveGroupContext；MoveGroupContext又持有MoveItCpp、PSM及TEM；MoveItCpp还持有Node、PSM及TEM。最终析构要沿MoveGroupExe capabilities/context → MoveGroupContext → MoveItCpp成员逆序销毁链追踪。
+
+后续拆分A必须使用use_count/weak_ptr expiration及真实dtor marker确认干预了哪个对象的最后strong owner；若只删除某一条main-local reset但内部owner仍存在，则不构成对应对象析构路径的有效单变量实验。
