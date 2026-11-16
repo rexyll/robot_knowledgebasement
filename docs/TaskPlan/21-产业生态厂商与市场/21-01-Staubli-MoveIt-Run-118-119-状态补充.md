@@ -205,3 +205,19 @@ Run #126 的 rclcpp overlay、patched MoveIt build（7 packages）和 Stäubli m
 - [ ] 核验 #127 package preflight 与五轮真实测试结果。
 - [ ] 逐轮核对 mock action、teardown exit status、pruning marker 数量和 group 地址。
 - [ ] 即使 K-only pruning 通过，也仅形成 mock CI 单点证据；继续核验 live Waitables 未误删及 control-block destroy/deallocate 地址归属。
+
+
+## 2026-11-16 补充｜Run #127 pruning 单点反证与 A+K+B-core 继续验证
+
+Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)）已完成有效测试：工作区/package preflight通过，五轮mock plan-and-execute全部SUCCEEDED；CallbackGroup expired Waitable pruning每轮18次、总计90次，但五轮均在TEM private Executor的WaitSet/DynamicStorage::WeakWaitableEntry弱引用释放阶段SIGSEGV（exit -11）。因此CallbackGroup weak-list pruning不是充分修复。
+
+关键源码区分：CallbackGroup::waitable_ptrs_与Executor DynamicStorage::waitables_是独立weak-reference容器；后者的WeakWaitableEntry还同时持有`weak_ptr<Waitable>`与`weak_ptr<void> associated_entity`。Run #127只改前者，而栈在WaitSet/DynamicStorage析构的`std::weak_ptr::_M_weak_release/_M_destroy`中崩溃；具体是associated entity还是Waitable的弱引用最后释放触发无效访问仍待分辨。
+
+下一项在原隔离分支固定A=ON、K=ON，单独打开B-core：join executor thread、remove controller node、reset private Executor/WaitSet、reset controller manager、reset controller node、最后reset loader；暂不reset event subscription、parameter callback或event callback group。临时overlay为WaitSet WeakWaitableEntry的两条weak reference分别增加析构/释放marker。
+
+- [x] Run #127每轮真实执行、五轮plan-and-execute成功、五轮teardown fail的证据归档。
+- [x] callback group和waitset各自weak-reference vector的职责边界已补充说明。
+- [ ] Run #128/#129验证A+K+B-core的五轮mock action及WaitSet析构日志。
+- [ ] 如B-core通过，继续独立拆分event subscription/callback/parameter callback及A的PSM/MoveItCpp/main Node owner；如失败，按具体weak release marker继续定位。
+
+所有结论限CI temporary overlay/mock；不修改upstream/产品源码，不连接CS9、不发送真实运动指令、不宣称HIL/SAT/实机验收。全局主优先级仍为00-01。
