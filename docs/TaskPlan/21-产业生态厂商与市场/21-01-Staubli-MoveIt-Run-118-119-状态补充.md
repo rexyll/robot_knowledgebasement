@@ -417,3 +417,26 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 [Run #136](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43832589348)，workflow commit `337bf6c6f40b4982629e690d1a5748f94d914053`。仍在同一实验分支与同一PSM-retained mock处理下运行，只把`move_group`临时包装为batch GDB；捕获`bt full`、`info sharedlibrary`、`info proc mappings`、`info registers`及`x/8i $pc`。不改变PSM/Node/CallbackGroup清理顺序，也不修改MoveIt/rclcpp upstream或Stäubli产品源码。诊断结果待定。
 
 **下一步判定：** 若实际PC/目标地址落在未加载的插件DSO范围，进一步将control-block dynamic type/vtable或manager函数关联到具体DSO，建立卸载顺序因果；若PC在仍加载的libstdc++/rclcpp/MoveIt库，转向检查control block对象地址、weak_count及其分配/释放配对，不能继续沿“插件卸载”单一路径推进。
+
+
+### Run #135 pnode_ CallbackGroup 中的具体 ServiceBase 弱引用候选
+
+进一步将 pnode_ 的 `ServiceBase::WeakPtr` 清理链映射到 MoveIt Jazzy 的具体 service 创建路径：
+
+1. `MoveGroupGetPlanningSceneService::initialize()` 调用 `context_->planning_scene_monitor_->providePlanningSceneService(GET_PLANNING_SCENE_SERVICE_NAME)`。
+2. `PlanningSceneMonitor::providePlanningSceneService()` 在 `pnode_` 上调用 `create_service<moveit_msgs::srv::GetPlanningScene>()`，并把返回的强引用保存在 PSM 成员 `get_scene_service_`；service callback 捕获 PSM `this` 并调用 `getPlanningSceneServiceCallback()`。
+3. ROS 2 Jazzy `Node::create_service()` 的 `group` 默认参数是 `nullptr`；`NodeServices::add_service()` 在group为空时取 `node_base_->get_default_callback_group()`，随后调用 `group->add_service(service_base_ptr)`。
+4. `CallbackGroup::add_service()` 将 `ServiceBase::SharedPtr` 转成弱引用记录在 `service_ptrs_`。它会清理“此前已expired”的entry，但没有对应的remove_service API；service strong owner消失后，该weak entry可继续留在callback group，直到CallbackGroup本身销毁。
+5. PSM持有的 `get_scene_service_` 是强引用；其声明位置早于 `pnode_`。PSM析构函数体结束后按成员逆序析构时，`get_scene_service_`会在更早阶段释放，pnode_及其NodeBase/default CallbackGroup则较晚释放。因此它是Run #135 `vector<weak_ptr<ServiceBase>>` 中最明确的候选entry。
+
+**候选解释，不是唯一根因结论：** Run #135的崩溃路径与这条生命周期顺序高度吻合：`get_scene_service_`强引用消失 → pnode_ default CallbackGroup留下expired weak ServiceBase entry → PSM析构到pnode_时NodeBase销毁CallbackGroup → weak control block最后释放并进入`_M_destroy()`。Run #136必须再确认控制块管理函数/vtable和故障PC的映射；如果其代码地址属于未加载的DSO，才能证明动态库卸载相关性。如果地址位于仍加载的MoveIt/rclcpp/libstdc++映射，则应转查控制块损坏、allocator/lifetime或构建ABI等其他可能性。
+
+**关键源码：**
+
+- [MoveGroupGetPlanningSceneService::initialize](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/default_capabilities/get_planning_scene_service_capability.cpp)
+- [PlanningSceneMonitor::providePlanningSceneService / get_scene_service_](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp)
+- [PSM get_scene_service_ member declaration](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp)
+- [rclcpp create_service default group](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/node.hpp)
+- [NodeServices::add_service](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_services.cpp) 与 [CallbackGroup::add_service](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/callback_group.cpp)
+
+以上是源码路径与Run #135 GDB对象链的对应关系；尚未从GDB直接读取`pnode_` CallbackGroup的service_ptrs_元素地址/控制块类型，也未完成control-block manager/vtable到DSO地址映射。
