@@ -185,3 +185,59 @@ B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数�
 **最新状态：** Run #43789238751 已由 push 事件创建，job `source-overlay-regression` 处于运行中；首次查询时容器初始化步骤尚在进行，尚未进入 ROS Jazzy / rclcpp / MoveIt 构建阶段。GitHub 尚未提供可下载 job log/artifact，因此当前没有 K-only 编译或测试结果，不能标记 PASS/FAIL。
 
 这项运行只验证共同背景 K 是否能单独通过；其结果将决定后续 A/B 因子矩阵如何解释。不得在运行完成前把它计入成功或失败样本。
+
+
+## 11. rclcpp callback-group / NodeBase 实际所有权补充（Jazzy 固定源码）
+
+本轮进一步对照 ROS 2 rclcpp Jazzy 源码，确认 B 中必须分别治理 callback group 的强 owner、NodeBase 登记表和 Waitable 弱引用容器：
+
+### 11.1 NodeBase 对 callback group 的持有方式
+
+在 rclcpp Jazzy commit `35b821a9fb1f937bfbd9c741b7e3353e101d9593`：
+
+- `NodeBase` 有一个强引用成员 `default_callback_group_`；
+- 其他 callback groups 存入 `std::vector<CallbackGroup::WeakPtr> callback_groups_`，NodeBase 的登记向量本身不延长这些非默认 group 的生命周期；
+- `create_callback_group()` 创建 shared_ptr 后将其推入 `callback_groups_`，再由调用方/相关组件维持真正的强引用。
+
+证据：
+- [node_base.hpp blob 6173a08](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/include/rclcpp/node_interfaces/node_base.hpp#L154-L160)
+- [node_base.cpp blob 5648290](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/node_interfaces/node_base.cpp#L221-L226)
+
+因此，TEM 为 event subscription 创建的非默认 callback group 必须由稳定 owner 持有，不能只依赖 NodeBase 的弱登记项。CI-only B treatment 把局部 `callback_group` 提升为 `event_callback_group_` 成员，正是为了让它能在明确安全的析构阶段释放。
+
+### 11.2 CallbackGroup 对 Waitable 只保存 weak_ptr
+
+同一 Jazzy commit 的 `CallbackGroup`：
+
+- `waitable_ptrs_` 类型为 `std::vector<rclcpp::Waitable::WeakPtr>`；
+- `add_waitable()` 仅保存 weak_ptr，并会清理当时已经 expired 的条目；
+- `remove_waitable()` 遍历条目并先执行 `weak_ptr.lock()`，只有 lock 成功且指针相同才 erase；若对象已进入 expired 状态，该函数不能靠当前分支删除该条目；
+- `CallbackGroup::~CallbackGroup()` 会触发 notify guard condition。
+
+证据：
+- [callback_group.hpp blob d8c529d](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/include/rclcpp/callback_group.hpp#L297-L312)
+- [callback_group.cpp blob 73cd458](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L42-L45)
+- [add_waitable / remove_waitable](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L204-L226)
+
+这为“Waitable 最后一个 strong owner 先释放、CallbackGroup 仍保留 expired weak control block、后续 group 析构释放 weak control block”的风险链提供了源码依据。它与历史 GDB 栈的 shared_ptr release / CallbackGroup teardown 现象吻合，但仍不能单凭此处源码锁定实际崩溃的唯一 Waitable 动态类型。
+
+### 11.3 对 A+B 清理次序的精细解释
+
+由以上源码可将生命周期约束拆为三个不同对象：
+
+1. **Main MoveGroup Node / default group：** `NodeBase::default_callback_group_` 是强引用。A 的 `nh.reset()` 让 NodeBase 最终析构可跟随 MoveItCpp/TEM owner 收尾，而不是延迟到 MoveGroup capability loader 已 reset 之后。
+2. **TEM event callback group：** 它是 main Node 的非默认 group，NodeBase 只弱登记；B 的 `event_callback_group_` 成员是明确强 owner，必须在 safe point 显式 reset。
+3. **Controller-manager Node / default group：** 插件 instance 的 action clients / waitables 由 controller-manager node 的 callback-group / executor 关系管理。B 先停并销毁 private executor/WaitSet，再 reset plugin instance，最后 reset controller node；controller-manager loader 仍活着，直到 TEM 成员析构阶段。
+
+### 11.4 下一步新增运行时观测点
+
+K-only 运行之后，再在 A+B 候选中加入 CI-only markers（不改产品源码）：
+
+- event callback group 析构时间；
+- controller-manager node default group 析构时间；
+- controller-manager instance 析构完成点；
+- private executor destructor body END 与 WaitSet 成员销毁之后的标记；
+- controller-manager DSO `LD_DEBUG` unload 时间；
+- main NodeBase / default callback group 析构时间。
+
+验收要求是这些 group/node/WaitSet 的实际析构均发生在对应 plugin DSO 卸载之前。单纯观察 `reset()` 调用日志不足以证明对象真的在该行完成最后释放（可能存在其他 shared owners）。
