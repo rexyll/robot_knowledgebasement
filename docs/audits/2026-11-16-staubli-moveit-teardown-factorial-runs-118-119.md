@@ -510,3 +510,10 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 - [MoveItCpp destructor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp#L85-L88)
 
 后续对A的PSM/MoveItCpp/main Node做单变量实验时，先确认唯一strong owner与最后释放点；不得仅凭reset marker判定对象已析构。
+
+
+### 19.5 WeakWaitableEntry 诊断析构函数的语义扰动风险
+
+Run #130为`DynamicStorage::WeakWaitableEntry`新增用户声明析构函数。stock结构体包含`weak_ptr<Waitable> waitable`、`weak_ptr<void> associated_entity`并未自定义析构/移动构造。新增用户声明析构会抑制隐式move constructor；因为copy仍可用，`std::vector<WeakWaitableEntry>`在重分配时可能改变move/copy策略，进而改变weak control block引用计数、对象复制/释放时机。虽然探针中的析构体按`associated_entity.reset()`后`waitable.reset()`释放，与字段声明顺序对应的隐式成员逆序析构相同，仍无法排除vector relocation semantics的变化。
+
+故Run #130是5/5强正向候选，但不是最终无插桩确认。Run #131恢复stock rclcpp全部源文件（git diff必须为空，且marker扫描通过），将A+K+B-core测试做10轮。只有10/10真实通过才排除这项主要探针副作用。
