@@ -658,3 +658,11 @@ Run #139 job `133206807886`当前状态：
 - [ ] 完成日志核验后再设计针对实际停止入口的 terminate 测试；在并发和停止语义门禁关闭之前，不把 callback-group 拆分方案提升为可合并/可部署修复。
 
 **继续约束：** 本轮所有工作仍只在 CI temporary MoveIt/Pilz overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock 中进行；没有修改 MoveIt/rclcpp 上游或 Stäubli 正式产品代码，没有连接 CS9 或进行 HIL/SAT/实机动作。根计划最高优先级仍为 00-01，MotionControlAlgorithms 集成继续 DEFERRED。
+
+
+## 2026-11-16 并发门禁验收计数修正（commit 031478a）
+
+- [x] 识别新增同pipeline unittest后，pre-shutdown suite应从2项变为3项；原package汇总硬编码期待7 tests会造成假失败。
+- [x] 同一实验分支已修正汇总验收为8 tests/0 errors/0 failures/0 skipped，并保留3项pre-shutdown test数量断言。
+- [x] 修正提交：https://github.com/rexyll/staubli_driver_ros2_from_org/commit/031478a961bb62ded1231e5288055ae4b8cf7961。未创建分支。
+- [ ] Actions run ID/原始日志尚未取得；需以实际xUnit/colcon输出确认3+post-shutdown测试与8项总汇总，不以静态脚本通过代替运行证据。
