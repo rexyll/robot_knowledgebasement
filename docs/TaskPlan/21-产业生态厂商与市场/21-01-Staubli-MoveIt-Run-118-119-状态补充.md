@@ -179,14 +179,16 @@ K-only + expired-entry pruning 已在原有隔离分支 `experiment/moveit-main-
 | Run | commit | 状态 | 说明 |
 |---|---|---|---|
 | #123 | `d86c0078c06ed2029f7581a3087f4b476dc8da9a` | 配置无效，不计结果 | 内嵌 Python 补丁字符串 SyntaxError，未进入编译或 mock 测试 |
-| #124 | `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763` | 运行中 | K 固定；A/B 关闭；仅增加 expired-entry pruning |
-| #125 | `3f85d2a9063083e895a3dee2f67f7c353a09f840` | 运行中 | 与 #124 功能处理相同，另归档每轮 pruning 原始日志 |
+| #124 | `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763` | 配置失败，不计反证 | rclcpp overlay build 成功；MoveIt step 因跨 Actions step 的 callback_group_source 未定义触发 NameError，未进入 MoveIt build/mock test |
+| #125 | `3f85d2a9063083e895a3dee2f67f8c353a09f840` | 配置失败，不计反证 | 同一跨步骤 NameError；归档日志但未进入 MoveIt build/mock test |
+| #126 | `7d0aa0d6b571323d85a181d5ec7d24371288fed9` | 运行中 | 改为从磁盘读取持久化 overlay；K 固定、A/B 关闭、仅增加 expired-entry pruning，保留逐轮日志 |
 
 核心处理只发生在临时 rclcpp overlay 的 `CallbackGroup::remove_waitable()`：当遍历到的 weak Waitable 无法 `lock()` 时，erase 该 expired entry，再继续遍历并按原逻辑比较 live target。每轮必须观测到 pruning marker；未命中该路径不视为有效反证。
 
 ### 下一步判定
 
-- [ ] 对 #124/#125 检查编译、5轮 action 结果、teardown 结果与每轮 pruning marker。
+- [x] #124/#125 由于 workflow 跨 step Python 局部变量 NameError 在 MoveIt patch step 退出，未进入 mock test，不计功能性结果。
+- [ ] 对 #126 检查编译、5轮 action 结果、teardown 结果、每轮 pruning marker，以及 group=%p 是否匹配目标 NodeBase default group。
 - [ ] 若有效 pruning 下 K-only 5/5 通过，追加更高重复数并验证 live Waitable 条目未误删；结论限 mock CI。
 - [ ] 若仍 5/5 失败，拒绝把 pruning 单点当作充分修复，回到 control-block/DSO/WaitSet 生命周期定位。
 - [ ] 单独追踪 control-block destroy/deallocate 地址映射；该问题尚未完成。
