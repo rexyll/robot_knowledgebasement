@@ -304,7 +304,7 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 - planning_scene_monitor保持const shared_ptr；额外创建的weak_ptr不增加strong owner，并在MoveGroupExe/executor内层作用域结束后检查expired()与use_count()。每轮必须出现恰好一个“PSM retained after MoveGroupExe/executor scope” marker。
 - 10轮仍逐轮执行真实mock动作、7项launch assertions、B-core清理顺序和进程退出码核验。
 
-[Run #134](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816245159) 已生成job并进入CI容器初始化，尚未取得构建与测试结果。
+- [Run #134](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816245159) 已完成容器初始化、ROS Jazzy环境准备、stock rclcpp无插桩构建、MoveIt patch静态校验和MoveIt依赖安装；最新步骤为 patched move_group 构建中。Stäubli mock工作区构建和10轮测试尚未开始。
 
 **下一验收门：** 若10/10均通过，说明在MoveGroupExe/executor作用域退出前保留main()的PSM强引用不会破坏当前mock teardown，并且可由weak probe证明PSM在该作用域后仍存活；若失败，区分失败发生在mock动作还是进程退出阶段，再判断该main-local owner提前释放是否必要。随后再单独测试MoveItCpp与main Node owner，不一次改变多个变量。
 
