@@ -447,3 +447,20 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 对Run #135原始job log按10轮去重后，10/10轮均出现 `Loading 'move_group/MoveGroupGetPlanningSceneService'...`，并在capability清单中出现`get_planning_scene_service`。因此，前述源码路径不只是死代码：当前mock move_group每轮确实加载该capability，执行其initialize()后会调用PSM `providePlanningSceneService()`，从而在private pnode_创建`GetPlanningScene` service并写入`get_scene_service_`。
 
 这将候选ServiceBase记录提升为**静态源码 + 运行时capability加载日志**的双源候选，但还没有运行时观测到pnode_ `service_ptrs_`中的具体weak_ptr地址/数量；更没有确认control-block `_M_destroy()`的代码地址归属。Run #136需要继续提供 fault PC、DSO加载列表和proc mappings，再判断是否是插件卸载后调用了失效manager/vtable。
+
+
+### pnode_ default CallbackGroup 中 ServiceBase 候选不止 GetPlanningScene
+
+继续核对ROS 2 Jazzy NodeOptions/NodeParameters/ParameterService后，修正上一节“候选ServiceBase可能为PSM get_scene_service_”的范围：
+
+- `NodeOptions::start_parameter_services_` 默认值是 `true`；PSM创建`pnode_`时使用 `rclcpp::NodeOptions().arguments(new_args)`，没有关闭该默认值。
+- `NodeParameters`构造函数在参数服务开启时创建`ParameterService`。其构造函数依次创建6个服务：`GetParameters`、`GetParameterTypes`、`SetParameters`、`SetParametersAtomically`、`DescribeParameters`、`ListParameters`；六次`create_service()`都传入`group=nullptr`。
+- `pnode_`另有一个由PSM `get_scene_service_`成员持有的`GetPlanningScene` service；Run #135原始日志10/10轮都确认`MoveGroupGetPlanningSceneService` capability实际加载。
+- `NodeServices::add_service()`对nullptr group使用`NodeBase::get_default_callback_group()`，因此上述6个ParameterService endpoints和1个GetPlanningScene endpoint都会登记为同一个pnode_ default CallbackGroup中的`ServiceBase::WeakPtr`。
+- PSM析构后，`get_scene_service_`随PSM成员销毁；pnode_ Node析构时先reset `node_parameters_`，其`ParameterService`及6个strong service owners随后释放；NodeBase/default CallbackGroup在后续阶段才销毁，弱引用容器因此持有多个expired control blocks到最终释放。
+
+**范围更正：** Run #135的GDB栈只能确认崩溃发生在`vector<weak_ptr<ServiceBase>>`销毁期间，尚不能确认是哪一个service entry触发故障。当前按源码可预期至少7个ServiceBase weak entries（6个参数服务 + 1个GetPlanningScene），具体实际数量和逐项control-block地址需要Run #136 GDB在CallbackGroup析构现场检查。不能把`get_scene_service_`唯一化，也不能把control-block DSO归属写成已确认。
+
+**Run #136下一步GDB现场检查：** 在`CallbackGroup::~CallbackGroup()`的崩溃现场读取`this`、`service_ptrs_.size()`、每个`weak_ptr`的`_M_pi`地址，以及故障时的PC/共享库映射。再将vector条目地址和控制块manager/vtable代码地址与加载/未加载的DSO区间比较；如需确认具体service名称，可在后续单独CI-only NodeServices::add_service日志中记录node FQN、group地址和service地址，不改变rclcpp特殊成员函数/析构语义。
+
+**源码入口：** [NodeOptions default parameter services](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/node_options.hpp)、[NodeParameters creates ParameterService](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp)、[ParameterService six endpoints](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/parameter_service.cpp)、[NodeServices::add_service](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_services.cpp)、[PSM GetPlanningScene service](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp)。
