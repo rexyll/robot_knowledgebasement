@@ -79,3 +79,23 @@
 ## 6. 本轮执行边界
 
 本轮只完成固定源码版本的静态审查和证据归档；未修改MoveIt main/Jazzy、Stäubli driver产品源码或CS9配置，未发送真实运动命令，未运行TSAN、HIL、SAT或实机测试。后续所有源代码处理须继续遵守既有授权/分支约束。
+
+
+## 2.4 Detached action worker 与 capability/plugin 生命周期（新增高优先级风险）
+
+另一个与执行状态竞态不同、但直接影响 shutdown 的生命周期风险：
+
+- [`MoveGroupMoveAction::initialize()` L64-L83](https://github.com/moveit/moveit2/blob/f11204b8a9b98e4ba28e564721d24a7077f5f969/moveit_ros/move_group/src/default_capabilities/move_action_capability.cpp#L64-L83) 将 action accepted callback 实现为 `std::thread{ [this](...) { executeMoveCallback(...); }, goal }.detach();`。worker显式捕获裸 `this`，没有返回可join的thread handle，也没有在该类中建立active-worker计数或completion barrier。
+- [`MoveGroupExe::~MoveGroupExe()` L97-L102](https://github.com/moveit/moveit2/blob/f11204b8a9b98e4ba28e564721d24a7077f5f969/moveit_ros/move_group/src/move_group.cpp#L97-L102) 的析构顺序是 `capabilities_.clear()` → `context_.reset()` → `capability_plugin_loader_.reset()`。
+- [`MoveGroupCapability` 虚析构函数](https://github.com/moveit/moveit2/blob/f11204b8a9b98e4ba28e564721d24a7077f5f969/moveit_ros/move_group/include/moveit/move_group/move_group_capability.hpp#L56-L72) 为空；`MoveGroupMoveAction` 未声明自定义析构函数或worker join协议。
+- detached worker继续执行 `executeMoveCallback()`（同一Action capability中的成员函数），并访问 `context_`、`goal_`、状态字段及编译进capability plugin DSO中的代码。accepted callback返回只意味着“启动线程的回调函数已返回”，并不意味着detached worker已退出；销毁action server也不能作为detached worker已join的证据。
+
+**静态风险判断：** 若shutdown与活动goal重叠，`capabilities_.clear()` 可能在worker完成前销毁 `MoveGroupMoveAction`；随后的context reset与plugin loader reset又可能释放worker仍访问的上下文对象或卸载其执行代码。当前静态源码没有看到在clear capability前停止接收新goal、取消活动goal并等待所有worker退出的明确屏障。这是高优先级 shutdown lifetime hazard / 潜在 use-after-free / DSO unload race，但本轮没有动态复现，不能写成已证实崩溃。
+
+### 必须增加的确定性测试
+
+- 在mock plan-only、planning中、execution中三个阶段分别阻塞worker，用barrier固定其仍存活；随后触发MoveGroupExe shutdown，断言先进入worker cancel/drain阶段，等待worker completion/join后方可clear capability、reset context和卸载loader。
+- 测试连续goal、cancel与自然完成竞态、goal callback抛异常、worker提前返回、多个active worker与shutdown同时到达。
+- 记录worker数量、线程ID、capability destructor BEGIN/END、context destructor、plugin loader reset/DSO fini时间；不得使用只记录accepted callback返回的marker替代worker完成证据。
+- TSAN用于检测共享状态访问；ASan或等价生命周期检查用于辅助捕捉use-after-free。两种sanitizer分别运行，不把一个工具的阴性结果当作另一个问题已关闭。
+- 关闭门禁应要求：停止新goal接纳 → 取消/请求worker退出 → 等待所有worker退出 → clear capability → reset context → reset loader；具体顺序仍需按rclcpp action server 与MoveIt资源依赖验证，不能未经验证直接改产品源码。
