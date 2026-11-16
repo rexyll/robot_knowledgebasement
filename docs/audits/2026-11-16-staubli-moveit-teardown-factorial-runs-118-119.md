@@ -169,3 +169,19 @@ B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数�
 - 新增 K-only 与 A/B 子步骤实验应限制为临时 mock CI overlay，不提交 MoveIt/rclcpp upstream，不修改 Stäubli 产品源码或 PR #1。
 - 若后续需要在 Stäubli driver 工程新增实验 workflow commit，应使用经授权的隔离实验工作流，不直接修改其 main；本知识库的记录和 TaskPlan 变更仍只提交到 `robot_knowledgebasement/main`。
 - 不连接 CS9、不发送真实运动命令、不声称 HIL、SAT、实机或安全验收通过。
+
+
+## 10. K-only 对照已触发（Run #43789238751，结果待验）
+
+为补齐 K+A=OFF+B=OFF 单元格，已复用既有隔离工作分支 `experiment/moveit-main-owner-lifetime-only`，没有新建分支，也没有修改 Stäubli driver main。仅修改该分支的 GitHub Actions workflow 文件：
+
+- commit：`739afbbe2722ebd494326272ec298d896ab193c4`
+- [Run #43789238751](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43789238751)
+- 配置：K=ON、A=OFF、B=OFF。
+- A 关闭核验：workflow 中不再有 `planning_scene_monitor.reset()`、`moveit_cpp.reset()`、`nh.reset()`，恢复 stock main() 局部 shared-owner 生命周期。
+- B 关闭核验：TEM cleanup 注入 gate 为 `if False`，不改 TEM 析构函数。
+- K 保留核验：仍在 Context shutdown 前停止 PSM scene publisher；仍将 MoveGroupExe 声明在 MultiThreadedExecutor 之前；仍保留 stock signal handling 检查和相同 mock plan/execute + strict teardown workflow。
+
+**最新状态：** Run #43789238751 已由 push 事件创建，job `source-overlay-regression` 处于运行中；首次查询时容器初始化步骤尚在进行，尚未进入 ROS Jazzy / rclcpp / MoveIt 构建阶段。GitHub 尚未提供可下载 job log/artifact，因此当前没有 K-only 编译或测试结果，不能标记 PASS/FAIL。
+
+这项运行只验证共同背景 K 是否能单独通过；其结果将决定后续 A/B 因子矩阵如何解释。不得在运行完成前把它计入成功或失败样本。
