@@ -269,14 +269,43 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 给`DynamicStorage::WeakWaitableEntry`添加用户声明析构函数会抑制隐式move constructor；copy仍可用时，`std::vector`重分配可能改变WeakWaitableEntry的move/copy选择，影响weak reference control block的计数和释放时序。虽然探针显式按associated entity再Waitable顺序reset，与成员默认逆序析构一致，仍不能排除该特殊成员函数副作用。Run #131已恢复stock rclcpp source并做10轮复核，以判断Run #130的5/5是否独立于插桩。
 
 
-## 2026-11-16补充｜Run #131 workflow静态校验配置错误与 #132 重跑
 
-[Run #131](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43808189052) 使用提交 4154ebdd00d04c98d510aedb3fd1e15ed3e18823，目标是保持A=ON、K固定、B-core=ON，将rclcpp恢复为stock无插桩，并执行10轮mock teardown复核。该轮并非测试崩溃：
+## 2026-11-16补充｜Run #131/#132 无插桩复核与 A-PSM-retained 单变量实验
 
-- stock rclcpp clone/build成功；git diff --exit-code通过，并输出 pristine ROS 2 Jazzy rclcpp sources，无Executor、CallbackGroup、NodeBase、DynamicStorage插桩。
-- MoveIt补丁脚本已运行至最终静态校验；校验代码仍错误要求 dynamic_storage.hpp 含有诊断overlay专用的 WaitSet WeakWaitableEntry dtor BEGIN marker，与stock无插桩要求相反。
-- 第6步因此退出；MoveIt dependencies/build、Stäubli mock workspace build及10轮测试步骤7–10全部跳过。没有mock action或teardown结果，#131必须标记为workflow配置失败，不计实验PASS/FAIL。
+### Run #131 workflow校验失败（不计功能结果）
 
-已在同一既有隔离分支修复该条件：先断言stock dynamic_storage.hpp 不包含该诊断marker，再检查A和B-core的必要cleanup token。修复提交为 4d58b7e6d3b83363d6e595400a1bb1a5e1ea6a72，未新建分支；[Run #132](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43812432706) 已自动触发，最近一次查询为 in_progress，尚无10轮功能结果。
+[Run #131](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43808189052) 的 stock rclcpp clone/build 和无插桩检查成功，但第6步最终静态校验错误要求 stock dynamic_storage.hpp 含有Run #130诊断overlay专用的 WaitSet WeakWaitableEntry dtor BEGIN marker；MoveIt构建、mock工作区构建和10轮测试步骤均跳过。因此#131是workflow校验配置失败，不计功能PASS/FAIL。
 
-**状态：** 无插桩10轮复核仍未完成。后续只有在stock rclcpp通过校验、patched MoveIt/mock workspace构建成功，并且10/10轮均确认mock action成功、7项launch assertions通过、B-core markers有序且进程退出码为0时，才可将A+K+B-core升级为无插桩mock CI通过候选。此结论仍不代表上游合并、产品修复、CS9/HIL/SAT或实机验收。
+### Run #132 stock rclcpp 无插桩 10/10 通过
+
+[Run #132](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43812432706)，workflow commit 4d58b7e6d3b83363d6e595400a1bb1a5e1ea6a72：
+
+- stock ROS 2 Jazzy rclcpp overlay构建成功；git diff --exit-code通过，诊断marker扫描确认无Executor、CallbackGroup、NodeBase、DynamicStorage插桩。
+- patched MoveIt、Stäubli mock workspace构建和package preflight全部通过。
+- 固定A=ON、K背景、B-core=ON；10/10轮均执行真实mock plan-and-execute，日志为 Completed trajectory execution with status SUCCEEDED。
+- 每轮launch test均运行1个test runner，summary为7 tests、0 errors、0 failures、0 skipped。
+- 每轮B-core清理顺序均为private executor thread join → remove controller node → private executor/WaitSet reset → controller manager reset → controller node reset（reset BEGIN前use_count=1）→ loader reset。
+- 每轮colcon_test=0、test_result=0、lifecycle_order=0；总计failures=0/10，无SIGSEGV。
+- Artifact 14201681819，SHA-256 1bd5c27cbf3803dc8565d24b73c06b7b9b99edda64874b57dc42db0c3664cb0e。
+
+**结论：** A+K+B-core的正向结果不依赖Run #130的rclcpp析构探针，已达到无插桩mock CI 10/10候选通过。仅代表临时MoveIt patch + stock rclcpp + Stäubli mock测试，不代表upstream合并、产品验证或HIL/SAT/实机验收。
+
+### Run #133 workflow YAML 配置失败（不计功能结果）
+
+[Run #133](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816146303) 触发后立即失败且GitHub Actions返回0个job。检查workflow发现新加的多行Python字符串有几行缩进越过YAML run块边界，导致workflow定义无法正常解析；不是C++编译或teardown失败。另发现weak-probe生成字符串中的换行转义多了一层反斜杠。
+
+### Run #134 修复后重跑：A-PSM-retained
+
+已在原实验分支 experiment/moveit-main-owner-lifetime-only 修复上述问题，commit 5abf808424049dec78e2dc6247f453af59be0e29：
+
+- Python探针改为每个物理行满足YAML缩进要求的相邻字符串拼接。
+- 修正psm_anchor插入弱引用声明时的换行转义。
+- 功能处理固定K和B-core，只改变A中的一项：不调用main()局部的 planning_scene_monitor.reset()，保留 moveit_cpp.reset() 与 nh.reset()。
+- planning_scene_monitor保持const shared_ptr；额外创建的weak_ptr不增加strong owner，并在MoveGroupExe/executor内层作用域结束后检查expired()与use_count()。每轮必须出现恰好一个“PSM retained after MoveGroupExe/executor scope” marker。
+- 10轮仍逐轮执行真实mock动作、7项launch assertions、B-core清理顺序和进程退出码核验。
+
+[Run #134](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816245159) 已生成job并进入CI容器初始化，尚未取得构建与测试结果。
+
+**下一验收门：** 若10/10均通过，说明在MoveGroupExe/executor作用域退出前保留main()的PSM强引用不会破坏当前mock teardown，并且可由weak probe证明PSM在该作用域后仍存活；若失败，区分失败发生在mock动作还是进程退出阶段，再判断该main-local owner提前释放是否必要。随后再单独测试MoveItCpp与main Node owner，不一次改变多个变量。
+
+所有结果仍限CI临时MoveIt patch + stock rclcpp + Stäubli mock；不修改上游或产品源码、不连接CS9、不发送真实运动命令、不宣称HIL/SAT/实机验收。
