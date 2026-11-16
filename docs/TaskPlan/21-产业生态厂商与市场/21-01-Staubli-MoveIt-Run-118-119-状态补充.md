@@ -77,3 +77,19 @@
 首次状态查询时 job 处于运行中、容器初始化尚未结束，尚无可下载的 job logs/artifact。**该运行暂不记 PASS/FAIL，也不改变 A+B 当前是唯一已通过候选的判断。**
 
 后续根据同一 mock 输入和 strict teardown 的结果更新本节点；在 Run #43789238751 完成前，不进一步宣称完整 2×2 结论。
+
+
+## 2026-11-16 补充｜rclcpp callback group 实际 owner 语义
+
+对照 ROS 2 rclcpp Jazzy commit `35b821a9fb1f937bfbd9c741b7e3353e101d9593` 后，确认：
+
+- `NodeBase` 对 default callback group 持有强引用 `default_callback_group_`；对其余 callback groups 只在 `callback_groups_` 中保存 WeakPtr。
+- `CallbackGroup` 的 `waitable_ptrs_` 同样是 WeakPtr 列表；`remove_waitable()` 先 lock weak_ptr，expired 条目不能通过当前匹配分支移除；CallbackGroup 析构时还会触发 notify guard condition。
+- 因而 TEM 的非默认 event callback group 必须由明确的强 owner 持有，并在 plugin loader 卸载前释放；controller-manager Node 的 default group 则需要在 controller-manager node reset 时随 NodeBase 一起析构。
+
+来源：
+- [rclcpp node_base.hpp](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/include/rclcpp/node_interfaces/node_base.hpp#L154-L160)
+- [rclcpp callback_group.hpp](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/include/rclcpp/callback_group.hpp#L297-L312)
+- [rclcpp callback_group.cpp](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L204-L226)
+
+后续需要在 CI-only overlay 中加入 CallbackGroup、NodeBase、private executor/WaitSet 和 DSO unload 的析构 marker。只记录 `reset()` 调用不够，必须确认对象的最后一个 shared owner 已释放、真实析构完成。
