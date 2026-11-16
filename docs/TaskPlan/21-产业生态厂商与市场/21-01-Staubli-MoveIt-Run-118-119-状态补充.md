@@ -779,3 +779,10 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 - [ ] 在无插桩mock上完成至少10轮回归、压力测试和可行的TSAN。
 
 本补充仅为固定版本源码审计和测试设计，不是上游或正式产品修复；既有实验边界与优先级不变。
+
+
+## Run #153 后续审计：跨 pipeline 风险证据边界校正（2026-11-16）
+
+复核实验workflow发现，Run #153 的 slow hold probe 放在`PlanningPipeline::generatePlan()`设置`active_=true`之后、调用`getPlanningContext()`之前。故slow-held请求尚未创建`PlanningContext`，Run #153不能证明“取消pipeline A会终止pipeline B的活动context”。
+
+当前可确认的只有固定MoveIt源码中的全局作用域：`PlannerManager::terminate()`遍历静态`ActiveContexts`。跨pipeline实际误取消仍未动态证实。下一轮应在`ModelBasedPlanningContext::solve()`内、`registerTerminationCondition(ptc)`之后暂停一个已注册context，再调用另一pipeline的真实public wrapper，并用context pointer、terminate marker和PTC完成状态做严格验收。必须先枚举真实pipeline IDs；若只有一个，CI-only启用第二pipeline，不得把同pipeline的多个planner plugin混淆为不同pipeline。
