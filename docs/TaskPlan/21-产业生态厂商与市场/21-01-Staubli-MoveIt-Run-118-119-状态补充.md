@@ -20,9 +20,10 @@
 | #132 | stock rclcpp 无插桩 A+K+B-core（10轮） | **10/10 PASS** | 每轮一次mock plan-and-execute成功、7项launch assertions通过、B-core顺序与进程退出码均通过；CI-only正向基线 |
 | #134 | A-PSM-retained + K + B-core（10轮） | **10/10 SIGSEGV** | PSM弱引用探针每轮use_count=1；MoveGroupExe capability/context/plugin loader清理完成后，保留的main() PSM owner才释放，随后PSM/Node teardown段错误。每轮执行次数统计显示2是colcon test-result verbose重复采集误报，原始测试流实际每轮仅一次mock执行成功 |
 | #135 | PSM析构阶段marker + 显式reset边界 + 独立test-result日志（10轮） | **10/10 SIGSEGV** | 每轮mock execution成功；PSM析构函数体到BODY-END，末尾node_use=2/pnode_use=1，PSM reset END无运行时marker；GDB栈定位到隐式pnode_ shared_ptr释放→Node→NodeBase→CallbackGroup→weak_ptr<ServiceBase> _M_destroy。尚未证明control block manager/vtable归属已卸载DSO |
-| #136 | PSM private Node pnode_ teardown + GDB DSO/memory-map诊断 | **10/10 SIGSEGV；取证完成** | 10轮均在CallbackGroup析构weak_ptr<ServiceBase>时SIGSEGV；fault PC位于仍映射的librclcpp，间接调用所用vptr不在进程映射中；librclcpp、libmoveit_planning_scene_monitor及MoveGroup capability相关DSO仍映射。尚不能区分已卸载的其他DSO与control block/vptr内存破坏；另修正test-result汇总解析路径 |
-| #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **执行中** | 在同一既有分支加入GDB catch unload、读取CallbackGroup::service_ptrs_数量和逐项weak object/control block/vptr；修复test-result summary解析并显式检查GDB捕获SIGSEGV。stock rclcpp无插桩overlay build与MoveIt临时补丁/静态校验均已通过；当前处于MoveIt source dependencies安装步骤，第8步move_group build、第9步Stäubli mock build及第10步GDB回归尚未开始 |
-
+| #136 | PSM teardown链Node/NodeBase/CallbackGroup + GDB DSO/memory-map诊断（Node身份待定） | **10/10 SIGSEGV；Node身份未确认** | 10轮均在CallbackGroup析构weak_ptr<ServiceBase>时SIGSEGV；fault PC位于仍映射的librclcpp，间接调用所用vptr不在进程映射中；librclcpp、libmoveit_planning_scene_monitor及MoveGroup capability相关DSO仍映射。尚不能区分已卸载的其他DSO与control block/vptr内存破坏；另修正test-result汇总解析路径 |
+| #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **10/10 SIGSEGV；GDB脚本第22行中断** | mock构建成功；10轮均复现teardown SIGSEGV。每轮Summary 7 tests、0 errors、2 failures。GDB对未映射$rax执行x/8gx后中止，未运行service_ptrs_ size/逐项weak检查；不能据此识别服务或Node |
+| #138 | GDB安全取证与Node/service/group身份关联 | **环境阶段失败，不计代码结果** | ROS setup成功；第4步rosdep update请求rosdistro/base.yaml时Connection reset by peer；后续构建/测试全部跳过 |
+| #139 | Run137 GDB修复 + TypeDescription Node归属核验 + rosdep retry | **执行中** | rosdep update添加5次有限重试（每次间隔8秒，最终fail-closed）；当前容器初始化/ROS setup尚未完成 |
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
 - `docs/audits/2026-11-16-staubli-moveit-teardown-factorial-runs-118-119.md`
@@ -401,7 +402,7 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 以上仅为源码静态对象链审查；不等同 vtable/DSO 归属证明、动态 UAF/ABI 崩溃根因确认或上游缺陷定论。Run #135 仍在执行，结果待日志确认。
 
 
-## 2026-11-16 补充｜Run #135 最终结果：崩溃定位到 PSM private pnode_ Node 释放
+## 2026-11-16 补充｜Run #135 最终结果：崩溃发生在PSM析构后的Node链，Node身份待定
 
 [Run #135](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43823418805)，workflow commit `ac87221956b3d946d93fb1732fb12ea4e59e8094`，步骤1–9（stock rclcpp无插桩构建、MoveIt静态补丁/依赖/构建、Stäubli mock工作区构建）全部通过；第10步10轮回归10/10失败。
 
@@ -410,7 +411,7 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 - [x] 10/10轮BODY-END记录 `node_use=2 pnode_use=1`。PSM构造函数创建`pnode_`为独立private Node，加入PSM private executor；析构中先join线程并reset private executor后，pnode_剩余唯一强引用即PSM成员本身。
 - [x] 10/10轮main()的 `PSM explicit reset END`没有运行时输出；崩溃发生在 `planning_scene_monitor.reset()`内部、PSM析构函数体结束之后的隐式成员释放阶段。
 - [x] GDB调用链：`PlanningSceneMonitor`隐式`shared_ptr`成员析构 → `rclcpp::Node::~Node()`（node.cpp）→ `NodeBase::~NodeBase()`（node_base.cpp）→ `CallbackGroup::~CallbackGroup()`（callback_group.cpp）→ `vector<weak_ptr<ServiceBase>>`销毁 → `weak_ptr::_M_weak_release()` → virtual `_M_destroy()`，SIGSEGV。
-- [x] 因pnode_先于node_销毁（成员声明顺序逆序），当前最窄故障边界为PSM私有Node pnode_的最后释放，落在其NodeBase/default CallbackGroup weak ServiceBase控制块清理；不是PSM析构函数体内部的executor/scene清理。
+- [x] Run #135据pnode_ use_count=1与成员声明顺序，曾推断故障落在pnode_最后释放；但GDB调用栈只显示PSM析构链中的Node/NodeBase/CallbackGroup，并未输出Node指针与pnode_成员的匹配。Run #136后来显示vector析构范围仅1个weak_ptr，与pnode_默认组静态预期6个参数服务+1个GetPlanningScene服务不符，因此撤回“已锁定pnode_”结论。
 - [ ] 尚未证明control-block `_M_destroy()` 的manager/vtable地址属于已卸载MoveGroup capability plugin DSO。也可能是其他control-block生命周期/内存损坏机制；必须取故障PC和共享库映射后再归因。
 
 ## 2026-11-16 补充｜Run #136 GDB 地址与 DSO 映射取证（执行中）
@@ -420,7 +421,7 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 **下一步判定：** 若实际PC/目标地址落在未加载的插件DSO范围，进一步将control-block dynamic type/vtable或manager函数关联到具体DSO，建立卸载顺序因果；若PC在仍加载的libstdc++/rclcpp/MoveIt库，转向检查control block对象地址、weak_count及其分配/释放配对，不能继续沿“插件卸载”单一路径推进。
 
 
-### Run #135 pnode_ CallbackGroup 中的具体 ServiceBase 弱引用候选
+### Run #135 pnode_ CallbackGroup 的静态 ServiceBase 候选（未与Run #136单元素vector关联）
 
 进一步将 pnode_ 的 `ServiceBase::WeakPtr` 清理链映射到 MoveIt Jazzy 的具体 service 创建路径：
 
@@ -428,9 +429,9 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 2. `PlanningSceneMonitor::providePlanningSceneService()` 在 `pnode_` 上调用 `create_service<moveit_msgs::srv::GetPlanningScene>()`，并把返回的强引用保存在 PSM 成员 `get_scene_service_`；service callback 捕获 PSM `this` 并调用 `getPlanningSceneServiceCallback()`。
 3. ROS 2 Jazzy `Node::create_service()` 的 `group` 默认参数是 `nullptr`；`NodeServices::add_service()` 在group为空时取 `node_base_->get_default_callback_group()`，随后调用 `group->add_service(service_base_ptr)`。
 4. `CallbackGroup::add_service()` 将 `ServiceBase::SharedPtr` 转成弱引用记录在 `service_ptrs_`。它会清理“此前已expired”的entry，但没有对应的remove_service API；service strong owner消失后，该weak entry可继续留在callback group，直到CallbackGroup本身销毁。
-5. PSM持有的 `get_scene_service_` 是强引用；其声明位置早于 `pnode_`。PSM析构函数体结束后按成员逆序析构时，`get_scene_service_`会在更早阶段释放，pnode_及其NodeBase/default CallbackGroup则较晚释放。因此它是Run #135 `vector<weak_ptr<ServiceBase>>` 中最明确的候选entry。
+5. PSM持有的 `get_scene_service_` 是强引用；其声明位置早于 `pnode_`。PSM析构函数体结束后按成员逆序析构时，`get_scene_service_`会在更早阶段释放，pnode_及其NodeBase/default CallbackGroup则较晚释放。因此它是pnode_ default CallbackGroup的有效静态候选，但Run #136的vector析构区间仅覆盖一个weak_ptr，且Node身份未确认；不能把它认定为Run #135/136/137实际崩溃的entry。
 
-**候选解释，不是唯一根因结论：** Run #135的崩溃路径与这条生命周期顺序高度吻合：`get_scene_service_`强引用消失 → pnode_ default CallbackGroup留下expired weak ServiceBase entry → PSM析构到pnode_时NodeBase销毁CallbackGroup → weak control block最后释放并进入`_M_destroy()`。Run #136必须再确认控制块管理函数/vtable和故障PC的映射；如果其代码地址属于未加载的DSO，才能证明动态库卸载相关性。如果地址位于仍加载的MoveIt/rclcpp/libstdc++映射，则应转查控制块损坏、allocator/lifetime或构建ABI等其他可能性。
+**历史候选解释，已被后续单元素证据降级：** `get_scene_service_`强引用消失 → pnode_ default CallbackGroup留下expired weak ServiceBase entry的源码路径成立，但pnode_默认组静态预期至少7个service，而Run #136的析构区间仅1项，且Run #136/137没有证明故障Node就是pnode_。当前优先候选改为PSM先销毁的tf_listener_内部Node及其唯一`~/get_type_description` service；详情见本文件后续TypeDescription生命周期链。无论是哪条服务路径，control-block vptr失效的直接原因仍需由Run #139运行时vptr/DSO证据确定。
 
 **关键源码：**
 
@@ -458,7 +459,7 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 - `NodeParameters`构造函数在参数服务开启时创建`ParameterService`。其构造函数依次创建6个服务：`GetParameters`、`GetParameterTypes`、`SetParameters`、`SetParametersAtomically`、`DescribeParameters`、`ListParameters`；六次`create_service()`都传入`group=nullptr`。
 - `pnode_`另有一个由PSM `get_scene_service_`成员持有的`GetPlanningScene` service；Run #135原始日志10/10轮都确认`MoveGroupGetPlanningSceneService` capability实际加载。
 - `NodeServices::add_service()`对nullptr group使用`NodeBase::get_default_callback_group()`，因此上述6个ParameterService endpoints和1个GetPlanningScene endpoint都会登记为同一个pnode_ default CallbackGroup中的`ServiceBase::WeakPtr`。
-- PSM析构后，`get_scene_service_`随PSM成员销毁；pnode_ Node析构时先reset `node_parameters_`，其`ParameterService`及6个strong service owners随后释放；NodeBase/default CallbackGroup在后续阶段才销毁，弱引用容器因此持有多个expired control blocks到最终释放。
+- PSM析构后，`get_scene_service_`随PSM成员销毁；pnode_ Node析构时先reset `node_parameters_`，其`ParameterService`及6个strong service owners随后释放；NodeBase/default CallbackGroup在后续阶段才销毁，若该路径实际运行则会留下多个expired control blocks；但Run #136观测只有1项，未证实此路径就是故障vector。
 
 **范围更正：** Run #135的GDB栈只能确认崩溃发生在`vector<weak_ptr<ServiceBase>>`销毁期间，尚不能确认是哪一个service entry触发故障。当前按源码可预期至少7个ServiceBase weak entries（6个参数服务 + 1个GetPlanningScene），具体实际数量和逐项control-block地址需要Run #136 GDB在CallbackGroup析构现场检查。不能把`get_scene_service_`唯一化，也不能把control-block DSO归属写成已确认。
 
@@ -595,3 +596,10 @@ ROS 2 Jazzy源码复核发现：
 - MoveIt/rclcpp构建、Stäubli mock build和GDB 10轮均被跳过。该失败属于外部依赖索引网络中断，不是代码编译错误，也没有新的teardown结论。
 - 已在同一workflow加入5次有限重试，每次间隔8秒；五次仍失败则明确exit 1，不忽略rosdep错误。
 - Run #139（[Actions #43840240632](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43840240632)，commit `5332c79ead53d811bc7b5820d10e269eeaddff66`）已触发，当前容器初始化中；待确认重试步骤以及后续诊断是否能真正运行。
+
+
+### 历史判断纠正｜撤回“Run #135/136已锁定pnode_”
+
+Run #135的`node_use=2 pnode_use=1`、PSM成员声明顺序，以及Run #135的PSM析构调用链，曾把故障Node推断为pnode_。这一判断属于当时的候选收窄，但不等于运行时地址身份确认。Run #136后续的GDB迭代区间`0x5b24d96db600–0x5b24d96db610`按16字节/weak_ptr仅覆盖1项；pnode_默认组按源码应包含6个ParameterService和1个GetPlanningScene服务，数量不匹配。Run #136/137又未输出故障Node指针或service name。因此根因定位必须回退为“PSM析构链中的Node/NodeBase/CallbackGroup”，具体Node待确认。
+
+pnode_的GetPlanningScene + 6个ParameterService静态登记路径保留为该节点的真实候选，不删除历史证据；但它与Run #136/137的单元素vector目前没有直接关联。当前更强的单元素候选是tf_listener_内部Node的唯一TypeDescription service，需Run #139在同一现场通过NodeBase、group、service name及PSM成员地址核验。
