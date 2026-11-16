@@ -6917,3 +6917,14 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] callback-group拆分仍需通过§9.3.392同pipeline并发与isActive()/terminate()动态门禁；不能将生命周期候选的mock clean teardown直接等同于可合并修复。
 
 **当前结论：** 已确认原weak ServiceBase control block vtable实际来自libsequence_capability.so；SequenceService显式service/group teardown候选在Run #144 10轮及Run #146前9轮使inferior正常退出且无真实SIGSEGV，但旧GDB脚本将正常退出误报失败。Run #147修复调试器正常退出分支，结果待验。所有结果仅为CI临时MoveIt/Pilz overlay + stock rclcpp + Stäubli mock，不修改upstream/正式产品代码，不连接CS9，不宣称HIL/SAT/实机验收。
+### §9.3.394｜Run #145/#146 10轮最终证据与Run #147 GDB正常退出门禁（2026-11-16）
+
+- [x] Run #145（Actions 43859018027，commit 3a857b2c7fdaad9d948c5a24cb1a6ef7450a0ddc）10轮mock回归完成；10/10 inferior正常退出、0真实SIGSEGV，但10/10 GDB section parser均未采集到Sequence DSO section，故不能用其NO-MATCH否定DSO归属。该轮Actions因正常退出后的GDB No stack误报而整体FAIL。
+- [x] Run #146（Actions 43859201450，commit aba0eaaa5b0af51bde0ae60eb010dca2aaa40326）10/10轮在NodeServices::add_service及CallbackGroup::add_service处打印/plan_sequence_path Service control-block地址和vptr；10/10轮GDB info symbol均解析到std::_Sp_counted_ptr_inplace<rclcpp::Service<GetMotionSequence>> vtable，位于.data.rel.ro，完整路径为/tmp/moveit_ws/install/pilz_industrial_motion_planner/lib/libsequence_capability.so。
+- [x] Run #146的10/10 inferior均exited normally、0真实SIGSEGV；Actions仍因旧GDB脚本在正常退出后无条件bt full报No stack而整体FAIL。该失败属于GDB harness，不是move_group SIGSEGV。
+- [x] Run #145/#146确认section parser无论能否输出section范围，都不再是Sequence DSO归属确认的唯一途径；service创建时直接`info symbol`是目前最可靠的vtable证据。
+- [x] Run #147（Actions 43862172486，commit a4e8a321bd8185dc5c2039fba02d39c8c374e777）已加入$_exitcode正常退出分支，code0打印GDB-INFERIOR-EXIT并quit0，非零quit1；SIGSEGV停止时继续fault-frame诊断；shell要求唯一clean-exit marker。
+- [ ] Run #147当前ROS Jazzy setup后第5步stock rclcpp无插桩overlay build；后续必须完成MoveIt/Pilz source overlay、Stäubli mock workspace、10/10有效回归并满足每轮GDB exit0、执行成功、7项launch assertions全过、无真实SIGSEGV。
+- [ ] 由于callback-group拆分新增SequenceService与default group PlanService的并发关系，仍必须通过§9.3.392同pipeline并发、active标记及terminate动态门禁；生命周期10/10 mock通过本身不足以允许合并。
+
+**最终证据分层：** Sequence Service control-block vtable属于Sequence DSO已经10/10直接证实；Sequence service/group teardown候选在Run #144/#145/#146共30轮均让inferior正常退出且无真实SIGSEGV，但旧GDB runner把正常退出误判失败，因此仍需Run #147取得完整有效Actions PASS和重复验证。全部限CI mock，不修改upstream/正式产品源码，不连接CS9，不宣称HIL/SAT/实机验收。
