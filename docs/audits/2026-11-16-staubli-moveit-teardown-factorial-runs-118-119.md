@@ -367,7 +367,7 @@ Run #123–#125 为 workflow 配置错误；Run #126 为测试工作目录错误
 
 ### 16.1 Run #126 构建结果
 
-Run #126（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794655028)，commit `7d0aa0d6b571323d85a181d5ec7d24371288fed9) 前半程全部成功：
+Run #126（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794655028)，commit `7d0aa0d6b571323d85a181d5ec7d24371288fed9`) 前半程全部成功：
 
 - rclcpp overlay build 成功；
 - K-only MoveIt patch 与 static validation 成功；
