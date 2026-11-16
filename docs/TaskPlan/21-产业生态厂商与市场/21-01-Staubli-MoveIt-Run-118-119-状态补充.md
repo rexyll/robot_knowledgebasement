@@ -20,7 +20,8 @@
 | #132 | stock rclcpp 无插桩 A+K+B-core（10轮） | **10/10 PASS** | 每轮一次mock plan-and-execute成功、7项launch assertions通过、B-core顺序与进程退出码均通过；CI-only正向基线 |
 | #134 | A-PSM-retained + K + B-core（10轮） | **10/10 SIGSEGV** | PSM弱引用探针每轮use_count=1；MoveGroupExe capability/context/plugin loader清理完成后，保留的main() PSM owner才释放，随后PSM/Node teardown段错误。每轮执行次数统计显示2是colcon test-result verbose重复采集误报，原始测试流实际每轮仅一次mock执行成功 |
 | #135 | PSM析构阶段marker + 显式reset边界 + 独立test-result日志（10轮） | **10/10 SIGSEGV** | 每轮mock execution成功；PSM析构函数体到BODY-END，末尾node_use=2/pnode_use=1，PSM reset END无运行时marker；GDB栈定位到隐式pnode_ shared_ptr释放→Node→NodeBase→CallbackGroup→weak_ptr<ServiceBase> _M_destroy。尚未证明control block manager/vtable归属已卸载DSO |
-| #136 | PSM private Node pnode_ teardown + GDB DSO/memory-map诊断 | **执行中** | 在既有mock回归基础上以GDB包装move_group，采集故障PC、寄存器、完整栈、info sharedlibrary与进程映射；不改资源释放顺序。待确认weak control block管理函数地址是否位于已卸载DSO |
+| #136 | PSM private Node pnode_ teardown + GDB DSO/memory-map诊断 | **10/10 SIGSEGV；取证完成** | 10轮均在CallbackGroup析构weak_ptr<ServiceBase>时SIGSEGV；fault PC位于仍映射的librclcpp，间接调用所用vptr不在进程映射中；librclcpp、libmoveit_planning_scene_monitor及MoveGroup capability相关DSO仍映射。尚不能区分已卸载的其他DSO与control block/vptr内存破坏；另修正test-result汇总解析路径 |
+| #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **执行中** | 在同一既有分支加入GDB catch unload、读取CallbackGroup::service_ptrs_数量和逐项weak object/control block/vptr；修复test-result summary解析并显式检查GDB捕获SIGSEGV。当前仍处于stock rclcpp overlay build，尚未进入10轮mock回归 |
 
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
@@ -483,3 +484,38 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 - [rclcpp ParameterService construction](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/parameter_service.cpp)、[create_service template](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/create_service.hpp)
 - [PSM GetPlanningScene service creation](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp)
 
+
+
+### Run #136｜weak control block fault vptr 映射结果与验收脚本修正
+
+Run #136（[Actions #43832589348](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43832589348)，workflow commit `337bf6c6f40b4982629e690d1a5748f94d914053`）的构建阶段全部通过：stock rclcpp无插桩overlay、临时MoveIt `move_group`、Stäubli mock workspace均完成构建。10次mock launch均完成规划执行，且每轮launch测试汇总实际为7 tests、0 errors、0 failures、0 skipped；但10/10轮move_group进程在PSM析构路径发生真实SIGSEGV。
+
+首轮GDB现场关键寄存器/指令：
+
+- `rip=0x7ba20a70b8f1`，符号为 `rclcpp::CallbackGroup::~CallbackGroup()+449`；该PC处于仍映射的 `librclcpp.so`。
+- 故障指令为 `call *0x18(%rax)`；`rax=0x7ba1cccb62e0`，作为间接调用读取虚表目标的基址，但该地址不落在当时任何有效进程映射内。
+- `rdi=0x5b24da5d8260`，对应 `std::_Sp_counted_base::_M_release_last_use(this=...)` 的control block对象。
+- 栈为 `CallbackGroup::~CallbackGroup()` → `vector<weak_ptr<ServiceBase>>`元素析构 → `weak_ptr::_M_weak_release()` → `_M_release_last_use()`；上层依次为 `NodeBase::~NodeBase()`、`Node::~Node()`、`PlanningSceneMonitor::~PlanningSceneMonitor()`，与Run #135所确定的PSM private `pnode_`最终释放边界一致。
+- 故障时 `librclcpp.so`、`libmoveit_planning_scene_monitor.so`、`libmoveit_cpp.so`、`libmoveit_move_group_capabilities_base.so` 与 `libmoveit_move_group_default_capabilities.so`均仍在共享库列表/进程映射中。故当前证据不支持这些关键DSO已先卸载；vptr未映射仍可能是其他DSO unload留下的悬空指针，也可能是control block/vptr内存被覆盖或破坏。
+
+**Run #136并未读取到 `service_ptrs_.size()` 和每个weak entry的vptr。** 寄存器 `r9=7`与静态源码预期的6个ParameterService + 1个GetPlanningScene service数量相同，但这只是寄存器巧合/线索，不能作为vector运行时size证据。当前不能断言具体是七个entry中的哪一个触发故障，也不能认定plugin unload为唯一根因。
+
+另一个独立修正：workflow将 `colcon test-result --verbose` 输出写入 `.result.log`，但原验收Python脚本误从主测试日志查找7项汇总，因此每轮 `lifecycle_order=1`。真实 `colcon test` 与 `test_result` 命令均返回0，且result log实际包含完整7项通过汇总。Run #137已将解析器改为同时读取两份日志，并加入GDB捕获SIGSEGV的显式判定，避免GDB包装进程退出0掩盖子进程崩溃。
+
+- Run #136 artifact：ID `14209759591`，SHA-256 `92532aa834b356f441ce6dc8b845c1f0a0325fda9b5bf0afcf4b1b033bca2ea9`，大小 2,627,594 bytes。
+- [artifact下载入口](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43832589348/artifacts/14209759591)。
+
+### Run #137｜逐项读取weak control block与DSO卸载事件（执行中）
+
+- workflow commit：`4aa4539a9adfd5efe0adea52753ba1847abf8a53`；复用原分支 `experiment/moveit-main-owner-lifetime-only`，没有创建新分支。
+- [Actions Run #43836147761](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43836147761)。
+- GDB新增 `catch unload` 事件输出；SIGSEGV处输出 `$rax` / `$rdi`内存、切至CallbackGroup析构栈帧读取 `service_ptrs_.size()`，逐项打印weak object、control-block地址、control-block首字（vptr）及符号归属。
+- 验收解析器改为读取 `.result.log`中的7项汇总，并直接检查GDB是否出现 `received signal SIGSEGV`。
+- 当前状态：workflow job处于运行中，第5步stock rclcpp uninstrumented overlay build正在执行；MoveIt、Stäubli mock build和10轮GDB回归尚未开始，结果未定。
+
+### 下一步判定规则
+
+1. 若某个weak control block首字/vptr落在某次 `catch unload`记录中明确卸载的DSO地址范围，且卸载先于最后weak release，才把该DSO列为直接悬空vptr候选；需进一步用符号/链接/构造调用点确认对象类别。
+2. 若所有weak control block的vptr均指向仍映射的DSO，但 `_M_destroy()`仍跳向未映射地址，则重点检查control block首字是否被覆盖、对象布局/ABI是否一致，以及weak_count/control block是否被提前释放。
+3. 如果GDB不能可靠打印私有成员，不改rclcpp特殊成员函数；改用CI-only `NodeServices::add_service()`创建时关联记录，按node FQN、callback group地址、service地址和control-block地址做对应。
+4. Run #137结果继续严格限制为临时MoveIt overlay + stock rclcpp + Stäubli mock CI，不视为upstream/产品修复或CS9/HIL/SAT/实机验收。
