@@ -218,7 +218,8 @@ Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/acti
 - [x] Run #127每轮真实执行、五轮plan-and-execute成功、五轮teardown fail的证据归档。
 - [x] callback group和waitset各自weak-reference vector的职责边界已补充说明。
 - [x] 追加检查#127 group=%p：marker来自多个move_group组和ros2_control组，尚未通过NodeWaitables的node-name/NodeBase地址映射到controller_mgr_node_，目标组覆盖未知。
-- [ ] Run #128/#129验证A+K+B-core的五轮mock action及WaitSet析构日志；若仍需判断CallbackGroup pruning，另加NodeWaitables node-FQN/NodeBase/group/Waitable地址映射。
+- [x] #128/#129均因MoveIt patch step中的Python字符串SyntaxError退出，未进入功能测试，不计入B-core结果。
+- [ ] Run #130（commit `9d9f33b8281fdf7d412153100666318470d0b9af`）已修正TEM日志字符串转义并重新运行；核验A+K+B-core五轮mock action及WaitSet析构日志；若仍需判断CallbackGroup pruning，另加NodeWaitables node-FQN/NodeBase/group/Waitable地址映射。
 - [ ] 如B-core通过，继续独立拆分event subscription/callback/parameter callback及A的PSM/MoveItCpp/main Node owner；如失败，按具体weak release marker继续定位。
 
 所有结论限CI temporary overlay/mock；不修改upstream/产品源码，不连接CS9、不发送真实运动指令、不宣称HIL/SAT/实机验收。全局主优先级仍为00-01。
@@ -227,3 +228,8 @@ Run #127（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/acti
 ### Run #127地址映射核查更正
 
 pruning marker每轮18条，但marker不只来自一个CallbackGroup。原始日志显示`move_group`进程存在多个不同group地址，`ros2_control_node`进程的某一组地址可与其NodeBase default group对应；现有NodeBase析构marker没有覆盖MoveIt内部的`controller_mgr_node_`，因为它在TEM private executor/WaitSet崩溃前尚未析构。因此Run #127不能确认目标controller-manager group是否实际被pruning，目标组覆盖状态更正为**未证实**。如需重新做该单点反证，必须给`NodeWaitables::add_waitable/remove_waitable`增加CI-only node FQN、NodeBase、group和Waitable指针关联marker。
+
+
+### Run #128/#129 workflow脚本问题
+
+#128在rclcpp overlay build后，MoveIt patch step的Python `tem_replacement`字符串因双重转义导致`SyntaxError: '(' was never closed`；#129只改了旧日志文字，未修复转义，故重复失败。两轮都未运行MoveIt build或Stäubli mock test，不计功能结果。#130已把C++日志字面量改为Python单层转义，并更新step名称，当前执行中。
