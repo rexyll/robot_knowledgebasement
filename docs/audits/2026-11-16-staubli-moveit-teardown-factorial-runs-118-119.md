@@ -1,20 +1,14 @@
-# Stäubli MoveIt teardown 生命周期 A/B 单因子消融与组合对照（Run #107 / #118 / #119）
+# Stäubli MoveIt teardown 生命周期 A/B 完整 2×2 因子实验与析构根因定位（Run #107 / #118 / #119 / #121）
 
 **记录日期：** 2026-11-16  
 **目标仓库：** `rexyll/robot_knowledgebasement`  
 **被测工程：** `rexyll/staubli_driver_ros2_from_org`  
-**状态：** 在共同实验背景 K 下，A-only 与 B-only 两项消融各 5/5 teardown 失败，A+B 组合 Run #107 5/5 通过。当前证据支持继续保留 A+B 组合候选，但尚缺 K+A=OFF+B=OFF 的同基线对照，因此这不是完整 2×2 因子实验。  
+**状态：** K=ON 背景下的完整 A/B 2×2 矩阵已补齐：K-only、K+A、K+B 均 5/5 teardown FAIL；K+A+B 5/5 PASS。失败都发生在 mock 轨迹执行成功之后的 move_group teardown。K-only 的 LD_DEBUG 与 GDB 日志进一步证明 controller-manager DSO 卸载先于残余 executor/WaitSet、NodeBase/CallbackGroup 清理；MoveIt Jazzy TEM 成员声明顺序构成高度吻合的生命周期缺陷链。具体失效 Waitable 动态类型及控制块析构回调仍待直接观测。  
 **边界：** 所有源码改动均通过 GitHub Actions 在临时 MoveIt/rclcpp overlay 中注入；不是 MoveIt、rclcpp 或 Stäubli 产品源码修复，也不构成 CS9、HIL、SAT 或真实机器人验收。
 
-## 1. 先纠正实验矩阵的命名
+## 1. 实验矩阵与同基线约束
 
-上一版把历史 Run #73 与 Run #118/#119/#107 合并写成“2×2 因子实验”。进一步核对三个 workflow commit 后，需要收窄这一表述：
-
-- Run #118、#119、#107 都启用了相同的共同背景 K；
-- 三次运行分别覆盖 K+A、K+B、K+A+B；
-- 历史 Run #73 没有采用相同的 PSM publisher stop 与 MoveGroupExe/executor 作用域顺序，不能作为严格同基线的 K+A=OFF+B=OFF 单元格。
-
-因此，本报告将结果称为**共同基线下的三组单因子消融/组合对照（partial factorial ablation）**。历史 Run #73 只作为较早的崩溃基线，不用于填补缺失的 K-only 对照。
+历史 Run #73 没有采用与当前实验相同的 PSM publisher stop 与 MoveGroupExe/executor 作用域顺序，不能作为严格的 0/0 单元格。本轮新增 K-only Run #121，复用同一实验分支及 workflow，仅关闭 A、B 两组处理，补齐同一 K 背景下的四个单元格。因此，**Run #107/#118/#119/#121 组成完整的 K 固定背景下 A/B 2×2 矩阵**；Run #73 只作为较早的崩溃历史，不纳入矩阵统计。
 
 ## 2. 共同背景 K：三个实验都保留的处理
 
@@ -59,22 +53,32 @@ B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数�
 
 注意：B 的这组 cleanup 不等于已解决 TEM 全部同步问题。自然完成与取消竞争中的 `execution_thread_` missed-join 是独立缺陷；Run #117 的 always-join CI-only barrier candidate 单独覆盖该窗口，不证明 `execution_complete_`、`last_execution_status_`、`preempt_requested_` 等其他访问都无数据竞争。
 
-## 4. 当前有效的三组结果
+## 4. K 固定背景下完整 A/B 2×2 结果
 
-| Run | 共同背景 K | A：主作用域 owner reset | B：TEM 显式 cleanup | 结果 |
+| Run | 共同背景 K | A：主作用域 owner reset | B：TEM 显式 cleanup | teardown 结果 |
 |---|---|---:|---:|---|
+| #121 K-only | ON | OFF | OFF | **5/5 FAIL** |
 | #118 main-owner-only | ON | ON | OFF | **5/5 FAIL** |
 | #119 TEM-cleanup-only | ON | OFF | ON | **5/5 FAIL** |
 | #107 combined | ON | ON | ON | **5/5 PASS** |
 
+- [Run #121 / Actions ID #43789238751](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43789238751)：workflow commit `739afbbe2722ebd494326272ec298d896ab193c4`，artifact ID `14191994262`，日志包 SHA-256 `f6017a6b71eaf73e13893d2f2f645ca2138b72cfac97a4cb9fb70f06f44d9182`。
 - [Run #118](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993)：workflow commit `0420f0259d652ca01b3d2e26cce26a3d45dfe73e`，artifact ID `14149678145`。
 - [Run #119](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847)：workflow commit `8218084250c9c45fe275f7729ae98f59792a422b`，artifact ID `14149932259`。
-- [Run #107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898)：workflow commit `18fea00298ee542c304cbf73d652cd540262712e`，A+B 组合下正常 mock 轨迹执行及 teardown 5/5 通过。
-- [Run #117](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297)：A+B 组合背景下，always-join CI-only candidate 的自然完成/取消 barrier 回归 5/5 通过。
+- [Run #107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898)：workflow commit `18fea00298ee542c304cbf73d652cd540262712e`，A+B 组合下 mock 轨迹执行及 teardown 5/5 通过。
+- [Run #117](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297)：A+B 背景下，always-join CI-only candidate 的自然完成/取消 barrier 回归 5/5 通过。
 
-三项 workflow 的 source overlay、patched MoveIt move_group 和 Stäubli mock workspace 均完成构建。#118/#119 失败发生于最后的 mock 执行及 teardown 回归，不是编译失败。
+四格运行的 source overlay、patched MoveIt move_group 和 Stäubli mock workspace 均成功构建；三个失败格均在 mock action 成功后 teardown 失败，不是编译失败。
 
 ## 5. 失败和通过的日志证据
+
+### Run #121｜K-only，A=OFF/B=OFF
+
+- 五轮控制器均报告 `Goal reached, success!`，TEM 均报告 `Completed trajectory execution with status SUCCEEDED`。
+- 五轮均在 `move_group` teardown 阶段收到 `SIGSEGV`，workflow 汇总 `failures=5/5`；strict process assertion 将 `gdb` 子进程 exit code 255 判为失败。
+- 每轮 LD_DEBUG 都先报告 `calling fini` / `destroying link map`：`/opt/ros/jazzy/lib/libmoveit_simple_controller_manager.so` 被卸载；随后 private executor 析构日志出现，之后 GDB 在 `CallbackGroup::~CallbackGroup()` 析构 `std::vector<std::weak_ptr<rclcpp::Waitable>>` 时崩溃。
+- GDB 栈从 `weak_ptr<Waitable>` 的 `_M_weak_release` / `_M_release_last_use`，进入 `CallbackGroup::~CallbackGroup()`、`NodeBase::~NodeBase()`、`rclcpp::Node::~Node()`、`TrajectoryExecutionManager::~TrajectoryExecutionManager()`，再回到 `MoveItCpp::~MoveItCpp()`。
+- 五轮均出现相同的 DSO unload → CallbackGroup weak-entry teardown → SIGSEGV 顺序，说明 K 本身不足以修复，且故障可稳定复现。
 
 ### Run #118｜K+A，B=OFF
 
@@ -98,32 +102,33 @@ B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数�
 
 这说明 A+B 在本 workflow 的测试输入与 mock 环境下构成有效组合候选；仍不能作为 stock ROS Jazzy、上游已修复或真实硬件通过的证明。
 
-## 6. 2×2 因果解释的边界
+## 6. 2×2 结果能支持的因果判断及边界
 
-现有证据允许作出以下有限判断：
+四个单元格均采用 K=ON、固定 Stäubli source pin、相同 mock plan-and-execute 输入、五轮重复与 strict teardown assertion：
 
-- K+A+B 能通过当前 5 轮 mock execution + teardown；
-- K+A（B=OFF）失败；
-- K+B（A=OFF）失败；
-- 因此在当前固定测试输入下，A 与 B 两组处理都对组合通过有贡献，不能把任一单因子方案作为可接受修复。
+- A=OFF/B=OFF：5/5 FAIL；
+- A=ON/B=OFF：5/5 FAIL；
+- A=OFF/B=ON：5/5 FAIL；
+- A=ON/B=ON：5/5 PASS。
 
-但缺少同一 K 背景下的 `K + A=OFF + B=OFF` 对照，因此：
+因此，在当前 CI/mock 场景与固定输入下，A、B 任一单独启用都不足以通过；只有 A+B 联合启用的单元格通过。这表明组合处理存在不可忽略的互补/交互关系，不能选择 A-only 或 B-only 作为修复。每格五轮是确定性重复回归，并非独立随机样本；不据此估计统计学主效应或置信区间。
 
-- 不应将 #73 直接写成完整因子矩阵的 0/0 单元格；
-- 暂不估计 A/B 的独立主效应或交互效应；
-- 不声称已证明 PSM publisher stop 或 executor/MGE 声明顺序各自必要；
-- 不声称 A 内部三个 reset 的每一个都已被单独证明必要；
-- 不把 `shared_ptr::_M_release_last_use` 的顶层栈帧等同于已经确认某个具体 Waitable/control-block 动态类型。
+K-only 的日志进一步提供了直接的 teardown 顺序证据：controller-manager plugin DSO 已 `destroying link map` 后，TEM 私有 executor 开始析构，随后 controller-manager NodeBase 的 CallbackGroup 才析构其 Waitable weak_ptr 列表并崩溃。MoveIt Jazzy TEM 头文件中，`controller_mgr_node_` / `private_executor_` 声明在 `controller_manager_loader_` 之前，而 `controller_manager_` 声明在 loader 之后；C++ 成员逆序析构会先销毁 instance，再销毁 loader（卸载 DSO），之后才销毁更早声明的 executor、订阅及 node。这与运行时次序高度吻合。
+
+但仍需保留以下边界：
+
+- 尚未 RTTI/符号化识别造成崩溃的具体 Waitable 动态类型，也未直接打印控制块的 destroy/deallocate 函数归属；因此“控制块回调代码属于已卸载 DSO”是强假设，不是已完成的动态类型证明。
+- 尚未拆分 A 内部 PSM、MoveItCpp、Node 三个 reset 的单项必要性；也尚未拆分 B 中 executor/WaitSet、instance、node、event group/subscription 各自的最小充分集合。
+- K 中 PSM publisher stop 与 executor/MGE 声明顺序在当前四格中保持不变；本轮不能单独证明 K 中每一项处理是否必要。
+- 不将 `shared_ptr::_M_release_last_use` 的顶层栈帧本身当作具体类或具体 shared owner 的证明。
 
 ## 7. 下一步实验设计（不触碰产品源码）
 
 按最低改动、最高信息增益推进：
 
-### 7.1 先补齐共同背景 K 的 0/0 对照
+### 7.1 K-only 已完成；下一步先验证 DSO/Node 析构顺序
 
-新增一个仅在临时 CI overlay 执行的 K-only case：保留 PSM publisher stop、MoveGroupExe-before-executor 作用域顺序与现有 diagnostic markers；关闭 A 的三个 external-owner reset，也关闭 B 的 TEM 显式 cleanup。使用与 #107/#118/#119 相同的 Stäubli source pin、mock trajectory execution test、重复次数、GDB/LD_DEBUG 参数和 strict process-exit assertion。
-
-该组结果决定 K-only 是否本身已足够或会复现崩溃；完成后才有完整的 2×2 数据。
+K-only Run #121 已补齐 0/0 单元格并 5/5 复现 teardown SIGSEGV。下一步不立即大范围拆分全部因子，而是在 A+B 正向候选中保留最小诊断改动，加入 CI-only 实际析构 marker：controller-manager instance dtor 完成、private executor/WaitSet 完全释放、controller-manager NodeBase/default callback group/Waitable weak-list 释放完成、controller-manager DSO unload。再与 K-only 失败格逐项对照，确认 A+B 是否确实把 Node/WaitSet/group 的最终析构移动到 DSO unload 之前。不得仅以 reset() 日志代替真实析构完成证据。
 
 ### 7.2 再拆 A 的三个 owner reset（B=ON 固定）
 
@@ -171,20 +176,18 @@ B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数�
 - 不连接 CS9、不发送真实运动命令、不声称 HIL、SAT、实机或安全验收通过。
 
 
-## 10. K-only 对照已触发（Run #43789238751，结果待验）
+## 10. K-only 对照完成（Run #121 / Actions ID #43789238751）
 
-为补齐 K+A=OFF+B=OFF 单元格，已复用既有隔离工作分支 `experiment/moveit-main-owner-lifetime-only`，没有新建分支，也没有修改 Stäubli driver main。仅修改该分支的 GitHub Actions workflow 文件：
+为补齐 K+A=OFF+B=OFF 单元格，复用既有隔离工作分支 `experiment/moveit-main-owner-lifetime-only`，未新建分支、未修改 Stäubli driver main；仅修改临时 workflow 文件。
 
-- commit：`739afbbe2722ebd494326272ec298d896ab193c4`
-- [Run #43789238751](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43789238751)
+- workflow commit：`739afbbe2722ebd494326272ec298d896ab193c4`
+- [Actions Run #121](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43789238751)
 - 配置：K=ON、A=OFF、B=OFF。
-- A 关闭核验：workflow 中不再有 `planning_scene_monitor.reset()`、`moveit_cpp.reset()`、`nh.reset()`，恢复 stock main() 局部 shared-owner 生命周期。
-- B 关闭核验：TEM cleanup 注入 gate 为 `if False`，不改 TEM 析构函数。
-- K 保留核验：仍在 Context shutdown 前停止 PSM scene publisher；仍将 MoveGroupExe 声明在 MultiThreadedExecutor 之前；仍保留 stock signal handling 检查和相同 mock plan/execute + strict teardown workflow。
+- 结果：build 成功；mock planning/trajectory execution 五轮成功；teardown 五轮 SIGSEGV，`failures=5/5`。
+- Artifact：`14191994262`；日志 ZIP SHA-256：`f6017a6b71eaf73e13893d2f2f645ca2138b72cfac97a4cb9fb70f06f44d9182`。
+- A 关闭：三个外部 owner reset 均不存在；B 关闭：TEM cleanup gate 为 `if False`；K 处理保留。
 
-**最新状态：** Run #43789238751 已由 push 事件创建，job `source-overlay-regression` 处于运行中；首次查询时容器初始化步骤尚在进行，尚未进入 ROS Jazzy / rclcpp / MoveIt 构建阶段。GitHub 尚未提供可下载 job log/artifact，因此当前没有 K-only 编译或测试结果，不能标记 PASS/FAIL。
-
-这项运行只验证共同背景 K 是否能单独通过；其结果将决定后续 A/B 因子矩阵如何解释。不得在运行完成前把它计入成功或失败样本。
+Run #121 补齐矩阵后，Run #107/#118/#119/#121 可按同一 K 背景形成完整 2×2 对照。每轮均可见 controller-manager DSO unload 先于 CallbackGroup/NodeBase 弱引用列表清理，后者崩溃。该结论不把具体 Waitable 动态类型或控制块回调归属写成已证明事实。
 
 
 ## 11. rclcpp callback-group / NodeBase 实际所有权补充（Jazzy 固定源码）
@@ -229,15 +232,37 @@ B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数�
 2. **TEM event callback group：** 它是 main Node 的非默认 group，NodeBase 只弱登记；B 的 `event_callback_group_` 成员是明确强 owner，必须在 safe point 显式 reset。
 3. **Controller-manager Node / default group：** 插件 instance 的 action clients / waitables 由 controller-manager node 的 callback-group / executor 关系管理。B 先停并销毁 private executor/WaitSet，再 reset plugin instance，最后 reset controller node；controller-manager loader 仍活着，直到 TEM 成员析构阶段。
 
-### 11.4 下一步新增运行时观测点
+### 11.4 已取得的 DSO / CallbackGroup runtime 顺序证据
 
-K-only 运行之后，再在 A+B 候选中加入 CI-only markers（不改产品源码）：
+Run #121 五轮 GDB/LD_DEBUG 日志均有如下顺序：
 
-- event callback group 析构时间；
-- controller-manager node default group 析构时间；
-- controller-manager instance 析构完成点；
-- private executor destructor body END 与 WaitSet 成员销毁之后的标记；
-- controller-manager DSO `LD_DEBUG` unload 时间；
-- main NodeBase / default callback group 析构时间。
+1. `calling fini: /opt/ros/jazzy/lib/libmoveit_simple_controller_manager.so`；
+2. `destroying link map`，插件库已卸载；
+3. private executor 析构日志出现；
+4. `CallbackGroup::~CallbackGroup()` 清理 `std::vector<std::weak_ptr<rclcpp::Waitable>>`；
+5. 在 `_M_weak_release` / `_M_release_last_use` 处 SIGSEGV，调用栈继续经过 `NodeBase::~NodeBase()`、`rclcpp::Node::~Node()`、TEM dtor 与 MoveItCpp dtor。
 
-验收要求是这些 group/node/WaitSet 的实际析构均发生在对应 plugin DSO 卸载之前。单纯观察 `reset()` 调用日志不足以证明对象真的在该行完成最后释放（可能存在其他 shared owners）。
+五轮中这一顺序一致。它证明了 DSO 卸载先于有关 Node/CallbackGroup 弱引用容器清理，并将失败位置从笼统 shared_ptr crash 缩小到 `controller_mgr_node_` 的默认 callback group/Waitable weak-entry 析构路径。它尚未证明是哪一个 Waitable 或哪个控制块虚函数触发无效跳转。
+
+## 12. MoveIt Jazzy TEM 成员逆序析构：源码缺陷链
+
+读取 MoveIt `jazzy` 源码：
+
+- [`trajectory_execution_manager.hpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp) 声明顺序为：`node_`（约第302行）、`controller_mgr_node_`（304）、`private_executor_`（305）、`event_topic_subscriber_`（309）、`controller_manager_loader_`（331）、`controller_manager_`（332），`callback_handler_` 位于更后部。
+- [`trajectory_execution_manager.cpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp) 的 `~TrajectoryExecutionManager()`（约第86–93行）只执行 `stopExecution(true)`、cancel private executor、join private executor thread；没有在析构函数体内提前 reset node 或 loader。
+
+C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之后会先销毁 `controller_manager_`，然后销毁 `controller_manager_loader_`（卸载 `libmoveit_simple_controller_manager.so`），之后才销毁更早声明的 subscription、private executor/WaitSet、`controller_mgr_node_` 和 `node_`。这与 Run #121 五轮实际观测到的 DSO `fini` / link-map destruction 早于 executor、NodeBase/CallbackGroup weak-list teardown 的顺序直接吻合。
+
+`CallbackGroup::waitable_ptrs_` 是 `WeakPtr` 列表。若某些 Waitable 的 shared control block 需调用插件 DSO 中的 destroy/deallocate 代码，则在 DSO 卸载后才释放最后 weak reference 会造成无效代码指针；这是一条与当前 SIGSEGV 完全吻合的机制解释，但仍需对具体 control block / Waitable 动态类型做运行时归属验证。
+
+**当前最强根因判断：** TEM 原始成员声明顺序允许 controller-manager DSO 在其 NodeBase/default callback group/WaitSet 相关对象完成析构之前卸载；外层 MoveGroup owner 生命周期（A）又决定 TEM/MoveItCpp 最终析构是否推迟到 capability loader teardown 之后。A 与 B 分别治理外层 owner 时机和 TEM 内部资源顺序，二者组合才在当前 mock CI 下通过。
+
+## 13. 下一步最小变量实验
+
+1. 先在 A+B 正向候选加 CI-only destructor markers，记录 `controller_manager_` instance dtor、private executor/WaitSet 完成、`controller_mgr_node_`/NodeBase/default callback group 完成、`controller_manager_loader_` reset/DSO unload 的真实顺序。对最后一个强 owner 释放使用 `use_count` 和 destructor marker 双重检查。
+2. 固定 A=ON、K=ON，先验证 B 中 controller-manager 核心生命周期链的最小集合：停止并 join private executor、从 executor 移除 node、销毁 executor/WaitSet、销毁 controller-manager instance、销毁 controller-manager node，确保所有上述步骤在 loader unload 前完成；保留 event subscription/callback group 清理为独立变量，不一次性全部捆绑。
+3. 再单项隔离 B 的 event subscription、parameter callback、event callback group，并保持 controller-manager node 核心清理不变。
+4. 最后固定 B=ON，依次隔离 A 的 PSM、MoveItCpp、main Node reset；每次只变一个变量。
+5. 对 `execution_complete_`、`last_execution_status_`、`execution_thread_`、`preempt_requested_` 的同步审计及 TSAN 独立推进；Run #117 的 always-join 只覆盖 missed-join 窗口。
+
+任何实验仍限 CI temporary overlay/mock；不修改 upstream 或产品源码，不连接 CS9、不发送真实运动命令、不宣称 HIL/SAT/实机验收。
