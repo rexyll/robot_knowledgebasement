@@ -297,7 +297,7 @@ C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之�
 
 - [Actions Run #122](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)
 - workflow commit：c81546100ed5a91110e57ca56488f7d6911fa31f
-- 当前状态：容器初始化与 ROS Jazzy setup 已完成，正在构建带生命周期标记的 rclcpp overlay；尚未进入 MoveIt/mock build 或运行时测试阶段。
+- 最终结果：构建成功；5/5 mock plan-and-execute 均 SUCCEEDED，5/5 teardown 均 PASS；test summary 为 7 tests、0 errors、0 failures。五轮均观测到 controller node NodeBase/default CallbackGroup 的 expired weak Waitables 逐项释放后，才 reset loader 并由 LD_DEBUG 记录 plugin DSO fini/link-map destruction。
 - 该逐项 weak_ptr reset 仅用于 CI 观测，可能轻微改变 destructor 内部时序；必须与未插桩 A+B Run #107 的 5/5 正向结果共同解释。
 
 若 Run #122 证明最后 weak release 与 controller-manager DSO 卸载有关，下一项反证实验将固定 K-only（A=OFF/B=OFF），只在临时 rclcpp overlay 的 CallbackGroup::remove_waitable() 中增加 expired weak_ptr pruning：对 weak_ptr.lock() 失败的条目执行 erase，再按原逻辑匹配 live target。该修改只清理已经失去 strong owner 的 Waitable 记录，目标是让其 control block 在 plugin custom deleter 返回前释放，从而测试此单点是否足以消除 K-only teardown SIGSEGV；不提交上游，不修改产品源码。
@@ -311,3 +311,51 @@ C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之�
 5. 对 `execution_complete_`、`last_execution_status_`、`execution_thread_`、`preempt_requested_` 的同步审计及 TSAN 独立推进；Run #117 的 always-join 只覆盖 missed-join 窗口。
 
 任何实验仍限 CI temporary overlay/mock；不修改 upstream 或产品源码，不连接 CS9、不发送真实运动命令、不宣称 HIL/SAT/实机验收。
+
+
+## 15. Run #122 A+B 实际析构顺序结果与 K-only pruning 反证
+
+### 15.1 Run #122 最终结果
+
+[Actions Run #122](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)（workflow commit `c81546100ed5a91110e57ca56488f7d6911fa31f`）最终完成成功：
+
+- rclcpp Jazzy lifecycle-marker overlay、MoveIt Jazzy candidate、Stäubli mock workspace 均构建成功。
+- 5/5 次 mock plan-and-execute 均报告 `Completed trajectory execution with status SUCCEEDED`。
+- 5/5 teardown 均完成，汇总 `failures=0/5`；workflow test summary 为 7 tests、0 errors、0 failures。
+- Artifact ID：`14192853671`；SHA-256：`6958f483320fff3c93b3d432d0ca61f5d2f8d19030f28f8c6055a76cef5e5266`。
+
+五轮诊断的共同顺序为：
+
+1. TEM 等待 execution thread 退出，`active_handles_after_stop=0`。
+2. 显式释放 event subscription / callback group / private executor。
+3. `controller_mgr_node_.use_count()==1` 后调用 `controller_mgr_node_.reset()`。
+4. controller node 的 NodeBase destructor 进入；其默认 CallbackGroup 析构时逐项观测到 `expired=1, use_count=0` 的 weak Waitables，并完成每一项 reset/erase。
+5. TEM 随后才调用 `controller_manager_loader_.reset()`；LD_DEBUG 随后记录 `libmoveit_simple_controller_manager.so` 的 `calling fini` 与 `destroying link map`。
+
+这直接验证了 A+B 候选中 controller node/default CallbackGroup cleanup 先于该 controller-manager DSO unload。它没有直接证明 stock K-only 一定崩溃就是某个 DSO 内的 control-block destructor 被调用，也没有确认 Waitable 的具体动态类型。
+
+### 15.2 尚未关闭的证据缺口
+
+Run #122 日志未包含 control-block vtable、`_M_destroy` 或 deallocate 函数地址与进程映射的对应信息。进程在正常完成 teardown 后，GDB 的 `No stack` / `No registers` 输出属于退出后的查询，不可误记为 crash frame。因此“控制块释放函数来自 `libmoveit_simple_controller_manager.so`”仍是未证实假设，必须单独测量。
+
+### 15.3 K-only + expired-entry pruning 单点反证
+
+在原有实验分支 `experiment/moveit-main-owner-lifetime-only` 启动 K-only 反证；A=OFF、B=OFF，保留既定 K 背景（PSM publisher stop/join 与 MoveGroupExe/executor scope ordering）。唯一功能性处理是在临时 rclcpp overlay 的 `CallbackGroup::remove_waitable()` 中：
+
+- `weak_ptr.lock()` 失败时，erase 该 expired weak Waitable entry；
+- 对仍能 lock 的 live entry，继续原有 raw pointer 比较和删除逻辑；
+- 每次 pruning 打印 marker，并以每轮至少出现一次 marker 作为有效覆盖条件。
+
+正确配置运行：
+
+- [Run #124](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794205250)，commit `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763`；
+- [Run #125](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794278705)，commit `3f85d2a9063083e895a3dee2f67f7c353a09f840`，另外归档每轮 `k-only-pruning-*.log`。
+
+两轮均在本报告更新时间仍为运行中；Run #123 是首次字符串锚点编码错误的配置尝试，不计入实验数据。不得把未结束的 Runs #124/#125 写成通过或失败。
+
+### 15.4 判定规则
+
+- 若实际触发 pruning 的 K-only 5/5 teardown 通过，说明该单点在当前 mock CI 条件下足以消除本复现；仍需重复、核验 live Waitables 不被误删，并继续确认 control-block destroy/deallocate 归属。
+- 若有效 pruning 仍 5/5 失败，则 expired-entry pruning 不是充分解释/修复，回到 plugin DSO、control block allocator、executor WaitSet 与 TEM member order 的交互定位。
+- 若某轮没有 pruning marker，该轮没有覆盖目标处理路径，不能作为有效反证。
+- 不把 CI temporary overlay 视为 upstream patch；不修改 upstream MoveIt/rclcpp 或 Stäubli 产品源码，不连接 CS9，不发送真实运动命令，不宣称 HIL/SAT/实机验收。
