@@ -572,3 +572,18 @@ ROS 2 Jazzy源码复核发现：
 - 当前状态：Actions第1–2步成功，第3步ROS Jazzy环境setup运行中；MoveIt build、mock workspace build和10轮回归尚未开始。
 
 **约束：** 仅CI临时MoveIt overlay、stock rclcpp与Stäubli mock；不修改MoveIt/rclcpp upstream、不修改Stäubli产品源码、不连接CS9、不发送真实运动命令、不做HIL/SAT/实机验收。
+
+
+### Run #138前静态生命周期链进一步收敛（ROS 2 Jazzy精确分支）
+
+已从ROS 2 Jazzy源码而非Rolling分支复核以下路径：
+
+1. MoveIt Jazzy PSM成员中`tf_listener_`声明在`pnode_`之后；C++成员按声明逆序销毁，因此PSM释放`tf_listener_`早于`pnode_`。
+2. Jazzy TransformListener在没有外部Node接口时创建`optional_default_node_`；仅调用`start_parameter_event_publisher(false)`和`start_parameter_services(false)`，没有设置type-description service关闭选项。
+3. Jazzy NodeTypeDescriptions将`start_type_description_service`声明为默认true；启用时创建`~/get_type_description`，通过`node_services->add_service(..., nullptr)`加入default CallbackGroup。
+4. Jazzy `Node::~Node()`函数体依次reset node_waitables、node_time_source、node_parameters、node_clock、node_services、node_topics、node_timers、node_logging、node_graph；没有显式reset node_type_descriptions_。该成员在`node.hpp`中声明于node_base_之后，隐式成员逆序析构时先于node_base_销毁。
+5. 因此NodeTypeDescriptions所持Service强引用先释放，而NodeBase/default CallbackGroup仍存活并保留一个weak_ptr；随后NodeBase析构销毁CallbackGroup，恰好释放该单一weak entry。这与Run #136/#137的一个16字节weak_ptr范围及weak_ptr析构栈高度吻合。
+
+这构成当前最强的**静态生命周期解释**，但仍不能单靠源码确定Run #136/#137现场的Node确实是TransformListener的`optional_default_node_`。Run #138需用`NodeServices::add_service`的NodeBase/service name、`CallbackGroup::add_service`的group/service address，以及PSM的`node_`/`pnode_`/`tf_listener_`/TF internal Node指针作同一进程关联。
+
+此外，当前可解释“为什么恰有一个weak entry”，但尚未解释control-block vptr为何落到未映射地址；若运行时确认服务为`~/get_type_description`且vptr在librclcpp/其编译单元地址范围，则需进一步检查control-block内存损坏、ABI/对象布局、弱计数生命周期和实际vptr归属。不可仅凭本静态链把DSO unload宣布为根因。
