@@ -351,7 +351,7 @@ Run #122 日志未包含 control-block vtable、`_M_destroy` 或 deallocate 函�
 - [Run #124](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794205250)，commit `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763`；
 - [Run #125](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794278705)，commit `3f85d2a9063083e895a3dee2f67f7c353a09f840`，另外归档每轮 `k-only-pruning-*.log`。
 
-两轮均在本报告更新时间仍为运行中；Run #123 是首次字符串锚点编码错误的配置尝试，不计入实验数据。不得把未结束的 Runs #124/#125 写成通过或失败。
+两轮均在本报告更新时间仍为运行中；Run #123 在内嵌 Python 补丁脚本第124行触发 `SyntaxError: unterminated string literal`，未进入 C++ patch/build/mock test，不计入实验数据。不得把未结束的 Runs #124/#125 写成通过或失败。
 
 ### 15.4 判定规则
 
