@@ -23,7 +23,12 @@
 | #136 | PSM teardown链Node/NodeBase/CallbackGroup + GDB DSO/memory-map诊断（Node身份待定） | **10/10 SIGSEGV；Node身份未确认** | 10轮均在CallbackGroup析构weak_ptr<ServiceBase>时SIGSEGV；fault PC位于仍映射的librclcpp，间接调用所用vptr不在进程映射中；librclcpp、libmoveit_planning_scene_monitor及MoveGroup capability相关DSO仍映射。尚不能区分已卸载的其他DSO与control block/vptr内存破坏；另修正test-result汇总解析路径 |
 | #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **10/10 SIGSEGV；GDB脚本第22行中断** | mock构建成功；10轮均复现teardown SIGSEGV。每轮Summary 7 tests、0 errors、2 failures。GDB对未映射$rax执行x/8gx后中止，未运行service_ptrs_ size/逐项weak检查；不能据此识别服务或Node |
 | #138 | GDB安全取证与Node/service/group身份关联 | **环境阶段失败，不计代码结果** | ROS setup成功；第4步rosdep update请求rosdistro/base.yaml时Connection reset by peer；后续构建/测试全部跳过 |
-| #139 | Run137 GDB修复 + TypeDescription Node归属核验 + rosdep retry | **执行中：MoveIt build** | rosdep重试/工具安装成功；stock rclcpp无插桩overlay、MoveIt临时补丁/静态校验、MoveIt依赖安装成功；第8步patched move_group build进行中，第9步mock build和第10步GDB 10轮回归待执行 |
+| #139 | Run137 GDB修复 + TypeDescription Node归属核验 + rosdep retry | **10/10 teardown SIGSEGV** | 10/10 mock execution及7项测试本体通过；GDB确认PSM node_ CallbackGroup size=23，index 22为/plan_sequence_path，Sequence DSO vtable范围待后续Run #146用info symbol确认 |
+| #141 | stock-rclcpp baseline复核 | **10/10 teardown SIGSEGV** | mock execution与7项launch assertions通过；GDB section parser仍未提供有效Sequence DSO范围数据 |
+| #144 | SequenceService专属callback group + service先reset | **10/10 inferior正常退出；Actions FAIL** | 未观察真实SIGSEGV；旧GDB正常退出后仍执行bt full导致No stack/GDB exit 1，属于harness误判 |
+| #145 | Sequence DSO section parser迭代 | **10/10 inferior正常退出；Actions FAIL** | section parser仍无有效section rows；旧GDB No stack误判仍在 |
+| #146 | service创建时捕获control-block vtable | **10/10符号归属直证；Actions FAIL** | 10/10 info symbol将GetMotionSequence control-block vtable定位至source-overlay libsequence_capability.so .data.rel.ro；GDB No stack误判仍在 |
+| #147 | 修复GDB clean-exit路径 + A-PSM-retained/K/B-core mock teardown | **10/10 PASS** | 10/10 mock执行成功、GDB inferior exit 0、每轮7 tests/0 failures、teardown marker顺序通过；section parser错误不影响独立info symbol证据 |
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
 - `docs/audits/2026-11-16-staubli-moveit-teardown-factorial-runs-118-119.md`
@@ -631,3 +636,25 @@ Run #139 job `133206807886`当前状态：
 - [ ] Step 10：10轮GDB teardown回归尚未开始。
 
 因此当前只能报告准备和两个上游依赖构建/校验成功，尚无新的运行时Node身份、服务名、control-block vptr或teardown结论。
+
+
+## 2026-11-16 最新状态补充｜Run #147 完成与 active_ 并发探针提交
+
+### Run #147（Actions 43862172486）——单线程 lifecycle regression
+
+- [x] job source-overlay-regression（ID 133281484945）全部步骤成功；stock ROS 2 Jazzy rclcpp 无插桩 overlay、临时 MoveIt/Pilz 构建、Stäubli mock workspace 及 10 轮回归均完成。
+- [x] 10/10 轮 mock plan-and-execute 成功；每轮 CTest 2/2 通过，7 项测试汇总 0 errors、0 failures、0 skipped。
+- [x] 10/10 轮 GDB inferior 均以 exit code 0 退出，无真实 move_group SIGSEGV；每轮 GDB clean-exit marker、B-core cleanup 顺序、PSM retained/reset marker 和结果日志验收通过；聚合失败 0/10。
+- [x] 创建时 /plan_sequence_path Service control-block vtable 在前序 Run #146 已 10/10 由 info symbol 定位到临时 Pilz source-overlay libsequence_capability.so 的 .data.rel.ro；Run #147 每轮继续取得相同符号归属证据。
+- [x] 纠正诊断证据权重：Run #147 的 GDB section-range parser 仍打印 no sequence capability sections parsed，因此不能用 section 范围匹配/NO-MATCH 作判断；实际 DSO 归属依赖独立的 info symbol 符号解析结果。
+- [ ] 该结果只关闭 Sequence service/group 显式释放候选的单线程 mock teardown regression；并发请求、pipeline terminate、TSAN、upstream 兼容和硬件验收均未关闭。
+
+### Same-OMPL PlanService / SequenceService 并发门禁
+
+- [x] 在现有分支 experiment/moveit-main-owner-lifetime-only 提交 CI workflow 及 mock 测试：commit https://github.com/rexyll/staubli_driver_ros2_from_org/commit/b0bad196b7328c19bf24a2cabc58c8781f2c279e。
+- [x] 临时 MoveIt overlay 的 PlanningPipeline::generatePlan() 现带环境变量门控探针，只处理测试 sentinel 7.731/7.732；加入 mutex/condition_variable barrier、20 秒超时、RAII in-flight 计数及 SLOW_ENTER/FAST_ENTER/BARRIER_OPEN/FAST_EXIT/SLOW_RESUME marker。
+- [x] mock test 同时发起 /plan_kinematic_path 与 /plan_sequence_path 请求，要求相同 arm/OMPL planning pipeline，检查两项响应成功和轨迹非空；同时要求同一 pipeline 地址以及 fast 结束而 slow 仍 in-flight 时的 active_ 状态。
+- [ ] 提交后对应 Actions run ID/原始日志目前尚未取得；动态并发是否实际发生、active_ 是否提前清零、两项 service response 是否均成功仍未定。
+- [ ] 完成日志核验后再设计针对实际停止入口的 terminate 测试；在并发和停止语义门禁关闭之前，不把 callback-group 拆分方案提升为可合并/可部署修复。
+
+**继续约束：** 本轮所有工作仍只在 CI temporary MoveIt/Pilz overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock 中进行；没有修改 MoveIt/rclcpp 上游或 Stäubli 正式产品代码，没有连接 CS9 或进行 HIL/SAT/实机动作。根计划最高优先级仍为 00-01，MotionControlAlgorithms 集成继续 DEFERRED。
