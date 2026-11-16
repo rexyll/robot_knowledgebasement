@@ -736,3 +736,25 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 - [ ] [Run #153](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43887863524)：使用修复后的workflow，当前job初始化中；等待步骤6 Python patch验证和后续MoveIt build/mock结果。
 
 后续验收必须先确认步骤6无SyntaxError并完成静态patch assertions，再看MoveIt build、mock启动、slow hold、真实MoveItCpp wrapper返回及底层terminate入口marker。
+
+## Run #153 最终结果：terminate wrapper 漏取消路径动态确认（2026-11-16）
+
+[Run #153](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43887863524)，job `133370760966`，workflow修复commit `29118422ee2963fd379bf03da3fceee6838dcd55`，完整CI成功。
+
+- stock ROS 2 Jazzy rclcpp无插桩overlay构建通过；临时MoveIt Jazzy/Pilz source patch及`move_group`构建通过；Stäubli mock workspace构建通过。
+- 10/10轮A-PSM-retained + K + B-core regression通过。每轮mock plan-and-execute成功，8项package xUnit assertions通过（0 errors/0 failures/0 skipped），GDB inferior exit code=0，生命周期marker顺序通过，聚合failures=0/10。
+- 每轮在slow planning request仍held时读到`active=0`。测试客户端通过临时Trigger service调用真实`MoveItCpp::terminatePlanningPipeline("ompl")` public wrapper；wrapper调用前记录`active_before=0`，服务返回`result=1`。
+- 临时`PlanningPipeline::terminate()`入口marker在10轮中均未出现；且slow-held → wrapper-return → release → slow-released顺序严格满足验收。测试因此确认wrapper在该窗口返回成功但没有进入底层terminate。
+
+### 结论升级
+
+此前基于固定源码commit `f11204b8a9b98e4ba28e564721d24a7077f5f969`与Run #149 same-OMPL并发反例，只能推导公开wrapper可能因`active_`过早清零而跳过底层terminate。Run #153现已通过真实wrapper调用与底层入口marker，将该风险升级为CI mock中的动态确认。它证明的是**取消路径门禁失效**，不是teardown崩溃，也不表示底层planner一定停止/未停止的最终状态已经被完整测量。
+
+### 下一步（仍未完成）
+
+- [ ] 审计`PlanningPipeline::generatePlan()`多请求并发访问planner manager的安全性，明确active标志与在途请求数的语义差异。
+- [ ] 比较pipeline级串行化/互斥、in-flight请求计数、逐请求取消句柄等方案；对每种方案明确是否会阻塞规划、取消所有请求还是单个请求，以及planner manager是否支持并发。
+- [ ] 增加确定性slow/fast同pipeline测试：确认fast完成后slow仍在途；真实公开wrapper调用后验证底层terminate是否触发、slow请求最终状态和fast请求结果；覆盖重复取消、同时取消和正常完成边界。
+- [ ] 在候选修复上运行压力测试及TSAN（若构建条件允许），并保留10轮以上无插桩mock teardown回归。
+
+**边界不变：** 仅CI临时MoveIt/Pilz source overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock；不修改MoveIt/rclcpp upstream或Stäubli正式产品源码/PR/pin，不连接CS9，不执行HIL/SAT/实机动作。PR #1保持OPEN；根00-01仍最高优先级，MotionControlAlgorithms继续DEFERRED。
