@@ -6889,3 +6889,18 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 **依据：** MoveIt Jazzy `moveit_ros/move_group/src/move_group.cpp`（MoveGroupExe析构顺序）；ROS 2 Jazzy `rclcpp/src/rclcpp/node_interfaces/node_base.cpp`、`rclcpp/include/rclcpp/executors/executor_entities_collector.hpp`与`rclcpp/src/rclcpp/executors/executor_entities_collector.cpp`（Node/Executor callback-group弱引用登记）；`rclcpp/include/rclcpp/node.hpp`（自动关联executor参数默认值）。
 
 **限制：** 不修改MoveIt/rclcpp upstream或Stäubli正式产品源码，不更改PR #1/pin；只在临时CI overlay做候选验证，不连接CS9，不宣称HIL/SAT/实机验收。
+### §9.3.392｜SequenceService独立callback group并发语义与规划管线终止门禁（2026-11-16）
+
+- [x] `MoveGroupPlanService`的`/plan_kinematic_path`未传CallbackGroup，使用Node default MutuallyExclusive group；SequenceService原来亦如此。Run #144将SequenceService移入独立MutuallyExclusive group后，其自身请求仍串行，但现在可与PlanService默认组请求重叠。
+- [x] `MoveGroupSequenceAction`已有独立MutuallyExclusive group；MoveGroup `/move_action` accepted callback另起detached worker，planning work既有路径已可能跨group并行。SequenceService/PlanService组合仍是本候选新增的明确重叠场景，需实测。
+- [x] SequenceService和SequenceAction各自拥有独立`CommandListManager`及`PlanComponentsBuilder`可变状态；专属group保护同一Service实例中的请求串行，不共享builder。
+- [x] `PlanningPipeline::generatePlan()`为const，planner map与adapter vectors初始化后只读，`active_`为atomic；OMPL `PlanningContextManager::CachedContexts`有mutex，只有`shared_ptr.unique()`的空闲context才可复用，其余并发请求新建context。这些机制支持并发planning context隔离。
+- [x] `planWithParallelPipelines()`为每个request创建独立thread，并从map取得PlanningPipeline shared pointer；源码没有拒绝同一pipeline_id重复请求，说明调用结构允许同一个Pipeline对象被多个request同时调用，但不能仅凭不同pipeline并行功能推定重复同pipeline的停止行为全覆盖。
+- [x] 发现`PlanningPipeline::generatePlan()`每次开始均设置`active_=true`，退出时无条件设置`active_=false`；该字段是atomic bool而非活动请求计数。若同一pipeline两次generatePlan重叠，先结束的一次可能将仍在执行的另一次标记为inactive；`MoveItCpp::terminatePlanningPipeline()`与parallel planning stopping criterion都依赖`isActive()`决定是否terminate。该潜在状态语义缺陷需要运行时覆盖。
+- [x] `PlanExecution::stop()`只设置preempt flag，本轮未证实其直接调用MoveItCpp `terminatePlanningPipeline()`；不得将它描述成能中断任意正在执行的generatePlan。
+- [ ] 新增并发mock用例：同时向`/plan_sequence_path`和`/plan_kinematic_path`发送请求，显式使用相同默认pipeline；通过barrier/active-call marker证明generatePlan实际重叠；分别检查两个响应SUCCESS、轨迹非空、post-shutdown exit clean。
+- [ ] 两种请求完成先后次序都要覆盖，并检查pipeline `isActive()`及terminate日志：不得出现先完成请求将另一个仍运行请求误标inactive，进而使停止逻辑漏执行。
+- [ ] 依据部署是否支持parallel planning/重复pipeline ID/MoveGroup action cancel补充TSAN与压力测试；若出现active标记或取消失真，需重新评估shared lock/serialization/活动计数候选，不能仅凭teardown通过放行。
+- [ ] Run #144仍需先完成Pilz overlay构建、Stäubli mock workspace及10轮teardown。即使本轮生命周期回归通过，callback-group拆分候选仍须完成并发验收，不直接合并上游或正式驱动。
+
+**当前状态：** SequenceService生命周期隔离仍为临时候选；Node/Executor weak ownership和plugin loader顺序论证成立，但新增默认组并发场景必须通过并发mock与取消/terminate门禁。仅CI mock/固定源码证据，不连接CS9、不做HIL/SAT/实机验收。
