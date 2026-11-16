@@ -262,3 +262,8 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 源码复核发现，A中的`planning_scene_monitor.reset()`、`moveit_cpp.reset()`和`nh.reset()`只释放main()局部shared owner，不能直接视为对应对象在该行析构。MoveGroupExe持有MoveGroupContext；MoveGroupContext又持有MoveItCpp、PSM及TEM；MoveItCpp还持有Node、PSM及TEM。最终析构要沿MoveGroupExe capabilities/context → MoveGroupContext → MoveItCpp成员逆序销毁链追踪。
 
 后续拆分A必须使用use_count/weak_ptr expiration及真实dtor marker确认干预了哪个对象的最后strong owner；若只删除某一条main-local reset但内部owner仍存在，则不构成对应对象析构路径的有效单变量实验。
+
+
+### Run #130诊断插桩语义风险
+
+给`DynamicStorage::WeakWaitableEntry`添加用户声明析构函数会抑制隐式move constructor；copy仍可用时，`std::vector`重分配可能改变WeakWaitableEntry的move/copy选择，影响weak reference control block的计数和释放时序。虽然探针显式按associated entity再Waitable顺序reset，与成员默认逆序析构一致，仍不能排除该特殊成员函数副作用。Run #131已恢复stock rclcpp source并做10轮复核，以判断Run #130的5/5是否独立于插桩。
