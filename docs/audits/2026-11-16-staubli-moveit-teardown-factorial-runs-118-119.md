@@ -267,6 +267,19 @@ Run #121 五轮 GDB/LD_DEBUG 日志均有如下顺序：
 
 **结论边界：** expired weak entry 留存在默认 CallbackGroup 的机制已由源码确定；这解释了为何 plugin instance 已经释放后，control block 仍可能在 NodeBase/CallbackGroup 析构时才释放。该 control block 的虚表/销毁函数是否来自 libmoveit_simple_controller_manager.so，仍由 Run #122 的 GDB 控制块地址与进程映射来验证，暂不写成已证实。
 
+### 12.2 plugin manager 与 handle 的真实析构顺序
+
+MoveIt Jazzy moveit_simple_controller_manager 源码进一步确认：MoveItSimpleControllerManager 的析构函数是 defaulted（moveit_simple_controller_manager.cpp L95–100）；其成员 node_ 位于 L328，controllers_ map 位于 L329。按 C++ 成员逆序析构，controllers_ map 先销毁，plugin manager 自己持有的 node_ 最后销毁。controllers_ 中的每个 handle 都持有 Action Client；ActionBasedControllerHandle 的 node_ 成员在 L189，controller_action_client_ 成员在 L270，Action Client 本身在 L88 通过 rclcpp_action::create_client 创建。
+
+因此实际运行顺序是：plugin manager 析构开始 → controllers_ map 销毁各 FollowJointTrajectory handle → Action Client 最后强引用归零并运行 custom deleter → deleter 尝试从仍存活的 controller_mgr_node_ 默认 CallbackGroup 移除 Waitable（但原 weak_ptr.lock() 已失败）→ control block 留在 CallbackGroup weak list → handle/plugin manager 完成析构 → TEM 的 controller_manager_ owner 释放 → ClassLoader unload plugin DSO → TEM 更晚才销毁 controller_mgr_node_ / NodeBase / default CallbackGroup 并释放 retained weak control block。
+
+该顺序把 rclcpp_action 的 expired weak-entry 缺口与 MoveIt TEM 的 plugin loader/node member-order 冲突直接连接起来。当前唯一尚未由源码本身确认的是原 shared_ptr control block 的 _M_destroy / vtable 运行地址是否确实落在 libmoveit_simple_controller_manager.so；Run #122 GDB 对具体 weak slot 的 crash frame 和内存映射将完成这最后一环。
+
+- [MoveItSimpleControllerManager default destructor 与 controllers_ 成员](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L95-L104)
+- [controller manager 的 node_ / controllers_ 成员声明](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/src/moveit_simple_controller_manager.cpp#L324-L335)
+- [ActionBasedControllerHandle 的 node_ 与 Action Client 成员](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L184-L197)
+- [Action Client member](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L263-L272)
+
 读取 MoveIt `jazzy` 源码：
 
 - [`trajectory_execution_manager.hpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp) 声明顺序为：`node_`（约第302行）、`controller_mgr_node_`（304）、`private_executor_`（305）、`event_topic_subscriber_`（309）、`controller_manager_loader_`（331）、`controller_manager_`（332），`callback_handler_` 位于更后部。
