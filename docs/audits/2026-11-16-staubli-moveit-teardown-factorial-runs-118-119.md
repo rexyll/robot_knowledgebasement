@@ -256,7 +256,7 @@ Run #121 五轮 GDB/LD_DEBUG 日志均有如下顺序：
 2. rclcpp_action/create_client.hpp L53–80 创建自定义 shared_ptr deleter；deleter 持有 weak_node，在 client 最后一个 strong owner 释放时先 weak_node.lock()，然后构造一个指向同一 raw pointer、但使用 no-op deleter 的 fake_shared_ptr，再调用 node_waitables_interface->remove_waitable(fake_shared_ptr, nullptr)，最后 delete ptr。L82–92 创建 action_client shared_ptr 并立即 add_waitable。
 3. rclcpp/node_interfaces/node_waitables.cpp L29–41 在 add_waitable 的 group 参数为空时，将其替换为 node_base_->get_default_callback_group()，然后调用 group->add_waitable(waitable_ptr)。因此该 Action Client 的 control block 被记录在 controller_mgr_node_ 的默认 CallbackGroup weak list 中。
 4. deleter 调用 remove_waitable 时，原 shared_ptr 的 strong count 已经到 0，原 weak entry 的 lock() 不能再返回对象。node_waitables.cpp L54–65 将 null group 路由回默认组；callback_group.cpp L218–228 对每个 entry 执行 weak_ptr.lock()，只有 lock 成功且 raw pointer 相等才 erase；没有处理 expired entry 的 erase 分支。fake_shared_ptr 虽然 raw pointer 相同，但有独立 control block，无法让原 weak entry.lock() 成功。
-5. 因此该 Action Client 被销毁后，CallbackGroup 中可确定留下一个 expired weak_ptr entry；它持有原 shared control block 的 weak count，直到 CallbackGroup 的 waitable_ptrs_ vector 析构/清理才触发最后 weak release。
+5. 因此该 Action Client 的 deleter 执行时会留下 expired weak_ptr entry。add_waitable() 会在后续新增 Waitable 时顺便清理当时已过期的 entries；但在 controller-manager teardown 中，这些 Action Client 是初始化阶段创建、退出阶段集中释放，之后不再新增 Waitable，所以最终释放的条目没有后续 add_waitable() 帮忙清理，会一直保留到 CallbackGroup 的 waitable_ptrs_ vector 析构/显式清空时才触发最后 weak release。
 
 关键源码：
 - [FollowJointTrajectory handle create_client 调用](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L84-L90)
