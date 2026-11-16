@@ -519,3 +519,21 @@ Run #136（[Actions #43832589348](https://github.com/rexyll/staubli_driver_ros2_
 2. 若所有weak control block的vptr均指向仍映射的DSO，但 `_M_destroy()`仍跳向未映射地址，则重点检查control block首字是否被覆盖、对象布局/ABI是否一致，以及weak_count/control block是否被提前释放。
 3. 如果GDB不能可靠打印私有成员，不改rclcpp特殊成员函数；改用CI-only `NodeServices::add_service()`创建时关联记录，按node FQN、callback group地址、service地址和control-block地址做对应。
 4. Run #137结果继续严格限制为临时MoveIt overlay + stock rclcpp + Stäubli mock CI，不视为upstream/产品修复或CS9/HIL/SAT/实机验收。
+
+
+### Run #136 GDB vector长度与服务集合预期冲突（补充复核）
+
+对Run #136首轮GDB原始栈重新提取，std::vector<std::weak_ptr<ServiceBase>>的迭代范围为：
+
+- __first=0x5b24d96db600
+- __last=0x5b24d96db610
+
+在该运行时ABI下单个std::weak_ptr占16字节，因此该次vector析构实际覆盖1个元素。调用栈frame #10为rclcpp::CallbackGroup::~CallbackGroup()，frame #16/#24/#30依次包含NodeBase、Node和PlanningSceneMonitor析构；但Run #136没有打印CallbackGroup对象地址、Node成员身份或service_ptrs_.size()，不能仅凭此栈将这个单元素vector指定为某个具体service，也不能把它等同于源码预期的7项完整集合。
+
+静态源码预期的7项仍有依据：PSM创建pnode_时只覆盖NodeOptions arguments，Jazzy NodeOptions默认start_parameter_services=true；NodeParameters创建6个ParameterService service；PSM另通过providePlanningSceneService()创建GetPlanningScene service。这是构造路径的静态预期，不是Run #136故障时的运行时vector size。还需考虑实际group归属、弱引用是否在此前被清理、以及vector元数据是否受损等可能性。
+
+**Run #137的首要判定项：** 直接读取this->service_ptrs_.size()、CallbackGroup this地址、所属Node地址/名字（可由栈中PSM成员指针辅助关联）、每项weak object/control block/vptr和符号归属。若GDB私有成员数据与vector析构区间再次不一致，应将vector元数据完整性列为独立调查项；不得继续把“7项”写成已观测事实。
+
+### Run #137 当前进度更正
+
+Run #137（[Actions #43836147761](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43836147761)，commit 4aa4539a9adfd5efe0adea52753ba1847abf8a53）当前job第1–7步成功，第8步Build patched MoveIt move_group正在执行；第9步Stäubli mock workspace build、第10步10轮GDB teardown regression尚未开始。尚无Run #137 PASS/FAIL结论。实验仍限于CI temporary MoveIt overlay + stock rclcpp + Stäubli mock；不触碰上游/产品源码，不连接CS9，不做真实运动、HIL或SAT。
