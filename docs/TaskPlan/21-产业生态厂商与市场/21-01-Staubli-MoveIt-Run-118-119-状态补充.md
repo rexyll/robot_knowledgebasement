@@ -309,3 +309,22 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 **下一验收门：** 若10/10均通过，说明在MoveGroupExe/executor作用域退出前保留main()的PSM强引用不会破坏当前mock teardown，并且可由weak probe证明PSM在该作用域后仍存活；若失败，区分失败发生在mock动作还是进程退出阶段，再判断该main-local owner提前释放是否必要。随后再单独测试MoveItCpp与main Node owner，不一次改变多个变量。
 
 所有结果仍限CI临时MoveIt patch + stock rclcpp + Stäubli mock；不修改上游或产品源码、不连接CS9、不发送真实运动命令、不宣称HIL/SAT/实机验收。
+
+
+## 2026-11-16补充｜MoveIt Jazzy 执行状态与 action cancel 并发静态审计
+
+新增审计报告：[MoveIt Jazzy 执行状态与取消路径线程安全静态审计](../../audits/2026-11-16-moveit-jazzy-execution-state-thread-safety-audit.md)。本轮固定源码基线为 MoveIt Jazzy `f11204b8a9b98e4ba28e564721d24a7077f5f969`，同时只读比较 MoveIt `main` 快照 `5815c90b36ba028a42f49aa7f2364067093b21c0`。
+
+静态发现：
+
+- `MoveGroupMoveAction::preempt_requested_` 在 Jazzy 中是普通 `bool`；action cancel callback写入，独立 detached worker读取/清零，未见共享mutex或atomic保护。这是本轮最明确的并发风险候选。
+- `TrajectoryExecutionManager::execution_complete_` 在Jazzy仍是普通bool；`stopExecution()`的外层读取未持锁，worker与executePart也有不在同一锁域内的访问。
+- `last_execution_status_` 是普通成员；stop路径有锁内写入，但执行线程其他状态写入和公开getter不统一使用同一锁。
+- `execution_thread_` 是unique_ptr；join/reset有mutex保护，但execute()分配赋值未使用同一mutex，且stop路径有加锁前的指针判断，需验证API并发调用约束。
+- MoveIt main已将 `execution_complete_` 改为 `std::atomic<bool>`；但last status、thread owner及Action preempt bool仍保留，因此不能把main分支局部改动套用到Jazzy，也不能认为整体线程安全已关闭。
+
+**证据边界：** 这是固定源码版本的静态访问路径审计，不是TSAN报告或运行时复现；本轮没有修改MoveIt upstream/Jazzy或Stäubli产品源码。后续需在mock CI中增加TSAN，并对cancel与自然完成竞争、worker启动前取消、planning阶段取消、execute阶段取消、连续goal、异常早退与auto_clear分支做确定性测试。审计状态保持“静态审查完成，动态验证未执行”。
+
+### Run #134 状态
+
+[Run #134](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816245159) 已通过 stock rclcpp 无插桩构建及MoveIt patch静态校验；最新一次核验处于 MoveIt 源码依赖安装步骤。MoveIt build、Stäubli mock build、PSM weak-owner marker及10轮测试尚未执行，不能提前登记结果。
