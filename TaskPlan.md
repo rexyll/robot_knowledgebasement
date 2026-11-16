@@ -2,7 +2,7 @@
 
 > **本文件是整个仓库的最高级任务治理文件。** 所有知识章节的任务都必须遵守本文件的 Guide 与 Limit。章节级任务只定义本章节的范围、节点、交付物、验收证据和依赖，不得自行降低或替换全局约束。
 >
-版本：v12.52  
+版本：v12.53  
 > 建立日期：2026-11-03  
 > 适用范围：整个 Robot Knowledge Basement 仓库  
 > 当前状态：执行中；根当前任务章节00（知识治理与分类体系），主任务节点00-01（全仓库资产基线已完成386/386路径与Blob/字节数对账；claim-level和许可/授权审计未完成；Python Toolkit 13项权利人及再分发授权待确认；IMU模型/公式与BMI088、ADIS16470数据表P0定向复核已完成，目标IMU实测和权利审计仍待完成；LiDAR的ROS 2消息时序、型号条件参数及普通/安全扫描仪输出边界P0复核已完成，目标点云/去畸变和安全链测试仍待完成）；第21章21-02并行推进（医疗/康复/腔镜机器人注册与标准证据继续补充，原始电子证照和适用范围附件仍有缺口；柏惠维康重庆生产许可、生产范围/地址及自述8张注册证的完整清单待监管原件）。Stäubli专项更新：Run #113 5/5确定性复现TEM stopExecution check-lock-recheck漏join；Run #117 always-join CI overlay 5/5通过（artifact 14149782675，SHA-256 78e0d6e22d49bffeff7f983f2b528d056b0d2fcf84bdddd44c909fd8538a8f43），五轮join_performed=1、execution_thread_joinable=0、active_handles=0。MoveGroup teardown 共同背景K下完整A/B 2×2矩阵已完成：K-only #121、K+A #118、K+B #119均5/5 FAIL，K+A+B #107 5/5 PASS。源码已确定实际链：MoveItSimpleControllerManager 逆序销毁 controllers_ map 中的 FollowJointTrajectory handles；Action Client custom deleter 在 strong count 归零后尝试 remove_waitable，原 weak_ptr.lock() 失败导致 expired entry 留存；后续没有新的 add_waitable 清理时，该control block延迟到controller_mgr_node_的default CallbackGroup析构释放。TEM成员逆序析构又使controller-manager loader/DSO先于controller node/group清理而卸载。control-block destroy/vtable地址是否落在该DSO仍待Run #122 GDB映射验证。Run #122已完成：5/5 mock plan-and-execute SUCCEEDED、5/5 teardown PASS；五轮诊断均显示 controller node 的 NodeBase/default CallbackGroup expired weak Waitables 在 controller-manager DSO unload 前清理（Actions 43791758924，artifact 14192853671，SHA-256 6958f483320fff3c93b3d432d0ca61f5d2f8d19030f28f8c6055a76cef5e5266）。Run #122未输出 control-block vtable/destroy 地址映射，因此不能据此确认控制块释放函数归属插件 DSO。K-only（A=OFF/B=OFF）+ rclcpp CallbackGroup::remove_waitable expired-entry pruning 单点反证已在既有隔离分支实施；Run #123 因内嵌 Python SyntaxError、#124/#125 因跨 Actions step 变量 NameError 均在 mock test 前配置失败，不计入功能性实验结果；Run #126（Actions 43794655028）已通过 rclcpp overlay、patched MoveIt 与 Stäubli mock workspace 构建；但测试 step 未切换到 /tmp/staubli_ws，colcon 五次均忽略未知包并报告 0 packages/0 tests，pruning=0；属无效空跑，不计入反证。已在既有分支修复测试 step 工作目录并加 ros2 pkg prefix/colcon list 预检；Run #127（Actions 43798751700，commit 2c578fa670b0d5c9bf845c53591cbc334f952438）已完成：K-only + CallbackGroup expired-entry pruning 虽每轮日志出现18条pruning marker；去除`colcon test-result --verbose`重复打印后每轮9条不同记录，五轮共45条、5/5 mock plan-and-execute SUCCEEDED，但group地址尚未映射到controller_mgr_node_的default CallbackGroup，目标组覆盖未证实；5/5均在TEM private Executor的WaitSet/DynamicStorage WeakWaitableEntry weak-control-block释放阶段SIGSEGV（-11），故不能把该轮作为目标CallbackGroup pruning的有效单点反证。仍不修改MoveIt/rclcpp upstream、不修改Stäubli产品源码、不连接CS9、不发送真实运动命令、不宣称HIL/实机验收。MotionControlAlgorithms源码集成继续DEFERRED，待00-01验收、14-EXT-02第三方许可/来源/SBOM及目标仓库兼容性门禁关闭并取得具体导入授权。
@@ -380,6 +380,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
+| 2026-11-16 | v12.53 | 修正每日归档索引，登记当日历史v57–v60与pnode_ ServiceBase弱引用候选/DSO边界分析。 | `TaskPlan_History/TaskPlan-2026-11-16.md` v57–v60；第21章21-01状态补充 |
 | 2026-11-16 | v12.49 | 将Run #135 pnode_ CallbackGroup中的weak_ptr<ServiceBase>候选收窄为PSM get_scene_service_注册的GetPlanningScene service；确认NodeServices默认使用pnode_ default CallbackGroup并追加weak owner，Run #136继续取证实际控制块/DSO归属。 | MoveGroupGetPlanningSceneService、PlanningSceneMonitor、rclcpp Node/NodeServices/CallbackGroup Jazzy源码；Run #135原始GDB栈 |
 | 2026-11-16 | v12.50 | 从Run #135每轮运行日志确认`MoveGroupGetPlanningSceneService`实际加载，强化PSM get_scene_service_作为pnode_ CallbackGroup expired weak ServiceBase候选的运行时路径证据；Run #136 GDB映射仍待。 | Run #135原始日志capability loading marker；MoveIt/rclcpp Jazzy源码；Run #136进行中 |
 | 2026-11-16 | v12.51 | 扩展pnode_ CallbackGroup ServiceBase候选：ROS 2 NodeOptions默认start_parameter_services=true，NodeParameters构造6个ParameterService服务，PSM另创建GetPlanningScene service；7个服务均通过NodeServices默认callback group路径留weak refs。具体崩溃entry未知，Run #136计划读取service_ptrs_数量/地址和DSO映射。 | ROS 2 Jazzy NodeOptions/NodeParameters/ParameterService/NodeServices/CallbackGroup源码；MoveIt PSM源码；Run #135 GDB栈 |
@@ -479,7 +480,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
 | 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 记录持续追加（已汇总 PR #18–#21 专项记录及 v35 IMU / v36 LiDAR 审计） |
-| 2026-11-16 | [TaskPlan-2026-11-16.md](TaskPlan_History/TaskPlan-2026-11-16.md) | 持续追加（v37–v56；Run #132/#134/#135/#136；MoveIt action/TEM并发静态审计、PSM pnode_最后释放与GDB DSO取证） |
+| 2026-11-16 | [TaskPlan-2026-11-16.md](TaskPlan_History/TaskPlan-2026-11-16.md) | 持续追加（v37–v60；Run #132/#134/#135/#136；MoveIt action/TEM并发静态审计、pnode_ 7个ServiceBase弱引用候选、DSO链接边界复核） |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
 
