@@ -440,3 +440,10 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 - [NodeServices::add_service](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node_interfaces/node_services.cpp) 与 [CallbackGroup::add_service](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/callback_group.cpp)
 
 以上是源码路径与Run #135 GDB对象链的对应关系；尚未从GDB直接读取`pnode_` CallbackGroup的service_ptrs_元素地址/控制块类型，也未完成control-block manager/vtable到DSO地址映射。
+
+
+### Run #135 运行时日志确认 GetPlanningScene capability 已加载
+
+对Run #135原始job log按10轮去重后，10/10轮均出现 `Loading 'move_group/MoveGroupGetPlanningSceneService'...`，并在capability清单中出现`get_planning_scene_service`。因此，前述源码路径不只是死代码：当前mock move_group每轮确实加载该capability，执行其initialize()后会调用PSM `providePlanningSceneService()`，从而在private pnode_创建`GetPlanningScene` service并写入`get_scene_service_`。
+
+这将候选ServiceBase记录提升为**静态源码 + 运行时capability加载日志**的双源候选，但还没有运行时观测到pnode_ `service_ptrs_`中的具体weak_ptr地址/数量；更没有确认control-block `_M_destroy()`的代码地址归属。Run #136需要继续提供 fault PC、DSO加载列表和proc mappings，再判断是否是插件卸载后调用了失效manager/vtable。
