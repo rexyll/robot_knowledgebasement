@@ -666,3 +666,33 @@ Run #139 job `133206807886`当前状态：
 - [x] 同一实验分支已修正汇总验收为8 tests/0 errors/0 failures/0 skipped，并保留3项pre-shutdown test数量断言。
 - [x] 修正提交：https://github.com/rexyll/staubli_driver_ros2_from_org/commit/031478a961bb62ded1231e5288055ae4b8cf7961。未创建分支。
 - [ ] Actions run ID/原始日志尚未取得；需以实际xUnit/colcon输出确认3+post-shutdown测试与8项总汇总，不以静态脚本通过代替运行证据。
+
+
+## 2026-11-16 Run #148/#149｜Same-OMPL pipeline 并发门禁结果
+
+### Run #148（[Actions 43868030841](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43868030841)）
+
+- [x] 临时 MoveIt/Pilz overlay、stock ROS 2 Jazzy rclcpp 无插桩 overlay、Stäubli mock workspace 均构建成功。
+- [x] 10/10 轮均真实触发并发探针五阶段 marker；两个请求对应的 PlanningPipeline 对象地址相同；每轮 PlanService 和 SequenceService 均成功，trajectory 非空。
+- [x] 每轮观察到 FAST_EXIT active=0 probe_inflight=1 slow_inflight=1，随后 SLOW_RESUME active=0 probe_inflight=1。
+- [x] Actions 失败原因为验收器计数过期：实际 package summary 为8 tests/0 errors/0 failures/0 skipped，workflow 仍要求7 tests；10/10 轮测试本体均已满足功能条件，但验收脚本将每轮判失败。不是并发请求、构建或 teardown 失败。
+
+### Run #149（[Actions 43873768855](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43873768855)）
+
+- workflow commit：[031478a](https://github.com/rexyll/staubli_driver_ros2_from_org/commit/031478a961bb62ded1231e5288055ae4b8cf7961)，将 pre-shutdown suite 要求3项、package 汇总要求8项。
+- [x] 完整 workflow success；stock rclcpp、临时 MoveIt/Pilz 及 Stäubli mock 构建通过。
+- [x] 10/10 轮五类 marker 恰好各一次且顺序正确；每轮 marker 中的 pipeline pointer 一致。
+- [x] 10/10 轮 FAST_EXIT 显示 active=0 probe_inflight=1 slow_inflight=1；SLOW_RESUME 显示 active=0 probe_inflight=1。同一个 PlanningPipeline::generatePlan() 仍有 slow 调用在途，但先结束的 fast 调用已把 active_ 清零。
+- [x] 10/10 轮 PlanService 与 SequenceService 均返回 SUCCESS 并有非空 trajectory；每轮 pre-shutdown suite 运行3项、package 汇总8 tests/0 errors/0 failures/0 skipped；GDB inferior exit code=0；未观察到真实 SIGSEGV；聚合失败0/10。
+
+### 技术结论与剩余验证
+
+这不是 std::atomic 本身的数据竞争：active_ 是原子布尔值，问题在于单个 bool 不能表示同一 pipeline 的多个并发调用数量。一个调用正常结束执行 active_=false 时，另一个调用仍可能处于 generatePlan() 中；因此不能把 isActive()==false 解释为 pipeline 当前没有任何在途请求。
+
+本轮只证明 active_ 状态语义会在并发下提前清零；尚未实际调用 MoveItCpp::terminatePlanningPipeline("ompl")，因此不能写成 terminate 已被证实漏取消。下一步必须在 slow 仍 in-flight 且 active_=false 的窗口调用真实生产停止入口，确认是否跳过 PlanningPipeline::terminate()，并观测 PlannerManager/PlanningContext 对取消请求的响应。
+
+- [ ] 实施独立 terminate gate：slow 请求在确定窗口内等待；从独立控制路径调用 MoveItCpp::terminatePlanningPipeline("ompl")；采集入口调用、active 状态、是否进入 PlanningPipeline::terminate()、planner terminate 结果及两项请求最终 error code。
+- [ ] 若复现漏取消，比较同 pipeline 串行化/锁、活动请求计数和逐请求取消句柄方案；不能仅改用 active_ 计数就忽略 planner manager 自身线程安全要求。
+- [ ] 在真实 terminate 门禁和压力/TSAN 证据完成前，SequenceService callback-group 拆分仍是 CI 实验候选，不合并到上游或 Stäubli 正式产品。
+
+**边界：** 全部验证仍限 CI temporary MoveIt/Pilz source overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock；未修改 MoveIt/rclcpp 上游、Stäubli 正式源码、PR 或 pin；不连接 CS9、不执行 HIL/SAT/实机运动。PR #1 保持 OPEN。根计划00-01仍为最高优先级，MotionControlAlgorithms 集成继续 DEFERRED。
