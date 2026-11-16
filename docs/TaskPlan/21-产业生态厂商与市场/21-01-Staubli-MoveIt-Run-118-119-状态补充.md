@@ -267,3 +267,16 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 ### Run #130诊断插桩语义风险
 
 给`DynamicStorage::WeakWaitableEntry`添加用户声明析构函数会抑制隐式move constructor；copy仍可用时，`std::vector`重分配可能改变WeakWaitableEntry的move/copy选择，影响weak reference control block的计数和释放时序。虽然探针显式按associated entity再Waitable顺序reset，与成员默认逆序析构一致，仍不能排除该特殊成员函数副作用。Run #131已恢复stock rclcpp source并做10轮复核，以判断Run #130的5/5是否独立于插桩。
+
+
+## 2026-11-16补充｜Run #131 workflow静态校验配置错误与 #132 重跑
+
+[Run #131](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43808189052) 使用提交 4154ebdd00d04c98d510aedb3fd1e15ed3e18823，目标是保持A=ON、K固定、B-core=ON，将rclcpp恢复为stock无插桩，并执行10轮mock teardown复核。该轮并非测试崩溃：
+
+- stock rclcpp clone/build成功；git diff --exit-code通过，并输出 pristine ROS 2 Jazzy rclcpp sources，无Executor、CallbackGroup、NodeBase、DynamicStorage插桩。
+- MoveIt补丁脚本已运行至最终静态校验；校验代码仍错误要求 dynamic_storage.hpp 含有诊断overlay专用的 WaitSet WeakWaitableEntry dtor BEGIN marker，与stock无插桩要求相反。
+- 第6步因此退出；MoveIt dependencies/build、Stäubli mock workspace build及10轮测试步骤7–10全部跳过。没有mock action或teardown结果，#131必须标记为workflow配置失败，不计实验PASS/FAIL。
+
+已在同一既有隔离分支修复该条件：先断言stock dynamic_storage.hpp 不包含该诊断marker，再检查A和B-core的必要cleanup token。修复提交为 4d58b7e6d3b83363d6e595400a1bb1a5e1ea6a72，未新建分支；[Run #132](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43812432706) 已自动触发，最近一次查询为 in_progress，尚无10轮功能结果。
+
+**状态：** 无插桩10轮复核仍未完成。后续只有在stock rclcpp通过校验、patched MoveIt/mock workspace构建成功，并且10/10轮均确认mock action成功、7项launch assertions通过、B-core markers有序且进程退出码为0时，才可将A+K+B-core升级为无插桩mock CI通过候选。此结论仍不代表上游合并、产品修复、CS9/HIL/SAT或实机验收。
