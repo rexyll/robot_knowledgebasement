@@ -248,6 +248,25 @@ Run #121 五轮 GDB/LD_DEBUG 日志均有如下顺序：
 
 构造路径补充（Jazzy源码 trajectory_execution_manager.cpp L111–183）：initialize() 先创建 controller_manager_loader_（L114–117），然后创建独立 controller_mgr_node_（L164–171），通过 createUniqueInstance() 装载 plugin 并将该 node 传入 plugin initialize()（L177–178），之后创建 private_executor_、add_node(controller_mgr_node_) 并启动独立 spin thread（L179–183）。这确认 plugin manager 的 callback/waitable 资源与 controller node 的 NodeBase/default callback group 绑定，private executor 则持有该 node 的执行上下文。
 
+### 12.1 rclcpp_action 的 Waitable removal 语义：expired weak entry 的确定性来源
+
+进一步核对 ROS 2 rclcpp Jazzy commit 35b821a9fb1f937bfbd9c741b7e3353e101d9593 后，已能从源码串起具体 Waitable 生命周期：
+
+1. moveit_simple_controller_manager 的 FollowJointTrajectory controller handle 在 action_based_controller_handle.hpp L84–89 调用 rclcpp_action::create_client<T>(node, action_name)，没有指定 callback group；ClientBase 在 rclcpp_action/client.hpp L62 继承 rclcpp::Waitable。
+2. rclcpp_action/create_client.hpp L53–80 创建自定义 shared_ptr deleter；deleter 持有 weak_node，在 client 最后一个 strong owner 释放时先 weak_node.lock()，然后构造一个指向同一 raw pointer、但使用 no-op deleter 的 fake_shared_ptr，再调用 node_waitables_interface->remove_waitable(fake_shared_ptr, nullptr)，最后 delete ptr。L82–92 创建 action_client shared_ptr 并立即 add_waitable。
+3. rclcpp/node_interfaces/node_waitables.cpp L29–41 在 add_waitable 的 group 参数为空时，将其替换为 node_base_->get_default_callback_group()，然后调用 group->add_waitable(waitable_ptr)。因此该 Action Client 的 control block 被记录在 controller_mgr_node_ 的默认 CallbackGroup weak list 中。
+4. deleter 调用 remove_waitable 时，原 shared_ptr 的 strong count 已经到 0，原 weak entry 的 lock() 不能再返回对象。node_waitables.cpp L54–65 将 null group 路由回默认组；callback_group.cpp L218–228 对每个 entry 执行 weak_ptr.lock()，只有 lock 成功且 raw pointer 相等才 erase；没有处理 expired entry 的 erase 分支。fake_shared_ptr 虽然 raw pointer 相同，但有独立 control block，无法让原 weak entry.lock() 成功。
+5. 因此该 Action Client 被销毁后，CallbackGroup 中可确定留下一个 expired weak_ptr entry；它持有原 shared control block 的 weak count，直到 CallbackGroup 的 waitable_ptrs_ vector 析构/清理才触发最后 weak release。
+
+关键源码：
+- [FollowJointTrajectory handle create_client 调用](https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L84-L90)
+- [ClientBase 继承 Waitable](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp_action/include/rclcpp_action/client.hpp#L62-L66)
+- [rclcpp_action custom deleter 与 add_waitable](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp_action/include/rclcpp_action/create_client.hpp#L53-L92)
+- [NodeWaitables 默认 callback group 路由](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/node_interfaces/node_waitables.cpp#L29-L65)
+- [CallbackGroup remove_waitable 仅在 weak lock 成功时 erase](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L218-L228)
+
+**结论边界：** expired weak entry 留存在默认 CallbackGroup 的机制已由源码确定；这解释了为何 plugin instance 已经释放后，control block 仍可能在 NodeBase/CallbackGroup 析构时才释放。该 control block 的虚表/销毁函数是否来自 libmoveit_simple_controller_manager.so，仍由 Run #122 的 GDB 控制块地址与进程映射来验证，暂不写成已证实。
+
 读取 MoveIt `jazzy` 源码：
 
 - [`trajectory_execution_manager.hpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp) 声明顺序为：`node_`（约第302行）、`controller_mgr_node_`（304）、`private_executor_`（305）、`event_topic_subscriber_`（309）、`controller_manager_loader_`（331）、`controller_manager_`（332），`callback_handler_` 位于更后部。
@@ -265,7 +284,7 @@ C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之�
 
 - [Actions Run #122](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)
 - workflow commit：c81546100ed5a91110e57ca56488f7d6911fa31f
-- 当前状态：容器初始化完成，ROS Jazzy setup 尚在执行；尚未进入 rclcpp 编译或 mock 运行阶段。
+- 当前状态：容器初始化与 ROS Jazzy setup 已完成，正在构建带生命周期标记的 rclcpp overlay；尚未进入 MoveIt/mock build 或运行时测试阶段。
 - 该逐项 weak_ptr reset 仅用于 CI 观测，可能轻微改变 destructor 内部时序；必须与未插桩 A+B Run #107 的 5/5 正向结果共同解释。
 
 ## 14. 下一步最小变量实验
