@@ -21,7 +21,7 @@
 | #134 | A-PSM-retained + K + B-core（10轮） | **10/10 SIGSEGV** | PSM弱引用探针每轮use_count=1；MoveGroupExe capability/context/plugin loader清理完成后，保留的main() PSM owner才释放，随后PSM/Node teardown段错误。每轮执行次数统计显示2是colcon test-result verbose重复采集误报，原始测试流实际每轮仅一次mock执行成功 |
 | #135 | PSM析构阶段marker + 显式reset边界 + 独立test-result日志（10轮） | **10/10 SIGSEGV** | 每轮mock execution成功；PSM析构函数体到BODY-END，末尾node_use=2/pnode_use=1，PSM reset END无运行时marker；GDB栈定位到隐式pnode_ shared_ptr释放→Node→NodeBase→CallbackGroup→weak_ptr<ServiceBase> _M_destroy。尚未证明control block manager/vtable归属已卸载DSO |
 | #136 | PSM private Node pnode_ teardown + GDB DSO/memory-map诊断 | **10/10 SIGSEGV；取证完成** | 10轮均在CallbackGroup析构weak_ptr<ServiceBase>时SIGSEGV；fault PC位于仍映射的librclcpp，间接调用所用vptr不在进程映射中；librclcpp、libmoveit_planning_scene_monitor及MoveGroup capability相关DSO仍映射。尚不能区分已卸载的其他DSO与control block/vptr内存破坏；另修正test-result汇总解析路径 |
-| #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **执行中** | 在同一既有分支加入GDB catch unload、读取CallbackGroup::service_ptrs_数量和逐项weak object/control block/vptr；修复test-result summary解析并显式检查GDB捕获SIGSEGV。当前仍处于stock rclcpp overlay build，尚未进入10轮mock回归 |
+| #137 | weak ServiceBase control block/vptr与DSO unload逐项诊断 | **执行中** | 在同一既有分支加入GDB catch unload、读取CallbackGroup::service_ptrs_数量和逐项weak object/control block/vptr；修复test-result summary解析并显式检查GDB捕获SIGSEGV。stock rclcpp无插桩overlay build与MoveIt临时补丁/静态校验均已通过；当前处于MoveIt source dependencies安装步骤，第8步move_group build、第9步Stäubli mock build及第10步GDB回归尚未开始 |
 
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
