@@ -169,7 +169,7 @@ MoveItSimpleControllerManager 的析构函数是 defaulted；其 node_ 成员在
 Run #122（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43791758924)，commit `c81546100ed5a91110e57ca56488f7d6911fa31f`）已完成：
 
 - 5/5 mock plan-and-execute 均成功，5/5 teardown 均通过；workflow test summary 为 7 tests、0 errors、0 failures。
-- 五轮日志均显示：TEM 执行 `controller_mgr_node_.reset()` 后，相关 NodeBase/default CallbackGroup 的 expired weak Waitable slots 逐项完成释放；其后才触发 `controller_manager_loader_.reset()` 与 `libmoveit_simple_controller_manager.so` 的 `fini` / link-map destruction。
+- 五轮日志均显示：TEM 执行 `controller_mgr_node_.reset()` 后，目标 NodeBase 的 default CallbackGroup 均有 `waitables=5`；每轮这五条 weak Waitable 均为 `expired=1, use_count=0`，并逐项释放完成后才触发 `controller_manager_loader_.reset()` 与 `libmoveit_simple_controller_manager.so` 的 `fini` / link-map destruction。
 - 这验证 A+B 候选把 controller node/group 清理移动到 plugin DSO unload 之前；但 Run #122 没有输出 control-block vtable、`_M_destroy` 或 deallocate 地址，不能据此断言最终释放函数位于该 DSO。
 
 ### 当前反证实验
