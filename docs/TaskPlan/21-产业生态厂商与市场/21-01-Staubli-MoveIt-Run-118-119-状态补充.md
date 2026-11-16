@@ -42,3 +42,24 @@
 - 当前所有通过均为 CI-only temporary overlay + mock，不是用户可部署修复。
 - 不将 pal_statistics 在 Context invalid 后的 sleep 异常与 MoveGroup shared_ptr SIGSEGV 混为一谈。
 - 任何单一 workflow 成功都不能替代 stock ROS Jazzy、目标机械臂、CS9、HIL 或现场安全验证。
+
+
+## 2026-11-16 补充｜共同基线与实验完整性修正
+
+重新逐 commit 核对 Run #107/#118/#119 的 workflow 后，修正此前“2×2 因子实验”的命名：
+
+- 三项运行都保留共同背景 K：PSM scene publisher 在 Context shutdown 前停止；MoveGroupExe 声明在 MultiThreadedExecutor 之前，使 executor/WaitSet 先析构；stock signal handling 不改。
+- A=ON 的精确定义是：将 main() 局部 `planning_scene_monitor`、`moveit_cpp`、`nh` 三个 shared owner 改为可 reset，并在 `rclcpp::shutdown()` 后按 PSM → MoveItCpp → Node 的顺序提前 reset。
+- B=ON 的精确定义是：TEM 显式 reset event subscription、parameter callback、event callback group、private executor、controller-manager instance 和 controller-manager node，确保它们在 controller-manager loader 自动析构/卸载前释放。
+- #118 = K+A（B gate OFF），5/5 FAIL；#119 = K+B（A resets OFF），5/5 FAIL；#107 = K+A+B，5/5 PASS。
+
+历史 Run #73 不包含与这三项相同的 K 背景，因此不能作为严格的 K+A=OFF+B=OFF 对照。当前证据应称为**共同基线下的三组单因子消融/组合对照**，而不是完整 2×2。尚缺 K-only（A=OFF/B=OFF）对照。
+
+### 更新后的下一步
+
+- [ ] 先补齐 K-only mock CI 对照，保持 PSM stop、MoveGroupExe/executor 作用域顺序和测试输入不变，关闭 A、B 两组 reset。
+- [ ] K-only 完成后，再固定 B=ON，分别隔离 A 中 PSM、MoveItCpp、Node 三个 reset 的必要性。
+- [ ] 随后固定 A=ON，逐项隔离 B 中 callback group / subscription、controller-manager node / instance、private executor / WaitSet 的释放边界。
+- [ ] 每轮固定 Stäubli source pin、mock plan-and-execute 输入、重复次数、GDB/LD_DEBUG 和 strict process exit assertion；保留 Run #107 A+B 5/5 正向对照。
+
+**详细更正与实验设计：** `docs/audits/2026-11-16-staubli-moveit-teardown-factorial-runs-118-119.md`。本补充只更新知识库审计与计划，不触发 driver workflow，不创建实验分支，不修改上游或产品源码。
