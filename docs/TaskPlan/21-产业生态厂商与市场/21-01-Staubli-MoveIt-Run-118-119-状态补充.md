@@ -370,3 +370,30 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 - 优先比较Run #132的PSM生命周期与Run #134的差异：前者在MoveGroupExe teardown前释放main() PSM alias，使PSM最后owner在context仍持有期间释放；后者将最后owner延迟到plugin loader已reset后。此顺序相关性尚需Run #135析构marker验证，不能只凭相关性推断loader是直接原因。
 - 若Run #135确认崩溃发生在PSM析构函数体之外，则下一步拆分PSM的 `node_` / `pnode_` 与其拥有的subscription、timer、private executor成员释放关系；如崩溃发生在函数体内，则依据最后一个marker再拆分相应资源。一次仍只改变一个生命周期因素。
 - 所有结果限CI temporary MoveIt overlay + stock rclcpp + Stäubli mock；不改MoveIt/rclcpp upstream或Stäubli产品源码，不连接CS9，不发送真实运动，不宣称HIL/SAT或实机验收。全局最高优先级仍为根TaskPlan 00-01；MotionControlAlgorithms合并继续DEFERRED。
+
+
+### PSM → Node → NodeBase → CallbackGroup 的潜在延迟释放链（源码静态核验）
+
+为进一步解释 Run #134 的 CallbackGroup/weak ServiceBase 栈，固定核对 MoveIt Jazzy 与 ROS 2 rclcpp Jazzy 对应源码：
+
+- `PlanningSceneMonitor` 持有 `std::shared_ptr<rclcpp::Node> node_` 与 `pnode_`；其析构函数体显式停止 monitor/线程并 reset scene、current-state monitor 与 robot-model loader，但不会在函数体末尾显式 reset 这两个 Node shared owners。它们随 PSM 成员在析构函数体之后按声明逆序释放。
+- ROS 2 Jazzy `Node::~Node()` 先释放 `node_waitables_`、`node_services_` 等子接口；`node_base_` 则在 Node 成员析构阶段继续释放。`NodeBase` 持有 `default_callback_group_` 和 `std::vector<CallbackGroup::WeakPtr> callback_groups_`。
+- `CallbackGroup` 自身保存多组弱引用容器，其中包含 `std::vector<ServiceBase::WeakPtr> service_ptrs_`；`CallbackGroup::~CallbackGroup()` 函数体只触发通知，成员弱引用容器在函数体之后销毁。因此 action/service strong owner 已消失后，其弱 control block 仍可留在 callback group，直至 group 本身销毁。
+- `MoveGroupExe` 的顺序是 `capabilities_.clear()` → `context_.reset()` → `capability_plugin_loader_.reset()`。Run #134 刻意保留 PSM main-local owner，导致 PSM 及其 main Node 的最终释放被推迟到 capability plugin loader reset 之后；Run #132 则在 context teardown 前放弃 main-local PSM alias，使 PSM 随 context 在 loader reset 前销毁。
+
+**待证机制（不是已确认根因）：** 若 capability plugin 创建的 action/service waitable 在销毁后，其 `weak_ptr<ServiceBase>` control block 仍保留于 NodeBase 的 CallbackGroup，而该 control block 的管理函数/虚表确实位于 capability plugin DSO，则 plugin loader 先卸载、CallbackGroup 后销毁会形成对已卸载代码的释放调用。Run #134 的崩溃栈与此路径相符，但还没有取得 control-block manager/vtable 地址到 DSO 映射证据；不能把相关性写成确定因果。
+
+**Run #135 判定方法：**
+
+- 若出现 `[PSM-DTOR] BODY-END` 而缺少 `[OWNER] PSM explicit reset END`，故障位于 PSM 析构函数体后的隐式成员销毁阶段；结合 CallbackGroup/ServiceBase 栈，优先怀疑 `node_`/`pnode_` 所持 Node 的 NodeBase/CallbackGroup 清理，但还需区分具体 Node。
+- 若没有 `BODY-END`，则以最后一条 `[PSM-DTOR]` marker 缩小至对应显式停止/重置步骤，不提前进入 weak-control-block / DSO 假设。
+- 若出现 `PSM explicit reset END`，说明完整 PSM 析构返回；应继续检查 main return 后的其他全局/静态对象，而不是把故障归给 PSM 的 Node。
+- 下一次诊断若必须区分 `node_` 与 `pnode_`，应先记录两者的 FQN、use_count 与析构先后，再按单一 owner 做对照；除非有证据，不同时更改 PSM、MoveItCpp 和 main Node 生命周期。
+
+**源码入口（MoveIt Jazzy / ROS 2 rclcpp Jazzy）：**
+
+- [PlanningSceneMonitor header](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/include/moveit/planning_scene_monitor/planning_scene_monitor.hpp) 与 [destructor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/planning_scene_monitor/src/planning_scene_monitor.cpp)。
+- [MoveGroupContext destructor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group_context.cpp) 与 [MoveGroupExe destructor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group.cpp)。
+- [rclcpp Node destructor](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node.cpp)、[NodeBase callback-group owners](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/node_interfaces/node_base.hpp)、[CallbackGroup weak waitable containers/destructor](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/callback_group.cpp)。
+
+以上仅为源码静态对象链审查；不等同 vtable/DSO 归属证明、动态 UAF/ABI 崩溃根因确认或上游缺陷定论。Run #135 仍在执行，结果待日志确认。
