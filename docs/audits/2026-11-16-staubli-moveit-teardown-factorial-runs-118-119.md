@@ -350,9 +350,10 @@ Run #122 日志未包含 control-block vtable、`_M_destroy` 或 deallocate 函�
 
 - [Run #124](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794205250)，commit `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763`：rclcpp overlay build 成功；MoveIt step 因跨 Actions step 引用未持久化的 Python 局部变量 callback_group_source 触发 NameError，未进入 MoveIt build/mock test；artifact 14193264720。
 - [Run #125](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794278705)，commit `3f85d2a9063083e895a3dee2f67f7c353a09f840`：同一跨步骤 NameError，未进入 MoveIt build/mock test；artifact 14193518313。
-- [Run #126](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794655028)，commit `7d0aa0d6b571323d85a181d5ec7d24371288fed9`：已改为从磁盘重新读取 overlay 文件，当前正在执行。
+- [Run #126](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794655028)，commit `7d0aa0d6b571323d85a181d5ec7d24371288fed9`：rclcpp overlay、patched MoveIt（7 packages）、Stäubli mock workspace（5 packages）均构建成功；但 test step 未切换到 `/tmp/staubli_ws`，五轮均报 unknown package、0 packages/0 tests/0 pruning，属 no-op；artifact 14193853443。
+- [Run #127](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700)，commit `2c578fa670b0d5c9bf845c53591cbc334f952438`：已在 test step 加 `cd /tmp/staubli_ws`、`ros2 pkg prefix` 与 `colcon list` 预检，正在执行。
 
-Run #123 因内嵌 Python 补丁字符串 SyntaxError 在 overlay patch 阶段失败；#123–#125 均未产生有效 teardown 反证结果。不得将配置失败计入功能性通过/失败统计。
+Run #123–#125 为 workflow 配置错误；Run #126 为测试工作目录错误导致的 no-op；均不产生有效 teardown 反证数据。不得将其计入功能性通过/失败统计。
 
 ### 15.4 判定规则
 
@@ -360,3 +361,41 @@ Run #123 因内嵌 Python 补丁字符串 SyntaxError 在 overlay patch 阶段�
 - 若有效 pruning 仍 5/5 失败，则 expired-entry pruning 不是充分解释/修复，回到 plugin DSO、control block allocator、executor WaitSet 与 TEM member order 的交互定位。
 - 若某轮没有 pruning marker，该轮没有覆盖目标处理路径，不能作为有效反证。
 - 不把 CI temporary overlay 视为 upstream patch；不修改 upstream MoveIt/rclcpp 或 Stäubli 产品源码，不连接 CS9，不发送真实运动命令，不宣称 HIL/SAT/实机验收。
+
+
+## 16. Run #126 no-op 归因与 #127 工作目录预检
+
+### 16.1 Run #126 构建结果
+
+Run #126（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794655028)，commit `7d0aa0d6b571323d85a181d5ec7d24371288fed9) 前半程全部成功：
+
+- rclcpp overlay build 成功；
+- K-only MoveIt patch 与 static validation 成功；
+- patched MoveIt build 成功，7 packages finished；
+- Stäubli mock workspace build 成功，5 packages finished，其中日志明确记录 `Starting >>> staubli_moveit_config` 和 `Finished <<< staubli_moveit_config`。
+
+### 16.2 test step no-op 根因
+
+GitHub Actions 的每个 step 都是独立 shell。Run #126 test step 虽 source 了 ROS/rclcpp/MoveIt/Stäubli overlays，却没有重新执行 `cd /tmp/staubli_ws`。因此 `colcon test --packages-select staubli_moveit_config` 从 runner 默认目录扫描 package，五轮均出现：
+
+- `ignoring unknown package 'staubli_moveit_config'`；
+- `Summary: 0 packages finished`；
+- `Summary: 0 tests, 0 errors, 0 failures`；
+- `expired_entries_pruned=0`。
+
+脚本因总 pruning 数为 0 正确以 exit code 1 退出。该失败是 test-step 工作目录漏切换造成的 no-op，不是 C++ 编译或 runtime teardown 失败，也不是有效 pruning 治理下的反证结果。Artifact ID `14193853443`，SHA-256 `6e6e709b1e3fc0a4a247e0a21214a07cda9354944a906fd81c69bc8c8ceca72d`。
+
+### 16.3 Run #127 修正
+
+在同一既有实验分支（未创建新分支）对 workflow 增加 test-step workspace preflight：
+
+1. `cd /tmp/staubli_ws`；
+2. `ros2 pkg prefix staubli_moveit_config`，并确认返回 prefix 目录存在；
+3. `colcon list --base-paths src | awk '{print $1}' | grep -Fx staubli_moveit_config`；
+4. 任一预检失败则停止测试；只有目标 package 可见时才进入五轮循环。
+
+修正 commit：`2c578fa670b0d5c9bf845c53591cbc334f952438`；[Run #127](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43798751700) 已触发。
+
+### 16.4 有效反证判据
+
+每轮必须真实发现并执行 `staubli_moveit_config` launch test；不得接受 `0 packages` 或 `0 tests`。每轮须记录 action `SUCCEEDED`、teardown exit status、至少一个 pruning marker，并核查 pruning 的 group address 是否对应目标 NodeBase default CallbackGroup。缺少任一证据则该轮不是有效反证。K-only pruning 成功也仅限当前 mock CI，不等同 upstream/产品修复。
