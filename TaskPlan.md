@@ -385,6 +385,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
+| 2026-11-16 | v12.70 | 更新Stäubli Run #147最终状态：stock rclcpp无插桩mock teardown 10/10 PASS、GDB clean exit和7项测试均通过；记录same-OMPL PlanService/SequenceService active_并发探针已在既有实验分支提交，动态Actions结果待核验；保持00-01最高优先级及MotionControlAlgorithms DEFERRED。 | Run #147 Actions 43862172486；staubli_driver_ros2_from_org commit b0bad196b7328c19bf24a2cabc58c8781f2c279e；当日历史v79与第21章21-01状态补充 |
 | 2026-11-16 | v12.61 | 更新Run #139最新进度：rosdep重试/工具安装成功，stock rclcpp overlay构建、MoveIt补丁和依赖安装完成，第8步patched move_group构建中，第9/10步尚未执行。 | Run #139 Actions 43840240632 job 133206807886 steps 1–8 |
 | 2026-11-16 | v12.60 | 核对MoveIt Jazzy PSM构造函数第120行，确认实际调用TransformListener(BufferCore&)简化重载并创建optional_default_node_，使TF listener内部Node的单一TypeDescription service成为有实际构造路径支持的强静态解释；运行时地址和服务名仍待Run #139确认。 | MoveIt Jazzy planning_scene_monitor.cpp；geometry2 Jazzy TransformListener；rclcpp Jazzy NodeTypeDescriptions/Node destructor |
 | 2026-11-16 | v12.59 | 纠正根计划残留的Run #135/136将故障Node确定归属pnode_的旧表述；故障Node现记为PSM析构链中的Node身份待定，pnode_七项服务路径保留为静态候选，单元素vector优先核验TF listener内部Node TypeDescription路径。 | Run #136/#137 GDB栈；ROS 2 Jazzy PSM/TransformListener/Node/NodeTypeDescriptions源码 |
@@ -493,7 +494,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 2026-11-13 | [TaskPlan-2026-11-13.md](TaskPlan_History/TaskPlan-2026-11-13.md) | 记录持续追加 |
 | 2026-11-14 | [TaskPlan-2026-11-14.md](TaskPlan_History/TaskPlan-2026-11-14.md) | 14 |
 | 2026-11-15 | [TaskPlan-2026-11-15.md](TaskPlan_History/TaskPlan-2026-11-15.md) | 记录持续追加（已汇总 PR #18–#21 专项记录及 v35 IMU / v36 LiDAR 审计） |
-| 2026-11-16 | [TaskPlan-2026-11-16.md](TaskPlan_History/TaskPlan-2026-11-16.md) | 持续追加（v37–v60；Run #132/#134/#135/#136；MoveIt action/TEM并发静态审计、pnode_ 7个ServiceBase弱引用候选、DSO链接边界复核） |
+| 2026-11-16 | [TaskPlan-2026-11-16.md](TaskPlan_History/TaskPlan-2026-11-16.md) | 持续追加（v37–v79；Run #147 10/10 teardown PASS、Sequence DSO control-block vtable 10/10符号直证、same-OMPL active_并发门禁实现与待验收状态） |
 
 后续新增推进记录应追加到对应日期的 `TaskPlan-YYYY-MM-DD.md`；跨日时新建当日文件并在本索引中登记。根目录 `TaskPlan.md` 继续作为全局治理、Guide/Limit、章节目录、当前任务状态和总体验收入口。
 
