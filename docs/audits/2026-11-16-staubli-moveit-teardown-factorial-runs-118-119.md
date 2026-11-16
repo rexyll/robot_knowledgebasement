@@ -348,10 +348,11 @@ Run #122 日志未包含 control-block vtable、`_M_destroy` 或 deallocate 函�
 
 正确配置运行：
 
-- [Run #124](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794205250)，commit `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763`；
-- [Run #125](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794278705)，commit `3f85d2a9063083e895a3dee2f67f7c353a09f840`，另外归档每轮 `k-only-pruning-*.log`。
+- [Run #124](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794205250)，commit `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763`：rclcpp overlay build 成功；MoveIt step 因跨 Actions step 引用未持久化的 Python 局部变量 callback_group_source 触发 NameError，未进入 MoveIt build/mock test；artifact 14193264720。
+- [Run #125](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794278705)，commit `3f85d2a9063083e895a3dee2f67f7c353a09f840`：同一跨步骤 NameError，未进入 MoveIt build/mock test；artifact 14193518313。
+- [Run #126](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43794655028)，commit `7d0aa0d6b571323d85a181d5ec7d24371288fed9`：已改为从磁盘重新读取 overlay 文件，当前正在执行。
 
-两轮均在本报告更新时间仍为运行中；Run #123 在内嵌 Python 补丁脚本第124行触发 `SyntaxError: unterminated string literal`，未进入 C++ patch/build/mock test，不计入实验数据。不得把未结束的 Runs #124/#125 写成通过或失败。
+Run #123 因内嵌 Python 补丁字符串 SyntaxError 在 overlay patch 阶段失败；#123–#125 均未产生有效 teardown 反证结果。不得将配置失败计入功能性通过/失败统计。
 
 ### 15.4 判定规则
 
