@@ -1,97 +1,171 @@
-# Stäubli MoveIt teardown 生命周期 2×2 隔离实验结果（Run #118 / #119）
+# Stäubli MoveIt teardown 生命周期 A/B 单因子消融与组合对照（Run #107 / #118 / #119）
 
 **记录日期：** 2026-11-16  
 **目标仓库：** `rexyll/robot_knowledgebasement`  
 **被测工程：** `rexyll/staubli_driver_ros2_from_org`  
-**状态：** 两个单因子实验均已完成并各自 5/5 失败；组合 A+B 的既有 Run #107 5/5 通过。当前结论为：在本次 MoveIt Jazzy + ROS 2 Jazzy + Stäubli mock CI 场景中，两层 owner 生命周期处理必须组合，单独启用其中一层不足以消除 teardown SIGSEGV。  
-**边界：** 全部修改均为 GitHub Actions 临时源码 overlay / 测试诊断，不是 MoveIt、rclcpp 或 Stäubli 产品源码修复；不构成 CS9、HIL、SAT 或真实机器人验收。
+**状态：** 在共同实验背景 K 下，A-only 与 B-only 两项消融各 5/5 teardown 失败，A+B 组合 Run #107 5/5 通过。当前证据支持继续保留 A+B 组合候选，但尚缺 K+A=OFF+B=OFF 的同基线对照，因此这不是完整 2×2 因子实验。  
+**边界：** 所有源码改动均通过 GitHub Actions 在临时 MoveIt/rclcpp overlay 中注入；不是 MoveIt、rclcpp 或 Stäubli 产品源码修复，也不构成 CS9、HIL、SAT 或真实机器人验收。
 
-## 1. 实验矩阵与结论
+## 1. 先纠正实验矩阵的命名
 
-| Run | 主作用域提前释放 MoveItCpp / PSM / node（A） | TEM 显式清理 controller-manager owner（B） | 结果 |
-|---|---:|---:|---|
-| #73 baseline | OFF | OFF | 既有 teardown SIGSEGV 基线 |
-| #118 main-owner-only | ON | OFF | **5/5 FAIL** |
-| #119 TEM-cleanup-only | OFF | ON | **5/5 FAIL** |
-| #107 combined | ON | ON | **5/5 PASS**，mock 执行与退出清理通过 |
+上一版把历史 Run #73 与 Run #118/#119/#107 合并写成“2×2 因子实验”。进一步核对三个 workflow commit 后，需要收窄这一表述：
 
-- [Run #118](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993)：workflow commit `0420f0259d652ca01b3d2e26cce26a3d45dfe73e`，分支 `experiment/moveit-main-owner-lifetime-only`，artifact ID `14149678145`。
-- [Run #119](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847)：workflow commit `8218084250c9c45fe275f7729ae98f59792a422b`，分支 `experiment/moveit-tem-cleanup-only`，artifact ID `14149932259`。
-- [Run #107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898)：A+B 同时启用的既有 5/5 正常 mock trajectory execution + teardown 证据。另有 [Run #117](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297) 对 CI-only always-join 候选做了 5/5 barrier-controlled mock 回归。
+- Run #118、#119、#107 都启用了相同的共同背景 K；
+- 三次运行分别覆盖 K+A、K+B、K+A+B；
+- 历史 Run #73 没有采用相同的 PSM publisher stop 与 MoveGroupExe/executor 作用域顺序，不能作为严格同基线的 K+A=OFF+B=OFF 单元格。
 
-两项隔离实验的构建路径均成功：ROS Jazzy / rclcpp overlay、patched MoveIt move_group、Stäubli mock workspace 均完成构建。失败发生在最后的 mock planning / trajectory execution / teardown 回归阶段，而非编译阶段。
+因此，本报告将结果称为**共同基线下的三组单因子消融/组合对照（partial factorial ablation）**。历史 Run #73 只作为较早的崩溃基线，不用于填补缺失的 K-only 对照。
 
-## 2. 两项失败的共同表现
+## 2. 共同背景 K：三个实验都保留的处理
 
-日志逐轮显示：
+Run #118、#119 与 #107 的 workflow 都对 MoveGroup 主作用域做了以下相同处理：
 
-- 两项实验均完成 5 次 mock trajectory execution；每个重复中控制器报告 `Goal reached, success!`，TEM 报告 `Completed trajectory execution with status SUCCEEDED`。
-- 五轮均在 move_group 退出清理时触发 `SIGSEGV`，GDB 栈顶位于 `std::_Sp_counted_base::_M_release_last_use`（`shared_ptr_base.h:172`）。
-- launch shutdown 断言随后观察到 GDB 子进程退出码 255；最终两项 workflow 均报告 `failures=5/5`。
-- 因而本轮失败不属于轨迹 action 执行失败，也不能用控制器 Goal 成功抵消进程 teardown 失败。验收结果仍为 FAIL。
+1. executor.spin() 返回后，先调用 `planning_scene_monitor->stopPublishingPlanningScene()`，再执行 `rclcpp::shutdown()`，让 PlanningSceneMonitor 的 scene publisher 线程先停止并 join。
+2. 将 `MoveGroupExe mge` 声明在 `MultiThreadedExecutor executor` 之前。C++ 逆序析构因此先销毁 executor / WaitSet，再销毁 MoveGroupExe，避免 capability plugin 实例/DSO 先于 executor WaitSet 清理。
+3. 保留 MoveGroupExe 原有析构函数体顺序 `capabilities_.clear()` → `context_.reset()` → `capability_plugin_loader_.reset()`；只增加 CI 生命周期日志。
+4. 保持 ROS Jazzy stock signal handling；没有注入自定义 sigwait 或 signal-handler 改写。
 
-## 3. Run #118：只启用主作用域 owner 提前释放
+这意味着 #118/#119 的单因子结果是在 K 已启用的背景下测得；不能把 K 当作已由本轮单独证明必要或充分的因素。
 
-**配置：** A=ON、B=OFF。
+## 3. A 与 B 的精确定义
 
-首轮日志中的关键顺序：
+### A｜主函数外部 shared-owner 提前释放
 
-1. PlanningSceneMonitor scene publisher 停止并 join；
-2. Executor 析构函数体结束；
-3. MoveGroupExe 析构开始，随后执行 `capabilities_.clear()`；
-4. `MoveItCpp` 开始析构；
-5. `libmoveit_simple_controller_manager.so` 开始 fini / 卸载；
-6. 后续 Executor / WaitSet owner 清理期间出现 `shared_ptr::_M_release_last_use` SIGSEGV。
+A=ON 时，workflow 将局部变量声明从 `const auto` 调整为可 reset 的 `auto`，并在 `rclcpp::shutdown()` 后、`MoveGroupExe` 离开作用域前，依次执行：
 
-五轮均复现相同的 teardown 失败族。该结果说明：即使主作用域提前释放 MoveItCpp / PSM / node 并调整外层 owner 作用域，仅此一项仍不足以保证 TEM 内部 controller-manager action-client / CallbackGroup / Waitable 生命周期在插件 DSO 卸载前结束。
+1. `planning_scene_monitor.reset()`
+2. `moveit_cpp.reset()`
+3. `nh.reset()`
 
-**解释边界：** 日志将崩溃定位在 shared_ptr control-block 释放路径，并显示 controller-manager DSO 卸载时序；没有完成 control-block 动态类型的完整 RTTI / 符号归属确认，故不把具体残留对象名称写成已证实事实。
+这三项是同一个实验因子；本轮没有分别证明其中任意一项单独充分或必要。其目标是让 MoveGroupExe 后续执行 `context_.reset()` 时，MoveItCpp / TEM / PSM / Node 的析构不再被 main() 中遗留的额外 shared owner 推迟到 capability plugin loader 卸载之后。
 
-## 4. Run #119：只启用 TEM 内部显式清理
+A=OFF 时保留 stock main() 局部 owner 生命周期，不提前 reset 这三个 shared pointer。
 
-**配置：** A=OFF、B=ON。
+### B｜TEM 内部 controller-manager / callback owner 显式清理
 
-TEM teardown instrumentation 在各轮记录到：
+B=ON 时，workflow 在 TEM 中把 event callback group 从局部变量提升为成员，并在析构函数体中执行：
 
-- `execution_thread_joinable=0`；
-- `active_handles_after_stop=0`；
-- event subscription 已 reset；
-- callback group 已 reset；
-- controller-manager instance 已 reset；
-- controller node 已 reset。
+1. `stopExecution(true)`、cancel private executor，并 join private executor thread；
+2. reset `event_topic_subscriber_`；
+3. reset parameter callback handle `callback_handler_`；
+4. reset `event_callback_group_`；
+5. 从 private executor 移除 `controller_mgr_node_`；
+6. reset `private_executor_`，先销毁其 WaitSet / collector owner；
+7. reset `controller_manager_` plugin instance；
+8. reset `controller_mgr_node_`；
+9. 之后再由 TEM 自动成员析构到达 `controller_manager_loader_` 的释放阶段。
 
-但本配置不提前释放主作用域中的 MoveItCpp / PSM / node 外部 shared owners。首轮日志显示 MoveGroupExe 的 capability/context 清理及 capability plugin loader reset 先于随后发生的 MoveItCpp / TEM 最后释放；在 TEM 完成 controller node reset、`libmoveit_simple_controller_manager.so` 开始卸载以及剩余 Executor / WaitSet 清理之后，move_group 仍在 shared_ptr 释放路径 SIGSEGV。五轮均失败。
+B=OFF 时不执行该 TEM cleanup 注入；TEM 保持 Jazzy 原始析构函数，只执行 stock stop/cancel/private-executor join。
 
-该结果说明：TEM 内部清理即使按候选顺序执行，并确认线程不再 joinable、active handles 为空，也不足以替代主作用域对 MoveItCpp / TEM 最后释放时机的约束。外层 capability loader 的生命周期与 TEM 内层 controller-manager loader 生命周期是两个不同 owner 边界，不能只治理其中一个。
+注意：B 的这组 cleanup 不等于已解决 TEM 全部同步问题。自然完成与取消竞争中的 `execution_thread_` missed-join 是独立缺陷；Run #117 的 always-join CI-only barrier candidate 单独覆盖该窗口，不证明 `execution_complete_`、`last_execution_status_`、`preempt_requested_` 等其他访问都无数据竞争。
 
-## 5. 2×2 结果解释
+## 4. 当前有效的三组结果
 
-在本次固定测试输入和当前两个 factor 定义下：
+| Run | 共同背景 K | A：主作用域 owner reset | B：TEM 显式 cleanup | 结果 |
+|---|---|---:|---:|---|
+| #118 main-owner-only | ON | ON | OFF | **5/5 FAIL** |
+| #119 TEM-cleanup-only | ON | OFF | ON | **5/5 FAIL** |
+| #107 combined | ON | ON | ON | **5/5 PASS** |
 
-- A 单独启用（#118）不够；
-- B 单独启用（#119）不够；
-- A+B 组合（#107）在相同 mock 集成测试族上通过 5/5；
-- 因此当前采用 A+B 组合候选继续做后续验证，不接受任一单因子作为可合并修复。
+- [Run #118](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993)：workflow commit `0420f0259d652ca01b3d2e26cce26a3d45dfe73e`，artifact ID `14149678145`。
+- [Run #119](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847)：workflow commit `8218084250c9c45fe275f7729ae98f59792a422b`，artifact ID `14149932259`。
+- [Run #107](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898)：workflow commit `18fea00298ee542c304cbf73d652cd540262712e`，A+B 组合下正常 mock 轨迹执行及 teardown 5/5 通过。
+- [Run #117](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297)：A+B 组合背景下，always-join CI-only candidate 的自然完成/取消 barrier 回归 5/5 通过。
 
-这构成“两个层级的 owner 生命周期处理需要组合”的实验性证据；不等于已经识别所有残留 shared_ptr 的精确动态类型，也不排除 A 或 B 内部还有更小的必要子步骤。若后续要缩小改动，应在保留失败基线和 A+B 正向对照的前提下，对 A、B 内部子步骤继续做单变量实验。
+三项 workflow 的 source overlay、patched MoveIt move_group 和 Stäubli mock workspace 均完成构建。#118/#119 失败发生于最后的 mock 执行及 teardown 回归，不是编译失败。
 
-## 6. 下一步任务与门禁
+## 5. 失败和通过的日志证据
 
-1. **保留 A+B 组合为唯一当前有效的 CI-only teardown 候选。** 不将 #118 或 #119 单因子分支/补丁作为通过方案，不将 mock PASS 宣称为 upstream 已修复。
-2. 对 A 边界建立 owner 释放断言：MoveGroupExe capability loader reset 前，确认其 context reset 已导致 MoveItCpp / TEM 最后 owner 按预期释放；并对 executor / WaitSet 真实析构时间线打点。
-3. 对 B 边界保留 TEM 顺序：停止并 join private executor；reset event subscription / callback group；移除并销毁 private executor；reset controller-manager instance；reset controller node；controller-manager loader 最后卸载。对 active handles 和未执行 trajectories 的边界继续覆盖。
-4. 继续完成 `execution_complete_`、`last_execution_status_`、`execution_thread_`、`preempt_requested_` 的访问域与锁策略审查；always-join 候选通过 #117 只覆盖已复现的 missed-join 窗口，不代表 TSAN / 全字段无数据竞争。
-5. 保留原始崩溃栈、LD_DEBUG DSO unload 顺序及每轮 lifecycle marker；必要时再设计对照组，避免改变测试输入、执行轨迹或控制器预停机状态。
-6. 在取得明确授权前，不修改 MoveIt / rclcpp upstream，不对 Stäubli 产品源码或 PR #1 作修复性提交，不连接 CS9、不发送真实运动命令、不宣称 HIL / SAT / 实机通过。
+### Run #118｜K+A，B=OFF
 
-## 7. 独立诊断项
+- 每轮控制器均报告 `Goal reached, success!`，TEM 报告 `Completed trajectory execution with status SUCCEEDED`。
+- 每轮 move_group 在 teardown 阶段收到 `SIGSEGV`，GDB 栈顶落在 `std::_Sp_counted_base::_M_release_last_use`（`shared_ptr_base.h:172`）。
+- launch shutdown 断言报告 GDB 子进程退出码 255；workflow 汇总 `failures=5/5`。
+- 该结果说明 A 在 K 已启用、但没有 B cleanup 时不足以通过当前 mock teardown。
 
-`controller_manager.pal_statistics` 在 ROS Context invalid 后出现 `context cannot be slept with because it's invalid!. Aborting!`，应继续作为 shutdown 诊断记录。现有资料已将该文本与 MoveGroup Waitable / shared_ptr SIGSEGV 区分；不要把它作为本轮 SIGSEGV 根因，也不要用其非致命性掩盖上述失败。
+### Run #119｜K+B，A=OFF
 
-## 8. 证据链接
+- 各轮 TEM cleanup 日志显示 `execution_thread_joinable=0`、`active_handles_after_stop=0`，event subscription、callback group、controller-manager instance 和 controller node reset 路径执行。
+- 每轮控制器均报告 `Goal reached, success!`，TEM 报告 `SUCCEEDED`；失败仍发生在 move_group teardown，GDB 栈顶为 shared_ptr release，最终 `failures=5/5`。
+- 生命周期顺序日志显示 MoveGroupExe 的 capability plugin loader reset 先于随后被延迟释放的 MoveItCpp/TEM owner。单独的 TEM 内部清理不能替代 main() 外部 shared owner 的释放时机治理。
 
-- Run #118：<https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684020993>
-- Run #119：<https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43684023847>
-- A+B 正向对照 Run #107：<https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43677374898>
-- always-join barrier regression Run #117：<https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43683012297>
-- 上一轮静态所有权审计及 missed-join 溯源：<https://github.com/rexyll/robot_knowledgebasement/blob/main/docs/audits/MoveIt-TEM-teardown-lifecycle-audit-2026-11-15.md>
+### Run #107｜K+A+B
+
+- 五轮 mock FollowJointTrajectory 均完成；
+- TEM 执行状态为 SUCCEEDED；
+- 五轮均无 MoveGroup SIGSEGV；
+- strict post-shutdown process checks 通过。
+
+这说明 A+B 在本 workflow 的测试输入与 mock 环境下构成有效组合候选；仍不能作为 stock ROS Jazzy、上游已修复或真实硬件通过的证明。
+
+## 6. 2×2 因果解释的边界
+
+现有证据允许作出以下有限判断：
+
+- K+A+B 能通过当前 5 轮 mock execution + teardown；
+- K+A（B=OFF）失败；
+- K+B（A=OFF）失败；
+- 因此在当前固定测试输入下，A 与 B 两组处理都对组合通过有贡献，不能把任一单因子方案作为可接受修复。
+
+但缺少同一 K 背景下的 `K + A=OFF + B=OFF` 对照，因此：
+
+- 不应将 #73 直接写成完整因子矩阵的 0/0 单元格；
+- 暂不估计 A/B 的独立主效应或交互效应；
+- 不声称已证明 PSM publisher stop 或 executor/MGE 声明顺序各自必要；
+- 不声称 A 内部三个 reset 的每一个都已被单独证明必要；
+- 不把 `shared_ptr::_M_release_last_use` 的顶层栈帧等同于已经确认某个具体 Waitable/control-block 动态类型。
+
+## 7. 下一步实验设计（不触碰产品源码）
+
+按最低改动、最高信息增益推进：
+
+### 7.1 先补齐共同背景 K 的 0/0 对照
+
+新增一个仅在临时 CI overlay 执行的 K-only case：保留 PSM publisher stop、MoveGroupExe-before-executor 作用域顺序与现有 diagnostic markers；关闭 A 的三个 external-owner reset，也关闭 B 的 TEM 显式 cleanup。使用与 #107/#118/#119 相同的 Stäubli source pin、mock trajectory execution test、重复次数、GDB/LD_DEBUG 参数和 strict process-exit assertion。
+
+该组结果决定 K-only 是否本身已足够或会复现崩溃；完成后才有完整的 2×2 数据。
+
+### 7.2 再拆 A 的三个 owner reset（B=ON 固定）
+
+只有在 K-only 对照完成后，才分别进行单项保留/移除实验：
+
+- A-PSM：只改变 `planning_scene_monitor.reset()`；
+- A-MoveItCpp：只改变 `moveit_cpp.reset()`；
+- A-Node：只改变 `nh.reset()`。
+
+所有 A 子实验固定 B=ON，并保持 K、测试输入和执行轨迹不变。不能通过某次单独 PASS 就直接删掉该 reset；至少需要重复回归、owner 生命周期 marker 和 DSO unload 顺序共同支持。
+
+### 7.3 再拆 B 内部释放边界
+
+先保持 A 完整启用，逐步隔离：
+- main-node event subscription / callback group；
+- controller-manager node / plugin instance；
+- private executor / WaitSet；
+- controller-manager loader 的最后卸载点。
+
+每次只改变一个所有权步骤，并保留 #107 的 A+B 5/5 正向对照。
+
+### 7.4 数据竞争与线程任务独立继续
+
+- 完成 `execution_complete_` 全访问点同步域审计；
+- 完成 `last_execution_status_` 读写互斥域；
+- 完成 `execution_thread_` 创建/赋值/读/Join/reset 的统一所有权规则；
+- 单独审查 `preempt_requested_` 的取消回调与 goal thread 访问；
+- 使用 barrier-controlled tests 和 TSAN 或等价 race detector 覆盖自然完成、cancel、timeout、clear、callback reentrancy 与 action teardown。
+
+## 8. 源码与 workflow 锚点
+
+- MoveGroup main local owners：[`move_group.cpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group.cpp)，尤其 `nh`、`moveit_cpp`、`planning_scene_monitor` 创建及 shutdown 顺序。
+- MoveGroupContext shared ownership：[`move_group_context.cpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group_context.cpp) 与 [header](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/include/moveit/move_group/move_group_context.hpp)。
+- MoveItCpp 持有 node / PSM / TEM：[`moveit_cpp.cpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp) 与 [header](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/include/moveit/moveit_cpp/moveit_cpp.hpp)。
+- TEM 成员逆序析构边界：[`trajectory_execution_manager.hpp`](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/include/moveit/trajectory_execution_manager/trajectory_execution_manager.hpp) 与 [析构函数](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/trajectory_execution_manager/src/trajectory_execution_manager.cpp)。
+- Run #118 workflow gate：[`0420f025...`](https://github.com/rexyll/staubli_driver_ros2_from_org/blob/0420f0259d652ca01b3d2e26cce26a3d45dfe73e/.github/workflows/experiment-moveit-shutdown-order.yml)。
+- Run #119 workflow gate：[`82180842...`](https://github.com/rexyll/staubli_driver_ros2_from_org/blob/8218084250c9c45fe275f7729ae98f59792a422b/.github/workflows/experiment-moveit-shutdown-order.yml)。
+- Run #107 combined workflow：[`18fea002...`](https://github.com/rexyll/staubli_driver_ros2_from_org/blob/18fea00298ee542c304cbf73d652cd540262712e/.github/workflows/experiment-moveit-shutdown-order.yml)。
+
+## 9. 安全与修改边界
+
+- 当前只保留 A+B 为唯一已验证的 CI-only 组合候选；不将 #118/#119 单因子候选作为通过方案。
+- 新增 K-only 与 A/B 子步骤实验应限制为临时 mock CI overlay，不提交 MoveIt/rclcpp upstream，不修改 Stäubli 产品源码或 PR #1。
+- 若后续需要在 Stäubli driver 工程新增实验 workflow commit，应使用经授权的隔离实验工作流，不直接修改其 main；本知识库的记录和 TaskPlan 变更仍只提交到 `robot_knowledgebasement/main`。
+- 不连接 CS9、不发送真实运动命令、不声称 HIL、SAT、实机或安全验收通过。
