@@ -536,3 +536,16 @@ Run #130为`DynamicStorage::WeakWaitableEntry`新增用户声明析构函数。s
 修复后触发[Run #132](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43812432706)。最近一次查询其状态为 in_progress，未取得后续构建、mock执行或10轮结果。#131只登记为CI配置校验失败，不能纳入功能性实验矩阵。
 
 **下一验收门：** #132必须依次通过stock rclcpp overlay、最终静态检查、patched MoveIt构建、Stäubli mock构建和package preflight；随后对每轮核对一个真实mock plan-and-execute、7项launch assertions、TEM B-core清理顺序与进程退出状态。只有10/10全通过，才能排除#130诊断析构探针的一项主要时序扰动疑虑。结果仍仅限CI temporary MoveIt patch + stock rclcpp + mock workspace。
+
+
+## 22. Run #132：stock rclcpp 无插桩条件下 A+K+B-core 10/10 通过
+
+[Run #132](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43812432706)，workflow commit 4d58b7e6d3b83363d6e595400a1bb1a5e1ea6a72。完整workflow的stock rclcpp overlay、MoveIt静态补丁、MoveIt build、Stäubli mock workspace build及test preflight均通过；rclcpp源树git diff --exit-code为空，诊断marker扫描确认无Executor/CallbackGroup/NodeBase/DynamicStorage插桩。固定A=ON、K背景、B-core=ON，实际完成10轮：每轮mock plan-and-execute成功一次、launch summary为7 tests/0 errors/0 failures/0 skipped、B-core顺序断言通过，colcon_test=0、test_result=0、lifecycle_order=0；总汇总failures=0/10，无SIGSEGV。每轮清理顺序均为join private executor thread → remove controller node → reset private executor/WaitSet → reset controller manager → reset controller node（begin前use_count=1）→ reset loader。Artifact 14201681819，SHA-256 1bd5c27cbf3803dc8565d24b73c06b7b9b99edda64874b57dc42db0c3664cb0e。
+
+**结论：** Run #130诊断rclcpp overlay的析构探针不是A+K+B-core在该mock环境中通过的必要条件。仍只是临时MoveIt patch + stock rclcpp + mock测试证据，不代表产品或upstream修复、CS9/HIL/SAT/实机验证。
+
+## 23. Run #133 YAML定义失败与 Run #134 A-PSM-retained 单变量复核
+
+Run #133（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43816146303)，commit 4d664f184820bf5f536e205742a50d20cb4a004c）自动触发但没有创建任何job。原因是MoveIt补丁脚本中新加入的Python三引号多行字符串包含少于YAML run块基准缩进的物理行，导致workflow无法被正常解析；该轮不属于编译、mock action或teardown功能性结果。
+
+已在同一既有隔离分支修复：改用YAML块内正确缩进的相邻Python字符串，修正weak-probe生成源码时的换行转义。提交5abf808424049dec78e2dc6247f453af59be0e29自动触发Run #134。本轮固定K+B-core，单独移除A的main-local planning_scene_monitor.reset()；保留MoveItCpp与main Node的reset。额外weak_ptr在MoveGroupExe/executor作用域后检查PSM retained和use_count，不新增strong owner。Run #134已生成job并进入容器初始化，结果待定。
