@@ -19,7 +19,8 @@
 | #122 | A+B lifecycle-marker 正向诊断 | **5/5 PASS** | 五轮 mock execution 成功；controller node NodeBase/default CallbackGroup expired weak Waitables 清理后才卸载 controller-manager DSO；未取得 control-block vtable 地址归属 |
 | #132 | stock rclcpp 无插桩 A+K+B-core（10轮） | **10/10 PASS** | 每轮一次mock plan-and-execute成功、7项launch assertions通过、B-core顺序与进程退出码均通过；CI-only正向基线 |
 | #134 | A-PSM-retained + K + B-core（10轮） | **10/10 SIGSEGV** | PSM弱引用探针每轮use_count=1；MoveGroupExe capability/context/plugin loader清理完成后，保留的main() PSM owner才释放，随后PSM/Node teardown段错误。每轮执行次数统计显示2是colcon test-result verbose重复采集误报，原始测试流实际每轮仅一次mock执行成功 |
-| #135 | PSM析构阶段marker + 显式reset边界 + 独立test-result日志 | **执行中** | 在临时MoveIt overlay中标记PSM析构各阶段，确定崩溃在析构函数体、PSM隐式成员/Node析构还是reset调用之后；主测试日志与colcon test-result汇总日志分开保存 |
+| #135 | PSM析构阶段marker + 显式reset边界 + 独立test-result日志（10轮） | **10/10 SIGSEGV** | 每轮mock execution成功；PSM析构函数体到BODY-END，末尾node_use=2/pnode_use=1，PSM reset END无运行时marker；GDB栈定位到隐式pnode_ shared_ptr释放→Node→NodeBase→CallbackGroup→weak_ptr<ServiceBase> _M_destroy。尚未证明control block manager/vtable归属已卸载DSO |
+| #136 | PSM private Node pnode_ teardown + GDB DSO/memory-map诊断 | **执行中** | 在既有mock回归基础上以GDB包装move_group，采集故障PC、寄存器、完整栈、info sharedlibrary与进程映射；不改资源释放顺序。待确认weak control block管理函数地址是否位于已卸载DSO |
 
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
@@ -397,3 +398,22 @@ MoveGroup action的goal callback逐个返回ACCEPT_AND_EXECUTE，并逐goal启�
 - [rclcpp Node destructor](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/node.cpp)、[NodeBase callback-group owners](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/include/rclcpp/node_interfaces/node_base.hpp)、[CallbackGroup weak waitable containers/destructor](https://github.com/ros2/rclcpp/blob/jazzy/rclcpp/src/rclcpp/callback_group.cpp)。
 
 以上仅为源码静态对象链审查；不等同 vtable/DSO 归属证明、动态 UAF/ABI 崩溃根因确认或上游缺陷定论。Run #135 仍在执行，结果待日志确认。
+
+
+## 2026-11-16 补充｜Run #135 最终结果：崩溃定位到 PSM private pnode_ Node 释放
+
+[Run #135](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43823418805)，workflow commit `ac87221956b3d946d93fb1732fb12ea4e59e8094`，步骤1–9（stock rclcpp无插桩构建、MoveIt静态补丁/依赖/构建、Stäubli mock工作区构建）全部通过；第10步10轮回归10/10失败。
+
+- [x] 每轮唯一mock plan-and-execute成功；失败不是规划或执行动作本身。
+- [x] 10/10轮均出现 `[PSM-DTOR] BODY-END`，说明PSM析构函数体内的monitor stop、private executor cancel/join/reset、scene/state/model/loader显式释放均已执行。
+- [x] 10/10轮BODY-END记录 `node_use=2 pnode_use=1`。PSM构造函数创建`pnode_`为独立private Node，加入PSM private executor；析构中先join线程并reset private executor后，pnode_剩余唯一强引用即PSM成员本身。
+- [x] 10/10轮main()的 `PSM explicit reset END`没有运行时输出；崩溃发生在 `planning_scene_monitor.reset()`内部、PSM析构函数体结束之后的隐式成员释放阶段。
+- [x] GDB调用链：`PlanningSceneMonitor`隐式`shared_ptr`成员析构 → `rclcpp::Node::~Node()`（node.cpp）→ `NodeBase::~NodeBase()`（node_base.cpp）→ `CallbackGroup::~CallbackGroup()`（callback_group.cpp）→ `vector<weak_ptr<ServiceBase>>`销毁 → `weak_ptr::_M_weak_release()` → virtual `_M_destroy()`，SIGSEGV。
+- [x] 因pnode_先于node_销毁（成员声明顺序逆序），当前最窄故障边界为PSM私有Node pnode_的最后释放，落在其NodeBase/default CallbackGroup weak ServiceBase控制块清理；不是PSM析构函数体内部的executor/scene清理。
+- [ ] 尚未证明control-block `_M_destroy()` 的manager/vtable地址属于已卸载MoveGroup capability plugin DSO。也可能是其他control-block生命周期/内存损坏机制；必须取故障PC和共享库映射后再归因。
+
+## 2026-11-16 补充｜Run #136 GDB 地址与 DSO 映射取证（执行中）
+
+[Run #136](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43832589348)，workflow commit `337bf6c6f40b4982629e690d1a5748f94d914053`。仍在同一实验分支与同一PSM-retained mock处理下运行，只把`move_group`临时包装为batch GDB；捕获`bt full`、`info sharedlibrary`、`info proc mappings`、`info registers`及`x/8i $pc`。不改变PSM/Node/CallbackGroup清理顺序，也不修改MoveIt/rclcpp upstream或Stäubli产品源码。诊断结果待定。
+
+**下一步判定：** 若实际PC/目标地址落在未加载的插件DSO范围，进一步将control-block dynamic type/vtable或manager函数关联到具体DSO，建立卸载顺序因果；若PC在仍加载的libstdc++/rclcpp/MoveIt库，转向检查control block对象地址、weak_count及其分配/释放配对，不能继续沿“插件卸载”单一路径推进。
