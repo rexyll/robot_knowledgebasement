@@ -758,3 +758,24 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 - [ ] 在候选修复上运行压力测试及TSAN（若构建条件允许），并保留10轮以上无插桩mock teardown回归。
 
 **边界不变：** 仅CI临时MoveIt/Pilz source overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock；不修改MoveIt/rclcpp upstream或Stäubli正式产品源码/PR/pin，不连接CS9，不执行HIL/SAT/实机动作。PR #1保持OPEN；根00-01仍最高优先级，MotionControlAlgorithms继续DEFERRED。
+
+
+## MoveIt PlannerManager terminate 作用域审计补充（2026-11-16）
+
+基于MoveIt Jazzy固定commit `f11204b8a9b98e4ba28e564721d24a7077f5f969`进一步检查：
+
+1. `moveit_core/planning_interface/src/planning_interface.cpp`中的`ActiveContexts`是静态单例，保存进程内所有`PlanningContext*`；所有context构造/析构都向该集合注册/注销。
+2. `PlannerManager::terminate() const`遍历这个进程级集合并调用所有context的`terminate()`，并非只处理当前manager创建的context。
+3. `PlanningPipeline::terminate()`对本pipeline的每个planner manager调用`PlannerManager::terminate()`。因此单pipeline terminate可能波及其他pipeline的活动context；该风险已由静态实现确认，但跨pipeline实际影响仍待mock动态验证。
+4. OMPL `ModelBasedPlanningContext::terminate()`在`ptc_lock_`下检查`ptc_`并调用其terminate；如果调用发生在solve注册PTC之前，`ptc_`为空且请求不会被延迟记住，存在启动边界丢取消风险。
+
+这意味着Run #153的wrapper gate不能通过“无条件调用底层terminate”草率修复：它会关闭`active_`错误门控，但可能扩大取消作用域。正确修复需要明确pipeline/request级取消所有权、活动context生命周期和solve启动前的取消latch。仅把atomic bool改成计数器也不能解决这些问题。
+
+### 待办
+
+- [ ] 设计pipeline/request级活动context注册/取消状态机，避免进程级全局context集合造成跨pipeline误取消。
+- [ ] 加入双pipeline隔离测试：仅取消pipeline A，确认pipeline B的规划不受影响。
+- [ ] 加入同pipeline并发slow/fast测试，覆盖context创建、PTC注册前、solve中、solve完成后和重复取消边界；真实wrapper调用后必须验证对应context的终止结果。
+- [ ] 在无插桩mock上完成至少10轮回归、压力测试和可行的TSAN。
+
+本补充仅为固定版本源码审计和测试设计，不是上游或正式产品修复；既有实验边界与优先级不变。
