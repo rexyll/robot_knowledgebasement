@@ -6864,3 +6864,13 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 在该隔离候选通过前，不修改MoveIt/rclcpp upstream和Stäubli正式产品源码，不更新正式Stäubli pin/PR，不进行CS9/HIL/SAT/实机验收。
 
 **当前状态：** Run #139/#140已证明PSM `node_`中的`/plan_sequence_path` weak entry与Sequence DSO unload时序高度相关，vptr映射仍待直接证实；Run #141处于构建中；Run #142属于YAML配置错误的零Job；Run #143在验证SequenceService callback-group所有权隔离候选。全局00-01仍为最高优先级，MotionControlAlgorithms集成继续DEFERRED。
+
+### §9.3.390｜Run #143 SequenceService源码锚点失配与Run #144缩进修复（2026-11-16）
+
+- [x] Run #143（Actions `43856138236`，commit `9d3878210f82a43f715bedc278cfe5d50c598c9b`）ROS Jazzy、workspace tooling和stock rclcpp无插桩overlay build通过；第6步临时MoveIt补丁脚本在SequenceService create_service源码锚点检查处失败，后续MoveIt/Pilz构建和teardown回归全部跳过。
+- [x] 对比固定MoveIt Jazzy commit `f11204b8a9b98e4ba28e564721d24a7077f5f969`源码，确认`old_sequence_create`最后一行回调Response参数需要保留13个C++缩进空格；YAML run block本身剥离10格，因此workflow源文件中必须缩进23格。Run #143原workflow只缩进13格，导致实际Python字符串仅剩3格，无法匹配源码。
+- [x] 在原分支修复该续行缩进，workflow commit `849c5fe69b6d6fa17aefe832f18500f61de32260`，触发Run #144（Actions `43856829744`）。
+- [ ] Run #144当前待完成container initialization/ROS setup；先验证第6步源码锚点匹配和SequenceService patch静态检查，再继续Pilz build、source-overlay DSO preflight、mock execution与teardown回归。
+- [ ] Run #141（Actions `43855570879`）仍在前一版patched MoveIt build，不把其GDB section parser结果与Run #144新候选混合。
+
+**状态：** Run #143只是临时脚本源码锚点失配，不是底层软件/teardown测试；Run #144为修复缩进后的有效重试。正式MoveIt/rclcpp和Stäubli产品代码保持不变；CI mock结果不等于CS9/HIL/SAT/实机验收。
