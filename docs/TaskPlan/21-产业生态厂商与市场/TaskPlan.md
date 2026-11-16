@@ -6904,3 +6904,16 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] Run #144仍需先完成Pilz overlay构建、Stäubli mock workspace及10轮teardown。即使本轮生命周期回归通过，callback-group拆分候选仍须完成并发验收，不直接合并上游或正式驱动。
 
 **当前状态：** SequenceService生命周期隔离仍为临时候选；Node/Executor weak ownership和plugin loader顺序论证成立，但新增默认组并发场景必须通过并发mock与取消/terminate门禁。仅CI mock/固定源码证据，不连接CS9、不做HIL/SAT/实机验收。
+### §9.3.393｜Run #144 clean-inferior-exit evidence、Run #146 Sequence DSO vtable直接映射与Run #147 GDB harness修复（2026-11-16）
+
+- [x] Run #141（Actions 43855570879）10/10 mock execution/7 assertions成功，但10/10 teardown SIGSEGV；其maintenance info sections采集器section数为0，不构成vptr不属于Sequence DSO的反证。
+- [x] Run #144（Actions 43856829744）在临时MoveIt源码overlay中编译了真实Pilz plugin，并通过source-overlay prefix/DSO存在预检；SequenceService专属MutuallyExclusive callback group与析构显式service reset → callback group reset已执行。
+- [x] Run #144的10轮mock execution成功；10轮均出现MoveGroupExe after capabilities_.clear、context reset、plugin loader reset、PSM reset及GDB inferior正常退出；无真实move_group SIGSEGV记录。Actions整体FAIL的直接原因是GDB在inferior已exited normally后继续执行bt full，报No stack并使GDB进程退出1，导致launch_testing.assertExitCodes失败；不能错误归因于产品进程崩溃，也不能将旧Actions整体状态改写为PASS。
+- [x] Run #146（Actions 43859201450，commit aba0eaaa5b0af51bde0ae60eb010dca2aaa40326）在rclcpp NodeServices::add_service和CallbackGroup::add_service处采集/plan_sequence_path的Service对象、control-block和vptr。当前已处理9/10轮，9/9 service owner与group add事件均有同一control-block/vptr；GDB info symbol将该vptr直接解析为std::_Sp_counted_ptr_inplace<rclcpp::Service<GetMotionSequence>> vtable，位于.data.rel.ro，完整来源为/tmp/moveit_ws/install/pilz_industrial_motion_planner/lib/libsequence_capability.so。这直接证明Sequence Service weak-entry control block的vtable来自Sequence capability DSO，不再依赖section parser推断。
+- [x] Run #146前9/9个inferior均exited normally、未观察到真实Thread 1 move_group received signal SIGSEGV；GDB harness仍按旧脚本No stack判失败；第10轮未完成，整体run仍in progress。
+- [x] Run #145（Actions 43859018027）使用可选[section-index]前缀、regex search与raw section行输出；当前步骤仍运行，但未取得有效可读section结果。即使section parser后续仍失败，Run #146 direct vtable symbol evidence也已闭合DSO归属问题。
+- [x] Run #147（Actions 43862172486，commit a4e8a321bd8185dc5c2039fba02d39c8c374e777）修正GDB post-run control flow：run后如$_exitcode非void，打印GDB-INFERIOR-EXIT code；exit code 0时quit 0，非零退出quit 1。SIGSEGV仍由handle SIGSEGV stop print nopass留在fault frame，且$_exitcode为void，继续现有崩溃寄存器/weak entry/Node映射。Shell验证要求恰好一个clean-exit marker，且仍拒绝SIGSEGV。
+- [ ] Run #147完成10/10完整回归后，要求每轮mock执行成功、7项测试通过、GDB exit 0、唯一clean-exit marker、Sequence service/group清理顺序正确、无SIGSEGV；再做一次干净重复构建/运行。
+- [ ] callback-group拆分仍需通过§9.3.392同pipeline并发与isActive()/terminate()动态门禁；不能将生命周期候选的mock clean teardown直接等同于可合并修复。
+
+**当前结论：** 已确认原weak ServiceBase control block vtable实际来自libsequence_capability.so；SequenceService显式service/group teardown候选在Run #144 10轮及Run #146前9轮使inferior正常退出且无真实SIGSEGV，但旧GDB脚本将正常退出误报失败。Run #147修复调试器正常退出分支，结果待验。所有结果仅为CI临时MoveIt/Pilz overlay + stock rclcpp + Stäubli mock，不修改upstream/正式产品代码，不连接CS9，不宣称HIL/SAT/实机验收。
