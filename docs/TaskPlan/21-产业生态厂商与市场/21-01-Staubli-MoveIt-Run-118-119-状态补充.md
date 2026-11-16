@@ -714,11 +714,15 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 
 ### GitHub Actions状态
 
-- [ ] Run #150（[Actions 43880623915](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880623915)）当前仍处`Set up ROS Jazzy`，job 133345210646。
-- [ ] Run #151（[Actions 43880751582](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880751582)）当前仍处`Set up ROS Jazzy`，job 133345662109。
-- [ ] Run #152（[Actions 43880873865](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880873865)）当前仍处`Set up ROS Jazzy`，job 133346092746；该版本为当前最终门禁候选。
+- [ ] Run #150（[Actions 43880623915](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880623915)）已完成ROS Jazzy setup与workspace tooling，当前进入stock rclcpp overlay构建步骤； job仍in_progress，原始日志暂不可读取，job 133345210646。
+- [ ] Run #151（[Actions 43880751582](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880751582)）已完成ROS Jazzy setup与workspace tooling，当前进入stock rclcpp overlay构建步骤； job仍in_progress，原始日志暂不可读取，job 133345662109。
+- [ ] Run #152（[Actions 43880873865](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43880873865)）已完成ROS Jazzy setup与workspace tooling，当前进入stock rclcpp overlay构建步骤； job仍in_progress，原始日志暂不可读取，job 133346092746；该版本为当前最终门禁候选。
 - [ ] 三个job状态均为in_progress，但当前日志接口返回BlobNotFound，故无编译、测试或terminate运行时结论。后续重点读取#152最终日志，严格检查slow hold、wrapper marker、底层terminate marker和release marker顺序；不得因日志暂不可用推断成功或失败。
 
 **下一步：** 取得Run #152实际运行日志后，若通过则只在CI mock范围内认定`MoveItCpp::terminatePlanningPipeline()`在`active_=false`且仍有请求在途时跳过底层terminate；若失败，按源码/日志修复注入或测试时序，不放宽验收。随后才比较同pipeline串行化/锁、在途请求计数或逐请求取消句柄等方案。
 
 **边界继续不变：** 不修改MoveIt/rclcpp upstream、Stäubli正式源码/PR/pin；不连接CS9，不执行HIL/SAT/实机运动。PR #1保持OPEN。根计划00-01优先级不变，MotionControlAlgorithms集成继续DEFERRED。
+
+### Actions job进度补充（2026-11-16）
+
+截至最新API轮询，#150/#151/#152三个job均已完成ROS Jazzy setup和workspace tooling，进入stock rclcpp overlay构建步骤；均为`in_progress`。日志接口此时对运行中的job返回BlobNotFound，因此尚无构建输出或mock执行数据。#152包含最新完整wrapper gate，继续作为主要验收对象；不得将启动/环境准备通过写成测试成功。
