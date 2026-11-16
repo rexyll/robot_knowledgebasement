@@ -329,7 +329,7 @@ C++ 类成员按声明的逆序析构。因此 stock TEM 在析构函数体之�
 1. TEM 等待 execution thread 退出，`active_handles_after_stop=0`。
 2. 显式释放 event subscription / callback group / private executor。
 3. `controller_mgr_node_.use_count()==1` 后调用 `controller_mgr_node_.reset()`。
-4. controller node 的 NodeBase destructor 进入；其默认 CallbackGroup 析构时逐项观测到 `expired=1, use_count=0` 的 weak Waitables，并完成每一项 reset/erase。
+4. controller node 的 NodeBase destructor 进入；五轮目标默认 CallbackGroup 均记录 `waitables=5`，每轮五条 weak Waitable 都是 `expired=1, use_count=0`，并逐项完成 reset/erase。
 5. TEM 随后才调用 `controller_manager_loader_.reset()`；LD_DEBUG 随后记录 `libmoveit_simple_controller_manager.so` 的 `calling fini` 与 `destroying link map`。
 
 这直接验证了 A+B 候选中 controller node/default CallbackGroup cleanup 先于该 controller-manager DSO unload。它没有直接证明 stock K-only 一定崩溃就是某个 DSO 内的 control-block destructor 被调用，也没有确认 Waitable 的具体动态类型。
