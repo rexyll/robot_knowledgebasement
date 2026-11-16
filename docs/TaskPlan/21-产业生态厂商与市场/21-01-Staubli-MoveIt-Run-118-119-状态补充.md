@@ -15,6 +15,7 @@
 | #117 | always-join CI-only 候选 | 5/5 PASS | 五轮均 join_performed=1、execution_thread_joinable=0、active_handles=0 |
 | #118 | main-owner-only（A=ON、B=OFF） | **5/5 FAIL** | 每轮 mock action 完成后，在 move_group teardown 的 shared_ptr 释放路径 SIGSEGV |
 | #119 | TEM-cleanup-only（A=OFF、B=ON） | **5/5 FAIL** | 每轮 TEM subscription/group/manager/node reset 记录完成后，仍在 shared_ptr 释放路径 SIGSEGV |
+| #121 | K-only（A=OFF、B=OFF） | **5/5 FAIL** | 五轮 action 均 SUCCEEDED；五轮 DSO unload 后在 controller-manager NodeBase/CallbackGroup Waitable weak-list teardown SIGSEGV |
 
 详细 GDB、lifecycle marker、DSO unload 顺序及 artifact 入口见：
 
@@ -93,3 +94,35 @@
 - [rclcpp callback_group.cpp](https://github.com/ros2/rclcpp/blob/35b821a9fb1f937bfbd9c741b7e3353e101d9593/rclcpp/src/rclcpp/callback_group.cpp#L204-L226)
 
 后续需要在 CI-only overlay 中加入 CallbackGroup、NodeBase、private executor/WaitSet 和 DSO unload 的析构 marker。只记录 `reset()` 调用不够，必须确认对象的最后一个 shared owner 已释放、真实析构完成。
+
+
+## 2026-11-16 补充｜K-only 完成：完整 2×2 矩阵与 DSO 析构顺序
+
+K-only [Actions Run #121 / ID #43789238751](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43789238751) 已完成，workflow commit `739afbbe2722ebd494326272ec298d896ab193c4`，artifact ID `14191994262`。构建成功；五轮 mock controller 都报告 `Goal reached, success!`，TEM 都报告 `Completed trajectory execution with status SUCCEEDED`；五轮均在 teardown SIGSEGV，`failures=5/5`。
+
+完整矩阵（共同背景 K 固定）现在为：
+
+| Run | A | B | 结果 |
+|---|---:|---:|---|
+| #121 K-only | OFF | OFF | **5/5 FAIL** |
+| #118 K+A | ON | OFF | **5/5 FAIL** |
+| #119 K+B | OFF | ON | **5/5 FAIL** |
+| #107 K+A+B | ON | ON | **5/5 PASS** |
+
+当前四格在固定输入下表明 A/B 任一单独处理都不充分，只有联合处理通过；不据五轮确定性重复估计统计学主效应或置信区间。
+
+### 根因链收窄
+
+K-only 五轮均先卸载 `/opt/ros/jazzy/lib/libmoveit_simple_controller_manager.so`（LD_DEBUG `calling fini` / `destroying link map`），随后才发生 private executor 清理；最后在 `CallbackGroup::~CallbackGroup()` 析构 `vector<weak_ptr<rclcpp::Waitable>>` 时触发 SIGSEGV。GDB 调用栈经过 `NodeBase::~NodeBase()`、`rclcpp::Node::~Node()`、`TrajectoryExecutionManager::~TrajectoryExecutionManager()` 和 `MoveItCpp::~MoveItCpp()`。
+
+MoveIt Jazzy `trajectory_execution_manager.hpp` 的成员声明顺序把 `controller_mgr_node_` / `private_executor_` 放在 `controller_manager_loader_` 之前，而 `controller_manager_` 放在 loader 后面；逆序析构先销毁 manager instance，再卸载 loader/DSO，最后才销毁 earlier-declared executor、subscription 和 controller node。因此源码顺序与日志中“插件 DSO 先卸载、NodeBase/CallbackGroup 后析构”的顺序一致。**最强根因判断是 TEM stock member teardown 次序允许 controller-manager DSO 早于其 NodeBase/CallbackGroup/Waitable 弱引用清理而卸载。** 具体 Waitable 动态类型/控制块 destroy 回调所属 DSO仍未 RTTI 级确认。
+
+### 下一步
+
+- [ ] 在 A+B 正向对照增加真实 destructor marker：manager instance、private executor/WaitSet、controller node / NodeBase / default callback group、loader reset/DSO unload；记录最后 owner `use_count`。
+- [ ] 固定 A=ON，先验证 B 中“停止/join executor → remove node → executor/WaitSet 释放 → manager instance 释放 → controller node/NodeBase 释放 → loader unload”的核心顺序是否是最小充分集合。
+- [ ] 再单项隔离 event subscription、parameter callback、event callback group。
+- [ ] 固定 B=ON 后逐一隔离 A 的 PSM、MoveItCpp、main Node reset。
+- [ ] execution state 字段的锁域与 TSAN 仍未完成；不修改 upstream/产品源码，不连接 CS9、不做真实机器人动作，不宣称 HIL/SAT/实机验收。
+
+全局最高优先级仍是根 TaskPlan 00-01；第21章 21-01 仍为进行中。
