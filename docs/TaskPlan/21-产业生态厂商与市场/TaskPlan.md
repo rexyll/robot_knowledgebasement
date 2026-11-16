@@ -6850,3 +6850,17 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 
 **当前状态：** 故障对象与服务身份已从候选收敛到PSM `node_`上的`/plan_sequence_path`；Sequence capability DSO卸载与weak control-block析构SIGSEGV稳定相邻，vptr section归属待Run #141直接确认。10/10 mock执行成功不等于teardown通过。仅为CI mock证据，不代表CS9/HIL/SAT/实机验收；PR #1和正式产品源码不动。
 
+
+### §9.3.389｜Run #141 构建、Run #142 YAML零Job与 Run #143 SequenceService callback-group隔离回归（2026-11-16）
+
+- [x] Run #141（Actions `43855570879`，commit `81cc2ba6148310f2760dc9623c4cc916703cd225`）ROS Jazzy、stock rclcpp无插桩overlay构建和MoveIt source dependencies安装成功；当前已进入patched MoveIt move_group build阶段，后续mock/10轮测试未完成。
+- [x] Run #142（Actions `43856000696`，commit `4921da033766cf4c69f43ba78cd8c8a285f5ad4b`）0 Job/0 check run。根因是新增Python多行字符串中的两行C++片段缩进小于YAML run block边界，workflow未形成可调度job；未运行任何代码构建或回归，不计功能性FAIL。
+- [x] 在同一workflow提交`9d3878210f82a43f715bedc278cfe5d50c598c9b`修复缩进，静态扫描首个run块未发现缩进不足行，触发Run #143（Actions `43856138236`）。
+- [x] Run #143已完成container/ROS Jazzy/workspace tooling阶段，当前第5步stock rclcpp uninstrumented overlay build；还未进入MoveIt/Pilz build和mock teardown。
+- [x] 将GDB section parser regex双重转义修正为单层Python raw regex；加载`libsequence_capability.so`时用`maintenance info sections ALLOBJ`解析各ELF section地址区间，并在fault site匹配control-block vptr。
+- [x] 在临时MoveIt源码overlay中为`MoveGroupSequenceService`增加独立MutuallyExclusive callback group，并把`/plan_sequence_path` service注册到该group；capability destructor显式先reset service，再reset group，使control block weak-count final release尝试发生在Sequence plugin DSO卸载前。
+- [x] 将MoveIt build目标扩大至`pilz_industrial_motion_planner`，并加入测试前source-overlay prefix/DSO存在断言，确保运行的`sequence_capability.so`是刚编译的临时overlay，不是系统ROS安装版本。
+- [ ] Run #143必须先通过临时Pilz插件编译、prefix/DSO来源校验，再验证10/10 mock plan-and-execute与teardown；同时读取GDB section count和vptr match。如果teardown通过，仍需重复构建/清洁运行并证明顺序日志；如果不通过，区分编译/包来源/section解析/底层SIGSEGV，不可笼统归因。
+- [ ] 在该隔离候选通过前，不修改MoveIt/rclcpp upstream和Stäubli正式产品源码，不更新正式Stäubli pin/PR，不进行CS9/HIL/SAT/实机验收。
+
+**当前状态：** Run #139/#140已证明PSM `node_`中的`/plan_sequence_path` weak entry与Sequence DSO unload时序高度相关，vptr映射仍待直接证实；Run #141处于构建中；Run #142属于YAML配置错误的零Job；Run #143在验证SequenceService callback-group所有权隔离候选。全局00-01仍为最高优先级，MotionControlAlgorithms集成继续DEFERRED。
