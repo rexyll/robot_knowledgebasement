@@ -6928,3 +6928,29 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - [ ] 由于callback-group拆分新增SequenceService与default group PlanService的并发关系，仍必须通过§9.3.392同pipeline并发、active标记及terminate动态门禁；生命周期10/10 mock通过本身不足以允许合并。
 
 **最终证据分层：** Sequence Service control-block vtable属于Sequence DSO已经10/10直接证实；Sequence service/group teardown候选在Run #144/#145/#146共30轮均让inferior正常退出且无真实SIGSEGV，但旧GDB runner把正常退出误判失败，因此仍需Run #147取得完整有效Actions PASS和重复验证。全部限CI mock，不修改upstream/正式产品源码，不连接CS9，不宣称HIL/SAT/实机验收。
+### §9.3.395｜SequenceService 与 PlanService 同pipeline并发/active_终止语义的确定性回归设计（2026-11-16）
+
+- [x] 固定MoveIt Jazzy `move_group.cpp`使用`rclcpp::executors::MultiThreadedExecutor`；独立MutuallyExclusive callback groups可在同一Node executor的多个worker中并行运行。
+- [x] 固定服务链：PlanService `/plan_kinematic_path`使用GetMotionPlan并调用解析出的PlanningPipeline::generatePlan；SequenceService `/plan_sequence_path`使用GetMotionSequence，通过CommandListManager::solveSequenceItems对每个MotionSequenceItem.req调用generatePlan。SequenceService源码从第一item解析pipeline_id，但当前solve使用MoveGroupContext的默认planning_pipeline_；目标MoveGroup默认pipeline应显式确认为ompl。
+- [x] 固定有效Sequence request最低结构：单个MotionSequenceItem，req.group_name=arm、req.pipeline_id=ompl、合法joint goal constraints、start_state.is_diff=true，blend_radius=0.0；PlanService用同一goal约束与同一pipeline_id=ompl。返回时分别校验MotionPlanResponse轨迹和MotionSequenceResponse.planned_trajectories非空。
+
+### CI临时探针和请求同步
+
+- [ ] 仅在临时MoveIt overlay的PlanningPipeline::generatePlan入口添加测试探针，通过环境变量启用，并只匹配请求里的两个精确`allowed_planning_time` sentinel值（例如Plan fast=7.731、Sequence slow=7.732），禁止影响普通request。
+- [ ] 两个探针请求共用一个static atomic probe_inflight计数和condition_variable barrier；只有当同一个PlanningPipeline对象的fast PlanService与slow SequenceService调用都进入generatePlan后才放行。barrier超时则说明没有实际重叠或executor配置不足，必须显式标记失败。
+- [ ] fast PlanService请求通过真实planning并走到generatePlan正常出口，将`active_`清为false；在RAII guard析构时先把probe_inflight从2减为1，然后通知slow SequenceService继续。slow仍处于generatePlan调用栈时采样active_和probe_inflight，直接验证先结束的调用是否把仍在执行的pipeline错误标记inactive。
+- [ ] 预期关键证据：`fast_exit pipeline=P active=false probe_inflight=1`与`slow_resume pipeline=P active=false probe_inflight=1`；两条日志pipeline地址相同，slow尚未退出而active已false则证实atomic bool不能表达并发active calls count。不得仅凭generatePlan是const或OMPL context manager有mutex认定整个pipeline终止语义安全。
+- [ ] Python launch test同时异步调用GetMotionPlan和GetMotionSequence服务；发送两个future后用测试节点spin等待两者。分别断言SUCCESS和非空trajectory；超时、错误码失败、空轨迹、拒绝、barrier超时均为失败。
+- [ ] Shell gate检查fast-enter/slow-enter/barrier-open/fast-exit/slow-resume marker各一次，两者同pipeline pointer，slow-resume时probe_inflight=1，且明确记录active_；服务双成功，GDB clean exit code0，7项shutdown assertions全过，0 SIGSEGV。
+
+### Terminate/isActive后续试验
+
+- [ ] 若slow-resume时active_提前false，增加独立terminate试验，确认MoveItCpp::terminatePlanningPipeline("ompl")或parallel planning stopping criterion是否会因isActive=false跳过仍运行的slow request。先核对API路径，不把PlanExecution::stop()误当成PlanningPipeline terminate。
+- [ ] 如果动态确认漏终止，callback-group拆分候选不得晋升；先比较共享pipeline mutex/序列化service调用/active调用计数或上游状态修复等候选，再用同一双service barrier重新验证。
+
+### 与Run #147关系与隔离边界
+
+- [ ] Run #147先关闭GDB clean-exit harness和SequenceService service/group teardown门禁；即使其10/10通过，仍不能跳过此并发测试。
+- [ ] 并发实验需在Run #147固定版本基础上另开单变量临时overlay测试，只增加PlanningPipeline探针和双Service并发测试，不改变前一轮生命周期补丁。
+
+**边界：** 所有探针只存在于临时MoveIt CI overlay与Stäubli mock test，不修改MoveIt/rclcpp upstream和Stäubli正式产品源码，不更改PR/pin，不连接CS9、不执行HIL/SAT/实机动作。
