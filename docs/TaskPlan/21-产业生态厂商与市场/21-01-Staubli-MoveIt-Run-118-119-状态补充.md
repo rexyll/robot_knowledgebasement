@@ -145,7 +145,7 @@ MoveIt Jazzy TEM initialize() 的实际构造顺序已核实：先创建 control
 
 源码进一步确认 moveit_simple_controller_manager 的 FollowJointTrajectory handle 在 action_based_controller_handle.hpp L84–89 调用 rclcpp_action::create_client<T>(node, action_name)，不显式传 callback group；ClientBase 是 rclcpp::Waitable。rclcpp_action/create_client.hpp 为其配置自定义 shared_ptr deleter：最后一个强引用释放时，deleter 先构造 no-op fake_shared_ptr，再调用 NodeWaitablesInterface::remove_waitable，然后 delete Client。
 
-NodeWaitables::add_waitable 在 group=null 时选择 NodeBase default callback group，并将 Waitable weak_ptr 加入 group。销毁时原 action_client strong count 已经归零，CallbackGroup::remove_waitable 对存储的原 weak_ptr 调用 lock() 会失败；该函数只有在 lock 成功且 raw pointer 相等时才 erase，没有清理 expired entry 的分支。因此 plugin Client 销毁后会留下 expired weak_ptr，直到 controller node 的 default CallbackGroup 清理 waitable_ptrs_ 时才释放最后 weak count。
+NodeWaitables::add_waitable 在 group=null 时选择 NodeBase default callback group，并将 Waitable weak_ptr 加入 group。销毁时原 action_client strong count 已经归零，CallbackGroup::remove_waitable 对存储的原 weak_ptr 调用 lock() 会失败；该函数只有在 lock 成功且 raw pointer 相等时才 erase，没有清理 expired entry 的分支。因此 plugin Client 的 deleter 会留下 expired weak_ptr。注意 add_waitable() 会在后续添加新的 Waitable 时顺便删除当时已过期的条目；但 TEM 的这些 action clients 在初始化阶段创建、在 teardown 阶段集中销毁，销毁阶段不再新增 Waitable，所以最终 expired entries 会留到 controller node 的 default CallbackGroup 清理 waitable_ptrs_ 时才释放最后 weak count。
 
 源码链接：
 - https://github.com/moveit/moveit2/blob/jazzy/moveit_plugins/moveit_simple_controller_manager/include/moveit_simple_controller_manager/action_based_controller_handle.hpp#L84-L90
