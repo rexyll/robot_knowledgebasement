@@ -401,7 +401,7 @@ GitHub Actions 的每个 step 都是独立 shell。Run #126 test step 虽 source
 每轮必须真实发现并执行 `staubli_moveit_config` launch test；不得接受 `0 packages` 或 `0 tests`。每轮须记录 action `SUCCEEDED`、teardown exit status、至少一个 pruning marker，并核查 pruning 的 group address 是否对应目标 NodeBase default CallbackGroup。缺少任一证据则该轮不是有效反证。K-only pruning 成功也仅限当前 mock CI，不等同 upstream/产品修复。
 
 
-## 17. Run #127：CallbackGroup pruning 单点反证失败，崩溃进一步收敛到 WaitSet DynamicStorage
+## 17. Run #127：CallbackGroup pruning 观察与 WaitSet DynamicStorage 崩溃；目标组覆盖尚未证实
 
 ### 17.1 运行有效性与业务动作
 
@@ -418,7 +418,7 @@ GitHub Actions 的每个 step 都是独立 shell。Run #126 test step 虽 source
 3. `DynamicStorage::WeakWaitableEntry` vector销毁；
 4. `std::weak_ptr`析构进入`_M_weak_release`，最后进入`_M_destroy`，随后SIGSEGV。
 
-ROS 2 Jazzy `dynamic_storage.hpp`中的`WeakWaitableEntry`与CallbackGroup的`waitable_ptrs_`并非同一容器：前者每项同时持有`weak_ptr<Waitable>`和`weak_ptr<void> associated_entity`；后者只保留CallbackGroup登记的Waitable weak reference。Run #127的唯一功能处理只在CallbackGroup::remove_waitable()清理expired entry，因此不会自动清空已由Executor WaitSet持有的独立weak entries。故本轮**有效反证结论**是：CallbackGroup expired-entry pruning单点不足以解决K-only teardown；不能据此推断WaitSet weak entry自身必然属于MoveIt plugin DSO，也不能确认两条weak reference中哪一个触发最后崩溃。
+ROS 2 Jazzy `dynamic_storage.hpp`中的`WeakWaitableEntry`与CallbackGroup的`waitable_ptrs_`并非同一容器：前者每项同时持有`weak_ptr<Waitable>`和`weak_ptr<void> associated_entity`；后者只保留CallbackGroup登记的Waitable weak reference。Run #127的唯一功能处理只在CallbackGroup::remove_waitable()清理expired entry，因此不会自动清空已由Executor WaitSet持有的独立weak entries。故本轮确认了CallbackGroup列表与Executor WaitSet列表是独立容器，但**尚不能形成目标组的有效pruning反证**：日志中的group地址分布在move_group进程多个组和ros2_control_node进程；没有NodeWaitables层的node-name/NodeBase/group关联日志，无法确定哪一个group地址属于MoveIt内部controller_mgr_node_的default CallbackGroup。崩溃栈确实位于WaitSet weak-entry销毁，但不能据此推断该WaitSet weak entry的控制块一定来自MoveIt plugin DSO，也不能确认两条weak reference中哪一个触发最后崩溃。
 
 ### 17.3 下一最小变量实验：A+K+B-core
 
@@ -431,3 +431,16 @@ ROS 2 Jazzy `dynamic_storage.hpp`中的`WeakWaitableEntry`与CallbackGroup的`wa
 - 临时rclcpp overlay恢复stock CallbackGroup::remove_waitable()，只给`DynamicStorage::WeakWaitableEntry`析构加入三组marker：entry dtor BEGIN、associated_entity reset END、waitable reset END，用于识别具体释放阶段。
 
 Workflow commit `123d4c9e5c1f575e749885ba24a46be28e0ba917`触发Run #128；后续仅修正过时日志说明/重复写入的commit为`ce96063ca9fb5f4c37c565f82fe24e83d0d991bf`并触发Run #129。运行必须核验每轮测试真实执行、mock action成功、Marker位于private_executor_.reset() BEGIN/END之间、释放次序与最终process exit code。该试验只有在5/5真实通过时才可称mock CI下B-core候选通过；不等同上游修复、产品验证或HIL/SAT。
+
+
+### 17.4 追加地址核验与证据边界修正
+
+对Run #127原始日志中的`group=%p`与`NodeBase dtor BEGIN default_group=%p`作地址精确比对：
+
+- `move_group`进程的NodeBase析构marker只记录外层节点的default group；pruning marker另出现多个组地址。
+- `ros2_control_node`进程中可见的pruning group与其一个NodeBase default group地址相符，说明marker至少部分来自该进程自身的waitable清理。
+- `controller_mgr_node_`是MoveIt进程内部另外创建的Node。进程在TEM private executor/WaitSet析构时崩溃，尚未走到该node的NodeBase destructor，因此其default group没有被现有marker直接记录。
+
+这意味着Run #127的90条marker只能证明多个CallbackGroup中的expired entry被清理过，不能证明每轮都清理了`controller_mgr_node_`目标组。也不能反向证明目标组未被清理，因为MoveIt进程中的其他组地址尚未按node name映射。下一次若需要单独评价CallbackGroup pruning，必须在CI-only `NodeWaitables::add_waitable/remove_waitable`中打印NodeBase FQN、NodeBase地址、所选group地址和Waitable地址，再与`[PRUNE]`记录逐项关联。
+
+本次A+K+B-core实验不再把CallbackGroup pruning作为功能处理；它直接改变TEM private executor/WaitSet的销毁时机，并用WeakWaitableEntry内部的两条weak reference release markers定位析构位置。这样可独立验证B-core，不依赖#127未闭合的group映射。
