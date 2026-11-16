@@ -453,3 +453,36 @@ Run #128（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/acti
 Run #129（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803323983)）仅修正过时输出文本与重复write，未修改该双重转义，因此同样在MoveIt patch step失败；未进入MoveIt build/mock test。Artifact `14196704905`，SHA-256 `f70887de5ce9f26a0c96082e288c368b0aa015d5960b303bc0e58eb199bc58d4`。
 
 在同一实验分支修正TEM cleanup marker C++字符串的Python转义，并将步骤名称改为A+K+B-core cleanup probe。workflow commit `9d9f33b8281fdf7d412153100666318470d0b9af`触发[Run #130](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803660660)。只有#130通过MoveIt patch、MoveIt build、mock workspace build及package preflight，且真实执行5轮并记录WaitSet weak-entry release marker和process exit code，才可评价B-core。
+
+
+## 19. Run #130：A+K+B-core teardown 正向候选 5/5 通过
+
+### 19.1 构建与有效测试
+
+[Run #130](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/43803660660)，commit `9d9f33b8281fdf7d412153100666318470d0b9af`，整个workflow成功。ROS 2 Jazzy rclcpp diagnostic overlay build、MoveIt patch/static validation、patched MoveIt build、Stäubli mock workspace build和package preflight均通过。五轮每轮均执行真实mock plan-and-execute和launch shutdown test：mock轨迹状态为`SUCCEEDED`；launch test每轮报告7 tests、0 errors、0 failures、0 skipped；`colcon_test=0`、`test_result=0`、`lifecycle_order=0`。五轮总汇总`failures=0/5`，未出现Segmentation fault或exit code -11。
+
+Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf10815a6c6aef89d8a5be7`。
+
+### 19.2 B-core清理顺序证据
+
+五轮TEM marker顺序一致：
+
+1. `stopExecution(true)`、cancel private executor、join executor thread（既有逻辑）；
+2. `shutdown core-B: private executor reset BEGIN`；
+3. `private_executor_->remove_node(controller_mgr_node_)`成功并输出node removed；
+4. `private_executor_.reset()`同步完成，输出reset END；
+5. reset controller-manager instance；
+6. reset controller_mgr_node_（BEGIN marker记录use_count=1）；
+7. 最后reset controller-manager loader。
+
+在每轮private executor reset BEGIN/END之间，WaitSet DynamicStorage::WeakWaitableEntry诊断记录8次析构入口和8次配对的associated entity / Waitable弱引用释放结束标记。8个associated weak refs均为expired=1/use_count=0；Waitable weak refs为5个expired=1/use_count=0及3个live entries（use_count=1或4）。每项reset marker均完整出现。由此可见WaitSet条目在private executor同步释放期间清理完成，随后才进入manager/node/loader释放阶段；本轮没有触发先前反复出现的WaitSet weak-release SIGSEGV。
+
+### 19.3 结论边界
+
+本轮只验证A=ON、K固定、B-core=ON的联合候选。A包含Context shutdown后释放main()中的PSM、MoveItCpp和node owner；K继续包含PSM publisher stop/join及MoveGroupExe/executor scope order；B-core为TEM先销毁private executor/WaitSet，再销毁controller-manager instance、controller node和loader。本轮未显式reset event subscription、parameter callback或event callback group，但这些成员仍会按TEM实际成员析构机制自动销毁；不能据此单独宣称所有event资源的卸载顺序已完全审计。
+
+更重要的是，本轮临时rclcpp overlay改写了Executor、CallbackGroup、NodeBase和DynamicStorage::WeakWaitableEntry析构函数以添加标记；WeakWaitableEntry探针显式执行associated_entity.reset()后执行waitable.reset()。虽然该顺序与成员默认逆序析构相符，额外日志/显式reset仍可能改变时序。因此Run #130是强正向候选，但需先通过下一轮无插桩复现再进一步定性。
+
+### 19.4 下一轮无插桩重复验证
+
+已在同一隔离分支提交`4154ebdd00d04c98d510aedb3fd1e15ed3e18823`，移除rclcpp全部CI析构插桩，要求`git diff --exit-code`确保rclcpp源码树保持pristine；保持A+K+B-core cleanup treatment不变，将测试重复数提升至10次。Run #131须逐轮核验真实mock action、launch 7-test结果、TEM cleanup markers顺序、process exit status。若10/10通过，方可认定诊断插桩不是该mock teardown通过的必要条件；结论仍限mock CI。
