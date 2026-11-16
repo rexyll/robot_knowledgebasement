@@ -178,7 +178,7 @@ K-only + expired-entry pruning 已在原有隔离分支 `experiment/moveit-main-
 
 | Run | commit | 状态 | 说明 |
 |---|---|---|---|
-| #123 | `d86c0078c06ed2029f7581a3087f4b476dc8da9a` | 配置无效，不计结果 | 首次 patch 字符串锚点编码错误 |
+| #123 | `d86c0078c06ed2029f7581a3087f4b476dc8da9a` | 配置无效，不计结果 | 内嵌 Python 补丁字符串 SyntaxError，未进入编译或 mock 测试 |
 | #124 | `e982788ac7446a8ad5f8bf6ebb2a4e814b2a7763` | 运行中 | K 固定；A/B 关闭；仅增加 expired-entry pruning |
 | #125 | `3f85d2a9063083e895a3dee2f67f7c353a09f840` | 运行中 | 与 #124 功能处理相同，另归档每轮 pruning 原始日志 |
 
