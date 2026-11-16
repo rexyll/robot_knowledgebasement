@@ -603,3 +603,16 @@ ROS 2 Jazzy源码复核发现：
 Run #135的`node_use=2 pnode_use=1`、PSM成员声明顺序，以及Run #135的PSM析构调用链，曾把故障Node推断为pnode_。这一判断属于当时的候选收窄，但不等于运行时地址身份确认。Run #136后续的GDB迭代区间`0x5b24d96db600–0x5b24d96db610`按16字节/weak_ptr仅覆盖1项；pnode_默认组按源码应包含6个ParameterService和1个GetPlanningScene服务，数量不匹配。Run #136/137又未输出故障Node指针或service name。因此根因定位必须回退为“PSM析构链中的Node/NodeBase/CallbackGroup”，具体Node待确认。
 
 pnode_的GetPlanningScene + 6个ParameterService静态登记路径保留为该节点的真实候选，不删除历史证据；但它与Run #136/137的单元素vector目前没有直接关联。当前更强的单元素候选是tf_listener_内部Node的唯一TypeDescription service，需Run #139在同一现场通过NodeBase、group、service name及PSM成员地址核验。
+
+
+### MoveIt PSM 实际调用 TF TransformListener 简化构造重载（确认）
+
+对MoveIt Jazzy `planning_scene_monitor.cpp`第112–121行重新核对：
+
+- PSM首先构造独立`pnode_`；
+- 随后明确执行`tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);`；
+- 这匹配geometry2 Jazzy `TransformListener(tf2::BufferCore &, bool spin_thread = true)`简化构造重载；文档明确该重载会在内部创建ROS 2 Node；
+- 实际进入TransformListener简化构造函数后，会创建`optional_default_node_`，然后用该Node的base/logging/parameters/topics interfaces初始化TF subscriptions；
+- 因而Type Description唯一Service路径并非根据“可能选择某个重载”作出的猜测，而是MoveIt PSM当前源码确实采用的重载。
+
+结合已核验的成员/Node析构顺序，静态路径可完整解释一个weak ServiceBase entry为何留到CallbackGroup析构时最后释放。Run #139仍须用运行时日志把崩溃NodeBase/CallbackGroup/service name与`tf_listener_->optional_default_node_`地址对应，不能把静态源链升级为运行时根因定论。
