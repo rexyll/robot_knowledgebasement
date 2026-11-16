@@ -486,3 +486,27 @@ Artifact ID `14198705205`，SHA-256 `de8eea001b5b3718e5bfd39bb5d94439faa2a7a43bf
 ### 19.4 下一轮无插桩重复验证
 
 已在同一隔离分支提交`4154ebdd00d04c98d510aedb3fd1e15ed3e18823`，移除rclcpp全部CI析构插桩，要求`git diff --exit-code`确保rclcpp源码树保持pristine；保持A+K+B-core cleanup treatment不变，将测试重复数提升至10次。Run #131须逐轮核验真实mock action、launch 7-test结果、TEM cleanup markers顺序、process exit status。若10/10通过，方可认定诊断插桩不是该mock teardown通过的必要条件；结论仍限mock CI。
+
+
+## 20. A 因子 shared-owner 语义复核：reset调用不是对象析构
+
+为防止后续拆分A时把局部shared_ptr reset误当成真实对象析构，重新追踪MoveIt Jazzy shared-owner链：
+
+1. main()的`moveit_cpp`与`planning_scene_monitor`是局部shared_ptr。
+2. `MoveGroupExe`构造时创建`context_`，其中`MoveGroupContext`持有`moveit_cpp_`、`planning_scene_monitor_`和`trajectory_execution_manager_`。
+3. `MoveGroupExe::~MoveGroupExe()`依次清空capabilities、reset context、再reset capability plugin loader。
+4. `MoveGroupContext::~MoveGroupContext()`依次reset plan execution、TEM、planning pipeline、PSM；其`moveit_cpp_` member在Context自身成员析构阶段才释放。
+5. `MoveItCpp`持有`node_`、`planning_scene_monitor_`、pipeline map和`trajectory_execution_manager_`；按声明逆序析构时，TEM先于pipeline map/PSM/node被释放。
+
+因此A中的main-local `planning_scene_monitor.reset()`、`moveit_cpp.reset()`、`nh.reset()`只是提前drop main()的额外强引用，并不意味着这些对象就在对应调用行析构；至少MoveGroupContext仍拥有MoveItCpp、PSM和TEM，MoveItCpp本身仍拥有Node/PSM/TEM。A组件隔离必须观测owner counts/weak expiration与实际析构时点，否则单纯删一行reset无法构成对该对象真实生命周期的单变量干预。
+
+这也解释B-core需要直接在TEM析构中实现`private executor thread join → remove node → private executor/WaitSet reset → controller-manager instance reset → controller node reset → loader reset`：它干预的是TEM内部最后owner释放及其插件loader顺序，而非main()几个指针变量的语法顺序。
+
+固定源码位置：
+- [move_group.cpp MoveGroupExe ctor/dtor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group.cpp#L81-L102)
+- [MoveGroupContext members](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/include/moveit/move_group/move_group_context.hpp#L72-L87)
+- [MoveGroupContext ctor/dtor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/move_group/src/move_group_context.cpp#L54-L91)
+- [MoveItCpp members](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/include/moveit/moveit_cpp/moveit_cpp.hpp#L175-L187)
+- [MoveItCpp destructor](https://github.com/moveit/moveit2/blob/jazzy/moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp#L85-L88)
+
+后续对A的PSM/MoveItCpp/main Node做单变量实验时，先确认唯一strong owner与最后释放点；不得仅凭reset marker判定对象已析构。
