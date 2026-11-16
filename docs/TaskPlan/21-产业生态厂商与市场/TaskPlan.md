@@ -6831,3 +6831,22 @@ IF1–IF3静态核对完成；IF4–IF5、IF7–IF10未执行或待协议/运行
 - 旧证湘械注准20212190586有官方遗失补发公告，遗失清单含注册证、两份变更文件及产品技术要求原件（#1756）；未公开补发办结或后续延续/注销状态。第三方页面列BEAR-H1/H2、到期日2026-04-25（#1758），仅作线索。
 - 官网H系列页面描述产品形态和训练模式（#1757），不构成注册证附件；官网版权主体深圳公司与监管注册人长沙公司名称不同，关系待核。BEAR-A1及MAX系列证号目前也只有第三方线索（#1759/#1760）。
 - **状态/验收：** 新证官方目录记录已确认；新旧证关系、具体型号范围、旧证当前状态、相关产品证照及主体关系未闭合。21-02继续进行中，不形成临床有效性或供应商准入结论。
+
+
+### §9.3.388｜Run #139 精确定位 Sequence capability service；Run #140/141 vptr-DSO地址取证（2026-11-16）
+
+- [x] Run #139（Actions `43840240632`）完成ROS Jazzy、stock rclcpp无插桩overlay、MoveIt patched build和Stäubli mock workspace build；10/10 mock plan-and-execute成功，10/10每轮launch汇总7 tests / 0 errors / 0 failures / 0 skipped，但10/10 move_group teardown SIGSEGV。
+- [x] GDB将dying Node指针与PSM成员现场比对，10/10确认析构对象是PSM `node_`（`is_psm_node=1`、`is_pnode=0`），不是`pnode_`；该Node的CallbackGroup包含23个ServiceBase weak entries。
+- [x] 崩溃weak entry稳定落在index 22；service creation日志和CallbackGroup add日志均将该对象地址映射为`/plan_sequence_path`，其control-block地址与weak entry index 22完全对应。
+- [x] 固定MoveIt Jazzy源码commit `f11204b8a9b98e4ba28e564721d24a7077f5f969`：Pilz `MoveGroupSequenceService::initialize()`在`context_->moveit_cpp_->getNode()`创建`/plan_sequence_path` service；service回调捕获Sequence capability `this`；类注册在`libsequence_capability.so`。
+- [x] Run #139每轮在SIGSEGV之前都观察到`libsequence_capability.so` free_objfile/unload事件。该组合形成“PSM node_保留callback group weak entry → Sequence service最后强引用释放 → Sequence capability DSO卸载 → node_析构释放weak control block”的强候选链。
+- [ ] 必须完成fault vptr与Sequence DSO加载时section区间的直接映射，才可把DSO归属从强候选提升为运行时确认；不得仅凭时间先后宣称唯一根因。
+
+- [x] Run #140（Actions `43851082807`）全部环境/构建阶段成功，10/10复现同一SIGSEGV；mock execution与每轮7项launch assertions 10/10成功。
+- [x] Run #140新增的GDB Python section采集器错误调用`gdb.Objfile.sections()`；实际GDB Objfile不提供此属性，故每轮均报API error且section数为0。Run #140的`GDB-VPTR-DSO-NO-MATCH`是空采集结果，不构成vptr不属于Sequence DSO的反证。
+- [x] 在原实验分支修正采集：workflow commit `81cc2ba6148310f2760dc9623c4cc916703cd225`，触发Run #141（Actions `43855570879`）；new_objfile事件使用`maintenance info sections ALLOBJ`解析已加载对象section的起止地址，崩溃现场将fault vptr与Sequence DSO section范围比较；同时记录MoveIt Jazzy resolved commit。
+- [ ] Run #141必须先证明`GDB-DL-SECTION`非空，再审查`GDB-VPTR-DSO-MATCH`。若解析失败，需调整解析器；若地址不匹配，再排查control block vptr损坏/其他DSO来源。不得用采集器失败覆盖真实SIGSEGV。
+- [ ] 若确认vptr属于Sequence DSO，下一步只在CI临时MoveIt overlay设计单变量生命周期顺序消融：让所有使用Sequence Service的Node/CallbackGroup先于Sequence plugin loader/DSO销毁，或保持loader到owner清空后再卸载；比较10轮mock teardown。先验证最小修复候选，暂不修改MoveIt/rclcpp upstream和Stäubli产品源码。
+
+**当前状态：** 故障对象与服务身份已从候选收敛到PSM `node_`上的`/plan_sequence_path`；Sequence capability DSO卸载与weak control-block析构SIGSEGV稳定相邻，vptr section归属待Run #141直接确认。10/10 mock执行成功不等于teardown通过。仅为CI mock证据，不代表CS9/HIL/SAT/实机验收；PR #1和正式产品源码不动。
+
