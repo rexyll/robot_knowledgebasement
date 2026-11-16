@@ -381,7 +381,7 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 | 日期 | 版本 | 变更 | 依据 |
 | --- | --- | --- | --- |
 | 2026-11-16 | v12.54 | 登记Run #136真实10/10 pnode_弱引用析构SIGSEGV、fault vptr未映射而关键依赖DSO仍映射的证据，修正test-result汇总解析错误，并启动Run #137逐项读取service_ptrs_ control block/vtable与DSO unload事件；全局00-01优先级不变。 | Stäubli Actions Run #136原始GDB/job logs、workflow commit 4aa4539a9adfd5efe0adea52753ba1847abf8a53；第21章21-01补充 |
-| 2026-11-16 | v12.53 | 修正每日归档索引，登记当日历史v57–v62与pnode_ ServiceBase弱引用候选、Run #136故障vptr映射和Run #137逐项控制块/DSO诊断。 | `TaskPlan_History/TaskPlan-2026-11-16.md` v57–v60；第21章21-01状态补充 |
+| 2026-11-16 | v12.53 | 修正每日归档索引，登记当日历史v57–v62与pnode_ ServiceBase弱引用候选、Run #136故障vptr映射和Run #137逐项控制块/DSO诊断。 | `TaskPlan_History/TaskPlan-2026-11-16.md` v57–v62；第21章21-01状态补充 |
 | 2026-11-16 | v12.49 | 将Run #135 pnode_ CallbackGroup中的weak_ptr<ServiceBase>候选收窄为PSM get_scene_service_注册的GetPlanningScene service；确认NodeServices默认使用pnode_ default CallbackGroup并追加weak owner，Run #136继续取证实际控制块/DSO归属。 | MoveGroupGetPlanningSceneService、PlanningSceneMonitor、rclcpp Node/NodeServices/CallbackGroup Jazzy源码；Run #135原始GDB栈 |
 | 2026-11-16 | v12.50 | 从Run #135每轮运行日志确认`MoveGroupGetPlanningSceneService`实际加载，强化PSM get_scene_service_作为pnode_ CallbackGroup expired weak ServiceBase候选的运行时路径证据；Run #136 GDB映射仍待。 | Run #135原始日志capability loading marker；MoveIt/rclcpp Jazzy源码；Run #136进行中 |
 | 2026-11-16 | v12.51 | 扩展pnode_ CallbackGroup ServiceBase候选：ROS 2 NodeOptions默认start_parameter_services=true，NodeParameters构造6个ParameterService服务，PSM另创建GetPlanningScene service；7个服务均通过NodeServices默认callback group路径留weak refs。具体崩溃entry未知，Run #136计划读取service_ptrs_数量/地址和DSO映射。 | ROS 2 Jazzy NodeOptions/NodeParameters/ParameterService/NodeServices/CallbackGroup源码；MoveIt PSM源码；Run #135 GDB栈 |
