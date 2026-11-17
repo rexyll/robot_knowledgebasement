@@ -104,3 +104,17 @@
 - [ ] 后续所有测试继续保留stock rclcpp、mock与CI-only overlay边界；不修改MoveIt/rclcpp上游或正式Stäubli产品源码，不连接CS9，不执行HIL/SAT/实机动作。
 
 **当前任务指针：** 21-01 / B / pipeline/request级取消所有权隔离设计 + Pilz in-flight solve行为测试 + pal_statistics shutdown日志排查。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
+
+
+### 2026-11-17 Pilz运行中solve语义探针（Run #162待验收）
+
+- [x] 固定MoveIt Jazzy源码审计：planning_interface::PlanningContext::terminate()基类注释要求终止正在运行的solve；Pilz PlanningContextBase::terminate()只设置atomic terminated_；solve()只在入口检查该标志，随后进入generator_.generate()，没有运行中取消检查或中断信号。
+- [x] 在既有实验分支提交CI-only临时overlay测试 d0070d4ec571577b4968b9019b8b1b7c1df21f09；增加临时StaubliSolveBarrierProbe接口和Pilz solve入口屏障，未修改MoveIt/rclcpp上游、Stäubli正式产品源码。
+- [x] 新探针在Pilz solve通过terminated_入口检查后停住；随后A=OMPL经真实public wrapper terminate；记录B solve仍未完成且terminated_=true；释放屏障后要求当前solve成功返回；同一context下一次solve要求PLANNING_FAILED；terminate后新建context负对照要求SUCCESS。
+- [ ] Run #162（Actions 44024976831，job 133843014101）当前处于ROS Jazzy环境准备阶段；需等待临时overlay静态检查、编译、10轮动态测试、teardown回归和artifact。
+- [ ] 若测试通过，结论限于“Pilz terminate不打断已越过入口检查的solve，但会阻止同一context后续solve”；不得等同于机器人停止运动或安全停止。
+- [ ] 若测试失败，先检查动态屏障是否确实位于terminated_检查之后、solve线程是否完成/超时、异常退出和清理路径；不能将测试屏障超时直接当作产品行为。
+- [ ] 下一阶段基于跨pipeline已证实的全局ActiveContexts影响，设计pipeline/request级取消所有权隔离；禁止直接移除isActive() gate或将active_简单改为计数器。
+- [ ] 继续排查Run #160/#161的controller_manager.pal_statistics publisher shutdown期间invalid-context异常。
+
+**当前任务指针：** 21-01 / B / 验收Pilz in-flight solve动态语义（Run #162），随后进行pipeline/request级取消所有权隔离设计。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
