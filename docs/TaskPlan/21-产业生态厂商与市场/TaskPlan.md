@@ -165,3 +165,18 @@
 - [ ] 未完成矩阵前不修改MoveIt/rclcpp上游或Stäubli正式产品源码；不得将request取消、context terminate、solve退出、控制器停止、安全停止混为一谈。
 
 **当前任务指针：** 21-01 / C / CI-only pipeline-owned request token原型与竞态测试。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
+
+
+### 2026-11-17 pipeline-owned request token CI-only原型（等待Run #164–#167）
+
+- [x] 在既有实验分支提交初始原型：`3a5bb2c9af424402f42103f4342ce6d42ba4c13c`。
+- [x] 将跨pipeline测试改为由Pilz真实`PlanningPipeline::generatePlan()`创建request token并attach真实context；OMPL terminate时验证Pilz context未被污染、当前solve成功返回。
+- [x] 同pipeline并发测试改为验证：快request完成后慢request仍使pipeline active；terminate取消慢request token；释放入口屏障后慢request返回PLANNING_FAILED。
+- [x] 原型采用每request token、sticky cancel_requested、当前context shared_ptr、token mutex协调attach/cancel；pipeline terminate只取消本pipeline token集合；isActive从活动token集合派生；RAII负责函数退出注销；不再从PlanningPipeline调用PlannerManager::terminate()全局ActiveContexts广播。
+- [x] 相关修正提交：`58f6045b25589cde67b6144b56364e588e0d6d69`、`1da783511c29ce917e7f937abbc7601624b720e7`、`eef52d6b5806cc26578ed34010429c1766d80968`。
+- [ ] Run #164 [Actions 44037399349]、Run #165 [44037456726]、Run #166 [44037490607]、Run #167 [44037588033] 当前均未完成；Run #167对应最新workflow提交。等待静态patch、MoveIt编译、Stäubli mock构建和动态测试结果。
+- [ ] 当前原型未覆盖token complete与terminate之间的线性化竞态；需引入completed状态/finish操作，使请求完成与terminate在token mutex下有明确先后顺序。
+- [ ] 继续覆盖OMPL→Pilz、Pilz→OMPL双向隔离；同pipeline 2+并发request；context创建前/attach前后/solve入口前后取消；response adapter阶段取消；异常和提前return RAII清理。
+- [ ] 当前仅CI临时overlay；无论单轮通过与否，不得直接视为产品修复，不修改上游或Stäubli产品源码。
+
+**当前任务指针：** 21-01 / C / pipeline-owned request token原型CI验收与取消完成竞态修正。
