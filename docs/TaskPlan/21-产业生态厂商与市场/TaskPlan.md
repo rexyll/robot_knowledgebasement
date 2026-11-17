@@ -65,3 +65,12 @@
 - [ ] 首轮Pilz实验需持有由真实Pilz pipeline PlannerManager创建的PlanningContext，记录pipeline/manager/context指针；确保其在A=OMPL terminate调用前仍存活，并在临时Pilz overlay记录terminate的this与terminated_ false→true；随后验证同一context solve被拒绝及未污染负对照。
 - [ ] OMPL自身PTC实验另行执行：barrier必须位于 `ModelBasedPlanningContext::solve()` 的 `registerTerminationCondition(ptc)` 之后，证明PTC已注册；不可用generatePlan入口barrier替代。
 - [ ] 在实现可确定性复现的跨pipeline测试前，不改 `isActive()` gate、不将 `active_` 简单替换为计数器、不改上游或产品源码；仅使用既有实验分支的CI-only临时overlay + stock Jazzy rclcpp + Stäubli mock。
+
+
+### 2026-11-17 SERVO-908跨pipeline动态探针实现状态
+
+- [x] 在既有实验分支提交 `d81a2db1050002025bb7ba3a0460334658e8c1d2`，仅修改实验workflow中的CI-only MoveIt/Pilz临时overlay和launch-test注入，不修改上游仓库文件、正式Stäubli产品源码或rclcpp。
+- [x] 新增A=OMPL active barrier（请求allowed_planning_time=7.733），测试服务在barrier期间创建真实B=Pilz PlanningContext并持有shared_ptr，记录manager/context指针；通过真实MoveItCpp public wrapper触发terminate；临时Pilz terminate marker记录this和terminated_ before/after；目标context solve要求PLANNING_FAILED；终止后新建的Pilz context作为负对照，solve要求SUCCESS。
+- [x] 新增独立launch test、环境开关、release timeout和日志指针/事件顺序断言；原有active=0 wrapper漏取消测试与10轮teardown regression继续保留。
+- [ ] Run #158（Actions 44008227253，job 133788637425）当前处于Set up ROS Jazzy，尚未进入MoveIt构建和mock动态测试；需等CI最终结果并核验原始日志、xUnit和artifact。若Pilz context创建或负对照solve失败，先判定测试不充分/配置不匹配，不得直接写成跨pipeline污染已被证实。
+- [ ] 通过Run #158单轮跨pipeline门禁后，再决定是否把跨pipeline测试纳入10轮重复；需保留原有10/10 teardown门禁。
