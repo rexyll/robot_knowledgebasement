@@ -811,3 +811,15 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 - [ ] 先单轮验证注入时序和pointer对应，再扩展至少10轮无插桩mock回归；每轮保留Run #153的A-PSM-retained/K/B-core teardown断言及现有mock plan-and-execute基线。
 
 **结论边界：** 当前仍只有Run #153的wrapper漏取消动态证据，以及固定MoveIt源码的全局ActiveContexts静态证据；跨pipeline误取消尚未动态证实。本轮仅完成配置与源码核验/实验设计，没有修改Stäubli实验workflow或MoveIt源码，没有新CI run。实验边界、PR #1 OPEN、根00-01最高优先级和MotionControlAlgorithms DEFERRED状态均不变。
+
+
+### 2026-11-17 runtime pipeline map 探针进展
+
+- [x] 在原实验分支的CI-only MoveGroup terminate probe service中，加入对 `MoveItCpp::getPlanningPipelines()` 的直接枚举，逐项输出pipeline ID、对象地址和active状态；wrapper调用前先输出，不改变被测取消路径。
+- [x] 加入fail-closed验收：每轮日志必须出现 `ompl` 且至少两个不同runtime pipeline ID和两个不同pipeline对象地址。
+- [x] 同一既有分支提交：`88a04af9190a0ce5a9b595e9fbb998aa0ece47a8`、`a75e7a3590a328c93db5dce36fb1731349ce2505`、`6505d1b6042f4f7793a00fef63ca20885ed7308a`。前两次迭代分别修正日志正则和C++换行转义；#156使用最终修正版。
+- [ ] Run #154（Actions `43993472548`）与#155（`43993519140`）为中间探针版本，日志待最终核验，不计为动态pipeline map证据。
+- [ ] Run #156（Actions `43993560468`，job `133739940012`）为当前有效候选，最近查询处于ROS Jazzy setup；尚未进入源码构建和mock测试。
+- [ ] 即使#156确认运行时至少两个pipeline ID，也仅关闭“是否存在多pipeline”的前置调查；还需创建独立第二OMPL实例，并将barrier移至PTC注册后，才能动态测试跨pipeline取消范围。
+
+**本轮边界：** 尚无新的CI成功结论或跨pipeline取消动态结论；没有修改MoveIt/rclcpp upstream或Stäubli正式产品代码。所有既有实验边界和全局优先级不变。
