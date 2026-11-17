@@ -150,3 +150,18 @@
 - [ ] 不将Run #162归类为产品/算法失败；它是workflow静态校验脚本顺序错误。
 
 **当前任务指针：** 21-01 / B / Run #163验收Pilz in-flight solve语义探针。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
+
+
+### Run #163：Pilz in-flight cross-pipeline terminate动态验收通过
+
+- [x] Run #163（[Actions 44025533230](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/44025533230)，job 133844827019，commit af6a715d60d60ae1755a24711a1773a93c96c06d）stock ROS 2 Jazzy rclcpp、MoveIt Jazzy临时overlay和Stäubli mock workspace均构建通过。
+- [x] 日志中10次跨pipeline探针客户端均PASS。每轮均确认A=OMPL active=1；B=Pilz context的solve已越过terminated_入口检查并进入屏障；真实MoveItCpp::terminatePlanningPipeline("ompl")返回后，B terminated=1且solve_done=0；释放屏障后当前solve success=1；同context后续solve返回PLANNING_FAILED；terminate后新建context负对照SUCCESS。
+- [x] 10/10 GDB inferior正常退出；另有A-PSM-retained + K + B-core无插桩teardown regression 10/10通过；每轮xUnit 9 tests、0 errors、0 failures、0 skipped；mock controller plan-and-execute成功。
+- [x] Artifact ID 14303838124，SHA-256 716b8436e881f1e0be3d08dc2bff9d23811ac109015e7bf758babefa34deab73。
+- [x] 结论：跨pipeline terminate确实会影响其他pipeline仍存活的context；对Pilz而言，terminate在solve入口检查后发生，不会中断当前solve，只会使后续同context solve失败。该行为存在取消语义与PlanningContext::terminate()接口文档不一致的问题。
+- [ ] 证据边界：Run #163是CI mock + 临时MoveIt overlay，不是上游源码修复、HIL/SAT或实机安全验证；不代表机器人运动会停止。
+- [ ] 下一步CI-only overlay实现pipeline-owned request cancellation token：token注册先于request adapter和PlanningContext创建；每request token具有sticky cancel_requested及context shared_ptr；context attach与terminate通过token mutex串行化；terminate先发生则attach时立即terminate；pipeline terminate仅取消本pipeline token集合；generatePlan所有return/异常路径RAII注销；isActive从token集合派生。
+- [ ] 竞态矩阵：OMPL→Pilz与Pilz→OMPL双向隔离；同pipeline多个并发request；terminate发生在token注册前后、context创建前后、attach前后、solve入口前后；一个request完成而另一个仍活动；异常和提前return注销；超时/释放与销毁。
+- [ ] 未完成矩阵前不修改MoveIt/rclcpp上游或Stäubli正式产品源码；不得将request取消、context terminate、solve退出、控制器停止、安全停止混为一谈。
+
+**当前任务指针：** 21-01 / C / CI-only pipeline-owned request token原型与竞态测试。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
