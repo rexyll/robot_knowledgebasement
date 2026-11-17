@@ -55,3 +55,13 @@
 
 **当前任务指针：** 21-01 / B / 基于进程级ActiveContexts的A=OMPL→B=Pilz context持久终止标记单轮探针。  
 **全局最高优先级：** 根TaskPlan 00-01；21-01仅并行推进。MotionControlAlgorithms集成保持DEFERRED。
+
+
+### 2026-11-17 SERVO-908 workflow现状复核（补充门禁）
+
+- [x] 检查既有实验分支 `.github/workflows/experiment-moveit-shutdown-order.yml` 的实际注入与断言：`STAUBLI_ACTIVE_PROBE` 位于 `PlanningPipeline::generatePlan()` 的 `active_=true` 后、request adapter及 `getPlanningContext()` 前，故该barrier并不代表PlanningContext已创建或进入solve。
+- [x] 检查当前terminate测试客户端：PlanService与SequenceService均指定 `pipeline_id="ompl"`；慢请求在fast请求结束后被停放，此时pipeline已 `active=0`；随后调用 `MoveItCpp::terminatePlanningPipeline("ompl")`，断言wrapper `active_before=0 result=1`，并断言底层 `PlanningPipeline::terminate()` marker不存在。该测试只证明inactive窗口的wrapper漏取消行为，不构成跨pipeline terminate证据。
+- [ ] 不得将现有同pipeline overlap测试或Run #157 pipeline map枚举通过，作为SERVO-908跨pipeline动态验证。
+- [ ] 首轮Pilz实验需持有由真实Pilz pipeline PlannerManager创建的PlanningContext，记录pipeline/manager/context指针；确保其在A=OMPL terminate调用前仍存活，并在临时Pilz overlay记录terminate的this与terminated_ false→true；随后验证同一context solve被拒绝及未污染负对照。
+- [ ] OMPL自身PTC实验另行执行：barrier必须位于 `ModelBasedPlanningContext::solve()` 的 `registerTerminationCondition(ptc)` 之后，证明PTC已注册；不可用generatePlan入口barrier替代。
+- [ ] 在实现可确定性复现的跨pipeline测试前，不改 `isActive()` gate、不将 `active_` 简单替换为计数器、不改上游或产品源码；仅使用既有实验分支的CI-only临时overlay + stock Jazzy rclcpp + Stäubli mock。
