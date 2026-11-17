@@ -74,3 +74,17 @@
 - [x] 新增独立launch test、环境开关、release timeout和日志指针/事件顺序断言；原有active=0 wrapper漏取消测试与10轮teardown regression继续保留。
 - [ ] Run #158（Actions 44008227253，job 133788637425）当前处于Set up ROS Jazzy，尚未进入MoveIt构建和mock动态测试；需等CI最终结果并核验原始日志、xUnit和artifact。若Pilz context创建或负对照solve失败，先判定测试不充分/配置不匹配，不得直接写成跨pipeline污染已被证实。
 - [ ] 通过Run #158单轮跨pipeline门禁后，再决定是否把跨pipeline测试纳入10轮重复；需保留原有10/10 teardown门禁。
+
+
+### 2026-11-17 SERVO-908 Run #159失败复盘与探针控制通道修正
+
+- [x] Run #159（Actions [44010559893](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/44010559893)，commit `5cbb667712292d24d3ea670240ce5fcec41c1346`）已通过stock Jazzy rclcpp构建、MoveIt/Pilz临时overlay静态校验、patched move_group构建及Stäubli mock workspace构建。
+- [x] 失败定位：动态阶段OMPL请求进入`generatePlan()`屏障，日志明确`A_OMPL_HELD ... active=1`；但测试线程调用默认`/move_group/get_parameters`查询held参数时超时。原same-pipeline slow barrier也因相同问题无法被测试客户端观测，10轮回归均未通过。该问题属于控制/观测服务与被测执行回调的调度隔离缺陷，不构成Pilz跨pipeline terminate的动态证据。
+- [x] 修正探针控制面：新增专用`/staubli_test_probe_status` Trigger服务；status、inactive terminate及cross-pipeline terminate服务统一放入独立Reentrant callback group，避免测试端依赖被阻塞的默认参数服务；增加status service显式销毁与静态校验。
+- [x] 修正提交：`352142d202425e68f42d4c25ca36eac7c5aa164c`（reentrant control channel）及`56cf7cff8064bd5a996382bc41c682114436d042`（status service teardown assertion）；均在既有实验分支，不创建新分支。
+- [ ] Actions Run `44019468358`（commit `352142d...`）和Run `44019503341`（commit `56cf7cff...`）截至当前更新仍在ROS Jazzy环境准备阶段；等待后续静态校验、编译、mock动态测试及10轮回归结果。
+- [ ] 跨pipeline动态验收仍要求：A=OMPL真实active；B=Pilz context真实创建并持有；wrapper实际进入底层terminate；Pilz terminate this指针与B context一致；terminated_ false→true；同一B后续solve拒绝；新建B负对照solve成功；OMPL请求释放并完成。
+- [ ] 不得把Run #159的held-state服务超时解释为MoveIt跨pipeline terminate失败；也不得把`active=1`单一日志当作跨pipeline terminate已发生。若新控制通道仍失败，先检查回调组、executor线程和服务响应时序。
+- [ ] 只有跨pipeline单轮动态门禁通过后，才考虑将该探针加入10轮重复；原10轮teardown回归必须保留并独立通过。
+
+**当前任务指针：** 21-01 / B / 使用Reentrant callback group和专用status service修复确定性barrier的控制/观测隔离；随后继续A=OMPL→B=Pilz持久终止标记动态验收。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
