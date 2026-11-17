@@ -823,3 +823,17 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 - [ ] 即使#156确认运行时至少两个pipeline ID，也仅关闭“是否存在多pipeline”的前置调查；还需创建独立第二OMPL实例，并将barrier移至PTC注册后，才能动态测试跨pipeline取消范围。
 
 **本轮边界：** 尚无新的CI成功结论或跨pipeline取消动态结论；没有修改MoveIt/rclcpp upstream或Stäubli正式产品代码。所有既有实验边界和全局优先级不变。
+
+
+### Run #155–#157：pipeline map结果与跨pipeline实验入口
+
+- [x] Run #155（Actions `43993519140`）完整成功；10轮中每轮均通过 `MoveItCpp::getPlanningPipelines()` 直接枚举四个真实ID：`ompl`、`chomp`、`pilz_industrial_motion_planner`、`stomp`，四个ID各出现10次，pipeline对象地址分别独立。无需为pipeline数量先添加第二个配置ID。
+- [x] Run #155同时保持原A-PSM-retained + K + B-core teardown回归10/10通过；每轮PlanService/SequenceService成功、GDB inferior exit code=0、8 tests/0 failures，聚合failures=0/10。
+- [x] Run #156（Actions `43993560468`）失败于MoveIt临时overlay编译：生成的 `move_group.cpp` 第320/321行C++日志字符串被Python patch把转义换行降成真实换行，编译器报missing terminating quote。不是MoveIt功能逻辑失败。
+- [x] 在原分支提交 `a9b3dc9716ea2d94709581fd10b261369f1d4335` 恢复与Run #155相同的双反斜线源文本转义。
+- [ ] Run #157（Actions `43997997094`，job `133754723611`）已完成ROS Jazzy setup、stock rclcpp无插桩overlay构建、MoveIt patch注入及依赖安装；当前在Build patched MoveIt move_group，最终结果待确认。
+- [ ] 跨pipeline实验不可只靠pipeline map证明。需要pipeline A在wrapper调用时active=true，同时pipeline B已有构造并注册的活动context；记录B context pointer是否进入A触发的 `PlannerManager::terminate()` 全局遍历，并检查B插件的terminate marker及最终响应。
+- [ ] 插件语义审计：CHOMP `terminate()` 当前为no-op；STOMP在 `stomp_` 创建前的terminate可能不持久；Pilz `PlanningContextBase::terminate()` 设置持久 `terminated_` 标志，可作为第一阶段跨pipeline context遍历探针，但不等价于OMPL已注册PTC的取消。后续仍需独立OMPL PTC注册后barrier测试。
+- [ ] 不得移除MoveItCpp `isActive()` gate，不得把active bool简单替换为计数器；在跨pipeline与取消时序门禁通过前，不提出产品级修复合并。
+
+**当前结论：** 已动态确认运行时有四个独立pipeline实例；尚未动态确认pipeline A取消会终止pipeline B的活动context，更未确认跨pipeline OMPL PTC被取消。本轮Run #157仍在构建阶段。实验边界、PR #1 OPEN、00-01最高优先级、MotionControlAlgorithms DEFERRED均不变。
