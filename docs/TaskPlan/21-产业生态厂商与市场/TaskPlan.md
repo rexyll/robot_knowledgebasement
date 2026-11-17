@@ -23,10 +23,10 @@
 - [x] Run #153动态确认public terminate wrapper在active_=0时返回成功但跳过底层terminate；该证据仅证明漏取消窗口，不证明跨pipeline误取消。
 - [x] Run #155与#157直接枚举四个独立runtime pipeline；Run #157 10/10轮每轮四个不同对象地址、mock执行成功、GDB inferior exit=0、8项xUnit断言全通过、teardown failures=0/10。Run #157 artifact ID 14291409424，SHA-256 `2cdac1331bd26379aa447cd4e64f2113398252e6faa9fe83b217262ca0f2ca37`。
 - [x] 固定MoveIt Jazzy源码调用链已闭合：`ompl_planner_manager.cpp`中的`OMPLPlannerManager`直接继承`planning_interface::PlannerManager`且未override `terminate()`；基类`PlannerManager::terminate()`遍历`ActiveContexts`静态集合并调用全部存活context的虚函数`terminate()`；Pilz `PlanningContextBase::terminate()`将`terminated_`置true。故OMPL pipeline真正进入terminate时，存活Pilz context被调用是源码调用链的直接结果；动态探针用于确认运行时对象地址、实际调用及状态变化，不再把此问题描述成纯假设。
-- [ ] 跨pipeline取消动态门禁：让pipeline A（OMPL）保持active并通过真实public wrapper触发terminate，同时持有pipeline B（Pilz）的真实PlanningContext；按context pointer验证B context->terminate()确实被调用、terminated_由false变true及后续solve拒绝执行；加入未触发A取消的B context负对照。随后再单独评估B正在solve时的运行中行为。
+- [x] 跨pipeline取消动态门禁：Run #160与#161分别10/10通过。A=OMPL真实active并通过真实public wrapper触发terminate；B=Pilz真实PlanningContext保持存活；每轮创建context指针、Pilz terminate this指针及target solve指针完全相同；terminated_由false变true；同一context后续solve为PLANNING_FAILED；新建Pilz context负对照为SUCCESS。详见下方2026-11-17 Run #160/#161证据记录。
 - [ ] 覆盖取消时序：B context创建前、创建并存活但未solve、solve已进入、solve完成后；覆盖A→B与B→A，并区分“context被标记terminated”与“正在运行的solve被中断”两种语义。
 - [ ] 基于动态证据设计pipeline/request级取消所有权；在门禁关闭前不得移除`isActive()` gate、不得把`active_`简单替换为计数器、不得把临时callback-group候选合并进上游或产品。
-- [ ] 完成至少10轮stock-rclcpp无插桩回归、原始日志、xUnit、GDB退出码及artifact SHA-256归档。
+- [x] Run #160/#161各完成10轮跨pipeline动态探针及10轮原有无插桩teardown回归；两轮xUnit均9 tests/0 errors/0 failures/0 skipped，GDB inferior exit=0；artifact与SHA-256已归档。另有pal_statistics publisher shutdown期间invalid context sleep日志，单独列为待分析项。
 
 ### C. 工业控制与真实部署验收
 
@@ -53,7 +53,7 @@
 
 ---
 
-**当前任务指针：** 21-01 / B / 基于进程级ActiveContexts的A=OMPL→B=Pilz context持久终止标记单轮探针。  
+**当前任务指针：** 21-01 / B / 设计pipeline/request级取消所有权隔离，补测Pilz solve已运行时的terminate语义，并排查pal_statistics shutdown日志。  
 **全局最高优先级：** 根TaskPlan 00-01；21-01仅并行推进。MotionControlAlgorithms集成保持DEFERRED。
 
 
@@ -88,3 +88,19 @@
 - [ ] 只有跨pipeline单轮动态门禁通过后，才考虑将该探针加入10轮重复；原10轮teardown回归必须保留并独立通过。
 
 **当前任务指针：** 21-01 / B / 使用Reentrant callback group和专用status service修复确定性barrier的控制/观测隔离；随后继续A=OMPL→B=Pilz持久终止标记动态验收。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
+
+
+### 2026-11-17 SERVO-908跨pipeline动态验证通过（Run #160 / #161）
+
+- [x] Run #160（[Actions 44019468358](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/44019468358)，commit `352142d202425e68f42d4c25ca36eac7c5aa164c`）完成；artifact ID `14301417866`，SHA-256 `573c29bc334431b52d87365f0b50c67838b8921c04934495a8e60ba15f42b0d6`。
+- [x] Run #161（[Actions 44019503341](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/44019503341)，commit `56cf7cff8064bd5a996382bc41c682114436d042`）完成；artifact ID `14300977823`，SHA-256 `4a8403b97a0194ff667860324a421b44b5cc6a40b543cb520ad193d119b52bb0`。
+- [x] 两轮均通过stock ROS 2 Jazzy rclcpp无插桩构建、CI-only MoveIt/Pilz临时overlay构建及Stäubli mock workspace构建；跨pipeline动态探针各10/10通过；原有无插桩teardown回归各10/10通过。
+- [x] 每轮10次均记录A=OMPL `active=1`；B=Pilz真实PlanningContext已创建并持有；真实 `MoveItCpp::terminatePlanningPipeline("ompl")`调用返回后，Pilz terminate的this指针与B context地址完全相同；`terminated_`由false变true；同一B context后续solve返回`PLANNING_FAILED`（code=-1）；新建Pilz context负对照solve返回`SUCCESS`（code=1）；释放后的OMPL请求恢复。
+- [x] 两轮每轮xUnit汇总均为9 tests/0 errors/0 failures/0 skipped；GDB inferior exit code=0。
+- [x] 对日志逐轮核对，10个B context地址、10个Pilz terminate this地址和10个target solve地址逐一匹配，无pointer mismatch。
+- [ ] 继续覆盖Pilz solve已经运行时收到terminate的行为。Pilz源码的terminated latch仅阻止后续solve，不应推断为中断正在运行的solve。
+- [ ] 设计pipeline/request级取消所有权隔离，避免一个pipeline的terminate影响其他pipeline仍存活的PlanningContext；在设计与测试通过前不改active gate、不把active_简单替换为计数器。
+- [ ] 追查两轮日志中controller_manager.pal_statistics publisher在ROS context shutdown期间出现的`context cannot be slept with because it's invalid`异常；该日志未导致当前xUnit或GDB进程退出失败，但仍需独立定位。
+- [ ] 后续所有测试继续保留stock rclcpp、mock与CI-only overlay边界；不修改MoveIt/rclcpp上游或正式Stäubli产品源码，不连接CS9，不执行HIL/SAT/实机动作。
+
+**当前任务指针：** 21-01 / B / pipeline/request级取消所有权隔离设计 + Pilz in-flight solve行为测试 + pal_statistics shutdown日志排查。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
