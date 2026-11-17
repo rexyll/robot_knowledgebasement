@@ -138,3 +138,15 @@
 - [ ] 将该已捕获shutdown异常作为非致命日志噪声独立治理；如需进一步确认安装包精确版本或异常抛出栈，后续增加仅诊断的publisher thread栈跟踪/版本pin证据。
 
 **当前任务指针：** 21-01 / B / Run #162 Pilz in-flight solve动态验收；随后在CI-only overlay验证pipeline-owned request token取消所有权方案。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
+
+
+### Run #162失败记录与修正
+
+- [x] Run #162（Actions 44024976831，commit d0070d4ec571577b4968b9019b8b1b7c1df21f09）stock ROS 2 Jazzy rclcpp overlay构建通过。
+- [x] Run #162在MoveIt临时overlay静态patch校验阶段失败：Python NameError，planning_interface_source尚未定义即被MoveGroup service校验块引用；尚未进入MoveIt编译和动态测试。因此该结果不能用于判断C++实现或Pilz terminate行为。
+- [x] artifact 14302159156，SHA-256 019618f5967a9e2a45ae9f2915b9aee633ef91fca0d41638a4165ce863857b94。
+- [x] 已在同一既有分支提交修正 af6a715d60d60ae1755a24711a1773a93c96c06d：把PlanningContext测试接口与Pilz barrier静态校验移到相关源码变量创建及patch完成之后。
+- [ ] 等待修正提交触发Run #163；重新检查静态patch、C++编译、mock workspace、10轮in-flight动态测试、teardown回归和artifact。
+- [ ] 不将Run #162归类为产品/算法失败；它是workflow静态校验脚本顺序错误。
+
+**当前任务指针：** 21-01 / B / Run #163验收Pilz in-flight solve语义探针。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
