@@ -786,3 +786,28 @@ Run #149对应的MoveIt Jazzy源码commit为`f11204b8a9b98e4ba28e564721d24a7077f
 复核实验workflow发现，Run #153 的 slow hold probe 放在`PlanningPipeline::generatePlan()`设置`active_=true`之后、调用`getPlanningContext()`之前。故slow-held请求尚未创建`PlanningContext`，Run #153不能证明“取消pipeline A会终止pipeline B的活动context”。
 
 当前可确认的只有固定MoveIt源码中的全局作用域：`PlannerManager::terminate()`遍历静态`ActiveContexts`。跨pipeline实际误取消仍未动态证实。下一轮应在`ModelBasedPlanningContext::solve()`内、`registerTerminationCondition(ptc)`之后暂停一个已注册context，再调用另一pipeline的真实public wrapper，并用context pointer、terminate marker和PTC完成状态做严格验收。必须先枚举真实pipeline IDs；若只有一个，CI-only启用第二pipeline，不得把同pipeline的多个planner plugin混淆为不同pipeline。
+
+
+## 2026-11-17 跨 pipeline 测试配置核验与下一轮实验设计
+
+### 当前实验基线复核
+
+- [x] 既有实验分支 `experiment/moveit-main-owner-lifetime-only` HEAD仍为 `29118422ee2963fd379bf03da3fceee6838dcd55`；最近Run #153（Actions `43887863524`）成功。本轮未改实验分支、未触发新CI。
+- [x] 固定 Stäubli mock 源码commit为 `7d9fa0d715db46060199eeca541514ddeed9c4c1`。其 MoveIt launch 使用 `MoveItConfigsBuilder(...).to_moveit_configs()`，未显式限制planning pipeline列表。
+- [x] 固定 MoveIt Jazzy commit `f11204b8a9b98e4ba28e564721d24a7077f5f969` 的 builder 默认行为是收集config包和MoveIt `default_configs` 中全部 `*_planning.yaml`；默认目录含 `ompl`、`pilz_industrial_motion_planner`、`chomp`、`stomp`。
+- [x] Run #153原始job log已看到CHOMP与STOMP planner成功加载、Pilz Sequence capability加载，且已有请求实际使用OMPL。由此确认当前launch确实不止一个planner配置/插件路线；但尚未从 `MoveItCpp::getPlanningPipelines()` 打印完整runtime ID map，也尚未证明两个独立OMPL实例存在。
+- [x] 固定源码 `MoveItCpp::loadPlanningPipelines()` 读取 `planning_pipelines.pipeline_names` 并调用 `createPlanningPipelineMap()`；该工厂按每个pipeline name分别创建独立 `PlanningPipeline` 对象。可在CI-only config中以两个不同namespace加载同一OMPL插件配置，建立真正独立的OMPL pipeline实例。
+- [x] 固定源码 `ModelBasedPlanningContext::solve()` 在 `registerTerminationCondition(ptc)` 后把当前PTC地址登记到context；其 `terminate()` 在 `ptc_lock_` 下对非空PTC调用 `ptc_->terminate()`。因此动态测试barrier必须位于注册之后，而不能停在 `generatePlan()` 获取context之前。
+
+### 双独立 OMPL pipeline 测试设计（待实施）
+
+- [ ] 在CI临时 `staubli_moveit_config` 中新增 `ompl_secondary` pipeline ID，配置复用OMPL插件参数，但保持独立pipeline namespace；不修改正式产品文件。
+- [ ] 在MoveGroup测试service中输出 `getPlanningPipelines()` 的完整ID、pipeline对象地址，并fail-closed断言 `ompl` 与 `ompl_secondary` 同时存在且对象地址不同。
+- [ ] 在临时OMPL source overlay中，对两个专用planning-time token在 `registerTerminationCondition(ptc)` 之后分别设置barrier，记录 `context=this`、role、PTC注册、terminate和resume标记。
+- [ ] 使用两个不同service callback路径并发发起请求：PlanService使用 `ompl`，SequenceService使用 `ompl_secondary`；避免同一MutuallyExclusive callback group串行化测试请求。
+- [ ] 两个context均已注册PTC并held后，通过真实 `MoveItCpp::terminatePlanningPipeline("ompl")` public wrapper取消A。记录wrapper的 `active_before`、底层pipeline terminate入口、两个context pointer是否进入 `PlannerManager::terminate()` 遍历、B的PTC是否已terminated及B最终响应。
+- [ ] 若B的context pointer被A触发的manager terminate遍历，且B的PTC在进入OMPL solve前已terminated，才认定跨pipeline取消得到动态确认；仅看到B请求失败或日志出现manager terminate都不够。
+- [ ] 反向验证取消 `ompl_secondary` 时 `ompl` 的行为；再分别覆盖context创建前、PTC注册前、PTC注册后、solve完成后和重复取消窗口。
+- [ ] 先单轮验证注入时序和pointer对应，再扩展至少10轮无插桩mock回归；每轮保留Run #153的A-PSM-retained/K/B-core teardown断言及现有mock plan-and-execute基线。
+
+**结论边界：** 当前仍只有Run #153的wrapper漏取消动态证据，以及固定MoveIt源码的全局ActiveContexts静态证据；跨pipeline误取消尚未动态证实。本轮仅完成配置与源码核验/实验设计，没有修改Stäubli实验workflow或MoveIt源码，没有新CI run。实验边界、PR #1 OPEN、根00-01最高优先级和MotionControlAlgorithms DEFERRED状态均不变。
