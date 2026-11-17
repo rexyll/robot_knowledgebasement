@@ -22,8 +22,8 @@
 - [x] Run #149完成同一OMPL pipeline并发PlanService/SequenceService探针10/10回归；动态记录active_=false时仍有slow请求in-flight。
 - [x] Run #153动态确认public terminate wrapper在active_=0时返回成功但跳过底层terminate；该证据仅证明漏取消窗口，不证明跨pipeline误取消。
 - [x] Run #155与#157直接枚举四个独立runtime pipeline；Run #157 10/10轮每轮四个不同对象地址、mock执行成功、GDB inferior exit=0、8项xUnit断言全通过、teardown failures=0/10。Run #157 artifact ID 14291409424，SHA-256 `2cdac1331bd26379aa447cd4e64f2113398252e6faa9fe83b217262ca0f2ca37`。
-- [ ] 跨pipeline取消动态门禁：让pipeline A和B分别持有真实活动PlanningContext；在B仍处于solve期间通过A的public terminate wrapper触发取消，按context pointer、底层terminate入口、B的终止状态和响应判断是否存在跨pipeline影响。
-- [ ] 覆盖取消时序：context创建前、context创建后/PTC注册前、PTC注册后/solve中、solve完成后；覆盖A→B与B→A，并验证无误取消、无漏取消。
+- [ ] 跨pipeline取消动态门禁：先让pipeline A（OMPL）保持active并通过真实public wrapper触发terminate，同时持有pipeline B（Pilz）的真实PlanningContext；按context pointer验证A的PlannerManager::terminate()是否遍历并调用B context->terminate()，再验证B context的terminated_是否被置位及其后续solve是否拒绝执行。随后再单独评估B正在solve时的运行中行为。
+- [ ] 覆盖取消时序：B context创建前、创建并存活但未solve、solve已进入、solve完成后；覆盖A→B与B→A，并区分“context被标记terminated”与“正在运行的solve被中断”两种语义。
 - [ ] 基于动态证据设计pipeline/request级取消所有权；在门禁关闭前不得移除`isActive()` gate、不得把`active_`简单替换为计数器、不得把临时callback-group候选合并进上游或产品。
 - [ ] 完成至少10轮stock-rclcpp无插桩回归、原始日志、xUnit、GDB退出码及artifact SHA-256归档。
 
@@ -52,5 +52,5 @@
 
 ---
 
-**当前任务指针：** 21-01 / B / 跨pipeline取消动态门禁设计与单轮探针。  
+**当前任务指针：** 21-01 / B / 基于进程级ActiveContexts的A=OMPL→B=Pilz context持久终止标记单轮探针。  
 **全局最高优先级：** 根TaskPlan 00-01；21-01仅并行推进。MotionControlAlgorithms集成保持DEFERRED。
