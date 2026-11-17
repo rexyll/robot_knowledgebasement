@@ -118,3 +118,23 @@
 - [ ] 继续排查Run #160/#161的controller_manager.pal_statistics publisher shutdown期间invalid-context异常。
 
 **当前任务指针：** 21-01 / B / 验收Pilz in-flight solve动态语义（Run #162），随后进行pipeline/request级取消所有权隔离设计。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
+
+
+### 2026-11-17 pipeline/request取消所有权隔离候选设计（待实现与验证）
+
+- [x] 明确拒绝仅将PlanningPipeline::active_从bool替换为计数器作为完整修复：它只能改善并发active状态表达，不能解决全局ActiveContexts跨pipeline广播terminate，也不能处理context创建/attach与terminate之间的竞态。
+- [x] 候选设计采用pipeline-owned active request token集合：每个generatePlan请求在创建PlanningContext之前注册唯一token；token保存sticky cancel_requested和当前context引用；pipeline terminate只标记本pipeline token并对已attach的context调用terminate；context晚于terminate创建/attach时必须读取token取消状态并立即传递；solve结束/异常通过RAII注销token；isActive()由本pipeline活动token集合是否为空导出。
+- [ ] 验证token注册必须早于任何可能被terminate观察到的工作；覆盖context创建前terminate、context创建后attach前terminate、attach后solve入口前terminate、solve入口后terminate。
+- [ ] 覆盖同一pipeline两个或多个并发request：一个先完成时，另一个仍活动，isActive()仍为true；terminate应作用于所有该pipeline当前token，不误清理其他request。
+- [ ] 覆盖A=OMPL terminate不得触及B=Pilz context，反向B terminate不得触及A=OMPL context；跨pipeline测试继续使用真实context pointer与terminate marker。
+- [ ] 明确取消能力分层：pipeline请求被标记取消、planner context收到terminate、当前solve实际退出、控制器执行停止、安全停止是不同状态；Pilz当前实现不能保证已越过入口检查的solve被中断。
+- [ ] 先在CI-only MoveIt临时overlay中验证设计，再考虑上游修复提案；未通过完整并发与竞态矩阵前，不修改上游、不合入Stäubli产品。
+
+### 2026-11-17 pal_statistics shutdown日志源码归因
+
+- [x] Run #160/#161出现的controller_manager.pal_statistics日志与pal_statistics StatisticsRegistry::publisherThreadCycle()代码路径匹配：后台publisher thread使用rclcpp::WallRate::sleep()，捕获std::exception并记录“Exception in publisher thread: ... Aborting!”。
+- [x] ROS 2 Control Jazzy ControllerManager构造期间启动introspection和controller-manager statistics publisher threads；context在shutdown阶段失效时WallRate::sleep()抛异常，异常被publisher loop捕获；外层rclcpp::ok()为false后线程退出，Registry析构join线程。Run #160/#161的进程与GDB均正常退出，因此该日志不是进程实际abort的证据。
+- [x] 公开realtime_tools Issue #480报告同样日志；维护者要求提供stack trace，并指出Jazzy并未使用RealtimeClock。当前不把该日志归因为RealtimeClock或MoveIt teardown。
+- [ ] 将该已捕获shutdown异常作为非致命日志噪声独立治理；如需进一步确认安装包精确版本或异常抛出栈，后续增加仅诊断的publisher thread栈跟踪/版本pin证据。
+
+**当前任务指针：** 21-01 / B / Run #162 Pilz in-flight solve动态验收；随后在CI-only overlay验证pipeline-owned request token取消所有权方案。全局00-01仍最高优先级，MotionControlAlgorithms保持DEFERRED。
