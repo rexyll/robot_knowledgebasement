@@ -180,3 +180,12 @@
 - [ ] 当前仅CI临时overlay；无论单轮通过与否，不得直接视为产品修复，不修改上游或Stäubli产品源码。
 
 **当前任务指针：** 21-01 / C / pipeline-owned request token原型CI验收与取消完成竞态修正。
+
+
+### request token原型剩余边界补充
+
+- [ ] 当前CI-only原型仅改变`PlanningPipeline::terminate()`，不改变`planning_interface::PlannerManager::terminate()`本身；后者仍遍历进程级ActiveContexts。审计MoveIt及本项目所有绕过PlanningPipeline直接调用PlannerManager::terminate()的调用点；发现调用点时单独处理，不得宣称全局API已修复。
+- [ ] RequestGuard在函数退出时才注销token，最后一次cancel检查到token注销之间存在竞态。增加token completed状态和finish操作，使finish与requestCancel通过同一token mutex线性化；迟到terminate不得取消已完成请求，先到terminate必须让finish返回cancelled。
+- [ ] Run #164–#167验收前暂停继续提交，避免并行CI继续扩散；以最新Run #167为唯一当前候选基线。
+
+**当前任务指针：** 21-01 / C / Run #167静态校验与编译；通过后完成token finish线性化，再做双向隔离/并发矩阵。
