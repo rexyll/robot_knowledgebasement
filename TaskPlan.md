@@ -686,3 +686,10 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 > 同时Run #179 [Actions 44765462428]（早期v13.06版，仅析构finish，无generatePlan finalizer）已完成临时MoveIt move_group和Stäubli mock workspace构建，正在执行10轮回归。该run即使通过，也不能覆盖本v13.10修正的最终返回值竞态。Run #183 [Actions 44767784478]已通过ROS overlay构建、MoveIt源码补丁注入和依赖安装，正在编译move_group；其提交是1512426，不含最新finalizer。
 > 下一步检查Run #179结果，作为早期token实现编译/回归参考；重点等待Run #184/#185的C++编译及token动态探针。若编译失败，先按首个真实C++错误修复；若动态探针失败，检查完成返回值与terminate dispatch时序，不得删除竞争测试。继续检查Run #183的route injection和Run #182旧锚点失败。后续还需Pilz→OMPL反向隔离、同pipeline多token独立取消和请求级error-code关联。SERVO-908仍未完成。
 > 安全边界不变：只在既有`experiment/moveit-main-owner-lifetime-only`分支与CI-only临时MoveIt/Pilz overlay；不修改正式产品源码或MoveIt上游仓库，不创建新分支，不连接CS9，不执行HIL/SAT/实机动作，全部门禁通过前不合入。
+
+
+
+> **2026-11-20 SERVO-908 Run #179 token生命周期探针结果（v13.11）：** Run #179 [Actions 44765462428]，HEAD `190836b76537015f7e658428a4a7079d82f3543f`，ROS 2配套overlay、MoveIt临时overlay、Stäubli mock workspace全部构建成功，10轮mock回归全部执行。每轮xUnit为9 tests、0 errors、0 failures、0 skipped；OMPL→Pilz隔离客户端通过；same-pipeline PlanService/SequenceService并发客户端通过；mock plan-and-execute通过；GDB inferior正常退出；PSM/K/B-core teardown完成。新增加的`[STAUBLI_TOKEN_LIFECYCLE] pass=1`在10/10轮均出现，证明RecordingContext synthetic probe中的stale snapshot拒绝、sticky cancel attach顺序、重复取消单次dispatch、finish等待in-flight terminate及32轮finish/cancel竞争均通过。
+> Run #179仍以10/10 lifecycle checker失败结束，原因仍是其提交中的旧terminate区间归属断言把两次真实terminate错误分组（cross两条、same_pipeline空）。该run提交早于`34661fe`区间边界修正，所以不能据此否定当前修正；也不能把Run #179标记为整体通过。关键的是它提供了第一轮真实编译和执行证据：v13.06的token mutex/RecordingContext探针能够编译并通过动态测试。
+> Run #179并不验证v13.10的`generatePlan`显式finalizer：该版本仍只在RequestGuard析构时finish。为修复最后cancel检查与函数返回之间的竞态，必须等待Run #184/#185分别验证`finalize_request`和finish返回值断言。
+> 当前下一步：追踪Run #184（`2ddfc22261a9807325f82e40b35fb77e54dbb8fd`）和Run #185（`ea1bbeea4b5a1eda844c47ee9047342486721602`）的MoveIt编译及动态探针；追踪Run #183（`1512426b83aa654a351829388bbabe64b7b5bb5e`）的SequenceService route patch编译；后续commit还需让route、idle-state与finalizer在同一最终HEAD上进行完整10轮验收。SERVO-908未完成。
