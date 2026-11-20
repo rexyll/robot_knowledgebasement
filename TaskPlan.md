@@ -693,3 +693,9 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 > Run #179仍以10/10 lifecycle checker失败结束，原因仍是其提交中的旧terminate区间归属断言把两次真实terminate错误分组（cross两条、same_pipeline空）。该run提交早于`34661fe`区间边界修正，所以不能据此否定当前修正；也不能把Run #179标记为整体通过。关键的是它提供了第一轮真实编译和执行证据：v13.06的token mutex/RecordingContext探针能够编译并通过动态测试。
 > Run #179并不验证v13.10的`generatePlan`显式finalizer：该版本仍只在RequestGuard析构时finish。为修复最后cancel检查与函数返回之间的竞态，必须等待Run #184/#185分别验证`finalize_request`和finish返回值断言。
 > 当前下一步：追踪Run #184（`2ddfc22261a9807325f82e40b35fb77e54dbb8fd`）和Run #185（`ea1bbeea4b5a1eda844c47ee9047342486721602`）的MoveIt编译及动态探针；追踪Run #183（`1512426b83aa654a351829388bbabe64b7b5bb5e`）的SequenceService route patch编译；后续commit还需让route、idle-state与finalizer在同一最终HEAD上进行完整10轮验收。SERVO-908未完成。
+
+
+
+> **2026-11-20 SERVO-908 generatePlan finalizer注入递归重写缺陷预防（v13.12）：** 对v13.10的`generatePlan`全函数返回路径重写脚本做二次静态审查时发现：若finalizer lambda内部使用字面量`return false;`，随后脚本对整个generatePlan函数体执行`return false;`全局替换，会把finalizer自身的失败返回也改写成`return finalize_request(false);`，形成递归调用。已在运行结果前主动修正临时overlay注入模板：finalizer内部失败分支改用等价的`return static_cast<bool>(0);`，使全函数返回改写只作用于业务路径，不递归改写finalizer自身；脚本仍要求业务函数体中不存在未经过finalizer的`return false;`和`return static_cast<bool>(res);`。修复提交 `a9c4b851314c7bba6892936db64d23f97508f793`，触发Run #186待验收。
+> Run #184（`2ddfc22261a9807325f82e40b35fb77e54dbb8fd`）与Run #185（`ea1bbeea4b5a1eda844c47ee9047342486721602`）包含该递归注入问题，尚未完成ROS环境setup，不能用来验收正确finalizer；Run #186包含上述修复，应重点确认源码注入检查通过、MoveIt编译成功、取消场景不会递归/崩溃，且内部取消返回PLANNING_FAILED、服务外部错误码仍遵循FAILURE映射。Run #179证明早期token生命周期探针pass，但其整体10轮仍因旧checker区间归属失败。
+> 当前继续保留既有路线：默认Pilz/请求OMPL的SequenceService路由差异测试、双pipeline请求完成后active=false、两次terminate事件精确区间、token finish/cancel mutex线性化、RecordingContext 32轮竞争。所有这些需要在最终同一HEAD上完整10轮通过。SERVO-908未完成。
