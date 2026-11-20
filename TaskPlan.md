@@ -669,3 +669,11 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 > 下一步检查Run #179、#180、#181、#182状态及日志：Run #179必须验证RequestToken的finish/cancel mutex线性化、迟到取消拒绝、attach/cancel两种顺序、finish等待terminate和32轮并发竞争；Run #181/#182必须验证默认Pilz与请求OMPL指针不同且SequenceService实际收到OMPL，以及两场景请求完成后OMPL/Pilz均active=false。若Run #180因include转义失败，Run #181已包含修复，不在旧run基础上继续修；Run #181若路由测试失败，应按真实request/selected/default/received指针证据定位。
 > 后续仍需增加Pilz→OMPL反向隔离及同pipeline多请求独立取消验证，并审查token取消原因与外部服务码的请求级对应关系。SERVO-908未完成。
 > 安全边界不变：仅现有`experiment/moveit-main-owner-lifetime-only`分支和CI-only临时MoveIt/Pilz overlay；不修改正式产品源码或MoveIt上游仓库，不创建分支，不连接CS9，不执行HIL/SAT/实机动作，全部门禁通过前不合入。
+
+
+
+> **2026-11-20 SERVO-908 SequenceService路由注入锚点失败及CI patch健壮性修正（v13.09）：** Run #180 [Actions 44766584855]与Run #181 [Actions 44766894049]均在`Fetch MoveIt Jazzy source and apply A+K+B-core cleanup probe`步骤失败，尚未进入MoveIt依赖安装、编译或mock回归。首个真实错误为`Expected one MoveGroupContext default pipeline selection block`：临时overlay脚本用完整多行字符串匹配MoveGroupContext默认pipeline选择块，但固定Jazzy源文件该块的实际格式与复制的锚点不完全一致。不是MoveIt编译或运行时路由功能失败。已将CI patch改为更稳健的唯一单行锚点：只替换`const auto default_pipeline_it = pipelines.find(default_planning_pipeline);`，再单独替换唯一的`planning_pipeline_ = default_pipeline_it->second;`，注入环境变量控制的Pilz默认pipeline选择与指针marker；提交 `1512426b83aa654a351829388bbabe64b7b5bb5e`。新Run #183 [Actions 44767784478]已触发，目前在ROS Jazzy setup阶段，等待验证overlay注入是否通过。
+> Run #182 [Actions 44767577226]使用的是前一版完整块锚点，预计会以相同注入锚点错误失败，不能将其视为路由验证。Run #179 [Actions 44765462428]仍在编译临时MoveIt move_group，当前尚无可下载job log，必须继续追踪token生命周期实现是否能编译及通过mock测试。
+> 当前分支最新提交 `1512426b83aa654a351829388bbabe64b7b5bb5e`保留以下测试门禁：SequenceService请求显式OMPL、MoveGroupContext CI默认Pilz、resolved/received/default指针关系；同pipeline和cross-pipeline场景结束后分别查询真实MoveItCpp pipeline registry，要求OMPL与Pilz均`isActive=false`；Run #178 terminate事件区间改为`A_OMPL_HELD < terminate < A_WRAPPER_RETURN`。这些均尚未通过新的端到端CI验证。
+> 下一步先检查Run #183 overlay注入阶段是否通过。若仍失败，依据日志中的实际源码块重构单行锚点，不放宽路由指针或idle门禁。继续追踪Run #179 build；如编译失败，以第一个C++错误修复token生命周期实现。随后增加Pilz→OMPL反向隔离，和同pipeline多token只取消目标请求的测试。SERVO-908未完成。
+> 安全边界不变：仅现有`experiment/moveit-main-owner-lifetime-only`分支和CI-only临时MoveIt/Pilz overlay；不修改正式产品源码或MoveIt上游仓库，不创建分支，不连接CS9，不执行HIL/SAT/实机动作，全部门禁通过前不合入。
