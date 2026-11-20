@@ -707,3 +707,9 @@ BOM 至少考虑：位号/层级、物料名称、制造商、型号/订货号�
 > Run #183 [Actions 44767784478]（SequenceService路由差异化补丁）和Run #184 [Actions 44768529678]（首版generatePlan finalizer）仍处于MoveIt move_group构建阶段；Run #184包含同类finalizer注入缺陷，需按其最终日志判断，不能算通过。Run #185失败后不要再把它当作finish/cancel动态探针结果。
 > 下一步：优先检查Run #186是否成功编译MoveIt、是否进入Stäubli mock workspace和10轮回归；重点确认`finalize_request`没有递归引用，取消先赢时内部PLANNING_FAILED，finish先赢时迟到cancel不改变结果，RecordingContext竞争探针通过。随后检查Run #183的SequenceService request=OMPL/default=Pilz/received=OMPL指针证据，以及Run #186后续同pipeline/cross-pipeline请求结束后两个pipeline active=false门禁。若仍有编译失败，严格按首个C++错误修复注入脚本；不删除finalizer覆盖检查或生命周期竞争测试。
 > 安全边界不变：仅现有`experiment/moveit-main-owner-lifetime-only`分支和CI-only临时MoveIt/Pilz overlay；不修改正式产品源码或MoveIt上游仓库，不创建分支，不连接CS9，不执行HIL/SAT/实机动作，全部门禁通过前不合入。SERVO-908未完成。
+
+
+
+> **2026-11-21 SERVO-908 Run #184/#185 finalizer递归编译错误复现确认（v13.14）：** Run #184 [Actions 44768529678]（HEAD `2ddfc22261a9807325f82e40b35fb77e54dbb8fd`）和Run #185 [Actions 44768626310]（HEAD `ea1bbeea4b5a1eda844c47ee9047342486721602`）均已完成并失败在`Build patched MoveIt move_group`，mock build和10轮回归全部skipped。两次首个C++错误分别为`planning_pipeline.cpp:474:14`和`planning_pipeline.cpp:478:14: error: use of ‘finalize_request’ before deduction of ‘auto’`，完全复现finalizer lambda递归重写缺陷。Run #184/#185使用的提交都早于修复提交`a9c4b851314c7bba6892936db64d23f97508f793`，因此这是预期的旧版本失败；不再对旧run重复修补。
+> Run #186 [Actions 44768985934]包含修复后的finalizer，已通过ROS 2 overlay、MoveIt源码注入和依赖安装，正在编译MoveIt move_group。job ID `136401228070`；当前构建步骤启动时间为2026-11-20 16:05:07 UTC，日志尚未可取（GitHub job log blob尚未生成）。Run #183 [Actions 44767784478]仍在编译MoveIt move_group，HEAD `1512426b83aa654a351829388bbabe64b7b5bb5e`，其目标是验证SequenceService请求pipeline与默认pipeline分离，当前同样尚未进入mock build。二者均未得出结论。
+> 下一步只需等待并追踪Run #186和#183当前build，不再重跑旧版本。若#186编译通过，继续验收mock workspace、10轮token lifecycle/finish-cancel/active=false/跨pipeline场景；若失败，依据新日志首个错误继续修正。若#183编译通过，验收SequenceService selected/received指针均为OMPL且default为Pilz。随后将两组测试整合到同一最终HEAD，再完成反向Pilz→OMPL隔离和同pipeline多请求独立取消。SERVO-908未完成。
