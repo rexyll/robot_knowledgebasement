@@ -189,3 +189,15 @@
 - [ ] Run #164–#167验收前暂停继续提交，避免并行CI继续扩散；以最新Run #167为唯一当前候选基线。
 
 **当前任务指针：** 21-01 / C / Run #167静态校验与编译；通过后完成token finish线性化，再做双向隔离/并发矩阵。
+
+
+### 2026-11-21 SERVO-908双活动OMPL请求取消验证与被测版本边界（Run #44894004665）
+
+- [x] 在既有实验分支 `experiment/moveit-main-owner-lifetime-only` 将SequenceService路由诊断marker限定为专用7.732请求；双token场景的7.736 SequenceService请求继续走真实pipeline选择和 `CommandListManager::solve()`，但不再污染旧版“仅一个route marker”的断言。修正commit：`f53d9d3ac82cb4b1cef5a56bbd47c0847dffada5`。
+- [x] 对照当前workflow源码，确认已纳入PlanService + SequenceService两个OMPL请求的双活动token测试：两个请求分别使用7.735/7.736，在各自真实PlanningContext attach后停在solve前屏障；同一次OMPL pipeline terminate应分别取消两个token并向两个context各dispatch一次terminate；两个请求内部错误码为PLANNING_FAILED(-1)，服务外部错误码为FAILURE(99999)，最后registry恢复idle。checker还保留两个context/token地址唯一性、同pipeline指针、事件区间归属、cross-pipeline与原teardown门禁。
+- [ ] Run #44894004665（[Actions](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/44894004665)，HEAD `f53d9d3ac82cb4b1cef5a56bbd47c0847dffada5`，job `136815647387`）最近核对仍在步骤8 `Build patched MoveIt move_group`；步骤1–7成功，Stäubli mock workspace build和10轮测试尚未开始，当前没有功能性结论或artifact。GitHub UI步骤10名称沿用旧“A-PSM-retained + K + B-core”字样，但当前workflow内容已经纳入上述multi-token与其他回归断言；以后须以实际源码/日志/xUnit为准。
+- [ ] **被测源码pin差异必须保留：** 本章先前固定验证pin为 `9e617a9e323ef3342f5151a89239bfd93c089f8c`；当前workflow实际checkout为 `7d9fa0d715db46060199eeca541514ddeed9c4c1`。Git compare显示 `7d9fa0d` 相对 `9e617a9` ahead 17、behind 0，区间涉及6个文件，其中包括 `staubli_bringup/launch/launch_robot_control.launch.py` 和 `staubli_moveit_config/launch/staubli_moveit.launch.py` 等产品入口配置，以及package.xml、测试和CI文件。因此本轮结果只能归属到 `7d9fa0d` fork集成快照，不是 `9e617a9` 同版本复验，也不是ICube上游main/实机证据。需要完成逐文件差异归属后，再决定是否更新正式验证pin或对旧pin单独复验。
+- [ ] 当前双token屏障位于 `context->solve()` 之前，覆盖两个已attach、未进入solve的请求取消；不得将它表述为中断两个正在运行的OMPL solve。Pilz→OMPL反向隔离、直接调用 `PlannerManager::terminate()` 的调用点审计和完整同HEAD 10轮回归仍未关闭。
+- [ ] 本轮成功后仍不得合入上游/产品代码；继续仅在CI-only MoveIt/Pilz overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock中验证。不得连接CS9或执行HIL/SAT/实机动作。
+
+**当前任务指针（覆盖本文件较早的Run #164–#167历史指针）：** 21-01 / SERVO-908 / 首先验收Run #44894004665；随后按固定pin边界完善Pilz→OMPL反向隔离与直接PlannerManager调用审计。全局00-01仍最高优先级，MotionControlAlgorithms继续DEFERRED。
