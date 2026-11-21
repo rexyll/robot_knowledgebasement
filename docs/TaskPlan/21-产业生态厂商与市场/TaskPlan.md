@@ -228,3 +228,16 @@
 - [ ] 全局根TaskPlan的00-01仍为最高优先级；MotionControlAlgorithms集成继续DEFERRED。
 
 **当前任务指针：** 21-01 / SERVO-908 / 先完成直接`PlannerManager::terminate()`调用点审计与Pilz→OMPL反向隔离，再补齐request-token finish/terminate竞态矩阵；不因本次10/10通过而提前关闭SERVO-908。
+
+
+### 2026-11-21 request-token finish/cancel线性化测试与PlannerManager调用路径初审
+
+- [x] 核对当前CI-only workflow中的`RequestToken`：`completed`、`cancel_requested`、`terminate_dispatched`、`terminate_in_flight`和当前context由同一token mutex协调；`finish()`先线性化completed，再等待已经开始的terminate dispatch完成，最终返回cancel状态。
+- [x] lifecycle probe覆盖cancel-before-context-attach（sticky cancellation在attach后dispatch一次）、context-attach-before-cancel、重复cancel不重复dispatch、completed token拒绝迟到cancel、terminate dispatch阻塞期间finish不得提前返回，以及32轮并发finish/requestCancel竞争；Run #44900912229日志中的`STAUBLI_TOKEN_LIFECYCLE pass=1`检查通过。原“finish/terminate竞态未验证”状态由本条结果更正。
+- [x] Run #44900912229 artifact已保存：ID `14706253846`，名称`moveit-shutdown-order-experiment-logs`，GitHub artifact digest `sha256:9624a0d3f2960139579b7a97af4ec47d334c921e460d4dec3d991a38bdafd5f7`。
+- [x] 对固定MoveIt Jazzy源码commit `f11204b8a9b98e4ba28e564721d24a7077f5f969`逐文件核对：`PlannerManager::terminate()`在`moveit_core/planning_interface/src/planning_interface.cpp:135`遍历进程级ActiveContexts并调用context->terminate；`PlanningPipeline::terminate()`在`moveit_ros/planning/planning_pipeline/src/planning_pipeline.cpp:376`对其planner_map_中的PlannerManager逐个调用terminate；`MoveItCpp::terminatePlanningPipeline()`在`moveit_ros/planning/moveit_cpp/src/moveit_cpp.cpp:237`按pipeline name调用PlanningPipeline::terminate；并行规划停止准则在`planning_pipeline_interfaces/src/planning_pipeline_interfaces.cpp:134`调用对应request pipeline的terminate。
+- [ ] GitHub代码搜索对`PlannerManager::terminate`只返回实现定义，未检出外部直接调用点；但搜索索引当前指向另一代码快照，不能代替固定commit全树扫描。继续对MoveIt固定commit及Stäubli集成源码做完整调用点核对，发现绕过PlanningPipeline直接调用PlannerManager的调用时，单独评估其是否保留全局ActiveContexts广播。
+- [ ] 反向隔离仍未覆盖：当前已通过的是OMPL terminate不污染Pilz in-flight request（OMPL→Pilz方向）；必须另测Pilz terminate不影响独立OMPL in-flight context（Pilz→OMPL方向），保留真实context pointer、PTC状态、响应与teardown证据。
+- [ ] 本次request-token生命周期探针通过不代表真实规划取消/控制器停止/安全停止已验证；所有证据仍限CI-only临时MoveIt overlay、stock ROS 2 Jazzy rclcpp与Stäubli mock workspace。
+
+**当前任务指针：** 21-01 / SERVO-908 / 完成固定MoveIt commit的全树直接PlannerManager调用点审计；随后补齐Pilz→OMPL反向隔离和完整时序矩阵。根00-01仍最高优先级，MotionControlAlgorithms继续DEFERRED。
