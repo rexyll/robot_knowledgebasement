@@ -213,3 +213,18 @@
 - [ ] 保持同样的版本边界：mock workspace checkout为 `7d9fa0d`，历史固定pin为 `9e617a9`；本轮证据仅能归属7d9fa0d fork集成快照。CI-only overlay/mock，不涉及CS9、HIL、SAT或实机。
 
 **当前任务指针：** 先验收修正提交 `e1647ead` 对应的新Actions Run，再继续SERVO-908其他未关闭测试。
+
+
+### 2026-11-21 SERVO-908 pre-solve双token取消回归通过（Run #44900912229）
+
+- [x] 修正提交链已进入当前实验分支HEAD：`e1647eadfd3b7525e9f17a144dd4153240465157`（pre-solve语义：两个请求尚未进入solve时，只验收两个request token取消，不要求context terminate）；`711a47ddf06fb69236b63b30a0dc36e1a9940879`（客户端marker matcher同步）；`9b6f14d94f7febb1bd6ac25a2dca1560cf3c7bdf`（worker日志flush顺序竞态修正）。Compare确认当前HEAD相对e1647仅领先2个提交，均只改实验workflow。
+- [x] Run [#44900912229](https://github.com/rexyll/staubli_driver_ros2_from_org/actions/runs/44900912229)，HEAD `9b6f14d94f7febb1bd6ac25a2dca1560cf3c7bdf`：job `source-overlay-regression` success；stock ROS Jazzy rcl/rclcpp无插桩overlay、临时MoveIt patched overlay、Stäubli mock workspace均构建通过。
+- [x] 无插桩A-PSM-retained + K + B-core回归10/10轮通过，聚合failures=0/10；每轮mock plan-and-execute成功、launch test通过、xUnit汇总10 tests/0 errors/0 failures/0 skipped、lifecycle-order检查通过。
+- [x] 每轮双活动pre-solve请求检查均保留：两个不同token、两个不同context、同一pipeline；两个token分别accepted cancellation并分别观察 `code=-1`；`pre_solve_context_terminates=0`；Plan/Sequence外部响应FAILURE；pipeline最终idle。Cross-pipeline Pilz in-flight探针和原teardown门禁也继续通过。
+- [x] 最后一轮日志确认两个worker的`CANCEL_OBSERVED`均在release后、下一独立Pilz-inflight阶段前输出；checker不再错误地以client PASS日志作为截止点。该改动只修正并发日志flush顺序的观察窗口，未放宽token集合、取消数量、错误码或请求结果断言。
+- [ ] SERVO-908整体仍未关闭：本次只证明两个已attach、尚未进入solve的请求在同一次pipeline terminate下被取消；不等同于中断两个已运行的OMPL solve。仍需完成Pilz→OMPL反向隔离、MoveIt直接调用`PlannerManager::terminate()`的调用点审计、request-token finish/terminate线性化竞态及完整时序矩阵。
+- [ ] 被测版本边界不变：mock checkout为`7d9fa0d715db46060199eeca541514ddeed9c4c1`，历史验证pin为`9e617a9e323ef3342f5151a89239bfd93c089f8c`；本轮结果只归属前者的fork集成快照与CI mock/临时MoveIt overlay，不代表同版本旧pin、ICube上游、CS9、HIL/SAT或实机。
+- [ ] 当前实验分支HEAD相对main领先184提交、behind 0；该分支包含大量实验历史，禁止将整个分支直接合并main。本轮3个修正提交均只涉及`.github/workflows/experiment-moveit-shutdown-order.yml`，尚未请求合并。
+- [ ] 全局根TaskPlan的00-01仍为最高优先级；MotionControlAlgorithms集成继续DEFERRED。
+
+**当前任务指针：** 21-01 / SERVO-908 / 先完成直接`PlannerManager::terminate()`调用点审计与Pilz→OMPL反向隔离，再补齐request-token finish/terminate竞态矩阵；不因本次10/10通过而提前关闭SERVO-908。
