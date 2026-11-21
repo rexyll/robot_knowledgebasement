@@ -201,3 +201,15 @@
 - [ ] 本轮成功后仍不得合入上游/产品代码；继续仅在CI-only MoveIt/Pilz overlay + stock ROS 2 Jazzy rclcpp + Stäubli mock中验证。不得连接CS9或执行HIL/SAT/实机动作。
 
 **当前任务指针（覆盖本文件较早的Run #164–#167历史指针）：** 21-01 / SERVO-908 / 首先验收Run #44894004665；随后按固定pin边界完善Pilz→OMPL反向隔离与直接PlannerManager调用审计。全局00-01仍最高优先级，MotionControlAlgorithms继续DEFERRED。
+
+
+### 2026-11-21 Actions全失败排查：pre-solve双token断言语义修正
+
+- [x] 检查Run #44894004665、#44893779755、#44893502515：编译/依赖/mocked workspace构建成功，colcon的2个CTest目标、10项汇总测试通过；失败在每轮回归脚本附加的验收断言，不是构建阶段。
+- [x] 定位SERVO-908最新失败：PlanService与SequenceService两个请求都已attach不同PlanningContext，并在 `context->solve()` 前屏障等待；同一次OMPL pipeline terminate后两个request token均accepted cancel，两个请求均观察到 `PLANNING_FAILED(-1)`，外部响应为FAILURE，pipeline idle。原checker错误要求这两个尚未进入solve的context各自触发 `ModelBasedPlanningContext::terminate()`，导致十轮均以 `context_terminates=[]` 失败。
+- [x] 修正实验workflow提交 `e1647eadfd3b7525e9f17a144dd4153240465157`：pre-solve双请求场景现在验收两个token分别取消、分别观察取消且无OMPL context terminate；修正客户端marker字段，不再把token cancellation误称为context terminate dispatch。
+- [ ] 修正提交的新Actions Run尚未获得可确认的Run结果；十轮回归仍未验收通过。不得仅因修正脚本而关闭SERVO-908。
+- [ ] 继续确认push触发的新Run；若未触发，检查workflow事件/分支触发范围，勿重跑旧commit冒充新代码验证。
+- [ ] 保持同样的版本边界：mock workspace checkout为 `7d9fa0d`，历史固定pin为 `9e617a9`；本轮证据仅能归属7d9fa0d fork集成快照。CI-only overlay/mock，不涉及CS9、HIL、SAT或实机。
+
+**当前任务指针：** 先验收修正提交 `e1647ead` 对应的新Actions Run，再继续SERVO-908其他未关闭测试。
